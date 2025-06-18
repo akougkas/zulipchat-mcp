@@ -1,8 +1,11 @@
 # Multi-stage build for lightweight production image
-FROM python:3.12-slim AS builder
+FROM python:3.12-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev libffi-dev
 
 # Install uv for fast Python dependency management
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv==0.5.11
 
 WORKDIR /app
 
@@ -11,23 +14,26 @@ COPY pyproject.toml ./
 COPY README.md ./
 COPY src/ ./src/
 
-# Install dependencies and build package
+# Install dependencies with all deps
 RUN uv pip install --system --no-cache .
 
-# Production stage
-FROM python:3.12-slim
+# Production stage - use alpine for smaller size
+FROM python:3.12-alpine
+
+# Install runtime dependencies only
+RUN apk add --no-cache libffi
 
 # Create non-root user for security
-RUN useradd -m -u 1000 zulipuser
+RUN adduser -D -u 1000 zulipuser
 
-WORKDIR /app
-
-# Copy installed packages from builder
+# Copy Python installation from builder
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy source code
-COPY src/ ./src/
+COPY --chown=zulipuser:zulipuser src/ /app/src/
+
+WORKDIR /app
 
 # Switch to non-root user
 USER zulipuser
