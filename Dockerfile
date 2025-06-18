@@ -8,6 +8,7 @@ WORKDIR /app
 
 # Copy dependency files
 COPY pyproject.toml ./
+COPY README.md ./
 COPY src/ ./src/
 
 # Install dependencies and build package

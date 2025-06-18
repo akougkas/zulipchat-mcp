@@ -1,11 +1,10 @@
 # ZulipChat MCP Server
 
 <div align="center">
-  <img src="https://akougkas.io/assets/logo.svg" alt="akougkas.io" width="120" />
-  
   **Connect AI agents to Zulip Chat with ease**
   
-  [![Docker](https://img.shields.io/docker/v/akougkas/zulipchat-mcp?label=docker)](https://hub.docker.com/r/akougkas/zulipchat-mcp)
+  [![Docker](https://img.shields.io/docker/v/akougkas/zulipchat-mcp?label=docker&logo=docker)](https://hub.docker.com/r/akougkas/zulipchat-mcp)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/akougkas/zulipchat-mcp?logo=docker)](https://hub.docker.com/r/akougkas/zulipchat-mcp)
   [![License](https://img.shields.io/github/license/akougkas/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 </div>
@@ -24,7 +23,7 @@ curl -sSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/scripts/
 version: '3.8'
 services:
   zulipchat-mcp:
-    image: ghcr.io/akougkas/zulipchat-mcp:latest
+    image: akougkas/zulipchat-mcp:latest
     environment:
       - ZULIP_EMAIL=${ZULIP_EMAIL}
       - ZULIP_API_KEY=${ZULIP_API_KEY}
@@ -42,7 +41,7 @@ docker run -d \
   -e ZULIP_API_KEY="your-api-key" \
   -e ZULIP_SITE="https://your-org.zulipchat.com" \
   -p 3000:3000 \
-  ghcr.io/akougkas/zulipchat-mcp:latest
+  akougkas/zulipchat-mcp:latest
 ```
 
 ## 📋 Features
@@ -141,7 +140,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "zulipchat": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/akougkas/zulipchat-mcp:latest"],
+      "args": ["run", "-i", "--rm", "akougkas/zulipchat-mcp:latest"],
       "env": {
         "ZULIP_EMAIL": "your-bot@zulip.com",
         "ZULIP_API_KEY": "your-api-key",
@@ -159,8 +158,8 @@ Add to your MCP configuration:
 ```json
 {
   "zulipchat": {
-    "command": "zulipchat-mcp",
-    "args": ["server"],
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "akougkas/zulipchat-mcp:latest"],
     "env": {
       "ZULIP_EMAIL": "your-bot@zulip.com",
       "ZULIP_API_KEY": "your-api-key",
@@ -179,24 +178,21 @@ Add to your MCP configuration:
 git clone https://github.com/akougkas/zulipchat-mcp.git
 cd zulipchat-mcp
 
-# Install with uv (recommended)
-uv pip install -e .
-
-# Or with pip
-pip install -e .
+# Install with uv
+uv sync
 ```
 
 ### Running Tests
 
 ```bash
-# Install development dependencies
-uv pip install -e ".[dev]"
+# Install with development dependencies
+uv sync
 
 # Run tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=src/zulipchat_mcp
+uv run pytest --cov=src/zulipchat_mcp
 ```
 
 ### Building Docker Image
@@ -221,7 +217,20 @@ docker run --rm zulipchat-mcp python -c "from src.zulipchat_mcp import __version
 
 - [Setup Guide](docs/setup-guide.md) - Detailed installation instructions
 - [API Keys Guide](docs/api-keys.md) - How to get your Zulip API key
-- [Docker Hub](https://hub.docker.com/r/akougkas/zulipchat-mcp) - Container registry
+- [Docker Hub](https://hub.docker.com/r/akougkas/zulipchat-mcp) - Official container registry
+
+## 🐳 Docker Hub
+
+The ZulipChat MCP server is available on Docker Hub with multi-architecture support:
+
+- **Repository**: [akougkas/zulipchat-mcp](https://hub.docker.com/r/akougkas/zulipchat-mcp)
+- **Platforms**: linux/amd64, linux/arm64
+- **Tags**: `latest`, `1.0.0`, and all version releases
+
+Pull the latest version:
+```bash
+docker pull akougkas/zulipchat-mcp:latest
+```
 
 ## 🚨 Troubleshooting
 
@@ -231,7 +240,7 @@ docker run --rm zulipchat-mcp python -c "from src.zulipchat_mcp import __version
 ```bash
 # Check your credentials
 docker run --rm -e ZULIP_SITE="..." -e ZULIP_EMAIL="..." -e ZULIP_API_KEY="..." \
-  ghcr.io/akougkas/zulipchat-mcp:latest python -c \
+  akougkas/zulipchat-mcp:latest python -c \
   "from src.zulipchat_mcp.config import ConfigManager; ConfigManager().validate_config()"
 ```
 
@@ -267,14 +276,28 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 🙏 Acknowledgments
+
+This project is built on the shoulders of amazing open source projects:
+
+- **[Model Context Protocol (MCP)](https://modelcontextprotocol.io)** - The foundation that makes AI-to-service integration possible
+- **[Zulip](https://zulip.com)** - Outstanding open source team chat platform with excellent API
+- **[FastMCP](https://github.com/modelcontextprotocol/servers)** - Simplified MCP server framework
+- **[uv](https://docs.astral.sh/uv/)** - Blazing fast Python package management from Astral
+- **[Pydantic](https://pydantic.dev)** - Data validation and settings management using Python type annotations
+- **[Docker](https://docker.com)** - Containerization platform enabling consistent deployments
+
+Special thanks to the entire open source community that makes projects like this possible!
+
 ## 🔗 Related Projects
 
 - [MCP Official Documentation](https://modelcontextprotocol.io)
 - [Zulip API Documentation](https://zulip.com/api/)
 - [Claude Desktop](https://claude.ai/desktop)
+- [Continue IDE](https://continue.dev)
 
 ---
 
 <div align="center">
-  Made with ❤️ by <a href="https://akougkas.io">akougkas.io</a>
+  <sub>MIT Licensed • Community Driven • Open Source</sub>
 </div>
