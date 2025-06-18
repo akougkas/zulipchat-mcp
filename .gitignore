@@ -192,3 +192,14 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# MCP and Zulip specific
+config.json
+.zulipchat-mcp.json
+.mcp/
+
+# Claude Code workspace files
+.claude/
+
+# Docker
+.dockerignore
