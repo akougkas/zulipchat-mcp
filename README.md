@@ -3,9 +3,9 @@
 <div align="center">
   **Connect AI agents to Zulip Chat with ease**
   
-  [![Docker](https://img.shields.io/docker/v/akougkas/zulipchat-mcp?label=docker&logo=docker)](https://hub.docker.com/r/akougkas/zulipchat-mcp)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/akougkas/zulipchat-mcp?logo=docker)](https://hub.docker.com/r/akougkas/zulipchat-mcp)
-  [![License](https://img.shields.io/github/license/akougkas/zulipchat-mcp)](LICENSE)
+  [![Docker](https://img.shields.io/docker/v/akougkas2030/zulipchat-mcp?label=docker&logo=docker)](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/akougkas2030/zulipchat-mcp?logo=docker)](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
+  [![License](https://img.shields.io/github/license/akougkas2030/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 </div>
 
@@ -14,7 +14,7 @@
 ### One-line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/akougkas2030/zulipchat-mcp/main/scripts/install.sh | bash
 ```
 
 ### Docker Compose
@@ -23,7 +23,7 @@ curl -sSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/scripts/
 version: '3.8'
 services:
   zulipchat-mcp:
-    image: akougkas/zulipchat-mcp:latest
+    image: akougkas2030/zulipchat-mcp:latest
     environment:
       - ZULIP_EMAIL=${ZULIP_EMAIL}
       - ZULIP_API_KEY=${ZULIP_API_KEY}
@@ -41,7 +41,7 @@ docker run -d \
   -e ZULIP_API_KEY="your-api-key" \
   -e ZULIP_SITE="https://your-org.zulipchat.com" \
   -p 3000:3000 \
-  akougkas/zulipchat-mcp:latest
+  akougkas2030/zulipchat-mcp:latest
 ```
 
 ## 📋 Features
@@ -140,7 +140,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "zulipchat": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "akougkas/zulipchat-mcp:latest"],
+      "args": ["run", "-i", "--rm", "akougkas2030/zulipchat-mcp:latest"],
       "env": {
         "ZULIP_EMAIL": "your-bot@zulip.com",
         "ZULIP_API_KEY": "your-api-key",
@@ -159,7 +159,7 @@ Add to your MCP configuration:
 {
   "zulipchat": {
     "command": "docker",
-    "args": ["run", "-i", "--rm", "akougkas/zulipchat-mcp:latest"],
+    "args": ["run", "-i", "--rm", "akougkas2030/zulipchat-mcp:latest"],
     "env": {
       "ZULIP_EMAIL": "your-bot@zulip.com",
       "ZULIP_API_KEY": "your-api-key",
@@ -175,7 +175,7 @@ Add to your MCP configuration:
 
 ```bash
 # Clone repository
-git clone https://github.com/akougkas/zulipchat-mcp.git
+git clone https://github.com/akougkas2030/zulipchat-mcp.git
 cd zulipchat-mcp
 
 # Install with uv
@@ -202,7 +202,7 @@ uv run pytest --cov=src/zulipchat_mcp
 docker build -t zulipchat-mcp .
 
 # Test the build
-docker run --rm zulipchat-mcp python -c "from src.zulipchat_mcp import __version__; print(__version__)"
+docker run --rm zulipchat-mcp uv run python -c "from src.zulipchat_mcp import __version__; print(__version__)"
 ```
 
 ## 🌐 Platform Support
@@ -217,19 +217,19 @@ docker run --rm zulipchat-mcp python -c "from src.zulipchat_mcp import __version
 
 - [Setup Guide](docs/setup-guide.md) - Detailed installation instructions
 - [API Keys Guide](docs/api-keys.md) - How to get your Zulip API key
-- [Docker Hub](https://hub.docker.com/r/akougkas/zulipchat-mcp) - Official container registry
+- [Docker Hub](https://hub.docker.com/r/akougkas2030/zulipchat-mcp) - Official container registry
 
 ## 🐳 Docker Hub
 
 The ZulipChat MCP server is available on Docker Hub with multi-architecture support:
 
-- **Repository**: [akougkas/zulipchat-mcp](https://hub.docker.com/r/akougkas/zulipchat-mcp)
+- **Repository**: [akougkas2030/zulipchat-mcp](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
 - **Platforms**: linux/amd64, linux/arm64
 - **Tags**: `latest`, `1.0.0`, and all version releases
 
 Pull the latest version:
 ```bash
-docker pull akougkas/zulipchat-mcp:latest
+docker pull akougkas2030/zulipchat-mcp:latest
 ```
 
 ## 🚨 Troubleshooting
@@ -240,7 +240,7 @@ docker pull akougkas/zulipchat-mcp:latest
 ```bash
 # Check your credentials
 docker run --rm -e ZULIP_SITE="..." -e ZULIP_EMAIL="..." -e ZULIP_API_KEY="..." \
-  akougkas/zulipchat-mcp:latest python -c \
+  akougkas2030/zulipchat-mcp:latest uv run python -c \
   "from src.zulipchat_mcp.config import ConfigManager; ConfigManager().validate_config()"
 ```
 
