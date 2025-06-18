@@ -3,7 +3,7 @@ version: '3.8'
 services:
   zulipchat-mcp:
     build: .
-    image: ghcr.io/akougkas/zulipchat-mcp:latest
+    image: akougkas/zulipchat-mcp:latest
     container_name: zulipchat-mcp
     restart: unless-stopped
     environment:
