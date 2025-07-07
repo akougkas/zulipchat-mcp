@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/akougkas-zulipchat-mcp-badge.png)](https://mseep.ai/app/akougkas-zulipchat-mcp)
+
 # ZulipChat MCP Server
 
 <div align="center">
