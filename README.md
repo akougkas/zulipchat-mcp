@@ -31,24 +31,27 @@ AI: Creating your daily digest...
 
 ## Quick Start
 
-**1. Get your Zulip API key**
-```
-Visit your Zulip → Settings → Account & Privacy → API Key → Generate
-```
-
-**2. Install**
+### Claude Code (Recommended)
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-```
+# Add with one command:
+claude mcp add zulipchat -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 
-**3. Set credentials**
-```bash
+# Set your credentials:
 export ZULIP_EMAIL="bot@your-org.zulipchat.com"
 export ZULIP_API_KEY="your-api-key"
 export ZULIP_SITE="https://your-org.zulipchat.com"
 ```
 
-That's it! Your AI can now talk to Zulip.
+### Manual Setup
+**1. Get your Zulip API key**
+```
+Visit your Zulip → Settings → Account & Privacy → API Key → Generate
+```
+
+**2. Install and run**
+```bash
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+```
 
 ## Installation
 
@@ -56,8 +59,25 @@ That's it! Your AI can now talk to Zulip.
 
 Add to `claude_desktop_config.json`:
 
-<details>
-<summary>View configuration</summary>
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+### For Cursor / Continue / Windsurf
+
+Same configuration format - just add to your client's MCP config:
 
 ```json
 {
@@ -75,69 +95,6 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-</details>
-
-### For Cursor
-
-Add to `~/.cursor/mcp.json`:
-
-<details>
-<summary>View configuration</summary>
-
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-### For VS Code
-
-Add to VS Code settings:
-
-<details>
-<summary>View configuration</summary>
-
-```json
-{
-  "mcp.servers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-### Other Clients
-
-<details>
-<summary>Continue, Windsurf, and more</summary>
-
-The same pattern works for any MCP client:
-- **Command**: `uvx`
-- **Args**: `["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"]`
-- **Environment**: Your Zulip credentials
-
-</details>
 
 ## Available Tools
 

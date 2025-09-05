@@ -201,8 +201,5 @@ config.json
 # Claude Code workspace files
 .claude/
 
-# Docker
-.dockerignore
-
 PLAN.md 
 
