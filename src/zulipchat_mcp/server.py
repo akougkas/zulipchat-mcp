@@ -4,35 +4,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
-
 from .config import ConfigManager
 from .exceptions import ConnectionError, create_error_response
-
-# Import structured logging
-from .logging_config import LogContext, get_logger, setup_structured_logging
-
-# Import scheduler
-from .scheduler import MessageScheduler, ScheduledMessage
-
-# Import assistant tools to register them with FastMCP
-
-# Set up structured logging
-setup_structured_logging()
-logger = get_logger(__name__)
-
-# Initialize FastMCP server
-mcp = FastMCP("ZulipChat MCP")
-
-# Global client instance
-zulip_client = None
-config_manager = None
-
-
-# Import security functions
-# Import health monitoring
-# Import metrics collection
+from .logging_config import LogContext
 from .metrics import Timer, track_message_sent, track_tool_call, track_tool_error
+from .scheduler import MessageScheduler, ScheduledMessage
 from .security import (
     sanitize_input,
     validate_message_type,

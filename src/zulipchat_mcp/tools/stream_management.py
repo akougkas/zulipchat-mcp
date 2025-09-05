@@ -256,7 +256,7 @@ class StreamManagement:
             #     "op": "add",
             #     "flag": "starred",  # This is a workaround - we'd need to iterate messages
             # })
-            result = {"result": "success"}  # Placeholder
+            _placeholder = {"result": "success"}  # Placeholder
 
             # Note: Zulip API doesn't have direct topic move, would need to re-send messages
             # This is a placeholder implementation
@@ -304,7 +304,8 @@ class StreamManagement:
             # Update topic for all messages
             # Note: This would need to be done message by message in practice
             for message in messages_result[:1]:  # Update first message as example
-                result = self.client.client.update_message(
+                # Assign to underscore to avoid unused variable lint
+                _ = self.client.client.update_message(
                     {"message_id": message.id, "topic": new_name}
                 )
 
