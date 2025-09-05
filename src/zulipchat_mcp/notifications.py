@@ -12,6 +12,7 @@ from .config import ZulipConfig
 
 class NotificationPriority(Enum):
     """Notification priority levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -20,6 +21,7 @@ class NotificationPriority(Enum):
 
 class SmartNotification(BaseModel):
     """Smart notification with priority and routing information."""
+
     priority: NotificationPriority
     recipients: list[str]
     content: str
@@ -40,10 +42,7 @@ class SmartNotificationSystem:
         self.config = config
 
     async def notify(
-        self,
-        recipients: list[str],
-        content: str,
-        priority: NotificationPriority
+        self, recipients: list[str], content: str, priority: NotificationPriority
     ) -> dict[str, Any]:
         """Send notification based on priority.
 
@@ -61,9 +60,9 @@ class SmartNotificationSystem:
             # Basic batching for non-urgent notifications
             return await self._send_batch_notification(recipients, content)
 
-
-
-    async def _send_urgent_notification(self, recipients: list[str], content: str) -> dict[str, Any]:
+    async def _send_urgent_notification(
+        self, recipients: list[str], content: str
+    ) -> dict[str, Any]:
         """Send urgent notification with @mention immediately."""
         async with AsyncZulipClient(self.config) as client:
             # Create @mention content
@@ -75,41 +74,47 @@ class SmartNotificationSystem:
             for recipient in recipients:
                 try:
                     result = await client.send_message_async(
-                        message_type="private",
-                        to=recipient,
-                        content=full_content
+                        message_type="private", to=recipient, content=full_content
                     )
-                    results.append({"recipient": recipient, "status": "sent", "result": result})
+                    results.append(
+                        {"recipient": recipient, "status": "sent", "result": result}
+                    )
                 except Exception as e:
-                    results.append({"recipient": recipient, "status": "failed", "error": str(e)})
+                    results.append(
+                        {"recipient": recipient, "status": "failed", "error": str(e)}
+                    )
 
             return {
                 "priority": "urgent",
                 "type": "urgent",
                 "results": results,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
-    async def _send_batch_notification(self, recipients: list[str], content: str) -> dict[str, Any]:
+    async def _send_batch_notification(
+        self, recipients: list[str], content: str
+    ) -> dict[str, Any]:
         """Send basic notification to recipients."""
         async with AsyncZulipClient(self.config) as client:
             results = []
             for recipient in recipients:
                 try:
                     result = await client.send_message_async(
-                        message_type="private",
-                        to=recipient,
-                        content=content
+                        message_type="private", to=recipient, content=content
                     )
-                    results.append({"recipient": recipient, "status": "sent", "result": result})
+                    results.append(
+                        {"recipient": recipient, "status": "sent", "result": result}
+                    )
                 except Exception as e:
-                    results.append({"recipient": recipient, "status": "failed", "error": str(e)})
+                    results.append(
+                        {"recipient": recipient, "status": "failed", "error": str(e)}
+                    )
 
             return {
                 "priority": "normal",
                 "type": "batch",
                 "results": results,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
 
@@ -117,7 +122,7 @@ async def smart_notify(
     config: ZulipConfig,
     recipients: list[str],
     content: str,
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    priority: NotificationPriority = NotificationPriority.MEDIUM,
 ) -> dict[str, Any]:
     """Helper function to create and send a smart notification.
 

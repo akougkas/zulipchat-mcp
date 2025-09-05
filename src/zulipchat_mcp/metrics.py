@@ -16,7 +16,9 @@ class MetricsCollector:
         self.gauges: dict[str, float] = {}
         self.start_time = time.time()
 
-    def increment_counter(self, name: str, value: int = 1, labels: dict[str, str] | None = None) -> None:
+    def increment_counter(
+        self, name: str, value: int = 1, labels: dict[str, str] | None = None
+    ) -> None:
         """Increment a counter metric.
 
         Args:
@@ -27,7 +29,9 @@ class MetricsCollector:
         key = self._make_key(name, labels)
         self.counters[key] += value
 
-    def record_histogram(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
+    def record_histogram(
+        self, name: str, value: float, labels: dict[str, str] | None = None
+    ) -> None:
         """Record a histogram value.
 
         Args:
@@ -41,7 +45,9 @@ class MetricsCollector:
         if len(self.histograms[key]) > 1000:
             self.histograms[key] = self.histograms[key][-1000:]
 
-    def set_gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
+    def set_gauge(
+        self, name: str, value: float, labels: dict[str, str] | None = None
+    ) -> None:
         """Set a gauge value.
 
         Args:
@@ -166,8 +172,7 @@ def track_tool_error(tool_name: str, error_type: str) -> None:
         error_type: Type of error
     """
     metrics.increment_counter(
-        TOOL_ERRORS_TOTAL,
-        labels={"tool": tool_name, "error_type": error_type}
+        TOOL_ERRORS_TOTAL, labels={"tool": tool_name, "error_type": error_type}
     )
 
 
@@ -245,7 +250,7 @@ def get_metrics_text() -> str:
 
     # Format histograms
     for key, stats in data["histograms"].items():
-        base_name = key.split('{')[0]
+        base_name = key.split("{")[0]
         lines.append(f"# TYPE {base_name} histogram")
         lines.append(f"{key}_count {stats['count']}")
         lines.append(f"{key}_min {stats['min']:.4f}")

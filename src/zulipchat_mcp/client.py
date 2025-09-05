@@ -46,21 +46,41 @@ class ZulipUser(BaseModel):
 
 
 class ZulipClientWrapper:
-    """Wrapper around Zulip client with enhanced functionality."""
+    """Wrapper around Zulip client with enhanced functionality and dual identity support."""
 
-    def __init__(self, config_manager: ConfigManager | None = None):
-        """Initialize Zulip client wrapper."""
+    def __init__(
+        self,
+        config_manager: ConfigManager | None = None,
+        use_bot_identity: bool = False,
+    ):
+        """Initialize Zulip client wrapper.
+
+        Args:
+            config_manager: Configuration manager instance
+            use_bot_identity: If True, use bot credentials when available
+        """
         self.config_manager = config_manager or ConfigManager()
+        self.use_bot_identity = use_bot_identity
 
         if not self.config_manager.validate_config():
             raise ValueError("Invalid Zulip configuration")
 
-        client_config = self.config_manager.get_zulip_client_config()
+        # Check if bot identity is requested and available
+        if use_bot_identity and self.config_manager.has_bot_credentials():
+            client_config = self.config_manager.get_zulip_client_config(use_bot=True)
+            self.identity = "bot"
+            self.identity_name = self.config_manager.config.bot_name
+        else:
+            client_config = self.config_manager.get_zulip_client_config(use_bot=False)
+            self.identity = "user"
+            self.identity_name = client_config["email"].split("@")[0]
+
         self.client = Client(
             email=client_config["email"],
             api_key=client_config["api_key"],
-            site=client_config["site"]
+            site=client_config["site"],
         )
+        self.current_email = client_config["email"]
 
     def send_message(
         self,
@@ -116,8 +136,11 @@ class ZulipClientWrapper:
 
     @cache_decorator(ttl=300, key_prefix="messages_")
     def get_messages_from_stream(
-        self, stream_name: str | None = None, topic: str | None = None,
-        hours_back: int = 24, limit: int = 100
+        self,
+        stream_name: str | None = None,
+        topic: str | None = None,
+        hours_back: int = 24,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Get messages from a specific stream."""
         narrow = []
@@ -141,12 +164,14 @@ class ZulipClientWrapper:
                 "timestamp": msg.timestamp,
                 "stream": msg.stream_name,
                 "topic": msg.subject,
-                "type": msg.type
+                "type": msg.type,
             }
             for msg in messages
         ]
 
-    def search_messages(self, query: str, num_results: int = 50) -> list[dict[str, Any]]:
+    def search_messages(
+        self, query: str, num_results: int = 50
+    ) -> list[dict[str, Any]]:
         """Search messages by content."""
         narrow = [{"operator": "search", "operand": query}]
         messages = self.get_messages(narrow=narrow, num_before=num_results)
@@ -161,7 +186,7 @@ class ZulipClientWrapper:
                 "timestamp": msg.timestamp,
                 "stream": msg.stream_name,
                 "topic": msg.subject,
-                "type": msg.type
+                "type": msg.type,
             }
             for msg in messages
         ]
@@ -177,7 +202,7 @@ class ZulipClientWrapper:
                     "id": stream.stream_id,
                     "name": stream.name,
                     "description": stream.description,
-                    "is_private": stream.is_private
+                    "is_private": stream.is_private,
                 }
                 for stream in cached_streams
             ]
@@ -202,7 +227,7 @@ class ZulipClientWrapper:
                     "id": stream.stream_id,
                     "name": stream.name,
                     "description": stream.description,
-                    "is_private": stream.is_private
+                    "is_private": stream.is_private,
                 }
                 for stream in streams
             ]
@@ -221,7 +246,7 @@ class ZulipClientWrapper:
                     "email": user.email,
                     "is_active": user.is_active,
                     "is_bot": user.is_bot,
-                    "avatar_url": user.avatar_url
+                    "avatar_url": user.avatar_url,
                 }
                 for user in cached_users
             ]
@@ -250,7 +275,7 @@ class ZulipClientWrapper:
                     "email": user.email,
                     "is_active": user.is_active,
                     "is_bot": user.is_bot,
-                    "avatar_url": user.avatar_url
+                    "avatar_url": user.avatar_url,
                 }
                 for user in users
             ]

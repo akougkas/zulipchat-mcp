@@ -3,7 +3,7 @@
 import sys
 import time
 
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
 from zulipchat_mcp.security import (
     RateLimiter,

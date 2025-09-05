@@ -6,6 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    from dotenv import load_dotenv
+    # Load .env file from current working directory
+    load_dotenv()
+except ImportError:
+    # python-dotenv not available, skip loading .env
+    pass
+
 
 @dataclass
 class ZulipConfig:
@@ -16,6 +24,11 @@ class ZulipConfig:
     site: str
     debug: bool = False
     port: int = 3000
+    # Bot credentials for AI agents
+    bot_email: str | None = None
+    bot_api_key: str | None = None
+    bot_name: str = "Claude Code"
+    bot_avatar_url: str | None = None
 
 
 class ConfigManager:
@@ -33,8 +46,22 @@ class ConfigManager:
         debug = self._get_debug()
         port = self._get_port()
 
+        # Bot credentials (optional)
+        bot_email = self._get_bot_email()
+        bot_api_key = self._get_bot_api_key()
+        bot_name = self._get_bot_name()
+        bot_avatar_url = self._get_bot_avatar_url()
+
         return ZulipConfig(
-            email=email, api_key=api_key, site=site, debug=debug, port=port
+            email=email,
+            api_key=api_key,
+            site=site,
+            debug=debug,
+            port=port,
+            bot_email=bot_email,
+            bot_api_key=bot_api_key,
+            bot_name=bot_name,
+            bot_avatar_url=bot_avatar_url,
         )
 
     def _get_email(self) -> str:
@@ -138,8 +165,75 @@ class ConfigManager:
                 print(f"Configuration validation failed: {e}")
             return False
 
-    def get_zulip_client_config(self) -> dict[str, str]:
-        """Get configuration dict for Zulip client initialization."""
+    def _get_bot_email(self) -> str | None:
+        """Get bot email for AI agents."""
+        # 1. Environment variable
+        if email := os.getenv("ZULIP_BOT_EMAIL"):
+            return email
+
+        # 2. Config file
+        if config_data := self._load_config_file():
+            if "bot_email" in config_data:
+                return config_data["bot_email"]
+
+        return None
+
+    def _get_bot_api_key(self) -> str | None:
+        """Get bot API key for AI agents."""
+        # 1. Environment variable
+        if key := os.getenv("ZULIP_BOT_API_KEY"):
+            return key
+
+        # 2. Config file
+        if config_data := self._load_config_file():
+            if "bot_api_key" in config_data:
+                return config_data["bot_api_key"]
+
+        return None
+
+    def _get_bot_name(self) -> str:
+        """Get bot display name."""
+        # 1. Environment variable
+        if name := os.getenv("ZULIP_BOT_NAME"):
+            return name
+
+        # 2. Config file
+        if config_data := self._load_config_file():
+            if "bot_name" in config_data:
+                return config_data["bot_name"]
+
+        return "Claude Code"
+
+    def _get_bot_avatar_url(self) -> str | None:
+        """Get bot avatar URL."""
+        # 1. Environment variable
+        if url := os.getenv("ZULIP_BOT_AVATAR_URL"):
+            return url
+
+        # 2. Config file
+        if config_data := self._load_config_file():
+            if "bot_avatar_url" in config_data:
+                return config_data["bot_avatar_url"]
+
+        return None
+
+    def has_bot_credentials(self) -> bool:
+        """Check if bot credentials are configured."""
+        return bool(self.config.bot_email and self.config.bot_api_key)
+
+    def get_zulip_client_config(self, use_bot: bool = False) -> dict[str, str]:
+        """Get configuration dict for Zulip client initialization.
+
+        Args:
+            use_bot: If True and bot credentials exist, return bot config
+        """
+        if use_bot and self.has_bot_credentials():
+            return {
+                "email": self.config.bot_email,
+                "api_key": self.config.bot_api_key,
+                "site": self.config.site,
+            }
+
         return {
             "email": self.config.email,
             "api_key": self.config.api_key,

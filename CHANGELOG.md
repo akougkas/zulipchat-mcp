@@ -1,5 +1,60 @@
 # Changelog
 
+## [1.4.0] - 2025-09-05
+
+### Added - Agent Communication System
+- **Multi-Instance Bot Identity System**
+  - Automatic project detection from git, package.json, pyproject.toml
+  - Machine and session awareness (hostname, user, platform)
+  - Branch tracking for distinct notification contexts
+  - Persistent instance identity across restarts
+- **Smart Stream Organization**
+  - Personal streams per agent type (claude-code-username)
+  - Project-specific topics within personal streams
+  - Clean separation without stream proliferation
+- **AFK (Away From Keyboard) Mode**
+  - Simple toggle for notification control
+  - Only sends notifications when user is away
+  - Auto-return after specified hours
+  - Command: `/zulipchat:afk [on|off] [reason] [hours]`
+- **Agent Registration & Management**
+  - `register_agent` tool with instance detection
+  - `list_instances` to view all active instances
+  - `cleanup_old_instances` for maintenance
+- **Agent Communication Tools**
+  - `agent_message` - Send project-aware notifications
+  - `request_user_input` - Request input with context
+  - `send_agent_status` - Real-time status updates
+  - `wait_for_response` - Async response handling
+- **Task Lifecycle Management**
+  - `start_task` - Begin tasks with subtask tracking
+  - `update_task_progress` - Progress updates with blockers
+  - `complete_task` - Detailed completion summaries
+  - SQLite database for persistent task storage
+- **Stream Management Tools**
+  - `create_stream` - Programmatic stream creation
+  - `rename_stream` - Stream renaming
+  - `archive_stream` - Archive with farewell messages
+  - Topic management and organization
+- **Dual Identity Support**
+  - Bot credentials configuration (ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY)
+  - Automatic bot identity for agent operations
+  - Clear distinction between human and AI messages
+
+### Changed
+- Enhanced `ZulipClientWrapper` with `use_bot_identity` parameter
+- Updated `ConfigManager` with bot credential support
+- Modified agent tools to use instance-aware routing
+- Improved notification formatting with instance prefixes
+
+### Technical Details
+- Added SQLite database (`database.py`) for persistent storage
+- Created Pydantic models for agents and tasks
+- Implemented `afk_state.py` for simple state management
+- Added `instance_identity.py` for project/session detection
+- Created modular tool architecture in `tools/` directory
+- Enhanced `agent_adapters/setup_agents.py` with AFK command
+
 ## [1.3.0] - 2025-09-05
 
 ### Added

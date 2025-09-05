@@ -70,6 +70,57 @@ Arguments:
 - $2: Number of hours to look back (default: 8)
 
 Example: /zulipchat:catch_up general,development 4"""
+        },
+        'afk': {
+            'description': 'Toggle Away From Keyboard mode for notifications',
+            'argument_hint': '[on|off|toggle] [reason] [hours]',
+            'content': """Toggle AFK (Away From Keyboard) mode for ZulipChat MCP notifications:
+
+1. Parse command from $1 (on/off/toggle), reason from $2, and auto-return hours from $3
+2. Import and use afk_state module to manage AFK state:
+   - If "on": activate AFK with reason and auto-return
+   - If "off": deactivate AFK
+   - If "toggle" or empty: toggle current state
+3. When AFK is ON: Claude Code sends notifications to Zulip
+4. When AFK is OFF: Claude Code runs quietly without notifications
+5. Auto-return: Automatically deactivates after specified hours
+
+Arguments:
+- $1: Command - "on", "off", or "toggle" (optional, defaults to toggle)
+- $2: Reason for going AFK (optional, e.g., "Lunch break")
+- $3: Auto-return after hours (optional, e.g., 1.5)
+
+Examples:
+- /zulipchat:afk - Toggle AFK mode
+- /zulipchat:afk on "Lunch break" 1 - Go AFK for lunch, auto-return in 1 hour
+- /zulipchat:afk off - Back at keyboard
+
+Implementation:
+```python
+from zulipchat_mcp.afk_state import get_afk_state
+afk = get_afk_state()
+
+# Parse arguments
+command = "$1" or "toggle"
+reason = "$2" if "$2" else None  
+hours = float("$3") if "$3" else None
+
+# Execute command
+if command == "on":
+    result = afk.activate(reason, hours)
+elif command == "off":
+    result = afk.deactivate()
+else:
+    result = afk.toggle(reason, hours)
+
+# Show status
+status = afk.get_status()
+print(f"AFK: {status['afk']}")
+if status['afk']:
+    print(f"Reason: {status['reason']}")
+    if status.get('auto_return_in'):
+        print(f"Auto-return in: {status['auto_return_in']} hours")
+```"""
         }
     }
 

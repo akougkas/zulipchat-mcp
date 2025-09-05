@@ -29,7 +29,9 @@ class TestSendMessageTool:
         assert result["status"] == "success"
         assert result["message_id"] == 123
         assert "timestamp" in result
-        mock_client.send_message.assert_called_once_with("stream", "general", "Hello world!", "test-topic")
+        mock_client.send_message.assert_called_once_with(
+            "stream", "general", "Hello world!", "test-topic"
+        )
 
     @patch("src.zulipchat_mcp.server.get_client")
     def test_send_message_private_success(self, mock_get_client):
@@ -44,7 +46,9 @@ class TestSendMessageTool:
 
         assert result["status"] == "success"
         assert result["message_id"] == 456
-        mock_client.send_message.assert_called_once_with("private", ["user@example.com"], "Hello!", None)
+        mock_client.send_message.assert_called_once_with(
+            "private", ["user@example.com"], "Hello!", None
+        )
 
     def test_send_message_invalid_type(self):
         """Test send_message with invalid message type."""
@@ -88,7 +92,10 @@ class TestSendMessageTool:
         from src.zulipchat_mcp.server import send_message
 
         mock_client = Mock()
-        mock_client.send_message.return_value = {"result": "error", "msg": "Stream does not exist"}
+        mock_client.send_message.return_value = {
+            "result": "error",
+            "msg": "Stream does not exist",
+        }
         mock_get_client.return_value = mock_client
 
         result = send_message("stream", "nonexistent", "Hello!", "topic")
@@ -135,9 +142,14 @@ class TestGetMessagesTool:
         from src.zulipchat_mcp.server import get_messages
 
         mock_message = ZulipMessage(
-            id=1, sender_full_name="John", sender_email="john@test.com",
-            timestamp=123456, content="Hello!", type="stream",
-            stream_name="general", subject="topic1"
+            id=1,
+            sender_full_name="John",
+            sender_email="john@test.com",
+            timestamp=123456,
+            content="Hello!",
+            type="stream",
+            stream_name="general",
+            subject="topic1",
         )
 
         mock_client = Mock()
@@ -158,8 +170,12 @@ class TestGetMessagesTool:
         from src.zulipchat_mcp.server import get_messages
 
         mock_message = ZulipMessage(
-            id=2, sender_full_name="Alice", sender_email="alice@test.com",
-            timestamp=123457, content="Hi there!", type="stream"
+            id=2,
+            sender_full_name="Alice",
+            sender_email="alice@test.com",
+            timestamp=123457,
+            content="Hi there!",
+            type="stream",
         )
 
         mock_client = Mock()
@@ -218,7 +234,9 @@ class TestGetMessagesTool:
         from src.zulipchat_mcp.server import get_messages
 
         mock_client = Mock()
-        mock_client.get_messages_from_stream.side_effect = ConnectionError("Connection failed")
+        mock_client.get_messages_from_stream.side_effect = ConnectionError(
+            "Connection failed"
+        )
         mock_get_client.return_value = mock_client
 
         result = get_messages("general")
@@ -237,9 +255,14 @@ class TestSearchMessagesTool:
         from src.zulipchat_mcp.server import search_messages
 
         mock_message = ZulipMessage(
-            id=1, sender_full_name="John", sender_email="john@test.com",
-            timestamp=123456, content="deployment error", type="stream",
-            stream_name="general", subject="issues"
+            id=1,
+            sender_full_name="John",
+            sender_email="john@test.com",
+            timestamp=123456,
+            content="deployment error",
+            type="stream",
+            stream_name="general",
+            subject="issues",
         )
 
         mock_client = Mock()
@@ -250,7 +273,9 @@ class TestSearchMessagesTool:
 
         assert len(result) == 1
         assert result[0]["content"] == "deployment error"
-        mock_client.search_messages.assert_called_once_with("deployment", num_results=50)
+        mock_client.search_messages.assert_called_once_with(
+            "deployment", num_results=50
+        )
 
     def test_search_messages_empty_query(self):
         """Test search with empty query."""
@@ -296,7 +321,10 @@ class TestStreamsTool:
         from src.zulipchat_mcp.server import get_streams
 
         mock_stream = ZulipStream(
-            stream_id=1, name="general", description="General discussion", is_private=False
+            stream_id=1,
+            name="general",
+            description="General discussion",
+            is_private=False,
         )
 
         mock_client = Mock()
@@ -334,8 +362,11 @@ class TestUsersTool:
         from src.zulipchat_mcp.server import get_users
 
         mock_user = ZulipUser(
-            user_id=1, full_name="John Doe", email="john@test.com",
-            is_active=True, is_bot=False
+            user_id=1,
+            full_name="John Doe",
+            email="john@test.com",
+            is_active=True,
+            is_bot=False,
         )
 
         mock_client = Mock()
@@ -406,7 +437,10 @@ class TestAddReactionTool:
         from src.zulipchat_mcp.server import add_reaction
 
         mock_client = Mock()
-        mock_client.add_reaction.return_value = {"result": "error", "msg": "Message not found"}
+        mock_client.add_reaction.return_value = {
+            "result": "error",
+            "msg": "Message not found",
+        }
         mock_get_client.return_value = mock_client
 
         result = add_reaction(999, "thumbs_up")
@@ -499,8 +533,10 @@ class TestGetDailySummaryTool:
 
         mock_summary = {
             "total_messages": 10,
-            "streams": {"general": {"message_count": 5, "topics": {"topic1": 3, "topic2": 2}}},
-            "top_senders": {"Alice": 4, "Bob": 3}
+            "streams": {
+                "general": {"message_count": 5, "topics": {"topic1": 3, "topic2": 2}}
+            },
+            "top_senders": {"Alice": 4, "Bob": 3},
         }
 
         mock_client = Mock()
@@ -540,8 +576,11 @@ class TestGetDailySummaryTool:
             "total_messages": 25,
             "streams": {
                 "general": {"message_count": 15, "topics": {"topic1": 10, "topic2": 5}},
-                "development": {"message_count": 10, "topics": {"bugs": 6, "features": 4}}
-            }
+                "development": {
+                    "message_count": 10,
+                    "topics": {"bugs": 6, "features": 4},
+                },
+            },
         }
 
         mock_client = Mock()
@@ -564,9 +603,14 @@ class TestMCPResources:
         from src.zulipchat_mcp.server import get_stream_messages
 
         mock_message = ZulipMessage(
-            id=1, sender_full_name="John", sender_email="john@test.com",
-            timestamp=1640995200, content="Hello!", type="stream",
-            stream_name="general", subject="topic1"
+            id=1,
+            sender_full_name="John",
+            sender_email="john@test.com",
+            timestamp=1640995200,
+            content="Hello!",
+            type="stream",
+            stream_name="general",
+            subject="topic1",
         )
 
         mock_client = Mock()
@@ -595,7 +639,10 @@ class TestMCPResources:
         from src.zulipchat_mcp.server import list_streams
 
         mock_stream = ZulipStream(
-            stream_id=1, name="general", description="General discussion", is_private=False
+            stream_id=1,
+            name="general",
+            description="General discussion",
+            is_private=False,
         )
 
         mock_client = Mock()
@@ -615,12 +662,18 @@ class TestMCPResources:
         from src.zulipchat_mcp.server import list_users
 
         active_user = ZulipUser(
-            user_id=1, full_name="John Doe", email="john@test.com",
-            is_active=True, is_bot=False
+            user_id=1,
+            full_name="John Doe",
+            email="john@test.com",
+            is_active=True,
+            is_bot=False,
         )
         bot_user = ZulipUser(
-            user_id=2, full_name="TestBot", email="bot@test.com",
-            is_active=True, is_bot=True
+            user_id=2,
+            full_name="TestBot",
+            email="bot@test.com",
+            is_active=True,
+            is_bot=True,
         )
 
         mock_client = Mock()
@@ -651,10 +704,10 @@ class TestMCPPrompts:
             "streams": {
                 "general": {
                     "message_count": 30,
-                    "topics": {"topic1": 15, "topic2": 10, "topic3": 5}
+                    "topics": {"topic1": 15, "topic2": 10, "topic3": 5},
                 }
             },
-            "top_senders": {"Alice": 20, "Bob": 15, "Carol": 10}
+            "top_senders": {"Alice": 20, "Bob": 15, "Carol": 10},
         }
 
         mock_client = Mock()
@@ -675,11 +728,17 @@ class TestMCPPrompts:
         """Test morning briefing prompt."""
         from src.zulipchat_mcp.server import morning_briefing_prompt
 
-        mock_yesterday = {"total_messages": 25, "streams": {}, "top_senders": {"Alice": 15}}
+        mock_yesterday = {
+            "total_messages": 25,
+            "streams": {},
+            "top_senders": {"Alice": 15},
+        }
         mock_week = {
             "total_messages": 200,
-            "streams": {"general": {"message_count": 100, "topics": {"deployment": 30}}},
-            "top_senders": {}
+            "streams": {
+                "general": {"message_count": 100, "topics": {"deployment": 30}}
+            },
+            "top_senders": {},
         }
 
         mock_client = Mock()
@@ -708,12 +767,14 @@ class TestMCPPrompts:
             "content": "Important update!",
             "type": "stream",
             "stream": "general",
-            "topic": "updates"
+            "topic": "updates",
         }
 
         mock_client = Mock()
         mock_client.get_streams.return_value = [
-            ZulipStream(stream_id=1, name="general", description="General", is_private=False)
+            ZulipStream(
+                stream_id=1, name="general", description="General", is_private=False
+            )
         ]
         mock_client.get_messages_from_stream.return_value = [mock_message]
         mock_get_client.return_value = mock_client
@@ -812,7 +873,9 @@ class TestErrorHandling:
         from src.zulipchat_mcp.server import get_messages
 
         mock_client = Mock()
-        mock_client.get_messages_from_stream.side_effect = ConnectionError("Network error")
+        mock_client.get_messages_from_stream.side_effect = ConnectionError(
+            "Network error"
+        )
         mock_get_client.return_value = mock_client
 
         result = get_messages("general")

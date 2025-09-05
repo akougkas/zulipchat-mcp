@@ -105,8 +105,12 @@ class TestMetricsCollector:
 
         # Should keep only last 1000 values
         assert len(collector.histograms["test_histogram"]) == 1000
-        assert collector.histograms["test_histogram"][0] == 100  # First value should be 100
-        assert collector.histograms["test_histogram"][-1] == 1099  # Last value should be 1099
+        assert (
+            collector.histograms["test_histogram"][0] == 100
+        )  # First value should be 100
+        assert (
+            collector.histograms["test_histogram"][-1] == 1099
+        )  # Last value should be 1099
 
     def test_make_key(self):
         """Test metric key generation."""
@@ -117,7 +121,9 @@ class TestMetricsCollector:
         assert key == "metric_name"
 
         # With labels
-        key = collector._make_key("metric_name", {"label1": "value1", "label2": "value2"})
+        key = collector._make_key(
+            "metric_name", {"label1": "value1", "label2": "value2"}
+        )
         assert key == "metric_name{label1=value1,label2=value2}"
 
         # Labels should be sorted
@@ -157,7 +163,9 @@ class TestMetricsCollector:
         assert metrics_data["histograms"]["latency"]["mean"] == 150.0
         assert metrics_data["histograms"]["latency"]["min"] == 100
         assert metrics_data["histograms"]["latency"]["max"] == 200
-        assert metrics_data["histograms"]["latency"]["p50"] == 200  # Median of [100, 200]
+        assert (
+            metrics_data["histograms"]["latency"]["p50"] == 200
+        )  # Median of [100, 200]
 
     def test_get_metrics_empty(self):
         """Test getting metrics when empty."""
@@ -318,10 +326,18 @@ class TestIntegration:
         collector = MetricsCollector()
 
         # HTTP requests with method and status
-        collector.increment_counter("http_requests", 1, {"method": "GET", "status": "200"})
-        collector.increment_counter("http_requests", 1, {"method": "GET", "status": "404"})
-        collector.increment_counter("http_requests", 1, {"method": "POST", "status": "201"})
-        collector.increment_counter("http_requests", 1, {"method": "GET", "status": "200"})
+        collector.increment_counter(
+            "http_requests", 1, {"method": "GET", "status": "200"}
+        )
+        collector.increment_counter(
+            "http_requests", 1, {"method": "GET", "status": "404"}
+        )
+        collector.increment_counter(
+            "http_requests", 1, {"method": "POST", "status": "201"}
+        )
+        collector.increment_counter(
+            "http_requests", 1, {"method": "GET", "status": "200"}
+        )
 
         # Response times per endpoint
         collector.record_histogram("response_time_ms", 100, {"endpoint": "/api/users"})
@@ -340,9 +356,18 @@ class TestIntegration:
         assert metrics_data["counters"]["http_requests{method=POST,status=201}"] == 1
 
         # Check response times
-        assert metrics_data["histograms"]["response_time_ms{endpoint=/api/users}"]["count"] == 2
-        assert metrics_data["histograms"]["response_time_ms{endpoint=/api/users}"]["mean"] == 125.0
-        assert metrics_data["histograms"]["response_time_ms{endpoint=/api/posts}"]["count"] == 1
+        assert (
+            metrics_data["histograms"]["response_time_ms{endpoint=/api/users}"]["count"]
+            == 2
+        )
+        assert (
+            metrics_data["histograms"]["response_time_ms{endpoint=/api/users}"]["mean"]
+            == 125.0
+        )
+        assert (
+            metrics_data["histograms"]["response_time_ms{endpoint=/api/posts}"]["count"]
+            == 1
+        )
 
         # Check memory gauges
         assert metrics_data["gauges"]["memory_mb{service=api}"] == 512

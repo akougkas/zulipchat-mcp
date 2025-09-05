@@ -17,7 +17,9 @@ class TestSetupBasicLogging:
 
     def test_setup_basic_logging_default(self):
         """Test setting up basic logging with defaults."""
-        with patch('src.zulipchat_mcp.logging_config.logging.basicConfig') as mock_config:
+        with patch(
+            "src.zulipchat_mcp.logging_config.logging.basicConfig"
+        ) as mock_config:
             setup_basic_logging()
 
             mock_config.assert_called_once()
@@ -27,7 +29,9 @@ class TestSetupBasicLogging:
 
     def test_setup_basic_logging_debug(self):
         """Test setting up basic logging with DEBUG level."""
-        with patch('src.zulipchat_mcp.logging_config.logging.basicConfig') as mock_config:
+        with patch(
+            "src.zulipchat_mcp.logging_config.logging.basicConfig"
+        ) as mock_config:
             setup_basic_logging("DEBUG")
 
             mock_config.assert_called_once()
@@ -36,7 +40,9 @@ class TestSetupBasicLogging:
 
     def test_setup_basic_logging_error(self):
         """Test setting up basic logging with ERROR level."""
-        with patch('src.zulipchat_mcp.logging_config.logging.basicConfig') as mock_config:
+        with patch(
+            "src.zulipchat_mcp.logging_config.logging.basicConfig"
+        ) as mock_config:
             setup_basic_logging("ERROR")
 
             mock_config.assert_called_once()
@@ -47,19 +53,21 @@ class TestSetupBasicLogging:
 class TestSetupStructuredLogging:
     """Test structured logging setup."""
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', False)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", False)
     def test_setup_structured_logging_no_structlog(self):
         """Test fallback when structlog is not available."""
-        with patch('src.zulipchat_mcp.logging_config.setup_basic_logging') as mock_basic:
+        with patch(
+            "src.zulipchat_mcp.logging_config.setup_basic_logging"
+        ) as mock_basic:
             setup_structured_logging()
 
             mock_basic.assert_called_once_with("INFO")
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', True)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", True)
     def test_setup_structured_logging_with_structlog(self):
         """Test setup when structlog is available."""
-        with patch('src.zulipchat_mcp.logging_config.structlog') as mock_structlog:
-            with patch('src.zulipchat_mcp.logging_config.logging.basicConfig'):
+        with patch("src.zulipchat_mcp.logging_config.structlog") as mock_structlog:
+            with patch("src.zulipchat_mcp.logging_config.logging.basicConfig"):
                 setup_structured_logging("DEBUG")
 
                 # Should configure structlog
@@ -69,7 +77,7 @@ class TestSetupStructuredLogging:
 class TestGetLogger:
     """Test logger retrieval."""
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', False)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", False)
     def test_get_logger_basic(self):
         """Test getting logger without structlog."""
         logger = get_logger("test_module")
@@ -79,10 +87,10 @@ class TestGetLogger:
         assert hasattr(logger, "error")
         assert hasattr(logger, "debug")
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', True)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", True)
     def test_get_logger_structured(self):
         """Test getting logger with structlog."""
-        with patch('src.zulipchat_mcp.logging_config.structlog') as mock_structlog:
+        with patch("src.zulipchat_mcp.logging_config.structlog") as mock_structlog:
             mock_logger = MagicMock()
             mock_structlog.get_logger.return_value = mock_logger
 
@@ -104,7 +112,7 @@ class TestLogFunctionCall:
             func_name="test_function",
             args=(1, 2),
             kwargs={"key": "value"},
-            result="success"
+            result="success",
         )
 
         # Should log success
@@ -120,22 +128,19 @@ class TestLogFunctionCall:
             func_name="failing_function",
             args=(),
             kwargs={},
-            error=error
+            error=error,
         )
 
         # Should log the error
         mock_logger.error.assert_called()
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', True)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", True)
     def test_log_function_call_with_structlog(self):
         """Test logging with structlog available."""
         mock_logger = MagicMock()
 
         log_function_call(
-            logger=mock_logger,
-            func_name="structured_func",
-            args=(1,),
-            result=42
+            logger=mock_logger, func_name="structured_func", args=(1,), result=42
         )
 
         # Should use structured logging
@@ -156,7 +161,7 @@ class TestLogApiRequest:
             method="GET",
             endpoint="/api/users",
             status_code=200,
-            duration=0.5
+            duration=0.5,
         )
 
         # Should log request
@@ -171,13 +176,13 @@ class TestLogApiRequest:
             method="POST",
             endpoint="/api/users",
             status_code=500,
-            error="Internal server error"
+            error="Internal server error",
         )
 
         # Should log the error
         mock_logger.error.assert_called()
 
-    @patch('src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE', True)
+    @patch("src.zulipchat_mcp.logging_config.STRUCTLOG_AVAILABLE", True)
     def test_log_api_request_with_structlog(self):
         """Test logging API request with structlog."""
         mock_logger = MagicMock()
@@ -186,7 +191,7 @@ class TestLogApiRequest:
             logger=mock_logger,
             method="DELETE",
             endpoint="/api/users/123",
-            status_code=204
+            status_code=204,
         )
 
         # Should use structured logging

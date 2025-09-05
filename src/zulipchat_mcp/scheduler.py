@@ -17,7 +17,9 @@ class ScheduledMessage(BaseModel):
     content: str = Field(..., description="Message content")
     scheduled_time: datetime = Field(..., description="When to send the message")
     message_type: str = Field(..., description="Message type: 'stream' or 'private'")
-    recipients: str | list[str] = Field(..., description="Recipients list or stream name")
+    recipients: str | list[str] = Field(
+        ..., description="Recipients list or stream name"
+    )
     topic: str | None = Field(None, description="Topic for stream messages")
     scheduled_id: int | None = Field(None, description="Zulip scheduled message ID")
 
@@ -40,11 +42,8 @@ class MessageScheduler:
         """Async context manager entry."""
         self.client = httpx.AsyncClient(
             timeout=30.0,
-            limits=httpx.Limits(
-                max_keepalive_connections=10,
-                max_connections=20
-            ),
-            auth=self.auth
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            auth=self.auth,
         )
         return self
 
@@ -58,11 +57,8 @@ class MessageScheduler:
         if not self.client:
             self.client = httpx.AsyncClient(
                 timeout=30.0,
-                limits=httpx.Limits(
-                    max_keepalive_connections=10,
-                    max_connections=20
-                ),
-                auth=self.auth
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+                auth=self.auth,
             )
         return self.client
 
@@ -88,22 +84,29 @@ class MessageScheduler:
         # Prepare data for API
         data = {
             "content": message.content,
-            "scheduled_delivery_timestamp": self._datetime_to_timestamp(message.scheduled_time),
-            "type": message.message_type
+            "scheduled_delivery_timestamp": self._datetime_to_timestamp(
+                message.scheduled_time
+            ),
+            "type": message.message_type,
         }
 
         # Set recipients based on message type
         if message.message_type == "stream":
-            data["to"] = message.recipients if isinstance(message.recipients, str) else message.recipients[0]
+            data["to"] = (
+                message.recipients
+                if isinstance(message.recipients, str)
+                else message.recipients[0]
+            )
             if message.topic:
                 data["topic"] = message.topic
         else:  # private message
-            data["to"] = json.dumps(message.recipients if isinstance(message.recipients, list) else [message.recipients])
+            data["to"] = json.dumps(
+                message.recipients
+                if isinstance(message.recipients, list)
+                else [message.recipients]
+            )
 
-        response = await client.post(
-            f"{self.base_url}/scheduled_messages",
-            data=data
-        )
+        response = await client.post(f"{self.base_url}/scheduled_messages", data=data)
         response.raise_for_status()
         result = response.json()
 
@@ -147,9 +150,7 @@ class MessageScheduler:
         return []
 
     async def update_scheduled(
-        self,
-        scheduled_id: int,
-        new_time: datetime
+        self, scheduled_id: int, new_time: datetime
     ) -> dict[str, Any]:
         """Update the scheduled time of a message.
 
@@ -162,22 +163,16 @@ class MessageScheduler:
         """
         client = self._ensure_client()
 
-        data = {
-            "scheduled_delivery_timestamp": self._datetime_to_timestamp(new_time)
-        }
+        data = {"scheduled_delivery_timestamp": self._datetime_to_timestamp(new_time)}
 
         response = await client.patch(
-            f"{self.base_url}/scheduled_messages/{scheduled_id}",
-            data=data
+            f"{self.base_url}/scheduled_messages/{scheduled_id}", data=data
         )
         response.raise_for_status()
         return response.json()
 
     async def schedule_recurring(
-        self,
-        message: ScheduledMessage,
-        interval: timedelta,
-        count: int = 7
+        self, message: ScheduledMessage, interval: timedelta, count: int = 7
     ) -> list[dict[str, Any]]:
         """Schedule multiple messages at regular intervals.
 
@@ -199,7 +194,7 @@ class MessageScheduler:
                 scheduled_time=current_time,
                 message_type=message.message_type,
                 recipients=message.recipients,
-                topic=message.topic
+                topic=message.topic,
             )
 
             result = await self.schedule_message(recurring_message)
@@ -216,7 +211,7 @@ class MessageScheduler:
         minutes_from_now: int,
         recipients: str | list[str],
         message_type: str = "private",
-        topic: str | None = None
+        topic: str | None = None,
     ) -> dict[str, Any]:
         """Schedule a reminder message.
 
@@ -237,17 +232,13 @@ class MessageScheduler:
             scheduled_time=scheduled_time,
             message_type=message_type,
             recipients=recipients,
-            topic=topic
+            topic=topic,
         )
 
         return await self.schedule_message(reminder)
 
     async def schedule_daily_standup(
-        self,
-        stream: str,
-        topic: str,
-        time_of_day: str,
-        days_ahead: int = 7
+        self, stream: str, topic: str, time_of_day: str, days_ahead: int = 7
     ) -> list[dict[str, Any]]:
         """Schedule daily standup messages.
 
@@ -282,10 +273,7 @@ Please share:
         for day in range(1, days_ahead + 1):
             # Calculate next occurrence
             tomorrow = datetime.now().replace(
-                hour=hour,
-                minute=minute,
-                second=0,
-                microsecond=0
+                hour=hour, minute=minute, second=0, microsecond=0
             ) + timedelta(days=day)
 
             # Skip weekends (Saturday=5, Sunday=6)
@@ -297,7 +285,7 @@ Please share:
                 scheduled_time=tomorrow,
                 message_type="stream",
                 recipients=stream,
-                topic=topic
+                topic=topic,
             )
 
             result = await self.schedule_message(standup_message)
@@ -305,7 +293,9 @@ Please share:
 
         return results
 
-    async def bulk_schedule(self, messages: list[ScheduledMessage]) -> list[dict[str, Any]]:
+    async def bulk_schedule(
+        self, messages: list[ScheduledMessage]
+    ) -> list[dict[str, Any]]:
         """Schedule multiple messages in batch.
 
         Args:
@@ -319,9 +309,7 @@ Please share:
         return await asyncio.gather(*tasks, return_exceptions=True)
 
     async def get_scheduled_by_time_range(
-        self,
-        start_time: datetime,
-        end_time: datetime
+        self, start_time: datetime, end_time: datetime
     ) -> list[dict[str, Any]]:
         """Get scheduled messages within a time range.
 
@@ -373,8 +361,7 @@ Please share:
 
 # Convenience functions for easy usage
 async def schedule_message(
-    config: ZulipConfig,
-    message: ScheduledMessage
+    config: ZulipConfig, message: ScheduledMessage
 ) -> dict[str, Any]:
     """Schedule a message using the scheduler.
 
@@ -395,7 +382,7 @@ async def schedule_reminder(
     minutes_from_now: int,
     recipients: str | list[str],
     message_type: str = "private",
-    topic: str | None = None
+    topic: str | None = None,
 ) -> dict[str, Any]:
     """Schedule a reminder message.
 
@@ -417,8 +404,7 @@ async def schedule_reminder(
 
 
 async def cancel_scheduled_message(
-    config: ZulipConfig,
-    scheduled_id: int
+    config: ZulipConfig, scheduled_id: int
 ) -> dict[str, Any]:
     """Cancel a scheduled message.
 

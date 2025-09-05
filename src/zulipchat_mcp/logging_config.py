@@ -6,6 +6,7 @@ from typing import Any
 
 try:
     import structlog
+
     STRUCTLOG_AVAILABLE = True
 except ImportError:
     structlog = None  # type: ignore
@@ -20,10 +21,8 @@ def setup_basic_logging(level: str = "INFO") -> None:
     """
     logging.basicConfig(
         level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
 
@@ -56,7 +55,7 @@ def setup_structured_logging(level: str = "INFO") -> None:
                 ]
             ),
             structlog.processors.dict_tracebacks,
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -101,7 +100,7 @@ class LogContext:
 
     def __enter__(self) -> Any:
         """Enter context and bind logger."""
-        if STRUCTLOG_AVAILABLE and hasattr(self.logger, 'bind'):
+        if STRUCTLOG_AVAILABLE and hasattr(self.logger, "bind"):
             self.bound_logger = self.logger.bind(**self.context)
             return self.bound_logger
         return self.logger
@@ -117,7 +116,7 @@ def log_function_call(
     args: tuple | None = None,
     kwargs: dict | None = None,
     result: Any = None,
-    error: Exception | None = None
+    error: Exception | None = None,
 ) -> None:
     """Log a function call with parameters and result.
 
@@ -161,7 +160,7 @@ def log_api_request(
     endpoint: str,
     status_code: int | None = None,
     duration: float | None = None,
-    error: str | None = None
+    error: str | None = None,
 ) -> None:
     """Log an API request.
 

@@ -37,8 +37,7 @@ class RateLimiter:
 
         # Clean old calls
         self.calls[client_id] = [
-            t for t in self.calls[client_id]
-            if now - t < self.window
+            t for t in self.calls[client_id] if now - t < self.window
         ]
 
         if len(self.calls[client_id]) >= self.max_calls:
@@ -63,7 +62,7 @@ def sanitize_input(content: str, max_length: int = 10000) -> str:
 
     # Remove potential command injections (conservative approach)
     # Only remove backticks that might be used for command substitution
-    content = re.sub(r'`', '', content)
+    content = re.sub(r"`", "", content)
 
     # Limit length
     return content[:max_length]
@@ -79,7 +78,7 @@ def validate_stream_name(name: str) -> bool:
         True if valid, False otherwise
     """
     # Allow alphanumeric, spaces, hyphens, underscores, and dots
-    pattern = r'^[a-zA-Z0-9\-_\s\.]+$'
+    pattern = r"^[a-zA-Z0-9\-_\s\.]+$"
     return bool(re.match(pattern, name)) and 0 < len(name) <= 100
 
 
@@ -93,7 +92,7 @@ def validate_topic(topic: str) -> bool:
         True if valid, False otherwise
     """
     # Topics can have more varied characters but still need validation
-    pattern = r'^[a-zA-Z0-9\-_\s\.\,\!\?\(\)]+$'
+    pattern = r"^[a-zA-Z0-9\-_\s\.\,\!\?\(\)]+$"
     return bool(re.match(pattern, topic)) and 0 < len(topic) <= 200
 
 
@@ -107,7 +106,7 @@ def validate_emoji(emoji_name: str) -> bool:
         True if valid, False otherwise
     """
     # Emoji names are typically alphanumeric with underscores
-    pattern = r'^[a-zA-Z0-9_]+$'
+    pattern = r"^[a-zA-Z0-9_]+$"
     return bool(re.match(pattern, emoji_name)) and 0 < len(emoji_name) <= 50
 
 
@@ -120,7 +119,7 @@ def validate_email(email: str) -> bool:
     Returns:
         True if valid email format, False otherwise
     """
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(pattern, email))
 
 
@@ -136,10 +135,7 @@ def validate_message_type(message_type: str) -> bool:
     return message_type in ["stream", "private"]
 
 
-def rate_limit_decorator(
-    max_calls: int = 100,
-    window: int = 60
-) -> Callable:
+def rate_limit_decorator(max_calls: int = 100, window: int = 60) -> Callable:
     """Decorator for applying rate limiting to functions.
 
     Args:
@@ -161,11 +157,13 @@ def rate_limit_decorator(
             if not limiter.check_rate_limit(client_id):
                 return {
                     "status": "error",
-                    "error": "Rate limit exceeded. Please try again later."
+                    "error": "Rate limit exceeded. Please try again later.",
                 }
 
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -186,6 +184,6 @@ def secure_log(message: str, sensitive_keys: list[str] | None = None) -> str:
     for key in sensitive_keys:
         # Redact values after these keys
         pattern = rf"({key}['\"]?\s*[:=]\s*['\"]?)([^'\"]+)(['\"]?)"
-        sanitized = re.sub(pattern, r'\1[REDACTED]\3', sanitized, flags=re.IGNORECASE)
+        sanitized = re.sub(pattern, r"\1[REDACTED]\3", sanitized, flags=re.IGNORECASE)
 
     return sanitized

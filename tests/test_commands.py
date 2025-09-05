@@ -202,6 +202,7 @@ class TestCommandBase:
 
     def test_command_initialization(self):
         """Test basic command initialization."""
+
         # Create a concrete command for testing
         class TestCommand(Command):
             def execute(self, context, client):
@@ -212,7 +213,7 @@ class TestCommandBase:
             name="test_cmd",
             description="Test command",
             conditions=conditions,
-            rollback_enabled=True
+            rollback_enabled=True,
         )
 
         assert cmd.name == "test_cmd"
@@ -226,6 +227,7 @@ class TestCommandBase:
 
     def test_command_should_execute_no_conditions(self):
         """Test should_execute with no conditions (should always execute)."""
+
         class TestCommand(Command):
             def execute(self, context, client):
                 return {"result": "test"}
@@ -237,13 +239,14 @@ class TestCommandBase:
 
     def test_command_should_execute_with_conditions(self):
         """Test should_execute with conditions."""
+
         class TestCommand(Command):
             def execute(self, context, client):
                 return {"result": "test"}
 
         conditions = [
             Condition("ready", ConditionOperator.EQUALS, True),
-            Condition("count", ConditionOperator.GREATER_THAN, 0)
+            Condition("count", ConditionOperator.GREATER_THAN, 0),
         ]
         cmd = TestCommand("test", conditions=conditions)
         context = ExecutionContext()
@@ -259,6 +262,7 @@ class TestCommandBase:
 
     def test_command_rollback_not_enabled(self):
         """Test rollback when not enabled."""
+
         class TestCommand(Command):
             def execute(self, context, client):
                 return {"result": "test"}
@@ -282,7 +286,7 @@ class TestSendMessageCommand:
             message_type_key="msg_type",
             to_key="recipient",
             content_key="msg_content",
-            topic_key="msg_topic"
+            topic_key="msg_topic",
         )
 
         assert cmd.name == "custom_send"
@@ -313,7 +317,9 @@ class TestSendMessageCommand:
         assert result["id"] == 123
         assert context.get("last_message_id") == 123
 
-        client.send_message.assert_called_once_with("stream", "general", "Hello world!", "test")
+        client.send_message.assert_called_once_with(
+            "stream", "general", "Hello world!", "test"
+        )
 
     def test_send_message_command_missing_parameters(self):
         """Test send message with missing required parameters."""
@@ -325,7 +331,9 @@ class TestSendMessageCommand:
         context.set("message_type", "stream")
         # Missing 'to' and 'content'
 
-        with pytest.raises(ValidationError, match="Missing required message parameters"):
+        with pytest.raises(
+            ValidationError, match="Missing required message parameters"
+        ):
             cmd.execute(context, client)
 
     def test_send_message_command_api_failure(self):
@@ -340,9 +348,14 @@ class TestSendMessageCommand:
         context.set("topic", "test")
 
         # Mock API failure
-        client.send_message.return_value = {"result": "error", "msg": "Stream not found"}
+        client.send_message.return_value = {
+            "result": "error",
+            "msg": "Stream not found",
+        }
 
-        with pytest.raises(ZulipMCPError, match="Failed to send message: Stream not found"):
+        with pytest.raises(
+            ZulipMCPError, match="Failed to send message: Stream not found"
+        ):
             cmd.execute(context, client)
 
     def test_send_message_command_topic_placeholder_replacement(self):
@@ -384,9 +397,14 @@ class TestGetMessagesCommand:
 
         # Mock messages
         mock_message = ZulipMessage(
-            id=1, sender_full_name="Alice", sender_email="alice@test.com",
-            timestamp=123456, content="Deployment complete", type="stream",
-            stream_name="general", subject="deployment"
+            id=1,
+            sender_full_name="Alice",
+            sender_email="alice@test.com",
+            timestamp=123456,
+            content="Deployment complete",
+            type="stream",
+            stream_name="general",
+            subject="deployment",
         )
 
         client.get_messages_from_stream.return_value = [mock_message]
@@ -414,9 +432,14 @@ class TestGetMessagesCommand:
         context.set("limit", 30)
 
         mock_message = ZulipMessage(
-            id=2, sender_full_name="Bob", sender_email="bob@test.com",
-            timestamp=123457, content="General update", type="stream",
-            stream_name="updates", subject="general"
+            id=2,
+            sender_full_name="Bob",
+            sender_email="bob@test.com",
+            timestamp=123457,
+            content="General update",
+            type="stream",
+            stream_name="updates",
+            subject="general",
         )
 
         client.get_messages.return_value = [mock_message]
@@ -491,7 +514,7 @@ class TestAddReactionCommand:
         # Set up rollback data
         context.rollback_data["add_reaction_reaction"] = {
             "message_id": 123,
-            "emoji_name": "thumbs_up"
+            "emoji_name": "thumbs_up",
         }
 
         cmd._rollback_impl(context, client)
@@ -505,6 +528,7 @@ class TestProcessDataCommand:
 
     def test_process_data_command_success(self):
         """Test successful data processing."""
+
         def double_processor(value):
             return value * 2
 
@@ -512,7 +536,7 @@ class TestProcessDataCommand:
             name="double_data",
             processor=double_processor,
             input_key="input_value",
-            output_key="output_value"
+            output_key="output_value",
         )
 
         context = ExecutionContext()
@@ -531,7 +555,7 @@ class TestProcessDataCommand:
             name="test_proc",
             processor=lambda x: x,
             input_key="missing_key",
-            output_key="output"
+            output_key="output",
         )
 
         context = ExecutionContext()
@@ -547,7 +571,9 @@ class TestCommandChain:
     def test_command_chain_initialization(self):
         """Test CommandChain initialization."""
         client = Mock()
-        chain = CommandChain("test_chain", client=client, stop_on_error=True, enable_rollback=True)
+        chain = CommandChain(
+            "test_chain", client=client, stop_on_error=True, enable_rollback=True
+        )
 
         assert chain.name == "test_chain"
         assert chain.client is client
@@ -625,7 +651,9 @@ class TestCommandChain:
 
         chain.add_command(mock_cmd)
 
-        with pytest.raises(ZulipMCPError, match="Chain execution failed at command failing_command"):
+        with pytest.raises(
+            ZulipMCPError, match="Chain execution failed at command failing_command"
+        ):
             chain.execute()
 
         assert mock_cmd.status == ExecutionStatus.FAILED
@@ -696,18 +724,22 @@ class TestChainBuilder:
             topic="test",
             content="Hello world!",
             add_reaction=True,
-            emoji="rocket"
+            emoji="rocket",
         )
 
         assert chain.name == "message_workflow"
         assert len(chain.commands) > 5  # Multiple setup commands + send + reaction
 
         # Check that we have a SendMessageCommand
-        send_commands = [cmd for cmd in chain.commands if isinstance(cmd, SendMessageCommand)]
+        send_commands = [
+            cmd for cmd in chain.commands if isinstance(cmd, SendMessageCommand)
+        ]
         assert len(send_commands) == 1
 
         # Check that we have AddReactionCommand
-        reaction_commands = [cmd for cmd in chain.commands if isinstance(cmd, AddReactionCommand)]
+        reaction_commands = [
+            cmd for cmd in chain.commands if isinstance(cmd, AddReactionCommand)
+        ]
         assert len(reaction_commands) == 1
 
     def test_create_message_workflow_no_reaction(self):
@@ -716,11 +748,13 @@ class TestChainBuilder:
             stream_name="general",
             topic="test",
             content="Hello world!",
-            add_reaction=False
+            add_reaction=False,
         )
 
         # Should not have AddReactionCommand
-        reaction_commands = [cmd for cmd in chain.commands if isinstance(cmd, AddReactionCommand)]
+        reaction_commands = [
+            cmd for cmd in chain.commands if isinstance(cmd, AddReactionCommand)
+        ]
         assert len(reaction_commands) == 0
 
     def test_create_digest_workflow(self):
@@ -729,14 +763,16 @@ class TestChainBuilder:
             stream_names=["general", "development"],
             hours_back=24,
             target_stream="digest",
-            target_topic="Daily Summary"
+            target_topic="Daily Summary",
         )
 
         assert chain.name == "digest_workflow"
         assert len(chain.commands) > 0
 
         # Should have commands for processing multiple streams
-        process_commands = [cmd for cmd in chain.commands if isinstance(cmd, ProcessDataCommand)]
+        process_commands = [
+            cmd for cmd in chain.commands if isinstance(cmd, ProcessDataCommand)
+        ]
         assert len(process_commands) > 2  # At least one for each stream
 
 
@@ -753,7 +789,7 @@ class TestComplexChainScenarios:
             name="producer",
             processor=lambda _: "produced_value",
             input_key="dummy",
-            output_key="shared_data"
+            output_key="shared_data",
         )
 
         # Command that uses the produced data
@@ -761,7 +797,7 @@ class TestComplexChainScenarios:
             name="consumer",
             processor=lambda x: f"consumed_{x}",
             input_key="shared_data",
-            output_key="final_result"
+            output_key="final_result",
         )
 
         chain.add_command(producer).add_command(consumer)
@@ -775,7 +811,9 @@ class TestComplexChainScenarios:
     def test_chain_rollback_functionality(self):
         """Test chain rollback when enabled."""
         client = Mock()
-        chain = CommandChain("rollback_test", client=client, enable_rollback=True, stop_on_error=True)
+        chain = CommandChain(
+            "rollback_test", client=client, enable_rollback=True, stop_on_error=True
+        )
 
         # Successful command with rollback enabled
         success_cmd = Mock(spec=Command)

@@ -7,13 +7,19 @@ A simple, open format for guiding AI coding agents working with ZulipChat MCP Se
 ZulipChat MCP Server is a Model Context Protocol (MCP) server that enables AI agents to interact with Zulip Chat. It provides tools for sending messages, retrieving conversations, managing streams, and generating summaries through a FastMCP-based architecture.
 
 **Key Features:**
-- 8 MCP tools for comprehensive Zulip operations
-- 3 MCP resources for data access (messages, streams, users)
-- 3 custom prompts for summaries and reports
-- Multiple configuration methods (env vars, config files)
+- **35+ MCP tools** for comprehensive Zulip and agent operations
+- **Agent Communication System v1.4.0** - Bidirectional AI-Human communication
+- **Multi-Instance Bot Identity** - Automatic project/session detection and routing
+- **AFK Mode** - Smart notification control (only when away)
+- **Personal Stream Organization** - One stream per agent type, topics per project
+- **Claude Code Hooks Integration** - Automatic notifications from coding agents
+- Task lifecycle management with progress tracking
+- Stream organization and management tools
+- Dual identity support (user + bot credentials)
+- Project-aware notification routing
+- Instance management across multiple machines
 - UV-first deployment with cross-platform support
 - **100% test pass rate** (257 tests, 75% code coverage)
-- Production-ready with comprehensive error handling
 
 ## Development Environment
 
@@ -44,9 +50,15 @@ uv run agent_adapters/setup_agents.py all
 
 ### Environment Variables
 ```bash
-export ZULIP_EMAIL="your-bot@zulip.com"
+# User credentials (required)
+export ZULIP_EMAIL="your-email@zulip.com"
 export ZULIP_API_KEY="your-api-key"
 export ZULIP_SITE="https://your-org.zulipchat.com"
+
+# Bot credentials (optional, for agent identity)
+export ZULIP_BOT_EMAIL="claude-code-bot@zulip.com"
+export ZULIP_BOT_API_KEY="bot-api-key"
+export ZULIP_BOT_NAME="Claude Code"
 ```
 
 ## Build and Test Commands
@@ -146,35 +158,48 @@ except ConnectionError as e:
 ```
 zulipchat-mcp/
 ├── src/zulipchat_mcp/
-│   ├── __init__.py        # Version and metadata
-│   ├── server.py          # MCP server with FastMCP (8 tools, 3 resources, 3 prompts)
-│   ├── client.py          # Zulip API wrapper with Pydantic models
-│   ├── config.py          # Multi-source configuration management
-│   ├── assistants.py      # Intelligent assistant tools for smart replies
-│   ├── cache.py           # In-memory caching system with TTL
-│   ├── commands.py        # Command chain system for workflow automation
-│   ├── exceptions.py      # Custom exception hierarchy
-│   ├── health.py          # Health monitoring and readiness checks
-│   ├── logging_config.py  # Structured logging with context
-│   ├── metrics.py         # Prometheus-style metrics collection
-│   ├── notifications.py   # Smart notification system
-│   ├── scheduler.py       # Native Zulip message scheduling
-│   ├── security.py        # Input validation and rate limiting
-│   └── async_client.py    # Async HTTP client for performance
-├── tests/                 # Comprehensive test suite (257 tests)
-│   ├── test_server.py     # Server and MCP tool tests
-│   ├── test_assistants.py # Assistant functionality tests
-│   ├── test_commands.py   # Command chain tests
-│   ├── test_health.py     # Health monitoring tests
-│   ├── test_metrics.py    # Metrics collection tests
-│   ├── test_scheduler.py  # Message scheduling tests
-│   └── test_security.py   # Security validation tests
-├── agent_adapters/        # Agent-specific setup utilities
-├── docs/                  # User documentation and guides
-├── pyproject.toml         # UV-based project configuration
-├── CHANGELOG.md          # Detailed version history
-├── AGENTS.md             # This file - AI agent guidelines
-└── install.sh            # UV-based installation script
+│   ├── __init__.py          # Version and metadata
+│   ├── server.py            # MCP server with FastMCP (35+ tools, 3 resources, 3 prompts)
+│   ├── client.py            # Zulip API wrapper with dual identity support
+│   ├── config.py            # Multi-source configuration with bot credentials
+│   ├── afk_state.py         # AFK mode management for notifications
+│   ├── instance_identity.py # Multi-instance project/session detection
+│   ├── database.py          # SQLite storage for agents and tasks
+│   ├── models/
+│   │   ├── agent.py         # Agent data models (Agent, InputRequest, etc.)
+│   │   └── task.py          # Task lifecycle models (Task, TaskCompletion)
+│   ├── services/
+│   │   └── agent_registry.py # Agent registration and stream management
+│   ├── tools/
+│   │   ├── agent_communication.py  # Agent-to-human messaging
+│   │   ├── task_tracking.py        # Task lifecycle management
+│   │   └── stream_management.py    # Stream/topic organization
+│   ├── assistants.py        # Intelligent assistant tools
+│   ├── cache.py             # In-memory caching system with TTL
+│   ├── commands.py          # Command chain system for workflow automation
+│   ├── exceptions.py        # Custom exception hierarchy
+│   ├── health.py            # Health monitoring and readiness checks
+│   ├── logging_config.py    # Structured logging with context
+│   ├── metrics.py           # Prometheus-style metrics collection
+│   ├── notifications.py     # Smart notification system
+│   ├── scheduler.py         # Native Zulip message scheduling
+│   ├── security.py          # Input validation and rate limiting
+│   └── async_client.py      # Async HTTP client for performance
+├── tests/                   # Comprehensive test suite (257+ tests)
+│   ├── test_server.py       # Server and MCP tool tests
+│   ├── test_agent_system.py # Agent communication tests
+│   ├── test_dual_identity.py # Bot identity tests
+│   ├── test_assistants.py   # Assistant functionality tests
+│   ├── test_commands.py     # Command chain tests
+│   └── ...                  # Additional test modules
+├── agent_adapters/          # Agent-specific setup utilities
+│   └── setup_agents.py      # Command definitions including AFK
+├── docs/                    # User documentation and guides
+│   └── BOT_SETUP.md         # Bot identity setup guide
+├── pyproject.toml           # UV-based project configuration
+├── CHANGELOG.md             # Detailed version history
+├── AGENTS.md                # This file - AI agent guidelines
+└── install.sh               # UV-based installation script
 ```
 
 ## Adding New Features

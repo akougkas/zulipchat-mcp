@@ -36,7 +36,7 @@ def sample_messages():
             timestamp=1640995200,
             stream_name="general",
             subject="deployment-issues",
-            type="stream"
+            type="stream",
         ),
         ZulipMessage(
             id=2,
@@ -46,7 +46,7 @@ def sample_messages():
             timestamp=1640995300,
             stream_name="general",
             subject="deployment-issues",
-            type="stream"
+            type="stream",
         ),
         ZulipMessage(
             id=3,
@@ -56,8 +56,8 @@ def sample_messages():
             timestamp=1640995400,
             stream_name="general",
             subject="deployment-issues",
-            type="stream"
-        )
+            type="stream",
+        ),
     ]
 
 
@@ -67,12 +67,26 @@ class TestKeywordExtraction:
     def test_extract_keywords_function(self):
         """Test basic keyword extraction from messages."""
         messages = [
-            ZulipMessage(id=1, content="The deployment failed", sender_full_name="Alice",
-                        sender_email="alice@test.com", timestamp=123, stream_name="test",
-                        subject="test", type="stream"),
-            ZulipMessage(id=2, content="deployment error logs show issues", sender_full_name="Bob",
-                        sender_email="bob@test.com", timestamp=124, stream_name="test",
-                        subject="test", type="stream")
+            ZulipMessage(
+                id=1,
+                content="The deployment failed",
+                sender_full_name="Alice",
+                sender_email="alice@test.com",
+                timestamp=123,
+                stream_name="test",
+                subject="test",
+                type="stream",
+            ),
+            ZulipMessage(
+                id=2,
+                content="deployment error logs show issues",
+                sender_full_name="Bob",
+                sender_email="bob@test.com",
+                timestamp=124,
+                stream_name="test",
+                subject="test",
+                type="stream",
+            ),
         ]
 
         keywords = extract_keywords(messages)
@@ -87,16 +101,30 @@ class TestKeywordExtraction:
     def test_extract_keywords_filters_common_words(self):
         """Test that common words are filtered out."""
         messages = [
-            ZulipMessage(id=1, content="the and for are but not you all", sender_full_name="Alice",
-                        sender_email="alice@test.com", timestamp=123, stream_name="test",
-                        subject="test", type="stream"),
-            ZulipMessage(id=2, content="the and for are but not you all", sender_full_name="Bob",
-                        sender_email="bob@test.com", timestamp=124, stream_name="test",
-                        subject="test", type="stream")
+            ZulipMessage(
+                id=1,
+                content="the and for are but not you all",
+                sender_full_name="Alice",
+                sender_email="alice@test.com",
+                timestamp=123,
+                stream_name="test",
+                subject="test",
+                type="stream",
+            ),
+            ZulipMessage(
+                id=2,
+                content="the and for are but not you all",
+                sender_full_name="Bob",
+                sender_email="bob@test.com",
+                timestamp=124,
+                stream_name="test",
+                subject="test",
+                type="stream",
+            ),
         ]
 
         keywords = extract_keywords(messages)
-        common_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all'}
+        common_words = {"the", "and", "for", "are", "but", "not", "you", "all"}
         assert not any(word in common_words for word in keywords)
 
 
@@ -146,7 +174,7 @@ class TestSmartReplySimplified:
 
     async def test_smart_reply_impl_basic_suggestions(self, sample_messages):
         """Test simplified smart reply generates basic suggestions."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.return_value = sample_messages
             mock_get_client.return_value = mock_client
@@ -155,16 +183,20 @@ class TestSmartReplySimplified:
 
             assert result["status"] == "success"
             assert len(result["suggestions"]) <= 5
-            assert "deployment" in result["keywords"] or "rollback" in result["keywords"]
+            assert (
+                "deployment" in result["keywords"] or "rollback" in result["keywords"]
+            )
             assert result["message_count"] == 3
 
             # Verify it uses simple suggestions, not ML
             suggestions = result["suggestions"]
-            assert any("Thanks" in s for s in suggestions) or any("look into" in s for s in suggestions)
+            assert any("Thanks" in s for s in suggestions) or any(
+                "look into" in s for s in suggestions
+            )
 
     async def test_smart_reply_impl_empty_stream(self):
         """Test smart reply with no messages."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.return_value = []
             mock_get_client.return_value = mock_client
@@ -195,7 +227,7 @@ class TestSmartReplySimplified:
 
     async def test_smart_reply_impl_error_handling(self):
         """Test error handling in smart reply."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.side_effect = Exception("API Error")
             mock_get_client.return_value = mock_client
@@ -212,12 +244,14 @@ class TestAutoSummarizeSimplified:
 
     async def test_auto_summarize_impl_message_counting(self, sample_messages):
         """Test simplified summarization counts messages."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.return_value = sample_messages
             mock_get_client.return_value = mock_client
 
-            result = await auto_summarize_impl("general", "deployment-issues", 24, "standard", 100)
+            result = await auto_summarize_impl(
+                "general", "deployment-issues", 24, "standard", 100
+            )
 
             assert result["status"] == "success"
             assert result["message_count"] == 3
@@ -229,12 +263,14 @@ class TestAutoSummarizeSimplified:
 
     async def test_auto_summarize_impl_no_messages(self):
         """Test summarization with no messages."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.return_value = []
             mock_get_client.return_value = mock_client
 
-            result = await auto_summarize_impl("general", "empty-topic", 24, "standard", 100)
+            result = await auto_summarize_impl(
+                "general", "empty-topic", 24, "standard", 100
+            )
 
             assert result["status"] == "success"
             assert "No messages found" in result["summary"]
@@ -261,12 +297,14 @@ class TestAutoSummarizeSimplified:
 
     async def test_auto_summarize_impl_includes_metadata(self, sample_messages):
         """Test that summary includes proper metadata."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get_messages_async.return_value = sample_messages
             mock_get_client.return_value = mock_client
 
-            result = await auto_summarize_impl("general", "test-topic", 24, "detailed", 100)
+            result = await auto_summarize_impl(
+                "general", "test-topic", 24, "detailed", 100
+            )
 
             assert result["stream"] == "general"
             assert result["topic_filter"] == "test-topic"
@@ -280,7 +318,7 @@ class TestSmartSearchSimplified:
 
     async def test_smart_search_impl_keyword_matching(self, sample_messages):
         """Test simplified search does basic keyword matching."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.search_messages_async.return_value = sample_messages
             mock_get_client.return_value = mock_client
@@ -300,7 +338,7 @@ class TestSmartSearchSimplified:
 
     async def test_smart_search_impl_empty_results(self):
         """Test search with no results."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.search_messages_async.return_value = []
             mock_get_client.return_value = mock_client
@@ -335,9 +373,11 @@ class TestSmartSearchSimplified:
 
     async def test_smart_search_impl_handles_api_errors(self):
         """Test error handling when search API fails."""
-        with patch('src.zulipchat_mcp.assistants.get_async_client') as mock_get_client:
+        with patch("src.zulipchat_mcp.assistants.get_async_client") as mock_get_client:
             mock_client = AsyncMock()
-            mock_client.search_messages_async.side_effect = Exception("Search API failed")
+            mock_client.search_messages_async.side_effect = Exception(
+                "Search API failed"
+            )
             mock_get_client.return_value = mock_client
 
             result = await smart_search_impl("test", None, 168, 20)
@@ -350,12 +390,15 @@ class TestSmartSearchSimplified:
 class TestAsyncClientManagement:
     """Test async client management functions."""
 
-    @patch('src.zulipchat_mcp.assistants.AsyncZulipClient')
-    @patch('src.zulipchat_mcp.assistants.ConfigManager')
-    def test_get_async_client_creates_instance(self, mock_config_manager, mock_async_client):
+    @patch("src.zulipchat_mcp.assistants.AsyncZulipClient")
+    @patch("src.zulipchat_mcp.assistants.ConfigManager")
+    def test_get_async_client_creates_instance(
+        self, mock_config_manager, mock_async_client
+    ):
         """Test that get_async_client creates a new instance when needed."""
         # Reset global state
         import src.zulipchat_mcp.assistants as assistants_module
+
         assistants_module._async_client = None
         assistants_module._config = None
 
@@ -370,11 +413,12 @@ class TestAsyncClientManagement:
         mock_config_instance.validate_config.assert_called_once()
         mock_async_client.assert_called_once_with(mock_config_instance.config)
 
-    @patch('src.zulipchat_mcp.assistants.ConfigManager')
+    @patch("src.zulipchat_mcp.assistants.ConfigManager")
     def test_get_async_client_invalid_config_raises_error(self, mock_config_manager):
         """Test that invalid config raises ZulipMCPError."""
         # Reset global state
         import src.zulipchat_mcp.assistants as assistants_module
+
         assistants_module._async_client = None
         assistants_module._config = None
 

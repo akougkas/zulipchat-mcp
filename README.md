@@ -29,6 +29,31 @@ You: "Generate a daily summary of all active streams"
 AI: Creating your daily digest...
 ```
 
+## New in v1.4.0: Agent Communication System
+
+**Multi-Instance Bot Identity** - Claude Code now intelligently detects your project and machine context:
+- 🏷️ **Automatic Project Detection** - Identifies current project from git, package.json, etc.
+- 🖥️ **Machine Awareness** - Different topics for same project on different machines
+- 🌳 **Branch Tracking** - Feature branches get distinct notification topics
+- 📱 **Personal Streams** - One stream per agent type (claude-code, gemini, etc.)
+- 📂 **Project Topics** - Each project gets its own topic within your personal stream
+
+**AFK Mode** - Control when you receive notifications:
+- 🚶 **Away Mode** - Only send notifications when you're away from keyboard
+- 💻 **Quiet Mode** - Silent operation when you're actively working
+- ⏰ **Auto-Return** - Automatically deactivate after specified hours
+- 🎯 **Smart Routing** - Messages go to right project topic automatically
+
+**Agent Tools** - New capabilities for AI agents:
+- `register_agent` - Register with automatic instance detection
+- `agent_message` - Send project-aware notifications
+- `request_user_input` - Request input with context
+- `start_task` / `complete_task` - Full task lifecycle
+- `list_instances` - See all active Claude Code instances
+- Stream and topic management tools
+
+See [BOT_SETUP.md](BOT_SETUP.md) for bot identity setup.
+
 ## Quick Start
 
 ### Claude Code (Recommended)
@@ -100,6 +125,7 @@ Same configuration format - just add to your client's MCP config:
 
 Your AI assistant can use these Zulip tools:
 
+### Core Messaging Tools
 | Tool | What it does | Example |
 |------|--------------|---------|
 | `send_message` | Send messages to streams or users | "Post update to #releases" |
@@ -110,6 +136,25 @@ Your AI assistant can use these Zulip tools:
 | `add_reaction` | Add emoji reactions | "React with 👍 to the last message" |
 | `edit_message` | Edit existing messages | "Fix the typo in my last message" |
 | `get_daily_summary` | Generate activity reports | "Create a summary of today's activity" |
+
+### Agent Communication Tools (v1.4.0)
+| Tool | What it does | Example |
+|------|--------------|---------|
+| `register_agent` | Register AI agent with auto-detection | "Register Claude Code for this project" |
+| `agent_message` | Send project-aware notifications | "Notify completion of task" |
+| `request_user_input` | Request input with context | "Ask which branch to deploy" |
+| `send_agent_status` | Send status updates | "Update progress to 75%" |
+| `start_task` | Start task with tracking | "Begin implementing auth feature" |
+| `update_task_progress` | Update task progress | "Mark subtask as complete" |
+| `complete_task` | Complete task with summary | "Finish task with test results" |
+| `list_instances` | List all active instances | "Show all Claude Code instances" |
+
+### Stream Management Tools
+| Tool | What it does | Example |
+|------|--------------|---------|
+| `create_stream` | Create new streams | "Create stream for project-x" |
+| `rename_stream` | Rename existing streams | "Rename stream to archived-project" |
+| `archive_stream` | Archive streams | "Archive old project stream" |
 
 ## Resources
 

@@ -20,7 +20,7 @@ def sample_config():
     return ZulipConfig(
         email="test@example.com",
         api_key="test-api-key",
-        site="https://test.zulipchat.com"
+        site="https://test.zulipchat.com",
     )
 
 
@@ -43,7 +43,7 @@ class TestSmartNotification:
         notification = SmartNotification(
             priority=NotificationPriority.HIGH,
             recipients=["user1@example.com", "user2@example.com"],
-            content="Test notification"
+            content="Test notification",
         )
 
         assert notification.priority == NotificationPriority.HIGH
@@ -59,7 +59,7 @@ class TestSmartNotification:
             priority=NotificationPriority.LOW,
             recipients=["user@example.com"],
             content="Test",
-            channels=["zulip", "email", "slack"]
+            channels=["zulip", "email", "slack"],
         )
 
         assert notification.channels == ["zulip", "email", "slack"]
@@ -70,7 +70,7 @@ class TestSmartNotification:
             priority=NotificationPriority.MEDIUM,
             recipients=["user@example.com"],
             content="Test",
-            retry_count=3
+            retry_count=3,
         )
 
         assert notification.retry_count == 3
@@ -90,9 +90,14 @@ class TestSmartNotificationSystem:
         """Test sending urgent notification."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.send_message_async.return_value = {"id": 123, "result": "success"}
+            mock_client.send_message_async.return_value = {
+                "id": 123,
+                "result": "success",
+            }
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -101,7 +106,7 @@ class TestSmartNotificationSystem:
             result = await system.notify(
                 recipients=["user1@example.com", "user2@example.com"],
                 content="System down!",
-                priority=NotificationPriority.URGENT
+                priority=NotificationPriority.URGENT,
             )
 
             assert result["priority"] == "urgent"
@@ -127,9 +132,14 @@ class TestSmartNotificationSystem:
         """Test sending non-urgent notification."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.send_message_async.return_value = {"id": 456, "result": "success"}
+            mock_client.send_message_async.return_value = {
+                "id": 456,
+                "result": "success",
+            }
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -138,7 +148,7 @@ class TestSmartNotificationSystem:
             result = await system.notify(
                 recipients=["user@example.com"],
                 content="Regular update",
-                priority=NotificationPriority.MEDIUM
+                priority=NotificationPriority.MEDIUM,
             )
 
             assert result["priority"] == "normal"
@@ -158,12 +168,14 @@ class TestSmartNotificationSystem:
         """Test handling notification failures."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
             # First call succeeds, second fails
             mock_client.send_message_async.side_effect = [
                 {"id": 123, "result": "success"},
-                Exception("Network error")
+                Exception("Network error"),
             ]
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
@@ -173,7 +185,7 @@ class TestSmartNotificationSystem:
             result = await system.notify(
                 recipients=["user1@example.com", "user2@example.com"],
                 content="Test",
-                priority=NotificationPriority.LOW
+                priority=NotificationPriority.LOW,
             )
 
             assert result["priority"] == "normal"
@@ -187,17 +199,21 @@ class TestSmartNotificationSystem:
         """Test _send_urgent_notification method directly."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.send_message_async.return_value = {"id": 789, "result": "success"}
+            mock_client.send_message_async.return_value = {
+                "id": 789,
+                "result": "success",
+            }
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client_class.return_value = mock_client
 
             result = await system._send_urgent_notification(
-                recipients=["urgent@example.com"],
-                content="Critical alert"
+                recipients=["urgent@example.com"], content="Critical alert"
             )
 
             assert result["priority"] == "urgent"
@@ -216,9 +232,14 @@ class TestSmartNotificationSystem:
         """Test _send_batch_notification method directly."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.send_message_async.return_value = {"id": 101, "result": "success"}
+            mock_client.send_message_async.return_value = {
+                "id": 101,
+                "result": "success",
+            }
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -226,7 +247,7 @@ class TestSmartNotificationSystem:
 
             result = await system._send_batch_notification(
                 recipients=["batch1@example.com", "batch2@example.com"],
-                content="Batch message"
+                content="Batch message",
             )
 
             assert result["priority"] == "normal"
@@ -245,7 +266,9 @@ class TestSmartNotificationSystem:
         """Test sending notification with empty recipients list."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
@@ -255,7 +278,7 @@ class TestSmartNotificationSystem:
             result = await system.notify(
                 recipients=[],
                 content="No recipients",
-                priority=NotificationPriority.HIGH
+                priority=NotificationPriority.HIGH,
             )
 
             assert result["results"] == []
@@ -268,7 +291,9 @@ class TestSmartNotifyFunction:
     @pytest.mark.asyncio
     async def test_smart_notify_default_priority(self, sample_config):
         """Test smart_notify with default priority."""
-        with patch('src.zulipchat_mcp.notifications.SmartNotificationSystem') as mock_system_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.SmartNotificationSystem"
+        ) as mock_system_class:
             mock_system = AsyncMock()
             mock_system.notify.return_value = {"status": "sent"}
             mock_system_class.return_value = mock_system
@@ -276,20 +301,22 @@ class TestSmartNotifyFunction:
             result = await smart_notify(
                 config=sample_config,
                 recipients=["user@example.com"],
-                content="Test message"
+                content="Test message",
             )
 
             assert result["status"] == "sent"
             mock_system.notify.assert_called_once_with(
                 ["user@example.com"],
                 "Test message",
-                NotificationPriority.MEDIUM  # Default priority
+                NotificationPriority.MEDIUM,  # Default priority
             )
 
     @pytest.mark.asyncio
     async def test_smart_notify_with_priority(self, sample_config):
         """Test smart_notify with specified priority."""
-        with patch('src.zulipchat_mcp.notifications.SmartNotificationSystem') as mock_system_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.SmartNotificationSystem"
+        ) as mock_system_class:
             mock_system = AsyncMock()
             mock_system.notify.return_value = {"status": "sent"}
             mock_system_class.return_value = mock_system
@@ -298,14 +325,12 @@ class TestSmartNotifyFunction:
                 config=sample_config,
                 recipients=["user@example.com"],
                 content="Urgent message",
-                priority=NotificationPriority.URGENT
+                priority=NotificationPriority.URGENT,
             )
 
             assert result["status"] == "sent"
             mock_system.notify.assert_called_once_with(
-                ["user@example.com"],
-                "Urgent message",
-                NotificationPriority.URGENT
+                ["user@example.com"], "Urgent message", NotificationPriority.URGENT
             )
 
 
@@ -317,9 +342,14 @@ class TestIntegration:
         """Test complete notification workflow with different priorities."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
-            mock_client.send_message_async.return_value = {"id": 999, "result": "success"}
+            mock_client.send_message_async.return_value = {
+                "id": 999,
+                "result": "success",
+            }
             # Mock the async context manager
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -330,7 +360,7 @@ class TestIntegration:
                 NotificationPriority.LOW,
                 NotificationPriority.MEDIUM,
                 NotificationPriority.HIGH,
-                NotificationPriority.URGENT
+                NotificationPriority.URGENT,
             ]
 
             results = []
@@ -338,7 +368,7 @@ class TestIntegration:
                 result = await system.notify(
                     recipients=["test@example.com"],
                     content=f"{priority.value} priority message",
-                    priority=priority
+                    priority=priority,
                 )
                 results.append(result)
 
@@ -359,11 +389,14 @@ class TestIntegration:
         """Test error recovery in notification system."""
         system = SmartNotificationSystem(sample_config)
 
-        with patch('src.zulipchat_mcp.notifications.AsyncZulipClient') as mock_client_class:
+        with patch(
+            "src.zulipchat_mcp.notifications.AsyncZulipClient"
+        ) as mock_client_class:
             mock_client = AsyncMock()
 
             # Simulate intermittent failures
             call_count = 0
+
             async def flaky_send(*args, **kwargs):
                 nonlocal call_count
                 call_count += 1
@@ -378,9 +411,13 @@ class TestIntegration:
             mock_client_class.return_value = mock_client
 
             result = await system.notify(
-                recipients=["user1@example.com", "user2@example.com", "user3@example.com"],
+                recipients=[
+                    "user1@example.com",
+                    "user2@example.com",
+                    "user3@example.com",
+                ],
                 content="Test",
-                priority=NotificationPriority.MEDIUM
+                priority=NotificationPriority.MEDIUM,
             )
 
             # Should have mix of successes and failures

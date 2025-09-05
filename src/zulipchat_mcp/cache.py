@@ -52,10 +52,7 @@ class MessageCache:
     def clear_expired(self) -> None:
         """Clear expired entries from cache."""
         now = time.time()
-        expired = [
-            k for k, (_, t) in self.cache.items()
-            if now - t >= self.ttl
-        ]
+        expired = [k for k, (_, t) in self.cache.items() if now - t >= self.ttl]
         for key in expired:
             del self.cache[key]
 
@@ -124,10 +121,7 @@ class UserCache:
         self.cache.set(f"user_{email}", info)
 
 
-def cache_decorator(
-    ttl: int = 300,
-    key_prefix: str = ""
-) -> Callable:
+def cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
     """Decorator for caching function results.
 
     Args:
@@ -156,13 +150,11 @@ def cache_decorator(
             return result
 
         return wrapper
+
     return decorator
 
 
-def async_cache_decorator(
-    ttl: int = 300,
-    key_prefix: str = ""
-) -> Callable:
+def async_cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
     """Decorator for caching async function results.
 
     Args:
@@ -191,6 +183,7 @@ def async_cache_decorator(
             return result
 
         return wrapper
+
     return decorator
 
 

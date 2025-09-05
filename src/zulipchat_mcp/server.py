@@ -1,6 +1,7 @@
 """Enhanced MCP server for Zulip integration with security and error handling."""
 
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -45,14 +46,27 @@ from .security import (
 
 
 def get_client() -> Any:
-    """Get or create Zulip client instance."""
+    """Get or create Zulip client instance with user credentials."""
     global zulip_client, config_manager
     if zulip_client is None:
         from .client import ZulipClientWrapper
         from .config import ConfigManager
+
         config_manager = ConfigManager()
-        zulip_client = ZulipClientWrapper(config_manager)
+        zulip_client = ZulipClientWrapper(config_manager, use_bot_identity=False)
     return zulip_client
+
+
+def get_bot_client() -> Any:
+    """Get or create Zulip client instance with bot credentials."""
+    global config_manager
+    from .client import ZulipClientWrapper
+    from .config import ConfigManager
+
+    if config_manager is None:
+        config_manager = ConfigManager()
+    # Create bot client - will use bot credentials if available
+    return ZulipClientWrapper(config_manager, use_bot_identity=True)
 
 
 @mcp.tool()
@@ -73,13 +87,22 @@ def send_message(
             try:
                 # Validate inputs
                 if not validate_message_type(message_type):
-                    return {"status": "error", "error": f"Invalid message_type: {message_type}"}
+                    return {
+                        "status": "error",
+                        "error": f"Invalid message_type: {message_type}",
+                    }
 
                 if message_type == "stream":
                     if not topic:
-                        return {"status": "error", "error": "Topic required for stream messages"}
+                        return {
+                            "status": "error",
+                            "error": "Topic required for stream messages",
+                        }
                     if not validate_stream_name(to):
-                        return {"status": "error", "error": f"Invalid stream name: {to}"}
+                        return {
+                            "status": "error",
+                            "error": f"Invalid stream name: {to}",
+                        }
                     if not validate_topic(topic):
                         return {"status": "error", "error": f"Invalid topic: {topic}"}
 
@@ -100,10 +123,13 @@ def send_message(
                     return {
                         "status": "success",
                         "message_id": result.get("id"),
-                        "timestamp": datetime.now().isoformat()
+                        "timestamp": datetime.now().isoformat(),
                     }
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except ValueError as e:
                 track_tool_error("send_message", "ValueError")
@@ -120,7 +146,7 @@ async def schedule_message(
     scheduled_time: str,
     message_type: str,
     to: str,
-    topic: str | None = None
+    topic: str | None = None,
 ) -> dict[str, Any]:
     """Schedule a message to be sent at a future time.
 
@@ -135,24 +161,37 @@ async def schedule_message(
         Scheduling result with scheduled message ID
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "schedule_message"}):
-        with LogContext(logger, tool="schedule_message", message_type=message_type, to=to):
+        with LogContext(
+            logger, tool="schedule_message", message_type=message_type, to=to
+        ):
             track_tool_call("schedule_message")
             try:
                 # Parse scheduled time
                 try:
-                    scheduled_dt = datetime.fromisoformat(scheduled_time.replace('Z', '+00:00'))
+                    scheduled_dt = datetime.fromisoformat(
+                        scheduled_time.replace("Z", "+00:00")
+                    )
                 except ValueError as e:
                     return {"status": "error", "error": f"Invalid datetime format: {e}"}
 
                 # Validate inputs
                 if not validate_message_type(message_type):
-                    return {"status": "error", "error": f"Invalid message_type: {message_type}"}
+                    return {
+                        "status": "error",
+                        "error": f"Invalid message_type: {message_type}",
+                    }
 
                 if message_type == "stream":
                     if not topic:
-                        return {"status": "error", "error": "Topic required for stream messages"}
+                        return {
+                            "status": "error",
+                            "error": "Topic required for stream messages",
+                        }
                     if not validate_stream_name(to):
-                        return {"status": "error", "error": f"Invalid stream name: {to}"}
+                        return {
+                            "status": "error",
+                            "error": f"Invalid stream name: {to}",
+                        }
                     if not validate_topic(topic):
                         return {"status": "error", "error": f"Invalid topic: {topic}"}
 
@@ -165,7 +204,8 @@ async def schedule_message(
                     scheduled_time=scheduled_dt,
                     message_type=message_type,
                     recipients=to,
-                    topic=topic
+                    topic=topic,
+                    scheduled_id=None,  # Will be set by API
                 )
 
                 # Get config and schedule
@@ -180,14 +220,19 @@ async def schedule_message(
                     return {
                         "status": "success",
                         "scheduled_id": result.get("scheduled_message_id"),
-                        "scheduled_time": scheduled_time
+                        "scheduled_time": scheduled_time,
                     }
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except ValueError as e:
                 track_tool_error("schedule_message", "ValueError")
-                return create_error_response(e, "schedule_message", {"scheduled_time": scheduled_time})
+                return create_error_response(
+                    e, "schedule_message", {"scheduled_time": scheduled_time}
+                )
             except Exception as e:
                 track_tool_error("schedule_message", "Exception")
                 return create_error_response(e, "schedule_message")
@@ -212,13 +257,21 @@ async def cancel_scheduled(scheduled_id: int) -> dict[str, Any]:
                     result = await scheduler.cancel_scheduled(scheduled_id)
 
                 if result.get("result") == "success":
-                    return {"status": "success", "message": "Scheduled message cancelled"}
+                    return {
+                        "status": "success",
+                        "message": "Scheduled message cancelled",
+                    }
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except Exception as e:
                 track_tool_error("cancel_scheduled", "Exception")
-                return create_error_response(e, "cancel_scheduled", {"scheduled_id": scheduled_id})
+                return create_error_response(
+                    e, "cancel_scheduled", {"scheduled_id": scheduled_id}
+                )
 
 
 @mcp.tool()
@@ -239,11 +292,17 @@ async def list_scheduled() -> list[dict[str, Any]]:
                 return [
                     {
                         "id": msg["scheduled_message_id"],
-                        "content": msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"],
-                        "scheduled_time": datetime.fromtimestamp(msg["scheduled_delivery_timestamp"]).isoformat(),
+                        "content": (
+                            msg["content"][:100] + "..."
+                            if len(msg["content"]) > 100
+                            else msg["content"]
+                        ),
+                        "scheduled_time": datetime.fromtimestamp(
+                            msg["scheduled_delivery_timestamp"]
+                        ).isoformat(),
                         "type": msg["type"],
                         "to": msg["to"],
-                        "topic": msg.get("topic")
+                        "topic": msg.get("topic"),
                     }
                     for msg in messages
                 ]
@@ -257,9 +316,7 @@ async def list_scheduled() -> list[dict[str, Any]]:
 # Notifications endpoint
 @mcp.tool()
 async def send_notification(
-    recipients: str,
-    content: str,
-    priority: str = "medium"
+    recipients: str, content: str, priority: str = "medium"
 ) -> dict[str, Any]:
     """Send smart notification with priority-based routing.
 
@@ -272,7 +329,9 @@ async def send_notification(
         Notification result with delivery status
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "send_notification"}):
-        with LogContext(logger, tool="send_notification", recipients=recipients, priority=priority):
+        with LogContext(
+            logger, tool="send_notification", recipients=recipients, priority=priority
+        ):
             track_tool_call("send_notification")
             try:
                 # Parse recipients
@@ -296,13 +355,15 @@ async def send_notification(
                     config_manager = ConfigManager()
                 config = config_manager.config
 
-                result = await smart_notify(config, recipient_list, content, notification_priority)
+                result = await smart_notify(
+                    config, recipient_list, content, notification_priority
+                )
 
                 return {
                     "status": "success",
                     "priority": priority,
                     "recipients": recipient_list,
-                    "result": result
+                    "result": result,
                 }
 
             except Exception as e:
@@ -315,7 +376,7 @@ def get_messages(
     stream_name: str | None = None,
     topic: str | None = None,
     hours_back: int = 24,
-    limit: int = 100
+    limit: int = 100,
 ) -> list[dict[str, Any]]:
     """Get messages from Zulip streams.
 
@@ -346,26 +407,56 @@ def get_messages(
                 # If no stream_name and no topic, use generic get_messages
                 if stream_name is None and topic is None:
                     # Call the base get_messages method
-                    if hasattr(client, 'get_messages'):
+                    if hasattr(client, "get_messages"):
                         messages = client.get_messages(num_before=limit)
                     else:
-                        messages = client.get_messages_from_stream(stream_name, topic, hours_back, limit)
+                        messages = client.get_messages_from_stream(
+                            stream_name, topic, hours_back, limit
+                        )
                 else:
-                    messages = client.get_messages_from_stream(stream_name, topic, hours_back, limit)
+                    messages = client.get_messages_from_stream(
+                        stream_name, topic, hours_back, limit
+                    )
 
                 # Handle both ZulipMessage objects and dicts
-                if messages and hasattr(messages[0], 'id'):
+                if messages and hasattr(messages[0], "id"):
                     # Convert ZulipMessage objects to dicts
                     return [
                         {
-                            "id": msg.id if hasattr(msg, 'id') else msg.get('id'),
-                            "content": msg.content if hasattr(msg, 'content') else msg.get('content'),
-                            "sender": msg.sender_full_name if hasattr(msg, 'sender_full_name') else msg.get('sender'),
-                            "email": msg.sender_email if hasattr(msg, 'sender_email') else msg.get('email'),
-                            "timestamp": msg.timestamp if hasattr(msg, 'timestamp') else msg.get('timestamp'),
-                            "stream": msg.stream_name if hasattr(msg, 'stream_name') else msg.get('stream'),
-                            "topic": msg.subject if hasattr(msg, 'subject') else msg.get('topic'),
-                            "type": msg.type if hasattr(msg, 'type') else msg.get('type')
+                            "id": msg.id if hasattr(msg, "id") else msg.get("id"),
+                            "content": (
+                                msg.content
+                                if hasattr(msg, "content")
+                                else msg.get("content")
+                            ),
+                            "sender": (
+                                msg.sender_full_name
+                                if hasattr(msg, "sender_full_name")
+                                else msg.get("sender")
+                            ),
+                            "email": (
+                                msg.sender_email
+                                if hasattr(msg, "sender_email")
+                                else msg.get("email")
+                            ),
+                            "timestamp": (
+                                msg.timestamp
+                                if hasattr(msg, "timestamp")
+                                else msg.get("timestamp")
+                            ),
+                            "stream": (
+                                msg.stream_name
+                                if hasattr(msg, "stream_name")
+                                else msg.get("stream")
+                            ),
+                            "topic": (
+                                msg.subject
+                                if hasattr(msg, "subject")
+                                else msg.get("topic")
+                            ),
+                            "type": (
+                                msg.type if hasattr(msg, "type") else msg.get("type")
+                            ),
                         }
                         for msg in messages
                     ]
@@ -407,18 +498,44 @@ def search_messages(query: str, limit: int = 50) -> list[dict[str, Any]]:
                 results = client.search_messages(query, num_results=limit)
 
                 # Handle both ZulipMessage objects and dicts
-                if results and hasattr(results[0], 'id'):
+                if results and hasattr(results[0], "id"):
                     # Convert ZulipMessage objects to dicts
                     return [
                         {
-                            "id": msg.id if hasattr(msg, 'id') else msg.get('id'),
-                            "content": msg.content if hasattr(msg, 'content') else msg.get('content'),
-                            "sender": msg.sender_full_name if hasattr(msg, 'sender_full_name') else msg.get('sender'),
-                            "email": msg.sender_email if hasattr(msg, 'sender_email') else msg.get('email'),
-                            "timestamp": msg.timestamp if hasattr(msg, 'timestamp') else msg.get('timestamp'),
-                            "stream": msg.stream_name if hasattr(msg, 'stream_name') else msg.get('stream'),
-                            "topic": msg.subject if hasattr(msg, 'subject') else msg.get('topic'),
-                            "type": msg.type if hasattr(msg, 'type') else msg.get('type')
+                            "id": msg.id if hasattr(msg, "id") else msg.get("id"),
+                            "content": (
+                                msg.content
+                                if hasattr(msg, "content")
+                                else msg.get("content")
+                            ),
+                            "sender": (
+                                msg.sender_full_name
+                                if hasattr(msg, "sender_full_name")
+                                else msg.get("sender")
+                            ),
+                            "email": (
+                                msg.sender_email
+                                if hasattr(msg, "sender_email")
+                                else msg.get("email")
+                            ),
+                            "timestamp": (
+                                msg.timestamp
+                                if hasattr(msg, "timestamp")
+                                else msg.get("timestamp")
+                            ),
+                            "stream": (
+                                msg.stream_name
+                                if hasattr(msg, "stream_name")
+                                else msg.get("stream")
+                            ),
+                            "topic": (
+                                msg.subject
+                                if hasattr(msg, "subject")
+                                else msg.get("topic")
+                            ),
+                            "type": (
+                                msg.type if hasattr(msg, "type") else msg.get("type")
+                            ),
                         }
                         for msg in results
                     ]
@@ -442,14 +559,30 @@ def get_streams() -> list[dict[str, Any]]:
                 streams = client.get_streams()
 
                 # Handle both ZulipStream objects and dicts
-                if streams and hasattr(streams[0], 'stream_id'):
+                if streams and hasattr(streams[0], "stream_id"):
                     # Convert ZulipStream objects to dicts
                     return [
                         {
-                            "id": stream.stream_id if hasattr(stream, 'stream_id') else stream.get('id'),
-                            "name": stream.name if hasattr(stream, 'name') else stream.get('name'),
-                            "description": stream.description if hasattr(stream, 'description') else stream.get('description'),
-                            "is_private": stream.is_private if hasattr(stream, 'is_private') else stream.get('is_private')
+                            "id": (
+                                stream.stream_id
+                                if hasattr(stream, "stream_id")
+                                else stream.get("id")
+                            ),
+                            "name": (
+                                stream.name
+                                if hasattr(stream, "name")
+                                else stream.get("name")
+                            ),
+                            "description": (
+                                stream.description
+                                if hasattr(stream, "description")
+                                else stream.get("description")
+                            ),
+                            "is_private": (
+                                stream.is_private
+                                if hasattr(stream, "is_private")
+                                else stream.get("is_private")
+                            ),
                         }
                         for stream in streams
                     ]
@@ -477,16 +610,40 @@ def get_users() -> list[dict[str, Any]]:
                 users = client.get_users()
 
                 # Handle both ZulipUser objects and dicts
-                if users and hasattr(users[0], 'user_id'):
+                if users and hasattr(users[0], "user_id"):
                     # Convert ZulipUser objects to dicts
                     return [
                         {
-                            "id": user.user_id if hasattr(user, 'user_id') else user.get('id'),
-                            "full_name": user.full_name if hasattr(user, 'full_name') else user.get('full_name'),
-                            "email": user.email if hasattr(user, 'email') else user.get('email'),
-                            "is_active": user.is_active if hasattr(user, 'is_active') else user.get('is_active'),
-                            "is_bot": user.is_bot if hasattr(user, 'is_bot') else user.get('is_bot'),
-                            "avatar_url": user.avatar_url if hasattr(user, 'avatar_url') else user.get('avatar_url')
+                            "id": (
+                                user.user_id
+                                if hasattr(user, "user_id")
+                                else user.get("id")
+                            ),
+                            "full_name": (
+                                user.full_name
+                                if hasattr(user, "full_name")
+                                else user.get("full_name")
+                            ),
+                            "email": (
+                                user.email
+                                if hasattr(user, "email")
+                                else user.get("email")
+                            ),
+                            "is_active": (
+                                user.is_active
+                                if hasattr(user, "is_active")
+                                else user.get("is_active")
+                            ),
+                            "is_bot": (
+                                user.is_bot
+                                if hasattr(user, "is_bot")
+                                else user.get("is_bot")
+                            ),
+                            "avatar_url": (
+                                user.avatar_url
+                                if hasattr(user, "avatar_url")
+                                else user.get("avatar_url")
+                            ),
                         }
                         for user in users
                     ]
@@ -511,7 +668,9 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
         emoji_name: Name of the emoji (e.g., 'thumbs_up')
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "add_reaction"}):
-        with LogContext(logger, tool="add_reaction", message_id=message_id, emoji=emoji_name):
+        with LogContext(
+            logger, tool="add_reaction", message_id=message_id, emoji=emoji_name
+        ):
             track_tool_call("add_reaction")
             try:
                 # Validate inputs
@@ -520,6 +679,7 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
 
                 # Validate emoji
                 from .security import validate_emoji
+
                 if not validate_emoji(emoji_name):
                     return {"status": "error", "error": "Invalid emoji name"}
 
@@ -530,7 +690,10 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
                 if result.get("result") == "success":
                     return {"status": "success", "message": "Reaction added"}
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except Exception as e:
                 track_tool_error("add_reaction", "Exception")
@@ -539,9 +702,7 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
 
 @mcp.tool()
 def edit_message(
-    message_id: int,
-    content: str | None = None,
-    topic: str | None = None
+    message_id: int, content: str | None = None, topic: str | None = None
 ) -> dict[str, Any]:
     """Edit an existing message's content or topic.
 
@@ -560,7 +721,10 @@ def edit_message(
                 if topic and not validate_topic(topic):
                     return {"status": "error", "error": f"Invalid topic: {topic}"}
                 if not content and not topic:
-                    return {"status": "error", "error": "Must provide content or topic to edit"}
+                    return {
+                        "status": "error",
+                        "error": "Must provide content or topic to edit",
+                    }
 
                 # Sanitize content
                 if content:
@@ -573,7 +737,10 @@ def edit_message(
                 if result.get("result") == "success":
                     return {"status": "success", "message": "Message edited"}
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except Exception as e:
                 track_tool_error("edit_message", "Exception")
@@ -581,7 +748,9 @@ def edit_message(
 
 
 @mcp.tool()
-def get_daily_summary(stream_name: str | list[str] | None = None, hours_back: int = 24) -> dict[str, Any]:
+def get_daily_summary(
+    stream_name: str | list[str] | None = None, hours_back: int = 24
+) -> dict[str, Any]:
     """Generate a daily summary of messages from specified streams.
 
     Args:
@@ -600,28 +769,42 @@ def get_daily_summary(stream_name: str | list[str] | None = None, hours_back: in
                 elif isinstance(stream_name, str):
                     # Single stream
                     if not validate_stream_name(stream_name):
-                        return {"status": "error", "error": f"Invalid stream name: {stream_name}"}
+                        return {
+                            "status": "error",
+                            "error": f"Invalid stream name: {stream_name}",
+                        }
                     streams_to_check = [stream_name]
                 elif isinstance(stream_name, list):
                     # Multiple streams
                     for stream in stream_name:
                         if not validate_stream_name(stream):
-                            return {"status": "error", "error": f"Invalid stream name: {stream}"}
+                            return {
+                                "status": "error",
+                                "error": f"Invalid stream name: {stream}",
+                            }
                     streams_to_check = stream_name
                 else:
-                    return {"status": "error", "error": f"Invalid stream_name type: {type(stream_name)}"}
+                    return {
+                        "status": "error",
+                        "error": f"Invalid stream_name type: {type(stream_name)}",
+                    }
                 if hours_back < 1 or hours_back > 168:  # Max 1 week
-                    return {"status": "error", "error": "hours_back must be between 1 and 168"}
+                    return {
+                        "status": "error",
+                        "error": "hours_back must be between 1 and 168",
+                    }
 
                 # Check if we should use client's get_daily_summary for multiple streams
                 client = get_client()
-                if hasattr(client, 'get_daily_summary') and streams_to_check:
+                if hasattr(client, "get_daily_summary") and streams_to_check:
                     # Use client's method which handles multiple streams
-                    summary_data = client.get_daily_summary(streams_to_check, hours_back)
+                    summary_data = client.get_daily_summary(
+                        streams_to_check, hours_back
+                    )
                     return {
                         "status": "success",
                         "data": summary_data,
-                        "period_hours": hours_back
+                        "period_hours": hours_back,
                     }
 
                 # Fallback to manual summary generation
@@ -641,7 +824,7 @@ def get_daily_summary(stream_name: str | list[str] | None = None, hours_back: in
                         "status": "success",
                         "summary": "No messages found in the specified period.",
                         "period_hours": hours_back,
-                        "stream": stream_name or "all streams"
+                        "stream": stream_name or "all streams",
                     }
 
                 # Group messages by topic
@@ -656,19 +839,23 @@ def get_daily_summary(stream_name: str | list[str] | None = None, hours_back: in
                 summary = {
                     "status": "success",
                     "period_hours": hours_back,
-                    "stream": stream_name if isinstance(stream_name, str) else "multiple streams" if stream_name else "all streams",
+                    "stream": (
+                        stream_name
+                        if isinstance(stream_name, str)
+                        else "multiple streams" if stream_name else "all streams"
+                    ),
                     "total_messages": len(all_messages),
                     "topics_count": len(topics),
                     "topics": [
                         {
                             "name": topic,
                             "message_count": len(msgs),
-                            "latest_message": msgs[-1].get("content", "")[:100]
+                            "latest_message": msgs[-1].get("content", "")[:100],
                         }
-                        for topic, msgs in sorted(topics.items(),
-                                                 key=lambda x: len(x[1]),
-                                                 reverse=True)[:10]
-                    ]
+                        for topic, msgs in sorted(
+                            topics.items(), key=lambda x: len(x[1]), reverse=True
+                        )[:10]
+                    ],
                 }
 
                 return summary
@@ -677,6 +864,421 @@ def get_daily_summary(stream_name: str | list[str] | None = None, hours_back: in
                 track_tool_error("get_daily_summary", "Exception")
                 logger.error(f"Error in get_daily_summary: {e}")
                 return {"status": "error", "error": str(e)}
+
+
+# Agent Communication Tools
+@mcp.tool()
+def register_agent(
+    agent_name: str | None = None,
+    agent_type: str = "claude_code",
+    private_stream: bool = True,
+    use_instance_identity: bool = True,
+) -> dict[str, Any]:
+    """Register an AI agent with dedicated Zulip communication channel.
+
+    Automatically detects project context and creates unique identity per instance.
+
+    Args:
+        agent_name: Name of the agent (auto-generated if None)
+        agent_type: Type of agent (claude_code, github_copilot, codeium, custom)
+        private_stream: Whether to create a private stream
+        use_instance_identity: Use smart instance detection for multi-project support
+
+    Returns:
+        Agent registration details including agent_id, stream_name, bot_name, instance_id
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "register_agent"}):
+        with LogContext(logger, tool="register_agent", agent_name=agent_name):
+            track_tool_call("register_agent")
+            try:
+                global config_manager
+                from .instance_identity import get_instance_identity
+                from .services.agent_registry import AgentRegistry
+
+                # Use bot client if available for agent operations
+                if config_manager is None:
+                    from .config import ConfigManager
+
+                    config_manager = ConfigManager()
+                client = (
+                    get_bot_client()
+                    if config_manager.has_bot_credentials()
+                    else get_client()
+                )
+
+                # Get instance identity for this Claude Code session
+                if use_instance_identity:
+                    instance = get_instance_identity()
+
+                    # Use instance-aware naming
+                    if not agent_name:
+                        agent_name = instance.get_bot_name()
+
+                    # Create registry with instance awareness
+                    registry = AgentRegistry(config_manager, client)
+
+                    # Register with instance metadata
+                    result = registry.register_agent(
+                        agent_name=agent_name,
+                        agent_type=agent_type,
+                        private_stream=private_stream,
+                        metadata=instance.get_metadata(),
+                    )
+
+                    # Add instance info to result
+                    if result.get("status") == "success":
+                        result["instance"] = {
+                            "instance_id": instance.get_instance_id(),
+                            "session_id": instance.get_session_id(),
+                            "display_name": instance.get_display_name(),
+                            "stream_name": instance.get_stream_name(),
+                        }
+
+                        # Store both agent ID and instance ID for this session
+                        agent_data = result.get("agent", {})
+                        os.environ["CLAUDE_CODE_AGENT_ID"] = agent_data.get("id", "")
+                        os.environ["CLAUDE_CODE_INSTANCE_ID"] = (
+                            instance.get_instance_id()
+                        )
+                        os.environ["CLAUDE_CODE_SESSION_ID"] = instance.get_session_id()
+                else:
+                    # Traditional registration without instance identity
+                    registry = AgentRegistry(config_manager, client)
+                    result = registry.register_agent(
+                        agent_name or "Claude Code", agent_type, private_stream
+                    )
+
+                    if result.get("status") == "success":
+                        agent_data = result.get("agent", {})
+                        os.environ["CLAUDE_CODE_AGENT_ID"] = agent_data.get("id", "")
+
+                return result
+            except Exception as e:
+                track_tool_error("register_agent", "Exception")
+                return create_error_response(e, "register_agent")
+
+
+@mcp.tool()
+def agent_message(
+    agent_id: str,
+    message_type: str,
+    content: str,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Send a message from agent to human via Zulip.
+
+    Args:
+        agent_id: Unique agent identifier
+        message_type: Type of message (status, question, completion, error)
+        content: Message content
+        metadata: Optional metadata (files, progress, duration)
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "agent_message"}):
+        with LogContext(logger, tool="agent_message", agent_id=agent_id):
+            track_tool_call("agent_message")
+            try:
+                global config_manager
+                from .tools.agent_communication import AgentCommunication
+
+                if config_manager is None:
+                    from .config import ConfigManager
+
+                    config_manager = ConfigManager()
+                client = (
+                    get_bot_client()
+                    if config_manager.has_bot_credentials()
+                    else get_client()
+                )
+                comm = AgentCommunication(config_manager, client)
+                return comm.agent_message(agent_id, message_type, content, metadata)  # type: ignore
+            except Exception as e:
+                track_tool_error("send_agent_status", "Exception")
+                return create_error_response(e, "send_agent_status")
+
+
+# Task Management Tools
+@mcp.tool()
+def start_task(
+    agent_id: str,
+    task_name: str,
+    task_description: str,
+    subtasks: list[str] | None = None,
+) -> dict[str, Any]:
+    """Notify user that agent is starting a new task.
+
+    Args:
+        agent_id: Unique agent identifier
+        task_name: Name of the task
+        task_description: Detailed description
+        subtasks: Optional list of subtasks
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "start_task"}):
+        with LogContext(logger, tool="start_task", agent_id=agent_id):
+            track_tool_call("start_task")
+            try:
+                from .tools.task_tracking import TaskTracking
+
+                tracker = TaskTracking(config_manager, get_client())  # type: ignore
+                return tracker.start_task(
+                    agent_id, task_name, task_description, subtasks
+                )
+            except Exception as e:
+                track_tool_error("start_task", "Exception")
+                return create_error_response(e, "start_task")
+
+
+@mcp.tool()
+def update_task_progress(
+    task_id: str,
+    subtask_completed: str | None = None,
+    progress_percentage: int | None = None,
+    blockers: list[str] | None = None,
+) -> dict[str, Any]:
+    """Update task progress in real-time.
+
+    Args:
+        task_id: Task identifier
+        subtask_completed: Optional completed subtask name
+        progress_percentage: Optional progress (0-100)
+        blockers: Optional list of blockers
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "update_task_progress"}):
+        with LogContext(logger, tool="update_task_progress", task_id=task_id):
+            track_tool_call("update_task_progress")
+            try:
+                from .tools.task_tracking import TaskTracking
+
+                tracker = TaskTracking(config_manager, get_client())  # type: ignore
+                return tracker.update_task_progress(
+                    task_id, subtask_completed, progress_percentage, blockers
+                )
+            except Exception as e:
+                track_tool_error("update_task_progress", "Exception")
+                return create_error_response(e, "update_task_progress")
+
+
+@mcp.tool()
+def complete_task(
+    task_id: str,
+    summary: str,
+    outputs: dict[str, Any],
+    metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Mark task as complete with detailed summary.
+
+    Args:
+        task_id: Task identifier
+        summary: Task completion summary
+        outputs: Task outputs (files_created, files_modified, etc.)
+        metrics: Optional metrics (time_taken, test_coverage, etc.)
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "complete_task"}):
+        with LogContext(logger, tool="complete_task", task_id=task_id):
+            track_tool_call("complete_task")
+            try:
+                from .tools.task_tracking import TaskTracking
+
+                tracker = TaskTracking(config_manager, get_client())  # type: ignore
+                return tracker.complete_task(task_id, summary, outputs, metrics)
+            except Exception as e:
+                track_tool_error("complete_task", "Exception")
+                return create_error_response(e, "complete_task")
+
+
+# Instance Management Tools
+@mcp.tool()
+def list_instances() -> dict[str, Any]:
+    """List all active Claude Code instances across projects and machines.
+
+    Returns information about each instance including project, branch, hostname, and last seen time.
+    """
+    try:
+        from .instance_identity import get_instance_identity
+
+        instance = get_instance_identity()
+        instances = instance.list_all_instances()
+
+        result = []
+        for inst_id, inst_data in instances.items():
+            result.append(
+                {
+                    "instance_id": inst_id,
+                    "session_id": inst_data.get("session_id"),
+                    "project": inst_data.get("project", {}).get("name"),
+                    "branch": inst_data.get("project", {}).get("git_branch"),
+                    "hostname": inst_data.get("machine", {}).get("hostname"),
+                    "user": inst_data.get("machine", {}).get("user"),
+                    "last_seen": inst_data.get("last_seen"),
+                    "stream": inst_data.get("stream_name"),
+                    "bot_name": inst_data.get("bot_name"),
+                }
+            )
+
+        return {
+            "status": "success",
+            "instances": result,
+            "count": len(result),
+            "current_instance": instance.get_instance_id(),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@mcp.tool()
+def cleanup_old_instances(days: int = 30) -> dict[str, Any]:
+    """Remove instances not seen in specified number of days.
+
+    Args:
+        days: Number of days of inactivity before removal (default: 30)
+    """
+    try:
+        from .instance_identity import get_instance_identity
+
+        instance = get_instance_identity()
+        removed = instance.cleanup_old_instances(days)
+
+        return {
+            "status": "success",
+            "removed": removed,
+            "message": f"Removed {removed} inactive instances older than {days} days",
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+# Stream Management Tools
+@mcp.tool()
+def create_stream(
+    name: str,
+    description: str,
+    is_private: bool = False,
+    is_announcement_only: bool = False,
+) -> dict[str, Any]:
+    """Create a new stream with configuration.
+
+    Args:
+        name: Stream name
+        description: Stream description
+        is_private: Whether stream is private
+        is_announcement_only: Whether only admins can post
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "create_stream"}):
+        with LogContext(logger, tool="create_stream", name=name):
+            track_tool_call("create_stream")
+            try:
+                from .tools.stream_management import StreamManagement
+
+                mgmt = StreamManagement(config_manager, get_client())  # type: ignore
+                return mgmt.create_stream(
+                    name, description, is_private, is_announcement_only
+                )
+            except Exception as e:
+                track_tool_error("create_stream", "Exception")
+                return create_error_response(e, "create_stream")
+
+
+@mcp.tool()
+def rename_stream(stream_id: int, new_name: str) -> dict[str, Any]:
+    """Rename an existing stream.
+
+    Args:
+        stream_id: Stream ID to rename
+        new_name: New stream name
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "rename_stream"}):
+        with LogContext(logger, tool="rename_stream", stream_id=stream_id):
+            track_tool_call("rename_stream")
+            try:
+                from .tools.stream_management import StreamManagement
+
+                mgmt = StreamManagement(config_manager, get_client())  # type: ignore
+                return mgmt.rename_stream(stream_id, new_name)
+            except Exception as e:
+                track_tool_error("rename_stream", "Exception")
+                return create_error_response(e, "rename_stream")
+
+
+@mcp.tool()
+def archive_stream(stream_id: int, message: str | None = None) -> dict[str, Any]:
+    """Archive a stream with optional farewell message.
+
+    Args:
+        stream_id: Stream ID to archive
+        message: Optional farewell message
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "archive_stream"}):
+        with LogContext(logger, tool="archive_stream", stream_id=stream_id):
+            track_tool_call("archive_stream")
+            try:
+                from .tools.stream_management import StreamManagement
+
+                mgmt = StreamManagement(config_manager, get_client())  # type: ignore
+                return mgmt.archive_stream(stream_id, message)
+            except Exception as e:
+                track_tool_error("archive_stream", "Exception")
+                return create_error_response(e, "archive_stream")
+
+
+@mcp.tool()
+def wait_for_response(
+    agent_id: str, request_id: str, timeout: int = 300
+) -> dict[str, Any]:
+    """Wait for user response to an input request.
+
+    Args:
+        agent_id: Agent ID
+        request_id: Request ID to wait for
+        timeout: Timeout in seconds
+
+    Returns:
+        Response from user or None if timeout
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
+        with LogContext(logger, tool="wait_for_response", agent_id=agent_id):
+            track_tool_call("wait_for_response")
+            try:
+                from .tools.agent_communication import AgentCommunication
+
+                comm = AgentCommunication(config_manager, get_client())  # type: ignore
+                response = comm.wait_for_response(agent_id, request_id, timeout)
+
+                if response:
+                    return {"status": "success", "response": response}
+                else:
+                    return {
+                        "status": "timeout",
+                        "message": "No response received within timeout period",
+                    }
+            except Exception as e:
+                track_tool_error("wait_for_response", "Exception")
+                return create_error_response(e, "wait_for_response")
+
+
+@mcp.tool()
+def organize_streams_by_project(
+    project_mapping: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Organize streams by project prefix.
+
+    Args:
+        project_mapping: Dictionary mapping project names to stream patterns
+
+    Example:
+        {"IOWarp": ["IOWarp-dev", "IOWarp-support"]}
+    """
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "organize_streams_by_project"}
+    ):
+        with LogContext(logger, tool="organize_streams_by_project"):
+            track_tool_call("organize_streams_by_project")
+            try:
+                from .tools.stream_management import StreamManagement
+
+                mgmt = StreamManagement(config_manager, get_client())  # type: ignore
+                return mgmt.organize_streams_by_project(project_mapping)
+            except Exception as e:
+                track_tool_error("organize_streams_by_project", "Exception")
+                return create_error_response(e, "organize_streams_by_project")
 
 
 # Health and monitoring endpoints
@@ -692,13 +1294,14 @@ async def health_check() -> dict[str, Any]:
     """
     try:
         from .health import perform_health_check
+
         return await perform_health_check()
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -711,13 +1314,14 @@ def readiness_check() -> dict[str, Any]:
     """
     try:
         from .health import get_readiness
+
         return get_readiness()
     except Exception as e:
         logger.error(f"Readiness check failed: {e}")
         return {
             "ready": False,
             "error": str(e),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -733,13 +1337,11 @@ def get_metrics() -> dict[str, Any]:
     """
     try:
         from .metrics import metrics
+
         return metrics.get_metrics()
     except Exception as e:
         logger.error(f"Metrics retrieval failed: {e}")
-        return {
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"error": str(e), "timestamp": datetime.now().isoformat()}
 
 
 # MCP Resources
@@ -760,7 +1362,9 @@ def get_stream_messages(stream_name: str) -> list[Any]:
 
         for msg in messages[:50]:  # Limit to 50 messages for resource
             if "error" not in msg:
-                timestamp = datetime.fromtimestamp(msg.get("timestamp", 0)).strftime("%Y-%m-%d %H:%M")
+                timestamp = datetime.fromtimestamp(msg.get("timestamp", 0)).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
                 sender = msg.get("sender", "Unknown")
                 topic = msg.get("topic", "No topic")
                 content = msg.get("content", "")[:200]  # Truncate long messages
@@ -799,12 +1403,16 @@ def list_streams() -> list[Any]:
         if public_streams:
             content_lines.append("\n📢 Public Streams:")
             for stream in public_streams:
-                content_lines.append(f"  • {stream.get('name')} - {stream.get('description', 'No description')}")
+                content_lines.append(
+                    f"  • {stream.get('name')} - {stream.get('description', 'No description')}"
+                )
 
         if private_streams:
             content_lines.append("\n🔒 Private Streams:")
             for stream in private_streams:
-                content_lines.append(f"  • {stream.get('name')} - {stream.get('description', 'No description')}")
+                content_lines.append(
+                    f"  • {stream.get('name')} - {stream.get('description', 'No description')}"
+                )
 
         return [TextContent(type="text", text="\n".join(content_lines))]
 
@@ -840,7 +1448,9 @@ def list_users() -> list[Any]:
         if active_users:
             content_lines.append(f"\nActive Users ({len(active_users)}):")
             for user in active_users[:50]:  # Limit display
-                content_lines.append(f"  • {user.get('full_name')} ({user.get('email')})")
+                content_lines.append(
+                    f"  • {user.get('full_name')} ({user.get('email')})"
+                )
 
         if bots:
             content_lines.append(f"\nBots ({len(bots)}):")
@@ -859,7 +1469,9 @@ def list_users() -> list[Any]:
 
 # MCP Prompts
 @mcp.prompt("daily_summary")
-def daily_summary_prompt(streams: list[str] | str | None = None, hours: int = 24) -> list[Any]:
+def daily_summary_prompt(
+    streams: list[str] | str | None = None, hours: int = 24
+) -> list[Any]:
     """Generate a daily summary prompt for messages."""
     try:
         client = get_client()
@@ -873,14 +1485,18 @@ def daily_summary_prompt(streams: list[str] | str | None = None, hours: int = 24
 
         prompt_lines = ["# Zulip Daily Summary", ""]
         prompt_lines.append(f"**Total Messages**: {summary.get('total_messages', 0)}")
-        prompt_lines.append(f"**Time Range**: {summary.get('time_range', 'Last 24 hours')}")
+        prompt_lines.append(
+            f"**Time Range**: {summary.get('time_range', 'Last 24 hours')}"
+        )
 
         if summary.get("streams"):
             prompt_lines.append("\nStream Activity:")
             for stream, data in summary["streams"].items():
                 prompt_lines.append(f"  • {stream}: {data['message_count']} messages")
                 if data.get("topics"):
-                    top_topics = sorted(data["topics"].items(), key=lambda x: x[1], reverse=True)[:3]
+                    top_topics = sorted(
+                        data["topics"].items(), key=lambda x: x[1], reverse=True
+                    )[:3]
                     for topic, count in top_topics:
                         prompt_lines.append(f"    - {topic}: {count} messages")
 
@@ -890,11 +1506,13 @@ def daily_summary_prompt(streams: list[str] | str | None = None, hours: int = 24
                 prompt_lines.append(f"  • {sender}: {count} messages")
 
         from mcp.types import TextContent
+
         return [TextContent(type="text", text="\n".join(prompt_lines))]
 
     except Exception as e:
         logger.error(f"Error in daily_summary_prompt: {e}")
         from mcp.types import TextContent
+
         return [TextContent(type="text", text=f"Error generating summary: {str(e)}")]
 
 
@@ -905,18 +1523,28 @@ def morning_briefing_prompt(streams: list[str] | str | None = None) -> list[Any]
         client = get_client()
 
         # Get yesterday's activity (24 hours) and this week's data
-        yesterday_summary = client.get_daily_summary(streams if isinstance(streams, list) else [streams] if streams else None, hours_back=24)
-        week_summary = client.get_daily_summary(streams if isinstance(streams, list) else [streams] if streams else None, hours_back=168)
+        yesterday_summary = client.get_daily_summary(
+            streams if isinstance(streams, list) else [streams] if streams else None,
+            hours_back=24,
+        )
+        week_summary = client.get_daily_summary(
+            streams if isinstance(streams, list) else [streams] if streams else None,
+            hours_back=168,
+        )
 
         prompt_lines = ["# Good Morning!", ""]
 
         # Yesterday's activity
         prompt_lines.append("## Yesterday's Activity")
-        prompt_lines.append(f"Total messages: {yesterday_summary.get('total_messages', 0)}")
+        prompt_lines.append(
+            f"Total messages: {yesterday_summary.get('total_messages', 0)}"
+        )
 
         if yesterday_summary.get("top_senders"):
             top_sender = list(yesterday_summary["top_senders"].items())[0]
-            prompt_lines.append(f"Most active: {top_sender[0]} ({top_sender[1]} messages)")
+            prompt_lines.append(
+                f"Most active: {top_sender[0]} ({top_sender[1]} messages)"
+            )
 
         # This week's summary
         prompt_lines.append("\n## This Week")
@@ -928,21 +1556,29 @@ def morning_briefing_prompt(streams: list[str] | str | None = None) -> list[Any]
             for stream, data in list(week_summary["streams"].items())[:3]:
                 prompt_lines.append(f"  • {stream}: {data['message_count']} messages")
                 if data.get("topics"):
-                    top_topic = list(data["topics"].items())[0] if data["topics"] else None
+                    top_topic = (
+                        list(data["topics"].items())[0] if data["topics"] else None
+                    )
                     if top_topic:
-                        prompt_lines.append(f"    Top topic: {top_topic[0]} ({top_topic[1]} messages)")
+                        prompt_lines.append(
+                            f"    Top topic: {top_topic[0]} ({top_topic[1]} messages)"
+                        )
 
         from mcp.types import TextContent
+
         return [TextContent(type="text", text="\n".join(prompt_lines))]
 
     except Exception as e:
         logger.error(f"Error in morning_briefing_prompt: {e}")
         from mcp.types import TextContent
+
         return [TextContent(type="text", text=f"Error generating briefing: {str(e)}")]
 
 
 @mcp.prompt("catch_up")
-def catch_up_prompt(stream_name: str | list[str] | None = None, hours: int = 24) -> list[Any]:
+def catch_up_prompt(
+    stream_name: str | list[str] | None = None, hours: int = 24
+) -> list[Any]:
     """Generate a catch-up prompt for missed messages."""
     from mcp.types import TextContent
 
@@ -967,8 +1603,12 @@ def catch_up_prompt(stream_name: str | list[str] | None = None, hours: int = 24)
             all_senders = set()
 
             for stream in streams[:5]:  # Limit to top 5 streams
-                stream_name_str = stream.name if hasattr(stream, 'name') else stream.get('name', '')
-                messages = client.get_messages_from_stream(stream_name_str, None, hours, 50)
+                stream_name_str = (
+                    stream.name if hasattr(stream, "name") else stream.get("name", "")
+                )
+                messages = client.get_messages_from_stream(
+                    stream_name_str, None, hours, 50
+                )
                 if messages:
                     total_messages += len(messages)
                     stream_activity.append((stream_name_str, len(messages)))
@@ -993,7 +1633,9 @@ def catch_up_prompt(stream_name: str | list[str] | None = None, hours: int = 24)
 
             # Add top topics
             if all_topics:
-                top_topics = sorted(all_topics.items(), key=lambda x: x[1], reverse=True)[:5]
+                top_topics = sorted(
+                    all_topics.items(), key=lambda x: x[1], reverse=True
+                )[:5]
                 prompt_lines.append("\n## Active Topics:")
                 for topic, count in top_topics:
                     prompt_lines.append(f"  • {topic}: {count} messages")
@@ -1008,13 +1650,17 @@ def catch_up_prompt(stream_name: str | list[str] | None = None, hours: int = 24)
             summary = get_daily_summary(stream_name, hours_back=hours)
 
             if summary.get("status") == "success":
-                prompt_lines.append(f"Total messages: {summary.get('total_messages', 0)}")
+                prompt_lines.append(
+                    f"Total messages: {summary.get('total_messages', 0)}"
+                )
                 prompt_lines.append(f"Active topics: {summary.get('topics_count', 0)}")
 
                 if summary.get("topics"):
                     prompt_lines.append("\nKey Discussions:")
                     for topic_data in summary["topics"]:
-                        prompt_lines.append(f"  • {topic_data['name']}: {topic_data['message_count']} messages")
+                        prompt_lines.append(
+                            f"  • {topic_data['name']}: {topic_data['message_count']} messages"
+                        )
 
         prompt_lines.append("\nUse 'get_messages' to read specific topics in detail.")
 
@@ -1030,7 +1676,7 @@ def main() -> None:
     # Set up logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Start the MCP server directly

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class ExecutionStatus(Enum):
     """Command execution status."""
+
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -37,6 +38,7 @@ class ExecutionStatus(Enum):
 
 class ConditionOperator(Enum):
     """Condition operators for conditional execution."""
+
     EQUALS = "equals"
     NOT_EQUALS = "not_equals"
     GREATER_THAN = "greater_than"
@@ -77,12 +79,14 @@ class ExecutionContext:
 
     def add_error(self, command: str, error: Exception) -> None:
         """Add error to context."""
-        self.errors.append({
-            "command": command,
-            "error": str(error),
-            "type": type(error).__name__,
-            "timestamp": datetime.now().isoformat()
-        })
+        self.errors.append(
+            {
+                "command": command,
+                "error": str(error),
+                "type": type(error).__name__,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     def add_warning(self, message: str) -> None:
         """Add warning to context."""
@@ -136,7 +140,7 @@ class Command(ABC):
         name: str,
         description: str = "",
         conditions: list[Condition] | None = None,
-        rollback_enabled: bool = False
+        rollback_enabled: bool = False,
     ):
         """Initialize command.
 
@@ -193,7 +197,9 @@ class Command(ABC):
         logger.info(f"Rolling back command: {self.name}")
         self._rollback_impl(context, client)
 
-    def _rollback_impl(self, context: ExecutionContext, client: ZulipClientWrapper) -> None:
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
         """Implementation of rollback logic. Override in subclasses."""
         pass
 
@@ -208,7 +214,7 @@ class SendMessageCommand(Command):
         to_key: str = "to",
         content_key: str = "content",
         topic_key: str = "topic",
-        **kwargs
+        **kwargs,
     ):
         """Initialize send message command.
 
@@ -219,13 +225,17 @@ class SendMessageCommand(Command):
             content_key: Context key for message content
             topic_key: Context key for topic (stream messages)
         """
-        super().__init__(name, "Send message to Zulip", rollback_enabled=False, **kwargs)
+        super().__init__(
+            name, "Send message to Zulip", rollback_enabled=False, **kwargs
+        )
         self.message_type_key = message_type_key
         self.to_key = to_key
         self.content_key = content_key
         self.topic_key = topic_key
 
-    def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> dict[str, Any]:
+    def execute(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> dict[str, Any]:
         """Send message via Zulip API."""
         try:
             message_type = context.get(self.message_type_key)
@@ -264,7 +274,7 @@ class GetMessagesCommand(Command):
         topic_key: str = "topic",
         hours_back_key: str = "hours_back",
         limit_key: str = "limit",
-        **kwargs
+        **kwargs,
     ):
         """Initialize get messages command."""
         super().__init__(name, "Get messages from Zulip", **kwargs)
@@ -273,7 +283,9 @@ class GetMessagesCommand(Command):
         self.hours_back_key = hours_back_key
         self.limit_key = limit_key
 
-    def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> list[dict[str, Any]]:
+    def execute(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> list[dict[str, Any]]:
         """Retrieve messages via Zulip API."""
         try:
             stream_name = context.get(self.stream_name_key)
@@ -319,14 +331,18 @@ class AddReactionCommand(Command):
         name: str = "add_reaction",
         message_id_key: str = "message_id",
         emoji_name_key: str = "emoji_name",
-        **kwargs
+        **kwargs,
     ):
         """Initialize add reaction command."""
-        super().__init__(name, "Add reaction to message", rollback_enabled=True, **kwargs)
+        super().__init__(
+            name, "Add reaction to message", rollback_enabled=True, **kwargs
+        )
         self.message_id_key = message_id_key
         self.emoji_name_key = emoji_name_key
 
-    def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> dict[str, Any]:
+    def execute(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> dict[str, Any]:
         """Add reaction to message."""
         try:
             message_id = context.get(self.message_id_key)
@@ -341,7 +357,7 @@ class AddReactionCommand(Command):
                 # Store for potential rollback
                 context.rollback_data[f"{self.name}_reaction"] = {
                     "message_id": message_id,
-                    "emoji_name": emoji_name
+                    "emoji_name": emoji_name,
                 }
                 return result
             else:
@@ -351,15 +367,19 @@ class AddReactionCommand(Command):
             logger.error(f"Add reaction command failed: {e}")
             raise
 
-    def _rollback_impl(self, context: ExecutionContext, client: ZulipClientWrapper) -> None:
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
         """Remove the added reaction."""
         rollback_key = f"{self.name}_reaction"
         if rollback_key in context.rollback_data:
             reaction_data = context.rollback_data[rollback_key]
             try:
                 # Note: Zulip API would need a remove_reaction method for full rollback
-                logger.info(f"Would remove reaction {reaction_data['emoji_name']} "
-                          f"from message {reaction_data['message_id']}")
+                logger.info(
+                    f"Would remove reaction {reaction_data['emoji_name']} "
+                    f"from message {reaction_data['message_id']}"
+                )
             except Exception as e:
                 logger.error(f"Failed to rollback reaction: {e}")
 
@@ -373,7 +393,7 @@ class ProcessDataCommand(Command):
         processor: Callable[[Any], Any],
         input_key: str,
         output_key: str,
-        **kwargs
+        **kwargs,
     ):
         """Initialize data processing command.
 
@@ -420,7 +440,7 @@ class CommandChain:
         name: str,
         client: ZulipClientWrapper | None = None,
         stop_on_error: bool = True,
-        enable_rollback: bool = False
+        enable_rollback: bool = False,
     ):
         """Initialize command chain.
 
@@ -437,7 +457,7 @@ class CommandChain:
         self.enable_rollback = enable_rollback
         self.execution_context: ExecutionContext | None = None
 
-    def add_command(self, command: Command) -> 'CommandChain':
+    def add_command(self, command: Command) -> "CommandChain":
         """Add command to the chain.
 
         Args:
@@ -452,7 +472,7 @@ class CommandChain:
     def execute(
         self,
         initial_context: dict[str, Any] | None = None,
-        client: ZulipClientWrapper | None = None
+        client: ZulipClientWrapper | None = None,
     ) -> ExecutionContext:
         """Execute the command chain.
 
@@ -470,7 +490,7 @@ class CommandChain:
         context = ExecutionContext(
             data=initial_context or {},
             chain_id=f"{self.name}_{datetime.now().isoformat()}",
-            start_time=datetime.now()
+            start_time=datetime.now(),
         )
         self.execution_context = context
 
@@ -502,7 +522,9 @@ class CommandChain:
                     result = command.execute(context, exec_client)
                     command.result = result
                     command.status = ExecutionStatus.SUCCESS
-                    command.execution_time = (datetime.now() - start_time).total_seconds()
+                    command.execution_time = (
+                        datetime.now() - start_time
+                    ).total_seconds()
 
                     context.executed_commands.append(command.name)
                     executed_commands.append(command)
@@ -512,7 +534,9 @@ class CommandChain:
                 except Exception as e:
                     command.error = e
                     command.status = ExecutionStatus.FAILED
-                    command.execution_time = (datetime.now() - start_time).total_seconds()
+                    command.execution_time = (
+                        datetime.now() - start_time
+                    ).total_seconds()
 
                     context.add_error(command.name, e)
                     logger.error(f"Command {command.name} failed: {e}")
@@ -520,12 +544,18 @@ class CommandChain:
                     # Handle error based on chain configuration
                     if self.stop_on_error:
                         if self.enable_rollback:
-                            self._rollback_chain(executed_commands, context, exec_client)
-                        raise ZulipMCPError(f"Chain execution failed at command {command.name}: {e}") from None
+                            self._rollback_chain(
+                                executed_commands, context, exec_client
+                            )
+                        raise ZulipMCPError(
+                            f"Chain execution failed at command {command.name}: {e}"
+                        ) from None
 
             # Check if any commands failed (for continue-on-error mode)
             if context.has_errors() and not self.stop_on_error:
-                context.add_warning(f"Chain completed with {len(context.errors)} errors")
+                context.add_warning(
+                    f"Chain completed with {len(context.errors)} errors"
+                )
 
             logger.info(f"Command chain {self.name} completed")
 
@@ -541,7 +571,7 @@ class CommandChain:
         self,
         executed_commands: list[Command],
         context: ExecutionContext,
-        client: ZulipClientWrapper
+        client: ZulipClientWrapper,
     ) -> None:
         """Rollback executed commands in reverse order."""
         logger.info("Starting chain rollback")
@@ -574,11 +604,11 @@ class CommandChain:
                     "name": cmd.name,
                     "status": cmd.status.value,
                     "execution_time": cmd.execution_time,
-                    "error": str(cmd.error) if cmd.error else None
+                    "error": str(cmd.error) if cmd.error else None,
                 }
                 for cmd in self.commands
             ],
-            "context_keys": list(self.execution_context.data.keys())
+            "context_keys": list(self.execution_context.data.keys()),
         }
 
 
@@ -591,7 +621,7 @@ class ChainBuilder:
         topic: str,
         content: str,
         add_reaction: bool = True,
-        emoji: str = "white_check_mark"
+        emoji: str = "white_check_mark",
     ) -> CommandChain:
         """Create a workflow to send message and optionally add reaction.
 
@@ -608,65 +638,79 @@ class ChainBuilder:
         chain = CommandChain("message_workflow")
 
         # Set initial context
-        chain.add_command(ProcessDataCommand(
-            name="set_message_params",
-            processor=lambda _: {
-                "message_type": "stream",
-                "to": stream_name,
-                "topic": topic,
-                "content": content
-            },
-            input_key="dummy",
-            output_key="message_params"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="set_message_params",
+                processor=lambda _: {
+                    "message_type": "stream",
+                    "to": stream_name,
+                    "topic": topic,
+                    "content": content,
+                },
+                input_key="dummy",
+                output_key="message_params",
+            )
+        )
 
         # Copy params to individual keys
         def extract_params(params):
             return params  # ProcessDataCommand will handle the extraction
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_message_type",
-            processor=lambda params: params["message_type"],
-            input_key="message_params",
-            output_key="message_type"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_message_type",
+                processor=lambda params: params["message_type"],
+                input_key="message_params",
+                output_key="message_type",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_to",
-            processor=lambda params: params["to"],
-            input_key="message_params",
-            output_key="to"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_to",
+                processor=lambda params: params["to"],
+                input_key="message_params",
+                output_key="to",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_topic",
-            processor=lambda params: params["topic"],
-            input_key="message_params",
-            output_key="topic"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_topic",
+                processor=lambda params: params["topic"],
+                input_key="message_params",
+                output_key="topic",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_content",
-            processor=lambda params: params["content"],
-            input_key="message_params",
-            output_key="content"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_content",
+                processor=lambda params: params["content"],
+                input_key="message_params",
+                output_key="content",
+            )
+        )
 
         # Send message
         chain.add_command(SendMessageCommand())
 
         # Add reaction if requested
         if add_reaction:
-            chain.add_command(ProcessDataCommand(
-                name="set_emoji",
-                processor=lambda _: emoji,
-                input_key="dummy",
-                output_key="emoji_name"
-            ))
+            chain.add_command(
+                ProcessDataCommand(
+                    name="set_emoji",
+                    processor=lambda _: emoji,
+                    input_key="dummy",
+                    output_key="emoji_name",
+                )
+            )
 
-            chain.add_command(AddReactionCommand(
-                conditions=[Condition("last_message_id", ConditionOperator.EXISTS)]
-            ))
+            chain.add_command(
+                AddReactionCommand(
+                    conditions=[Condition("last_message_id", ConditionOperator.EXISTS)]
+                )
+            )
 
         return chain
 
@@ -675,7 +719,7 @@ class ChainBuilder:
         stream_names: list[str],
         hours_back: int = 24,
         target_stream: str = "general",
-        target_topic: str = "Daily Digest"
+        target_topic: str = "Daily Digest",
     ) -> CommandChain:
         """Create a workflow to generate and send message digest.
 
@@ -693,38 +737,49 @@ class ChainBuilder:
         # Process each stream
         for i, stream_name in enumerate(stream_names):
             # Set stream parameters
-            chain.add_command(ProcessDataCommand(
-                name=f"set_stream_{i}_params",
-                processor=lambda _, stream_name=stream_name, hours_back=hours_back: {"stream_name": stream_name, "hours_back": hours_back},
-                input_key="dummy",
-                output_key=f"stream_{i}_params"
-            ))
+            chain.add_command(
+                ProcessDataCommand(
+                    name=f"set_stream_{i}_params",
+                    processor=lambda _, stream_name=stream_name, hours_back=hours_back: {
+                        "stream_name": stream_name,
+                        "hours_back": hours_back,
+                    },
+                    input_key="dummy",
+                    output_key=f"stream_{i}_params",
+                )
+            )
 
             # Extract stream name and hours_back
-            chain.add_command(ProcessDataCommand(
-                name=f"extract_stream_{i}_name",
-                processor=lambda params: params["stream_name"],
-                input_key=f"stream_{i}_params",
-                output_key="stream_name"
-            ))
+            chain.add_command(
+                ProcessDataCommand(
+                    name=f"extract_stream_{i}_name",
+                    processor=lambda params: params["stream_name"],
+                    input_key=f"stream_{i}_params",
+                    output_key="stream_name",
+                )
+            )
 
-            chain.add_command(ProcessDataCommand(
-                name=f"extract_hours_back_{i}",
-                processor=lambda params: params["hours_back"],
-                input_key=f"stream_{i}_params",
-                output_key="hours_back"
-            ))
+            chain.add_command(
+                ProcessDataCommand(
+                    name=f"extract_hours_back_{i}",
+                    processor=lambda params: params["hours_back"],
+                    input_key=f"stream_{i}_params",
+                    output_key="hours_back",
+                )
+            )
 
             # Get messages
             chain.add_command(GetMessagesCommand(name=f"get_messages_{i}"))
 
             # Store messages with stream-specific key
-            chain.add_command(ProcessDataCommand(
-                name=f"store_messages_{i}",
-                processor=lambda msgs: msgs,
-                input_key="messages",
-                output_key=f"stream_{i}_messages"
-            ))
+            chain.add_command(
+                ProcessDataCommand(
+                    name=f"store_messages_{i}",
+                    processor=lambda msgs: msgs,
+                    input_key="messages",
+                    output_key=f"stream_{i}_messages",
+                )
+            )
 
         # Generate digest
         def create_digest(context_data):
@@ -744,7 +799,9 @@ class ChainBuilder:
                         sender = msg["sender"]
                         senders[sender] = senders.get(sender, 0) + 1
 
-                    top_senders = sorted(senders.items(), key=lambda x: x[1], reverse=True)[:3]
+                    top_senders = sorted(
+                        senders.items(), key=lambda x: x[1], reverse=True
+                    )[:3]
                     if top_senders:
                         digest_lines.append("Top contributors:")
                         for sender, count in top_senders:
@@ -752,57 +809,71 @@ class ChainBuilder:
 
                 digest_lines.append("")
 
-            digest_lines.append(f"**Total messages across all streams: {total_messages}**")
+            digest_lines.append(
+                f"**Total messages across all streams: {total_messages}**"
+            )
             return "\n".join(digest_lines)
 
-        chain.add_command(ProcessDataCommand(
-            name="generate_digest",
-            processor=create_digest,
-            input_key="dummy",
-            output_key="digest_content"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="generate_digest",
+                processor=create_digest,
+                input_key="dummy",
+                output_key="digest_content",
+            )
+        )
 
         # Set digest message parameters
-        chain.add_command(ProcessDataCommand(
-            name="set_digest_params",
-            processor=lambda content: {
-                "message_type": "stream",
-                "to": target_stream,
-                "topic": target_topic,
-                "content": content
-            },
-            input_key="digest_content",
-            output_key="digest_params"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="set_digest_params",
+                processor=lambda content: {
+                    "message_type": "stream",
+                    "to": target_stream,
+                    "topic": target_topic,
+                    "content": content,
+                },
+                input_key="digest_content",
+                output_key="digest_params",
+            )
+        )
 
         # Extract digest parameters
-        chain.add_command(ProcessDataCommand(
-            name="extract_digest_type",
-            processor=lambda params: params["message_type"],
-            input_key="digest_params",
-            output_key="message_type"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_digest_type",
+                processor=lambda params: params["message_type"],
+                input_key="digest_params",
+                output_key="message_type",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_digest_to",
-            processor=lambda params: params["to"],
-            input_key="digest_params",
-            output_key="to"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_digest_to",
+                processor=lambda params: params["to"],
+                input_key="digest_params",
+                output_key="to",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_digest_topic",
-            processor=lambda params: params["topic"],
-            input_key="digest_params",
-            output_key="topic"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_digest_topic",
+                processor=lambda params: params["topic"],
+                input_key="digest_params",
+                output_key="topic",
+            )
+        )
 
-        chain.add_command(ProcessDataCommand(
-            name="extract_digest_content",
-            processor=lambda params: params["content"],
-            input_key="digest_params",
-            output_key="content"
-        ))
+        chain.add_command(
+            ProcessDataCommand(
+                name="extract_digest_content",
+                processor=lambda params: params["content"],
+                input_key="digest_params",
+                output_key="content",
+            )
+        )
 
         # Send digest
         chain.add_command(SendMessageCommand(name="send_digest"))
@@ -812,19 +883,16 @@ class ChainBuilder:
 
 # Example usage and factory functions
 def create_simple_notification_chain(
-    stream: str,
-    topic: str,
-    message: str
+    stream: str, topic: str, message: str
 ) -> CommandChain:
     """Create a simple notification chain."""
-    return ChainBuilder.create_message_workflow(stream, topic, message, add_reaction=False)
+    return ChainBuilder.create_message_workflow(
+        stream, topic, message, add_reaction=False
+    )
 
 
 def create_monitored_message_chain(
-    stream: str,
-    topic: str,
-    message: str,
-    reaction: str = "eyes"
+    stream: str, topic: str, message: str, reaction: str = "eyes"
 ) -> CommandChain:
     """Create a message chain with monitoring reaction."""
     return ChainBuilder.create_message_workflow(stream, topic, message, True, reaction)

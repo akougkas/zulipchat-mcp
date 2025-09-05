@@ -28,11 +28,8 @@ class AsyncZulipClient:
         """Async context manager entry."""
         self.client = httpx.AsyncClient(
             timeout=30.0,
-            limits=httpx.Limits(
-                max_keepalive_connections=10,
-                max_connections=20
-            ),
-            auth=self.auth
+            limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            auth=self.auth,
         )
         return self
 
@@ -46,11 +43,8 @@ class AsyncZulipClient:
         if not self.client:
             self.client = httpx.AsyncClient(
                 timeout=30.0,
-                limits=httpx.Limits(
-                    max_keepalive_connections=10,
-                    max_connections=20
-                ),
-                auth=self.auth
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+                auth=self.auth,
             )
         return self.client
 
@@ -59,7 +53,7 @@ class AsyncZulipClient:
         message_type: str,
         to: str | list[str],
         content: str,
-        topic: str | None = None
+        topic: str | None = None,
     ) -> dict[str, Any]:
         """Send message asynchronously.
 
@@ -74,10 +68,7 @@ class AsyncZulipClient:
         """
         client = self._ensure_client()
 
-        data = {
-            "type": message_type,
-            "content": content
-        }
+        data = {"type": message_type, "content": content}
 
         if message_type == "stream":
             data["to"] = to if isinstance(to, str) else to[0]
@@ -86,10 +77,7 @@ class AsyncZulipClient:
         else:
             data["to"] = json.dumps(to if isinstance(to, list) else [to])
 
-        response = await client.post(
-            f"{self.base_url}/messages",
-            data=data
-        )
+        response = await client.post(f"{self.base_url}/messages", data=data)
         response.raise_for_status()
         return response.json()
 
@@ -98,7 +86,7 @@ class AsyncZulipClient:
         stream_name: str | None = None,
         topic: str | None = None,
         limit: int = 50,
-        hours_back: int = 24
+        hours_back: int = 24,
     ) -> list[ZulipMessage]:
         """Get messages asynchronously.
 
@@ -113,11 +101,7 @@ class AsyncZulipClient:
         """
         client = self._ensure_client()
 
-        params = {
-            "anchor": "newest",
-            "num_before": limit,
-            "num_after": 0
-        }
+        params = {"anchor": "newest", "num_before": limit, "num_after": 0}
 
         # Build narrow array
         narrow = []
@@ -129,18 +113,12 @@ class AsyncZulipClient:
         # Add time filter
         if hours_back:
             cutoff = datetime.now() - timedelta(hours=hours_back)
-            narrow.append({
-                "operator": "date",
-                "operand": cutoff.strftime("%Y-%m-%d")
-            })
+            narrow.append({"operator": "date", "operand": cutoff.strftime("%Y-%m-%d")})
 
         if narrow:
             params["narrow"] = json.dumps(narrow)
 
-        response = await client.get(
-            f"{self.base_url}/messages",
-            params=params
-        )
+        response = await client.get(f"{self.base_url}/messages", params=params)
         response.raise_for_status()
         data = response.json()
 
@@ -155,7 +133,7 @@ class AsyncZulipClient:
                     stream_name=msg.get("display_recipient"),
                     subject=msg.get("subject"),
                     type=msg["type"],
-                    reactions=msg.get("reactions", [])
+                    reactions=msg.get("reactions", []),
                 )
                 for msg in data["messages"]
             ]
@@ -179,7 +157,7 @@ class AsyncZulipClient:
                     stream_id=stream["stream_id"],
                     name=stream["name"],
                     description=stream["description"],
-                    is_private=stream.get("invite_only", False)
+                    is_private=stream.get("invite_only", False),
                 )
                 for stream in data["streams"]
             ]
@@ -205,16 +183,14 @@ class AsyncZulipClient:
                     email=user["email"],
                     is_active=user["is_active"],
                     is_bot=user["is_bot"],
-                    avatar_url=user.get("avatar_url")
+                    avatar_url=user.get("avatar_url"),
                 )
                 for user in data["members"]
             ]
         return []
 
     async def add_reaction_async(
-        self,
-        message_id: int,
-        emoji_name: str
+        self, message_id: int, emoji_name: str
     ) -> dict[str, Any]:
         """Add reaction to a message asynchronously.
 
@@ -229,16 +205,13 @@ class AsyncZulipClient:
 
         response = await client.post(
             f"{self.base_url}/messages/{message_id}/reactions",
-            data={"emoji_name": emoji_name}
+            data={"emoji_name": emoji_name},
         )
         response.raise_for_status()
         return response.json()
 
     async def edit_message_async(
-        self,
-        message_id: int,
-        content: str | None = None,
-        topic: str | None = None
+        self, message_id: int, content: str | None = None, topic: str | None = None
     ) -> dict[str, Any]:
         """Edit a message asynchronously.
 
@@ -259,16 +232,13 @@ class AsyncZulipClient:
             data["topic"] = topic
 
         response = await client.patch(
-            f"{self.base_url}/messages/{message_id}",
-            data=data
+            f"{self.base_url}/messages/{message_id}", data=data
         )
         response.raise_for_status()
         return response.json()
 
     async def search_messages_async(
-        self,
-        query: str,
-        limit: int = 50
+        self, query: str, limit: int = 50
     ) -> list[ZulipMessage]:
         """Search messages asynchronously.
 
@@ -287,13 +257,10 @@ class AsyncZulipClient:
             "anchor": "newest",
             "num_before": limit,
             "num_after": 0,
-            "narrow": json.dumps(narrow)
+            "narrow": json.dumps(narrow),
         }
 
-        response = await client.get(
-            f"{self.base_url}/messages",
-            params=params
-        )
+        response = await client.get(f"{self.base_url}/messages", params=params)
         response.raise_for_status()
         data = response.json()
 
@@ -308,7 +275,7 @@ class AsyncZulipClient:
                     stream_name=msg.get("display_recipient"),
                     subject=msg.get("subject"),
                     type=msg["type"],
-                    reactions=msg.get("reactions", [])
+                    reactions=msg.get("reactions", []),
                 )
                 for msg in data["messages"]
             ]
@@ -327,7 +294,7 @@ async def send_message_async(
     message_type: str,
     to: str | list[str],
     content: str,
-    topic: str | None = None
+    topic: str | None = None,
 ) -> dict[str, Any]:
     """Send message using async client.
 
@@ -349,7 +316,7 @@ async def get_messages_async(
     config: ZulipConfig,
     stream_name: str | None = None,
     topic: str | None = None,
-    limit: int = 50
+    limit: int = 50,
 ) -> list[ZulipMessage]:
     """Get messages using async client.
 

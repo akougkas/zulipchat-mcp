@@ -40,9 +40,6 @@ def get_async_client() -> AsyncZulipClient:
     return _async_client
 
 
-
-
-
 def extract_keywords(messages: list[ZulipMessage]) -> list[str]:
     """Extract simple keywords from messages."""
     if not messages:
@@ -53,29 +50,67 @@ def extract_keywords(messages: list[ZulipMessage]) -> list[str]:
         all_content.append(msg.content.lower())
 
     combined_content = " ".join(all_content)
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', combined_content)
+    words = re.findall(r"\b[a-zA-Z]{3,}\b", combined_content)
     word_counts = Counter(words)
 
     # Filter out common words
-    common_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'}
-    keywords = [word for word, count in word_counts.most_common(5) if word not in common_words and count > 1]
+    common_words = {
+        "the",
+        "and",
+        "for",
+        "are",
+        "but",
+        "not",
+        "you",
+        "all",
+        "can",
+        "had",
+        "her",
+        "was",
+        "one",
+        "our",
+        "out",
+        "day",
+        "get",
+        "has",
+        "him",
+        "his",
+        "how",
+        "man",
+        "new",
+        "now",
+        "old",
+        "see",
+        "two",
+        "way",
+        "who",
+        "boy",
+        "did",
+        "its",
+        "let",
+        "put",
+        "say",
+        "she",
+        "too",
+        "use",
+    }
+    keywords = [
+        word
+        for word, count in word_counts.most_common(5)
+        if word not in common_words and count > 1
+    ]
 
     return keywords
 
 
-
-
-
-
-
-
 # Assistant Tool Functions (to be decorated by main server)
+
 
 async def smart_reply_impl(
     stream_name: str,
     topic: str | None = None,
     hours_back: int = 4,
-    context_messages: int = 10
+    context_messages: int = 10,
 ) -> dict[str, Any]:
     """Analyze conversation context and suggest appropriate replies.
 
@@ -100,7 +135,10 @@ async def smart_reply_impl(
             return {"status": "error", "error": "hours_back must be between 1 and 24"}
 
         if not 5 <= context_messages <= 50:
-            return {"status": "error", "error": "context_messages must be between 5 and 50"}
+            return {
+                "status": "error",
+                "error": "context_messages must be between 5 and 50",
+            }
 
         # Get async client
         client = get_async_client()
@@ -110,7 +148,7 @@ async def smart_reply_impl(
             stream_name=stream_name,
             topic=topic,
             limit=context_messages,
-            hours_back=hours_back
+            hours_back=hours_back,
         )
 
         if not messages:
@@ -121,8 +159,8 @@ async def smart_reply_impl(
                     "message_count": 0,
                     "participants": [],
                     "topics": [],
-                    "sentiment": "neutral"
-                }
+                    "sentiment": "neutral",
+                },
             }
 
         # Sort messages by timestamp (oldest first for context)
@@ -133,18 +171,22 @@ async def smart_reply_impl(
 
         # Generate basic suggestions
         suggestions = [
-            f"Thanks for the update on {keywords[0]}" if keywords else "Thanks for the update",
+            (
+                f"Thanks for the update on {keywords[0]}"
+                if keywords
+                else "Thanks for the update"
+            ),
             "I'll look into this and get back to you",
             "Could you provide more details?",
             "+1",
-            "Acknowledged"
+            "Acknowledged",
         ]
 
         return {
             "status": "success",
             "suggestions": suggestions[:3],
             "keywords": keywords,
-            "message_count": len(messages)
+            "message_count": len(messages),
         }
 
     except Exception as e:
@@ -157,7 +199,7 @@ async def auto_summarize_impl(
     topic: str | None = None,
     hours_back: int = 24,
     summary_type: str = "standard",
-    max_messages: int = 100
+    max_messages: int = 100,
 ) -> dict[str, Any]:
     """Generate summaries of stream conversations.
 
@@ -180,13 +222,19 @@ async def auto_summarize_impl(
             return {"status": "error", "error": f"Invalid stream name: {stream_name}"}
 
         if summary_type not in ["brief", "standard", "detailed"]:
-            return {"status": "error", "error": "summary_type must be 'brief', 'standard', or 'detailed'"}
+            return {
+                "status": "error",
+                "error": "summary_type must be 'brief', 'standard', or 'detailed'",
+            }
 
         if not 1 <= hours_back <= 168:  # Max 1 week
             return {"status": "error", "error": "hours_back must be between 1 and 168"}
 
         if not 10 <= max_messages <= 500:
-            return {"status": "error", "error": "max_messages must be between 10 and 500"}
+            return {
+                "status": "error",
+                "error": "max_messages must be between 10 and 500",
+            }
 
         # Get async client
         client = get_async_client()
@@ -196,17 +244,19 @@ async def auto_summarize_impl(
             stream_name=stream_name,
             topic=topic,
             limit=max_messages,
-            hours_back=hours_back
+            hours_back=hours_back,
         )
 
         if not messages:
             return {
                 "status": "success",
-                "summary": f"No messages found in #{stream_name}" + (f" > {topic}" if topic else "") + f" in the last {hours_back} hours.",
+                "summary": f"No messages found in #{stream_name}"
+                + (f" > {topic}" if topic else "")
+                + f" in the last {hours_back} hours.",
                 "key_points": [],
                 "participants": [],
                 "topics": [],
-                "message_count": 0
+                "message_count": 0,
             }
 
         # Simple message counting summary
@@ -215,17 +265,19 @@ async def auto_summarize_impl(
             "key_points": [f"Total messages: {len(messages)}"],
             "participants": {msg.sender_full_name for msg in messages},
             "topics": [],
-            "message_count": len(messages)
+            "message_count": len(messages),
         }
 
         # Add metadata
-        summary_data.update({
-            "status": "success",
-            "stream": stream_name,
-            "topic_filter": topic,
-            "time_period": f"{hours_back} hours",
-            "generated_at": datetime.now().isoformat()
-        })
+        summary_data.update(
+            {
+                "status": "success",
+                "stream": stream_name,
+                "topic_filter": topic,
+                "time_period": f"{hours_back} hours",
+                "generated_at": datetime.now().isoformat(),
+            }
+        )
 
         return summary_data
 
@@ -235,10 +287,7 @@ async def auto_summarize_impl(
 
 
 async def smart_search_impl(
-    query: str,
-    stream_name: str | None = None,
-    hours_back: int = 168,
-    limit: int = 20
+    query: str, stream_name: str | None = None, hours_back: int = 168, limit: int = 20
 ) -> dict[str, Any]:
     """Enhanced search with semantic understanding.
 
@@ -283,11 +332,13 @@ async def smart_search_impl(
                         "content": msg.content,
                         "timestamp": msg.timestamp,
                         "stream": msg.stream_name,
-                        "topic": msg.subject
+                        "topic": msg.subject,
                     },
-                    "relevance_score": 1.0 if query.lower() in msg.content.lower() else 0.5,
+                    "relevance_score": (
+                        1.0 if query.lower() in msg.content.lower() else 0.5
+                    ),
                     "matched_terms": [query],
-                    "search_type": "keyword_search"
+                    "search_type": "keyword_search",
                 }
                 for msg in messages
             ]
@@ -298,12 +349,14 @@ async def smart_search_impl(
         enhanced_query = {
             "original_query": query,
             "expanded_terms": [],
-            "search_type": "keyword"
+            "search_type": "keyword",
         }
 
         # Calculate search statistics
         total_results = len(results)
-        avg_relevance = sum(r["relevance_score"] for r in results) / max(total_results, 1)
+        avg_relevance = sum(r["relevance_score"] for r in results) / max(
+            total_results, 1
+        )
         search_types = Counter(r["search_type"] for r in results)
 
         return {
@@ -315,14 +368,11 @@ async def smart_search_impl(
                 "average_relevance": round(avg_relevance, 3),
                 "search_types": dict(search_types),
                 "time_range": f"{hours_back} hours",
-                "stream_filter": stream_name
+                "stream_filter": stream_name,
             },
-            "generated_at": datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
         }
 
     except Exception as e:
         logger.error(f"Error in smart_search: {e}")
         return {"status": "error", "error": "Failed to perform semantic search"}
-
-
-

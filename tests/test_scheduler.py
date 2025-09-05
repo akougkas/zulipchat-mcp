@@ -40,7 +40,7 @@ def sample_config():
     return ZulipConfig(
         email="test@example.com",
         api_key="test-api-key",
-        site="https://test.zulipchat.com"
+        site="https://test.zulipchat.com",
     )
 
 
@@ -53,7 +53,7 @@ def sample_scheduled_message():
         message_type="stream",
         recipients="general",
         topic="test-topic",
-        scheduled_id=None
+        scheduled_id=None,
     )
 
 
@@ -70,7 +70,7 @@ class TestScheduledMessage:
             message_type="stream",
             recipients="general",
             topic="announcements",
-            scheduled_id=None
+            scheduled_id=None,
         )
 
         assert message.content == "Hello world!"
@@ -88,7 +88,7 @@ class TestScheduledMessage:
             message_type="private",
             recipients=["user1@example.com", "user2@example.com"],
             topic=None,
-            scheduled_id=None
+            scheduled_id=None,
         )
 
         assert message.message_type == "private"
@@ -103,7 +103,7 @@ class TestScheduledMessage:
             message_type="stream",
             recipients="general",
             topic="test",
-            scheduled_id=12345
+            scheduled_id=12345,
         )
 
         assert message.scheduled_id == 12345
@@ -138,7 +138,7 @@ class TestMessageScheduler:
     @pytest.mark.asyncio
     async def test_context_manager_functionality(self, sample_config):
         """Test async context manager support."""
-        with patch('httpx.AsyncClient') as mock_client_class:
+        with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
 
@@ -152,7 +152,7 @@ class TestMessageScheduler:
         """Test that _ensure_client creates client when needed."""
         scheduler = MessageScheduler(sample_config)
 
-        with patch('httpx.AsyncClient') as mock_client_class:
+        with patch("httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client_class.return_value = mock_client
 
@@ -163,7 +163,7 @@ class TestMessageScheduler:
             mock_client_class.assert_called_once_with(
                 timeout=30.0,
                 limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
-                auth=("test@example.com", "test-api-key")
+                auth=("test@example.com", "test-api-key"),
             )
 
 
@@ -171,7 +171,9 @@ class TestScheduleMessage:
     """Test message scheduling functionality."""
 
     @pytest.mark.asyncio
-    async def test_schedule_stream_message_success(self, sample_config, sample_scheduled_message):
+    async def test_schedule_stream_message_success(
+        self, sample_config, sample_scheduled_message
+    ):
         """Test successful stream message scheduling."""
         scheduler = MessageScheduler(sample_config)
 
@@ -179,7 +181,7 @@ class TestScheduleMessage:
         mock_response = Mock()
         mock_response.json.return_value = {
             "result": "success",
-            "scheduled_message_id": 12345
+            "scheduled_message_id": 12345,
         }
         mock_response.raise_for_status = Mock()
 
@@ -187,7 +189,7 @@ class TestScheduleMessage:
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.schedule_message(sample_scheduled_message)
 
         # Verify API call
@@ -199,8 +201,8 @@ class TestScheduleMessage:
                 "scheduled_delivery_timestamp": expected_timestamp,
                 "type": "stream",
                 "to": "general",
-                "topic": "test-topic"
-            }
+                "topic": "test-topic",
+            },
         )
 
         # Verify result
@@ -219,18 +221,21 @@ class TestScheduleMessage:
             message_type="private",
             recipients=["user@example.com"],
             topic=None,
-            scheduled_id=None
+            scheduled_id=None,
         )
 
         # Mock response
         mock_response = Mock()
-        mock_response.json.return_value = {"result": "success", "scheduled_message_id": 67890}
+        mock_response.json.return_value = {
+            "result": "success",
+            "scheduled_message_id": 67890,
+        }
         mock_response.raise_for_status = Mock()
 
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             await scheduler.schedule_message(private_message)
 
         # Verify private message formatting
@@ -240,7 +245,9 @@ class TestScheduleMessage:
         assert "topic" not in call_args
 
     @pytest.mark.asyncio
-    async def test_schedule_message_api_error(self, sample_config, sample_scheduled_message):
+    async def test_schedule_message_api_error(
+        self, sample_config, sample_scheduled_message
+    ):
         """Test handling API errors during scheduling."""
         scheduler = MessageScheduler(sample_config)
 
@@ -250,7 +257,7 @@ class TestScheduleMessage:
             "API Error", request=Mock(), response=Mock()
         )
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             with pytest.raises(httpx.HTTPStatusError):
                 await scheduler.schedule_message(sample_scheduled_message)
 
@@ -271,7 +278,7 @@ class TestCancelScheduled:
         mock_client = AsyncMock()
         mock_client.delete.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.cancel_scheduled(12345)
 
         mock_client.delete.assert_called_once_with(
@@ -289,7 +296,7 @@ class TestCancelScheduled:
             "Not Found", request=Mock(), response=Mock()
         )
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             with pytest.raises(httpx.HTTPStatusError):
                 await scheduler.cancel_scheduled(99999)
 
@@ -305,20 +312,20 @@ class TestListScheduled:
         # Mock API response
         scheduled_messages = [
             {"scheduled_message_id": 1, "content": "Message 1"},
-            {"scheduled_message_id": 2, "content": "Message 2"}
+            {"scheduled_message_id": 2, "content": "Message 2"},
         ]
 
         mock_response = Mock()
         mock_response.json.return_value = {
             "result": "success",
-            "scheduled_messages": scheduled_messages
+            "scheduled_messages": scheduled_messages,
         }
         mock_response.raise_for_status = Mock()
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.list_scheduled()
 
         mock_client.get.assert_called_once_with(
@@ -338,7 +345,7 @@ class TestListScheduled:
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.list_scheduled()
 
         assert result == []
@@ -361,12 +368,12 @@ class TestUpdateScheduled:
         mock_client = AsyncMock()
         mock_client.patch.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.update_scheduled(12345, new_time)
 
         mock_client.patch.assert_called_once_with(
             f"{scheduler.base_url}/scheduled_messages/12345",
-            data={"scheduled_delivery_timestamp": int(new_time.timestamp())}
+            data={"scheduled_delivery_timestamp": int(new_time.timestamp())},
         )
         assert result["result"] == "success"
 
@@ -385,22 +392,23 @@ class TestRecurringMessages:
             message_type="stream",
             recipients="general",
             topic="reminders",
-            scheduled_id=None
+            scheduled_id=None,
         )
 
         # Mock successful responses
         mock_response = Mock()
-        mock_response.json.return_value = {"result": "success", "scheduled_message_id": 123}
+        mock_response.json.return_value = {
+            "result": "success",
+            "scheduled_message_id": 123,
+        }
         mock_response.raise_for_status = Mock()
 
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             results = await scheduler.schedule_recurring(
-                base_message,
-                interval=timedelta(days=1),
-                count=3
+                base_message, interval=timedelta(days=1), count=3
             )
 
         # Should have scheduled 3 messages
@@ -421,18 +429,21 @@ class TestReminders:
         scheduler = MessageScheduler(sample_config)
 
         mock_response = Mock()
-        mock_response.json.return_value = {"result": "success", "scheduled_message_id": 456}
+        mock_response.json.return_value = {
+            "result": "success",
+            "scheduled_message_id": 456,
+        }
         mock_response.raise_for_status = Mock()
 
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
-        with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+        with patch.object(scheduler, "_ensure_client", return_value=mock_client):
             result = await scheduler.schedule_reminder(
                 content="Meeting in 30 minutes",
                 minutes_from_now=25,
                 recipients="user@example.com",
-                message_type="private"
+                message_type="private",
             )
 
         # Verify the reminder was formatted correctly
@@ -453,24 +464,29 @@ class TestDailyStandup:
         scheduler = MessageScheduler(sample_config)
 
         mock_response = Mock()
-        mock_response.json.return_value = {"result": "success", "scheduled_message_id": 789}
+        mock_response.json.return_value = {
+            "result": "success",
+            "scheduled_message_id": 789,
+        }
         mock_response.raise_for_status = Mock()
 
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
         # Mock datetime.now() to control the scheduling
-        with patch('src.zulipchat_mcp.scheduler.datetime') as mock_datetime:
+        with patch("src.zulipchat_mcp.scheduler.datetime") as mock_datetime:
             # Set a specific Monday
             mock_datetime.now.return_value = datetime(2024, 1, 15, 8, 0, 0)  # Monday
-            mock_datetime.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
+            mock_datetime.side_effect = lambda *args, **kwargs: datetime(
+                *args, **kwargs
+            )
 
-            with patch.object(scheduler, '_ensure_client', return_value=mock_client):
+            with patch.object(scheduler, "_ensure_client", return_value=mock_client):
                 results = await scheduler.schedule_daily_standup(
                     stream="team",
                     topic="Daily Standup",
                     time_of_day="09:00",
-                    days_ahead=7
+                    days_ahead=7,
                 )
 
         # Should schedule for weekdays only (skip weekends)
@@ -494,9 +510,7 @@ class TestDailyStandup:
 
         with pytest.raises(ValueError, match="time_of_day must be in HH:MM format"):
             await scheduler.schedule_daily_standup(
-                stream="team",
-                topic="standup",
-                time_of_day="invalid-time"
+                stream="team", topic="standup", time_of_day="invalid-time"
             )
 
 
@@ -515,17 +529,17 @@ class TestBulkOperations:
                 message_type="stream",
                 recipients="general",
                 topic="bulk",
-                scheduled_id=None
-            ) for i in range(1, 4)
+                scheduled_id=None,
+            )
+            for i in range(1, 4)
         ]
 
         # Mock successful responses
         mock_results = [
-            {"result": "success", "scheduled_message_id": i}
-            for i in range(100, 103)
+            {"result": "success", "scheduled_message_id": i} for i in range(100, 103)
         ]
 
-        with patch.object(scheduler, 'schedule_message') as mock_schedule:
+        with patch.object(scheduler, "schedule_message") as mock_schedule:
             mock_schedule.side_effect = mock_results
 
             results = await scheduler.bulk_schedule(messages)
@@ -549,16 +563,28 @@ class TestTimeRangeFiltering:
         # Mock scheduled messages with different times
         base_time = datetime(2024, 1, 15, 10, 0, 0)
         all_scheduled = [
-            {"scheduled_message_id": 1, "scheduled_delivery_timestamp": int(base_time.timestamp())},
-            {"scheduled_message_id": 2, "scheduled_delivery_timestamp": int((base_time + timedelta(hours=2)).timestamp())},
-            {"scheduled_message_id": 3, "scheduled_delivery_timestamp": int((base_time + timedelta(hours=5)).timestamp())},
+            {
+                "scheduled_message_id": 1,
+                "scheduled_delivery_timestamp": int(base_time.timestamp()),
+            },
+            {
+                "scheduled_message_id": 2,
+                "scheduled_delivery_timestamp": int(
+                    (base_time + timedelta(hours=2)).timestamp()
+                ),
+            },
+            {
+                "scheduled_message_id": 3,
+                "scheduled_delivery_timestamp": int(
+                    (base_time + timedelta(hours=5)).timestamp()
+                ),
+            },
         ]
 
-        with patch.object(scheduler, 'list_scheduled', return_value=all_scheduled):
+        with patch.object(scheduler, "list_scheduled", return_value=all_scheduled):
             # Filter for messages in first 3 hours
             results = await scheduler.get_scheduled_by_time_range(
-                start_time=base_time,
-                end_time=base_time + timedelta(hours=3)
+                start_time=base_time, end_time=base_time + timedelta(hours=3)
             )
 
         # Should return first 2 messages only
@@ -579,11 +605,11 @@ class TestCancelAll:
         scheduled_messages = [
             {"scheduled_message_id": 1},
             {"scheduled_message_id": 2},
-            {"scheduled_message_id": 3}
+            {"scheduled_message_id": 3},
         ]
 
-        with patch.object(scheduler, 'list_scheduled', return_value=scheduled_messages):
-            with patch.object(scheduler, 'cancel_scheduled') as mock_cancel:
+        with patch.object(scheduler, "list_scheduled", return_value=scheduled_messages):
+            with patch.object(scheduler, "cancel_scheduled") as mock_cancel:
                 mock_cancel.return_value = {"result": "success"}
 
                 results = await scheduler.cancel_all_scheduled()
@@ -601,7 +627,7 @@ class TestCancelAll:
         """Test cancelling all when no messages exist."""
         scheduler = MessageScheduler(sample_config)
 
-        with patch.object(scheduler, 'list_scheduled', return_value=[]):
+        with patch.object(scheduler, "list_scheduled", return_value=[]):
             results = await scheduler.cancel_all_scheduled()
 
         assert results == []
@@ -611,9 +637,13 @@ class TestConvenienceFunctions:
     """Test convenience functions for common operations."""
 
     @pytest.mark.asyncio
-    async def test_schedule_message_convenience_function(self, sample_config, sample_scheduled_message):
+    async def test_schedule_message_convenience_function(
+        self, sample_config, sample_scheduled_message
+    ):
         """Test the convenience function for scheduling messages."""
-        with patch('src.zulipchat_mcp.scheduler.MessageScheduler') as mock_scheduler_class:
+        with patch(
+            "src.zulipchat_mcp.scheduler.MessageScheduler"
+        ) as mock_scheduler_class:
             mock_scheduler = AsyncMock()
             mock_scheduler.schedule_message.return_value = {"result": "success"}
             # Configure the async context manager properly
@@ -626,13 +656,17 @@ class TestConvenienceFunctions:
             # Verify context manager was used
             mock_scheduler.__aenter__.assert_called_once()
             mock_scheduler.__aexit__.assert_called_once()
-            mock_scheduler.schedule_message.assert_called_once_with(sample_scheduled_message)
+            mock_scheduler.schedule_message.assert_called_once_with(
+                sample_scheduled_message
+            )
             assert result["result"] == "success"
 
     @pytest.mark.asyncio
     async def test_schedule_reminder_convenience_function(self, sample_config):
         """Test the convenience function for scheduling reminders."""
-        with patch('src.zulipchat_mcp.scheduler.MessageScheduler') as mock_scheduler_class:
+        with patch(
+            "src.zulipchat_mcp.scheduler.MessageScheduler"
+        ) as mock_scheduler_class:
             mock_scheduler = AsyncMock()
             mock_scheduler.schedule_reminder.return_value = {"result": "success"}
             # Configure the async context manager properly
@@ -645,7 +679,7 @@ class TestConvenienceFunctions:
                 content="Test reminder",
                 minutes_from_now=30,
                 recipients=["user@example.com"],
-                message_type="private"
+                message_type="private",
             )
 
             mock_scheduler.schedule_reminder.assert_called_once_with(
@@ -656,7 +690,9 @@ class TestConvenienceFunctions:
     @pytest.mark.asyncio
     async def test_cancel_scheduled_message_convenience_function(self, sample_config):
         """Test the convenience function for cancelling scheduled messages."""
-        with patch('src.zulipchat_mcp.scheduler.MessageScheduler') as mock_scheduler_class:
+        with patch(
+            "src.zulipchat_mcp.scheduler.MessageScheduler"
+        ) as mock_scheduler_class:
             mock_scheduler = AsyncMock()
             mock_scheduler.cancel_scheduled.return_value = {"result": "success"}
             # Configure the async context manager properly

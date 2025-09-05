@@ -8,9 +8,7 @@ class ZulipMCPError(Exception):
     """Base exception for ZulipChat MCP."""
 
     def __init__(
-        self,
-        message: str = "An error occurred",
-        details: dict[str, Any] | None = None
+        self, message: str = "An error occurred", details: dict[str, Any] | None = None
     ) -> None:
         """Initialize exception.
 
@@ -50,9 +48,7 @@ class RateLimitError(ZulipMCPError):
     """Rate limiting errors."""
 
     def __init__(
-        self,
-        message: str = "Rate limit exceeded",
-        retry_after: int | None = None
+        self, message: str = "Rate limit exceeded", retry_after: int | None = None
     ) -> None:
         """Initialize rate limit error.
 
@@ -99,9 +95,7 @@ class PermissionError(ZulipMCPError):
 
 
 def create_error_response(
-    error: Exception,
-    operation: str,
-    details: dict[str, Any] | None = None
+    error: Exception, operation: str, details: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Create standardized error response.
 
@@ -118,7 +112,7 @@ def create_error_response(
         "operation": operation,
         "error": str(error),
         "error_type": type(error).__name__,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
 
     if details:

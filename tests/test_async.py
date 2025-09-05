@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
 from zulipchat_mcp.async_client import AsyncZulipClient
 from zulipchat_mcp.cache import MessageCache, async_cache_decorator, cache_decorator
@@ -23,7 +23,7 @@ class TestAsyncZulipClient:
         config = ZulipConfig(
             email="test@example.com",
             api_key="test_key",
-            site="https://test.zulipchat.com"
+            site="https://test.zulipchat.com",
         )
 
         async with AsyncZulipClient(config) as client:
@@ -36,7 +36,7 @@ class TestAsyncZulipClient:
         config = ZulipConfig(
             email="test@example.com",
             api_key="test_key",
-            site="https://test.zulipchat.com"
+            site="https://test.zulipchat.com",
         )
 
         client = AsyncZulipClient(config)
@@ -46,7 +46,7 @@ class TestAsyncZulipClient:
         mock_response.json.return_value = {"result": "success", "id": 123}
         mock_response.raise_for_status = Mock()
 
-        with patch.object(client, '_ensure_client') as mock_ensure:
+        with patch.object(client, "_ensure_client") as mock_ensure:
             mock_client = Mock()
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_ensure.return_value = mock_client
@@ -64,7 +64,7 @@ class TestAsyncZulipClient:
         config = ZulipConfig(
             email="test@example.com",
             api_key="test_key",
-            site="https://test.zulipchat.com"
+            site="https://test.zulipchat.com",
         )
 
         client = AsyncZulipClient(config)
@@ -83,13 +83,13 @@ class TestAsyncZulipClient:
                     "display_recipient": "general",
                     "subject": "test-topic",
                     "type": "stream",
-                    "reactions": []
+                    "reactions": [],
                 }
-            ]
+            ],
         }
         mock_response.raise_for_status = Mock()
 
-        with patch.object(client, '_ensure_client') as mock_ensure:
+        with patch.object(client, "_ensure_client") as mock_ensure:
             mock_client = Mock()
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_ensure.return_value = mock_client

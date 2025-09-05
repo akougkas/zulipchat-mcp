@@ -2,7 +2,7 @@
 
 import sys
 
-sys.path.insert(0, 'src')
+sys.path.insert(0, "src")
 
 from zulipchat_mcp.exceptions import (
     AuthenticationError,

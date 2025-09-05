@@ -75,7 +75,9 @@ class HealthCheck:
             "healthy": self.last_result if self.last_result is not None else False,
             "status": "pass" if self.last_result else "fail",
             "critical": self.critical,
-            "last_check_time_ms": round(self.last_check_time * 1000, 2) if self.last_check_time else None,
+            "last_check_time_ms": (
+                round(self.last_check_time * 1000, 2) if self.last_check_time else None
+            ),
             "error": self.last_error,
         }
 
@@ -91,25 +93,13 @@ class HealthMonitor:
     def _setup_default_checks(self) -> None:
         """Set up default health checks."""
         # Config validation check
-        self.add_check(
-            "config_validation",
-            self._check_config,
-            critical=True
-        )
+        self.add_check("config_validation", self._check_config, critical=True)
 
         # Cache operational check
-        self.add_check(
-            "cache_operational",
-            self._check_cache,
-            critical=False
-        )
+        self.add_check("cache_operational", self._check_cache, critical=False)
 
         # Metrics collection check
-        self.add_check(
-            "metrics_operational",
-            self._check_metrics,
-            critical=False
-        )
+        self.add_check("metrics_operational", self._check_metrics, critical=False)
 
     def _check_config(self) -> bool:
         """Check if configuration is valid.
@@ -178,8 +168,7 @@ class HealthMonitor:
 
         # Execute all checks
         results = await asyncio.gather(
-            *[check.execute() for check in self.checks],
-            return_exceptions=True
+            *[check.execute() for check in self.checks], return_exceptions=True
         )
 
         # Process results
@@ -230,10 +219,7 @@ class HealthMonitor:
         Returns:
             Liveness status
         """
-        return {
-            "status": "alive",
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"status": "alive", "timestamp": datetime.now().isoformat()}
 
     def get_readiness(self) -> dict[str, Any]:
         """Get readiness check (sync version).
@@ -259,10 +245,7 @@ class HealthMonitor:
                     all_critical_healthy = False
                     break
 
-        return {
-            "ready": all_critical_healthy,
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"ready": all_critical_healthy, "timestamp": datetime.now().isoformat()}
 
 
 # Global health monitor instance
