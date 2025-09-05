@@ -3,8 +3,9 @@
 import html
 import re
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 
 class RateLimiter:
@@ -19,8 +20,8 @@ class RateLimiter:
         """
         self.max_calls = max_calls
         self.window = window
-        self.calls: Dict[str, list[float]] = {}
-    
+        self.calls: dict[str, list[float]] = {}
+
     def check_rate_limit(self, client_id: str) -> bool:
         """Check if client is within rate limit.
         
@@ -33,16 +34,16 @@ class RateLimiter:
         now = time.time()
         if client_id not in self.calls:
             self.calls[client_id] = []
-        
+
         # Clean old calls
         self.calls[client_id] = [
-            t for t in self.calls[client_id] 
+            t for t in self.calls[client_id]
             if now - t < self.window
         ]
-        
+
         if len(self.calls[client_id]) >= self.max_calls:
             return False
-        
+
         self.calls[client_id].append(now)
         return True
 
@@ -59,11 +60,11 @@ def sanitize_input(content: str, max_length: int = 10000) -> str:
     """
     # HTML escape
     content = html.escape(content)
-    
+
     # Remove potential command injections (conservative approach)
     # Only remove backticks that might be used for command substitution
     content = re.sub(r'`', '', content)
-    
+
     # Limit length
     return content[:max_length]
 
@@ -136,7 +137,7 @@ def validate_message_type(message_type: str) -> bool:
 
 
 def rate_limit_decorator(
-    max_calls: int = 100, 
+    max_calls: int = 100,
     window: int = 60
 ) -> Callable:
     """Decorator for applying rate limiting to functions.
@@ -149,26 +150,26 @@ def rate_limit_decorator(
         Decorated function with rate limiting
     """
     limiter = RateLimiter(max_calls, window)
-    
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Try to extract client identifier from context
             # In a real implementation, this would come from the MCP context
             client_id = "default"
-            
+
             if not limiter.check_rate_limit(client_id):
                 return {
                     "status": "error",
                     "error": "Rate limit exceeded. Please try again later."
                 }
-            
+
             return func(*args, **kwargs)
         return wrapper
     return decorator
 
 
-def secure_log(message: str, sensitive_keys: Optional[list[str]] = None) -> str:
+def secure_log(message: str, sensitive_keys: list[str] | None = None) -> str:
     """Sanitize log messages to remove sensitive information.
     
     Args:
@@ -180,11 +181,11 @@ def secure_log(message: str, sensitive_keys: Optional[list[str]] = None) -> str:
     """
     if sensitive_keys is None:
         sensitive_keys = ["api_key", "password", "token", "secret"]
-    
+
     sanitized = message
     for key in sensitive_keys:
         # Redact values after these keys
         pattern = rf"({key}['\"]?\s*[:=]\s*['\"]?)([^'\"]+)(['\"]?)"
         sanitized = re.sub(pattern, r'\1[REDACTED]\3', sanitized, flags=re.IGNORECASE)
-    
+
     return sanitized

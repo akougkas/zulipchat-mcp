@@ -2,28 +2,29 @@
 
 import hashlib
 import time
+from collections.abc import Callable
 from functools import lru_cache, wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 
 class MessageCache:
     """Simple in-memory cache for messages."""
-    
+
     def __init__(self, ttl: int = 300) -> None:
         """Initialize cache.
         
         Args:
             ttl: Time to live in seconds (default: 5 minutes)
         """
-        self.cache: Dict[str, Tuple[Any, float]] = {}
+        self.cache: dict[str, tuple[Any, float]] = {}
         self.ttl = ttl
-    
+
     def _make_key(self, *args: Any, **kwargs: Any) -> str:
         """Create cache key from arguments."""
         key_data = str(args) + str(sorted(kwargs.items()))
         return hashlib.md5(key_data.encode()).hexdigest()
-    
-    def get(self, key: str) -> Optional[Any]:
+
+    def get(self, key: str) -> Any | None:
         """Get value from cache.
         
         Args:
@@ -38,7 +39,7 @@ class MessageCache:
                 return value
             del self.cache[key]
         return None
-    
+
     def set(self, key: str, value: Any) -> None:
         """Set value in cache.
         
@@ -47,7 +48,7 @@ class MessageCache:
             value: Value to cache
         """
         self.cache[key] = (value, time.time())
-    
+
     def clear_expired(self) -> None:
         """Clear expired entries from cache."""
         now = time.time()
@@ -57,11 +58,11 @@ class MessageCache:
         ]
         for key in expired:
             del self.cache[key]
-    
+
     def clear(self) -> None:
         """Clear all cache entries."""
         self.cache.clear()
-    
+
     def size(self) -> int:
         """Get number of cached items."""
         return len(self.cache)
@@ -69,7 +70,7 @@ class MessageCache:
 
 class StreamCache:
     """Cache for stream information."""
-    
+
     def __init__(self, ttl: int = 600) -> None:
         """Initialize stream cache.
         
@@ -77,27 +78,27 @@ class StreamCache:
             ttl: Time to live in seconds (default: 10 minutes)
         """
         self.cache = MessageCache(ttl)
-    
-    def get_streams(self) -> Optional[List[Any]]:
+
+    def get_streams(self) -> list[Any] | None:
         """Get cached streams list."""
         return self.cache.get("streams_list")
-    
-    def set_streams(self, streams: List[Any]) -> None:
+
+    def set_streams(self, streams: list[Any]) -> None:
         """Cache streams list."""
         self.cache.set("streams_list", streams)
-    
-    def get_stream_info(self, stream_name: str) -> Optional[Dict[str, Any]]:
+
+    def get_stream_info(self, stream_name: str) -> dict[str, Any] | None:
         """Get cached stream information."""
         return self.cache.get(f"stream_{stream_name}")
-    
-    def set_stream_info(self, stream_name: str, info: Dict[str, Any]) -> None:
+
+    def set_stream_info(self, stream_name: str, info: dict[str, Any]) -> None:
         """Cache stream information."""
         self.cache.set(f"stream_{stream_name}", info)
 
 
 class UserCache:
     """Cache for user information."""
-    
+
     def __init__(self, ttl: int = 900) -> None:
         """Initialize user cache.
         
@@ -105,20 +106,20 @@ class UserCache:
             ttl: Time to live in seconds (default: 15 minutes)
         """
         self.cache = MessageCache(ttl)
-    
-    def get_users(self) -> Optional[List[Any]]:
+
+    def get_users(self) -> list[Any] | None:
         """Get cached users list."""
         return self.cache.get("users_list")
-    
-    def set_users(self, users: List[Any]) -> None:
+
+    def set_users(self, users: list[Any]) -> None:
         """Cache users list."""
         self.cache.set("users_list", users)
-    
-    def get_user_info(self, email: str) -> Optional[Dict[str, Any]]:
+
+    def get_user_info(self, email: str) -> dict[str, Any] | None:
         """Get cached user information."""
         return self.cache.get(f"user_{email}")
-    
-    def set_user_info(self, email: str, info: Dict[str, Any]) -> None:
+
+    def set_user_info(self, email: str, info: dict[str, Any]) -> None:
         """Cache user information."""
         self.cache.set(f"user_{email}", info)
 
@@ -137,27 +138,27 @@ def cache_decorator(
         Decorated function with caching
     """
     cache = MessageCache(ttl)
-    
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
             cache_key = key_prefix + cache._make_key(*args, **kwargs)
-            
+
             # Check cache
             result = cache.get(cache_key)
             if result is not None:
                 return result
-            
+
             # Call function and cache result
             result = func(*args, **kwargs)
             cache.set(cache_key, result)
             return result
-        
+
         # Add cache control methods to wrapper function
-        setattr(wrapper, 'clear_cache', cache.clear)
-        setattr(wrapper, 'cache_size', cache.size)
-        
+        wrapper.clear_cache = cache.clear
+        wrapper.cache_size = cache.size
+
         return wrapper
     return decorator
 
@@ -176,27 +177,27 @@ def async_cache_decorator(
         Decorated async function with caching
     """
     cache = MessageCache(ttl)
-    
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
             cache_key = key_prefix + cache._make_key(*args, **kwargs)
-            
+
             # Check cache
             result = cache.get(cache_key)
             if result is not None:
                 return result
-            
+
             # Call async function and cache result
             result = await func(*args, **kwargs)
             cache.set(cache_key, result)
             return result
-        
+
         # Add cache control methods to wrapper function
-        setattr(wrapper, 'clear_cache', cache.clear)
-        setattr(wrapper, 'cache_size', cache.size)
-        
+        wrapper.clear_cache = cache.clear
+        wrapper.cache_size = cache.size
+
         return wrapper
     return decorator
 
@@ -209,7 +210,7 @@ user_cache = UserCache(ttl=900)
 
 # LRU cache for frequently accessed data
 @lru_cache(maxsize=100)
-def get_cached_stream_id(stream_name: str) -> Optional[int]:
+def get_cached_stream_id(stream_name: str) -> int | None:
     """Get cached stream ID by name.
     
     Args:
@@ -223,7 +224,7 @@ def get_cached_stream_id(stream_name: str) -> Optional[int]:
 
 
 @lru_cache(maxsize=200)
-def get_cached_user_id(email: str) -> Optional[int]:
+def get_cached_user_id(email: str) -> int | None:
     """Get cached user ID by email.
     
     Args:

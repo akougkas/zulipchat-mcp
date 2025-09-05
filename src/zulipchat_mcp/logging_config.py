@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import structlog
@@ -35,7 +35,7 @@ def setup_structured_logging(level: str = "INFO") -> None:
     if not STRUCTLOG_AVAILABLE:
         setup_basic_logging(level)
         return
-    
+
     # Configure structlog
     structlog.configure(
         processors=[
@@ -61,7 +61,7 @@ def setup_structured_logging(level: str = "INFO") -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # Set up stdlib logging
     logging.basicConfig(
         format="%(message)s",
@@ -86,7 +86,7 @@ def get_logger(name: str) -> Any:
 
 class LogContext:
     """Context manager for adding contextual information to logs."""
-    
+
     def __init__(self, logger: Any, **kwargs: Any) -> None:
         """Initialize log context.
         
@@ -97,14 +97,14 @@ class LogContext:
         self.logger = logger
         self.context = kwargs
         self.bound_logger = None
-    
+
     def __enter__(self) -> Any:
         """Enter context and bind logger."""
         if STRUCTLOG_AVAILABLE and hasattr(self.logger, 'bind'):
             self.bound_logger = self.logger.bind(**self.context)
             return self.bound_logger
         return self.logger
-    
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Exit context."""
         pass
@@ -116,7 +116,7 @@ def log_function_call(
     args: tuple = (),
     kwargs: dict = {},
     result: Any = None,
-    error: Optional[Exception] = None
+    error: Exception | None = None
 ) -> None:
     """Log a function call with parameters and result.
     
@@ -128,12 +128,12 @@ def log_function_call(
         result: Function result
         error: Exception if function failed
     """
-    log_data: Dict[str, Any] = {
+    log_data: dict[str, Any] = {
         "function": func_name,
         "args": str(args)[:200],  # Truncate long args
         "kwargs": str(kwargs)[:200],
     }
-    
+
     if error:
         log_data["error"] = str(error)
         log_data["error_type"] = type(error).__name__
@@ -153,9 +153,9 @@ def log_api_request(
     logger: Any,
     method: str,
     endpoint: str,
-    status_code: Optional[int] = None,
-    duration: Optional[float] = None,
-    error: Optional[str] = None
+    status_code: int | None = None,
+    duration: float | None = None,
+    error: str | None = None
 ) -> None:
     """Log an API request.
     
@@ -167,18 +167,18 @@ def log_api_request(
         duration: Request duration in seconds
         error: Error message if request failed
     """
-    log_data: Dict[str, Any] = {
+    log_data: dict[str, Any] = {
         "method": method,
         "endpoint": endpoint,
     }
-    
+
     if status_code:
         log_data["status_code"] = status_code
     if duration:
         log_data["duration_ms"] = round(duration * 1000, 2)
     if error:
         log_data["error"] = error
-    
+
     if STRUCTLOG_AVAILABLE:
         if error or (status_code and status_code >= 400):
             logger.error("API request failed", **log_data)

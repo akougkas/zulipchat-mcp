@@ -1,15 +1,15 @@
 """Custom exceptions for ZulipChat MCP Server."""
 
-from typing import Any, Optional
+from typing import Any
 
 
 class ZulipMCPError(Exception):
     """Base exception for ZulipChat MCP."""
-    
+
     def __init__(
-        self, 
-        message: str = "An error occurred", 
-        details: Optional[dict[str, Any]] = None
+        self,
+        message: str = "An error occurred",
+        details: dict[str, Any] | None = None
     ) -> None:
         """Initialize exception.
         
@@ -23,7 +23,7 @@ class ZulipMCPError(Exception):
 
 class ConfigurationError(ZulipMCPError):
     """Configuration related errors."""
-    
+
     def __init__(self, message: str = "Configuration error") -> None:
         """Initialize configuration error."""
         super().__init__(message)
@@ -31,7 +31,7 @@ class ConfigurationError(ZulipMCPError):
 
 class ConnectionError(ZulipMCPError):
     """Zulip connection errors."""
-    
+
     def __init__(self, message: str = "Connection error") -> None:
         """Initialize connection error."""
         super().__init__(message)
@@ -39,7 +39,7 @@ class ConnectionError(ZulipMCPError):
 
 class ValidationError(ZulipMCPError):
     """Input validation errors."""
-    
+
     def __init__(self, message: str = "Validation error") -> None:
         """Initialize validation error."""
         super().__init__(message)
@@ -47,11 +47,11 @@ class ValidationError(ZulipMCPError):
 
 class RateLimitError(ZulipMCPError):
     """Rate limiting errors."""
-    
+
     def __init__(
-        self, 
+        self,
         message: str = "Rate limit exceeded",
-        retry_after: Optional[int] = None
+        retry_after: int | None = None
     ) -> None:
         """Initialize rate limit error.
         
@@ -65,7 +65,7 @@ class RateLimitError(ZulipMCPError):
 
 class AuthenticationError(ZulipMCPError):
     """Authentication related errors."""
-    
+
     def __init__(self, message: str = "Authentication failed") -> None:
         """Initialize authentication error."""
         super().__init__(message)
@@ -73,7 +73,7 @@ class AuthenticationError(ZulipMCPError):
 
 class NotFoundError(ZulipMCPError):
     """Resource not found errors."""
-    
+
     def __init__(self, resource: str = "Resource") -> None:
         """Initialize not found error.
         
@@ -86,7 +86,7 @@ class NotFoundError(ZulipMCPError):
 
 class PermissionError(ZulipMCPError):
     """Permission denied errors."""
-    
+
     def __init__(self, action: str = "perform this action") -> None:
         """Initialize permission error.
         

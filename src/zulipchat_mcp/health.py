@@ -4,7 +4,7 @@ import asyncio
 import time
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .cache import message_cache
 from .config import ConfigManager
@@ -13,7 +13,7 @@ from .metrics import metrics
 
 class HealthStatus(Enum):
     """Health status enumeration."""
-    
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
@@ -21,7 +21,7 @@ class HealthStatus(Enum):
 
 class HealthCheck:
     """Individual health check."""
-    
+
     def __init__(self, name: str, check_func: Any, critical: bool = True) -> None:
         """Initialize health check.
         
@@ -33,10 +33,10 @@ class HealthCheck:
         self.name = name
         self.check_func = check_func
         self.critical = critical
-        self.last_result: Optional[bool] = None
-        self.last_check_time: Optional[float] = None
-        self.last_error: Optional[str] = None
-    
+        self.last_result: bool | None = None
+        self.last_check_time: float | None = None
+        self.last_error: str | None = None
+
     async def execute(self) -> bool:
         """Execute the health check.
         
@@ -45,26 +45,26 @@ class HealthCheck:
         """
         try:
             start_time = time.time()
-            
+
             # Execute check (handle both sync and async functions)
             if asyncio.iscoroutinefunction(self.check_func):
                 result = await self.check_func()
             else:
                 result = self.check_func()
-            
+
             self.last_result = bool(result)
             self.last_check_time = time.time() - start_time
             self.last_error = None if self.last_result else "Check returned False"
-            
+
             return self.last_result
-            
+
         except Exception as e:
             self.last_result = False
             self.last_check_time = 0
             self.last_error = str(e)
             return False
-    
-    def get_status(self) -> Dict[str, Any]:
+
+    def get_status(self) -> dict[str, Any]:
         """Get check status.
         
         Returns:
@@ -81,12 +81,12 @@ class HealthCheck:
 
 class HealthMonitor:
     """Health monitoring system."""
-    
+
     def __init__(self) -> None:
         """Initialize health monitor."""
-        self.checks: List[HealthCheck] = []
+        self.checks: list[HealthCheck] = []
         self._setup_default_checks()
-    
+
     def _setup_default_checks(self) -> None:
         """Set up default health checks."""
         # Config validation check
@@ -95,21 +95,21 @@ class HealthMonitor:
             self._check_config,
             critical=True
         )
-        
+
         # Cache operational check
         self.add_check(
             "cache_operational",
             self._check_cache,
             critical=False
         )
-        
+
         # Metrics collection check
         self.add_check(
             "metrics_operational",
             self._check_metrics,
             critical=False
         )
-    
+
     def _check_config(self) -> bool:
         """Check if configuration is valid.
         
@@ -121,7 +121,7 @@ class HealthMonitor:
             return config.validate_config()
         except Exception:
             return False
-    
+
     def _check_cache(self) -> bool:
         """Check if cache is operational.
         
@@ -136,7 +136,7 @@ class HealthMonitor:
             return result == test_value
         except Exception:
             return False
-    
+
     def _check_metrics(self) -> bool:
         """Check if metrics collection is working.
         
@@ -148,7 +148,7 @@ class HealthMonitor:
             return "uptime_seconds" in metrics_data
         except Exception:
             return False
-    
+
     def add_check(self, name: str, check_func: Any, critical: bool = True) -> None:
         """Add a health check.
         
@@ -158,7 +158,7 @@ class HealthMonitor:
             critical: Whether check is critical
         """
         self.checks.append(HealthCheck(name, check_func, critical))
-    
+
     def remove_check(self, name: str) -> None:
         """Remove a health check.
         
@@ -166,40 +166,40 @@ class HealthMonitor:
             name: Name of the check to remove
         """
         self.checks = [c for c in self.checks if c.name != name]
-    
-    async def check_health(self) -> Dict[str, Any]:
+
+    async def check_health(self) -> dict[str, Any]:
         """Run all health checks.
         
         Returns:
             Health status report
         """
         start_time = time.time()
-        
+
         # Execute all checks
         results = await asyncio.gather(
             *[check.execute() for check in self.checks],
             return_exceptions=True
         )
-        
+
         # Process results
         checks_status = []
         critical_healthy = True
         non_critical_healthy = True
-        
-        for check, result in zip(self.checks, results):
+
+        for check, result in zip(self.checks, results, strict=False):
             if isinstance(result, Exception):
                 check.last_result = False
                 check.last_error = str(result)
-            
+
             status = check.get_status()
             checks_status.append(status)
-            
+
             if not check.last_result:
                 if check.critical:
                     critical_healthy = False
                 else:
                     non_critical_healthy = False
-        
+
         # Determine overall status
         if critical_healthy and non_critical_healthy:
             overall_status = HealthStatus.HEALTHY
@@ -207,10 +207,10 @@ class HealthMonitor:
             overall_status = HealthStatus.DEGRADED
         else:
             overall_status = HealthStatus.UNHEALTHY
-        
+
         # Get metrics snapshot
         metrics_snapshot = metrics.get_metrics()
-        
+
         return {
             "status": overall_status.value,
             "timestamp": datetime.now().isoformat(),
@@ -222,8 +222,8 @@ class HealthMonitor:
             },
             "version": "1.0.0",  # Should be imported from __init__.py
         }
-    
-    def get_liveness(self) -> Dict[str, str]:
+
+    def get_liveness(self) -> dict[str, str]:
         """Get simple liveness check.
         
         Returns:
@@ -233,8 +233,8 @@ class HealthMonitor:
             "status": "alive",
             "timestamp": datetime.now().isoformat()
         }
-    
-    def get_readiness(self) -> Dict[str, Any]:
+
+    def get_readiness(self) -> dict[str, Any]:
         """Get readiness check (sync version).
         
         Returns:
@@ -242,7 +242,7 @@ class HealthMonitor:
         """
         # Check only critical checks synchronously
         all_critical_healthy = True
-        
+
         for check in self.checks:
             if check.critical:
                 try:
@@ -257,7 +257,7 @@ class HealthMonitor:
                 except Exception:
                     all_critical_healthy = False
                     break
-        
+
         return {
             "ready": all_critical_healthy,
             "timestamp": datetime.now().isoformat()
@@ -268,7 +268,7 @@ class HealthMonitor:
 health_monitor = HealthMonitor()
 
 
-async def perform_health_check() -> Dict[str, Any]:
+async def perform_health_check() -> dict[str, Any]:
     """Perform a comprehensive health check.
     
     Returns:
@@ -277,7 +277,7 @@ async def perform_health_check() -> Dict[str, Any]:
     return await health_monitor.check_health()
 
 
-def get_liveness() -> Dict[str, str]:
+def get_liveness() -> dict[str, str]:
     """Get liveness status.
     
     Returns:
@@ -286,7 +286,7 @@ def get_liveness() -> Dict[str, str]:
     return health_monitor.get_liveness()
 
 
-def get_readiness() -> Dict[str, Any]:
+def get_readiness() -> dict[str, Any]:
     """Get readiness status.
     
     Returns:

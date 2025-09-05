@@ -10,6 +10,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
+# Import assistant tools to register them with FastMCP
+
 # Set up logging
 logger = logging.getLogger(__name__)
 
@@ -79,7 +81,7 @@ def send_message(
         # Validate inputs
         if not validate_message_type(message_type):
             return {"status": "error", "error": f"Invalid message_type: {message_type}"}
-        
+
         if message_type == "stream":
             if not topic:
                 return {"status": "error", "error": "Topic required for stream messages"}
@@ -87,15 +89,15 @@ def send_message(
                 return {"status": "error", "error": f"Invalid stream name: {to}"}
             if not validate_topic(topic):
                 return {"status": "error", "error": f"Invalid topic: {topic}"}
-        
+
         # Sanitize content
         content = sanitize_input(content)
-        
+
         # Get client and send message
         client = get_client()
         recipients = [to] if message_type == "private" else to
         result = client.send_message(message_type, recipients, content, topic)
-        
+
         # Add metadata to response
         if result.get("result") == "success":
             return {
@@ -105,7 +107,7 @@ def send_message(
             }
         else:
             return {"status": "error", "error": result.get("msg", "Unknown error")}
-            
+
     except ValueError as e:
         logger.error(f"Validation error in send_message: {e}")
         return {"status": "error", "error": str(e)}
@@ -139,7 +141,7 @@ def get_messages(
             return [{"error": "hours_back must be between 1 and 168"}]
         if not 1 <= limit <= 100:
             return [{"error": "limit must be between 1 and 100"}]
-        
+
         client = get_client()
 
         if stream_name:
@@ -180,7 +182,7 @@ def search_messages(query: str, limit: int = 50) -> list[dict[str, Any]]:
             return [{"error": "Query cannot be empty"}]
         if not 1 <= limit <= 100:
             return [{"error": "limit must be between 1 and 100"}]
-            
+
         client = get_client()
         messages = client.search_messages(query, num_results=limit)
 
@@ -257,15 +259,15 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
             return {"status": "error", "error": "Invalid message ID"}
         if not validate_emoji(emoji_name):
             return {"status": "error", "error": f"Invalid emoji name: {emoji_name}"}
-            
+
         client = get_client()
         result = client.add_reaction(message_id, emoji_name)
-        
+
         if result.get("result") == "success":
             return {"status": "success", "message": "Reaction added"}
         else:
             return {"status": "error", "error": result.get("msg", "Unknown error")}
-            
+
     except Exception as e:
         logger.error(f"Error in add_reaction: {e}")
         return {"status": "error", "error": "Failed to add reaction"}
@@ -292,15 +294,15 @@ def edit_message(
             return {"status": "error", "error": f"Invalid topic: {topic}"}
         if not content and not topic:
             return {"status": "error", "error": "Must provide content or topic to edit"}
-            
+
         client = get_client()
         result = client.edit_message(message_id, content, topic)
-        
+
         if result.get("result") == "success":
             return {"status": "success", "message": "Message edited"}
         else:
             return {"status": "error", "error": result.get("msg", "Unknown error")}
-            
+
     except Exception as e:
         logger.error(f"Error in edit_message: {e}")
         return {"status": "error", "error": "Failed to edit message"}
@@ -324,11 +326,11 @@ def get_daily_summary(
                     return {"status": "error", "error": f"Invalid stream name: {stream}"}
         if not 1 <= hours_back <= 168:  # Max 1 week
             return {"status": "error", "error": "hours_back must be between 1 and 168"}
-            
+
         client = get_client()
         summary = client.get_daily_summary(streams, hours_back)
         return {"status": "success", "data": summary}
-        
+
     except Exception as e:
         logger.error(f"Error in get_daily_summary: {e}")
         return {"status": "error", "error": "Failed to generate summary"}
@@ -341,7 +343,7 @@ def get_stream_messages(stream_name: str) -> list[TextContent]:
     try:
         if not validate_stream_name(stream_name):
             return [TextContent(type="text", text=f"Invalid stream name: {stream_name}")]
-            
+
         client = get_client()
         messages = client.get_messages_from_stream(stream_name)
 
@@ -422,7 +424,7 @@ def daily_summary_prompt(
                     return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
         if not 1 <= hours <= 168:
             return [TextContent(type="text", text="hours must be between 1 and 168")]
-            
+
         client = get_client()
 
         # Get all streams if none specified
@@ -432,7 +434,7 @@ def daily_summary_prompt(
 
         summary = client.get_daily_summary(streams, hours)
 
-        content = f"# Zulip Daily Summary\n\n"
+        content = "# Zulip Daily Summary\n\n"
         content += f"**Period**: Last {hours} hours\n"
         content += f"**Total Messages**: {summary['total_messages']}\n\n"
 
@@ -472,7 +474,7 @@ def morning_briefing_prompt(
             for stream in streams:
                 if not validate_stream_name(stream):
                     return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
-                    
+
         client = get_client()
 
         # Get summaries for different periods
@@ -491,7 +493,7 @@ def morning_briefing_prompt(
             content += f"- Most active: {top_sender[0]} ({top_sender[1]} messages)\n"
 
         # Weekly overview
-        content += f"\n## This Week\n"
+        content += "\n## This Week\n"
         content += f"- Total messages: {week['total_messages']}\n"
         avg_daily = week["total_messages"] // 7
         content += f"- Daily average: {avg_daily} messages\n"
@@ -542,7 +544,7 @@ def catch_up_prompt(
                     return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
         if not 1 <= hours <= 24:
             return [TextContent(type="text", text="hours must be between 1 and 24")]
-            
+
         client = get_client()
 
         # Get streams if not specified
@@ -587,6 +589,84 @@ def catch_up_prompt(
         return [TextContent(type="text", text="Failed to generate catch-up")]
 
 
+# Import and register assistant tools
+from .assistants import auto_summarize_impl, smart_reply_impl, smart_search_impl
+
+
+@mcp.tool()
+async def smart_reply(
+    stream_name: str,
+    topic: str | None = None,
+    hours_back: int = 4,
+    context_messages: int = 10
+) -> dict[str, Any]:
+    """Analyze conversation context and suggest appropriate replies.
+    
+    Analyzes recent messages in a stream/topic to understand the conversation
+    context and generates intelligent reply suggestions.
+    
+    Args:
+        stream_name: Stream to analyze for context
+        topic: Optional topic to focus on
+        hours_back: How many hours back to look for context
+        context_messages: Maximum messages to analyze for context
+        
+    Returns:
+        Dictionary with reply suggestions and context analysis
+    """
+    return await smart_reply_impl(stream_name, topic, hours_back, context_messages)
+
+
+@mcp.tool()
+async def auto_summarize(
+    stream_name: str,
+    topic: str | None = None,
+    hours_back: int = 24,
+    summary_type: str = "standard",
+    max_messages: int = 100
+) -> dict[str, Any]:
+    """Generate summaries of stream conversations.
+    
+    Automatically summarizes conversations in streams/topics with intelligent
+    analysis of key points, participants, and themes.
+    
+    Args:
+        stream_name: Stream to summarize
+        topic: Optional topic to focus summary on
+        hours_back: How many hours back to summarize
+        summary_type: Type of summary ('brief', 'standard', 'detailed')
+        max_messages: Maximum messages to include in summary
+        
+    Returns:
+        Dictionary with conversation summary and analysis
+    """
+    return await auto_summarize_impl(stream_name, topic, hours_back, summary_type, max_messages)
+
+
+@mcp.tool()
+async def smart_search(
+    query: str,
+    stream_name: str | None = None,
+    hours_back: int = 168,
+    limit: int = 20
+) -> dict[str, Any]:
+    """Enhanced search with semantic understanding.
+    
+    Performs intelligent search across Zulip messages with query enhancement,
+    semantic understanding, and relevance scoring.
+    
+    Args:
+        query: Search query to enhance and execute
+        stream_name: Optional stream to limit search to
+        hours_back: How many hours back to search
+        limit: Maximum number of results to return
+        
+    Returns:
+        Dictionary with enhanced search results and analysis
+    """
+    return await smart_search_impl(query, stream_name, hours_back, limit)
+
+
 def main() -> None:
     """Main entry point for the MCP server."""
     if len(sys.argv) < 2:
@@ -601,7 +681,7 @@ def main() -> None:
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        
+
         # Start the MCP server
         mcp.run()
     else:
