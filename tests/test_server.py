@@ -381,7 +381,9 @@ class TestMCPServer:
         mock_client.send_message.assert_called_once_with(
             "stream", "general", "Hello world!", "test-topic"
         )
-        assert result == {"result": "success", "id": 123}
+        assert result["status"] == "success"
+        assert result["message_id"] == 123
+        assert "timestamp" in result
 
     @patch("src.zulipchat_mcp.server.get_client")
     def test_get_messages_tool(self, mock_get_client):

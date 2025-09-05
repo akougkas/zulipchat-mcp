@@ -1,5 +1,8 @@
-"""MCP server for Zulip integration."""
+"""Enhanced MCP server for Zulip integration with security and error handling."""
 
+import html
+import logging
+import re
 import sys
 from datetime import datetime
 from typing import Any
@@ -7,21 +10,54 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
-from .client import ZulipClientWrapper
-from .config import ConfigManager
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server
 mcp = FastMCP("ZulipChat MCP")
 
 # Global client instance
-zulip_client: ZulipClientWrapper | None = None
-config_manager: ConfigManager | None = None
+zulip_client = None
+config_manager = None
 
 
-def get_client() -> ZulipClientWrapper:
+# Inline security functions (to avoid import issues)
+def sanitize_input(content: str, max_length: int = 10000) -> str:
+    """Sanitize user input to prevent injection attacks."""
+    content = html.escape(content)
+    content = re.sub(r'`', '', content)
+    return content[:max_length]
+
+
+def validate_stream_name(name: str) -> bool:
+    """Validate stream name against injection."""
+    pattern = r'^[a-zA-Z0-9\-_\s\.]+$'
+    return bool(re.match(pattern, name)) and 0 < len(name) <= 100
+
+
+def validate_topic(topic: str) -> bool:
+    """Validate topic name against injection."""
+    pattern = r'^[a-zA-Z0-9\-_\s\.\,\!\?\(\)]+$'
+    return bool(re.match(pattern, topic)) and 0 < len(topic) <= 200
+
+
+def validate_message_type(message_type: str) -> bool:
+    """Validate message type."""
+    return message_type in ["stream", "private"]
+
+
+def validate_emoji(emoji_name: str) -> bool:
+    """Validate emoji name."""
+    pattern = r'^[a-zA-Z0-9_]+$'
+    return bool(re.match(pattern, emoji_name)) and 0 < len(emoji_name) <= 50
+
+
+def get_client():
     """Get or create Zulip client instance."""
     global zulip_client, config_manager
     if zulip_client is None:
+        from .client import ZulipClientWrapper
+        from .config import ConfigManager
         config_manager = ConfigManager()
         zulip_client = ZulipClientWrapper(config_manager)
     return zulip_client
@@ -31,7 +67,7 @@ def get_client() -> ZulipClientWrapper:
 def send_message(
     message_type: str, to: str, content: str, topic: str | None = None
 ) -> dict[str, Any]:
-    """Send a message to a Zulip stream or user.
+    """Send a message to a Zulip stream or user with enhanced security.
 
     Args:
         message_type: Type of message ("stream" or "private")
@@ -39,16 +75,43 @@ def send_message(
         content: Message content
         topic: Topic name (required for stream messages)
     """
-    client = get_client()
-
-    if message_type == "stream" and not topic:
-        return {"error": "Topic is required for stream messages"}
-
-    # Convert to list for private messages if needed
-    recipients = [to] if message_type == "private" else to
-
-    result = client.send_message(message_type, recipients, content, topic)
-    return result
+    try:
+        # Validate inputs
+        if not validate_message_type(message_type):
+            return {"status": "error", "error": f"Invalid message_type: {message_type}"}
+        
+        if message_type == "stream":
+            if not topic:
+                return {"status": "error", "error": "Topic required for stream messages"}
+            if not validate_stream_name(to):
+                return {"status": "error", "error": f"Invalid stream name: {to}"}
+            if not validate_topic(topic):
+                return {"status": "error", "error": f"Invalid topic: {topic}"}
+        
+        # Sanitize content
+        content = sanitize_input(content)
+        
+        # Get client and send message
+        client = get_client()
+        recipients = [to] if message_type == "private" else to
+        result = client.send_message(message_type, recipients, content, topic)
+        
+        # Add metadata to response
+        if result.get("result") == "success":
+            return {
+                "status": "success",
+                "message_id": result.get("id"),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {"status": "error", "error": result.get("msg", "Unknown error")}
+            
+    except ValueError as e:
+        logger.error(f"Validation error in send_message: {e}")
+        return {"status": "error", "error": str(e)}
+    except Exception as e:
+        logger.error(f"Unexpected error in send_message: {e}")
+        return {"status": "error", "error": "Internal server error"}
 
 
 @mcp.tool()
@@ -58,347 +121,470 @@ def get_messages(
     hours_back: int = 24,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Get messages from Zulip.
+    """Get messages from Zulip with enhanced validation.
 
     Args:
         stream_name: Stream to get messages from (optional)
         topic: Topic to filter by (optional)
-        hours_back: How many hours back to search
+        hours_back: How many hours back to retrieve messages
         limit: Maximum number of messages to return
     """
-    client = get_client()
+    try:
+        # Validate inputs
+        if stream_name and not validate_stream_name(stream_name):
+            return [{"error": f"Invalid stream name: {stream_name}"}]
+        if topic and not validate_topic(topic):
+            return [{"error": f"Invalid topic: {topic}"}]
+        if not 1 <= hours_back <= 168:  # Max 1 week
+            return [{"error": "hours_back must be between 1 and 168"}]
+        if not 1 <= limit <= 100:
+            return [{"error": "limit must be between 1 and 100"}]
+        
+        client = get_client()
 
-    if stream_name:
-        messages = client.get_messages_from_stream(stream_name, topic, hours_back)
-    else:
-        messages = client.get_messages(num_before=limit)
+        if stream_name:
+            messages = client.get_messages_from_stream(
+                stream_name, topic=topic, hours_back=hours_back
+            )[:limit]
+        else:
+            messages = client.get_messages(num_before=limit)
 
-    # Convert to dict format for JSON serialization
-    return [
-        {
-            "id": msg.id,
-            "sender": msg.sender_full_name,
-            "sender_email": msg.sender_email,
-            "timestamp": msg.timestamp,
-            "content": msg.content,
-            "stream": msg.stream_name,
-            "topic": msg.subject,
-            "type": msg.type,
-            "reactions": msg.reactions,
-        }
-        for msg in messages[:limit]
-    ]
+        return [
+            {
+                "id": msg.id,
+                "sender": msg.sender_full_name,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "stream": msg.stream_name,
+                "topic": msg.subject,
+            }
+            for msg in messages
+        ]
+    except Exception as e:
+        logger.error(f"Error in get_messages: {e}")
+        return [{"error": "Failed to retrieve messages"}]
 
 
 @mcp.tool()
 def search_messages(query: str, limit: int = 50) -> list[dict[str, Any]]:
-    """Search messages by content.
+    """Search messages by content with sanitization.
 
     Args:
         query: Search query
         limit: Maximum number of results
     """
-    client = get_client()
-    messages = client.search_messages(query, limit)
+    try:
+        # Sanitize and validate query
+        query = sanitize_input(query, max_length=200)
+        if not query:
+            return [{"error": "Query cannot be empty"}]
+        if not 1 <= limit <= 100:
+            return [{"error": "limit must be between 1 and 100"}]
+            
+        client = get_client()
+        messages = client.search_messages(query, num_results=limit)
 
-    return [
-        {
-            "id": msg.id,
-            "sender": msg.sender_full_name,
-            "timestamp": msg.timestamp,
-            "content": msg.content,
-            "stream": msg.stream_name,
-            "topic": msg.subject,
-            "relevance_score": 1.0,  # Zulip doesn't provide relevance scores
-        }
-        for msg in messages
-    ]
+        return [
+            {
+                "id": msg.id,
+                "sender": msg.sender_full_name,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "stream": msg.stream_name,
+                "topic": msg.subject,
+            }
+            for msg in messages
+        ]
+    except Exception as e:
+        logger.error(f"Error in search_messages: {e}")
+        return [{"error": "Search failed"}]
 
 
 @mcp.tool()
 def get_streams() -> list[dict[str, Any]]:
     """Get list of available streams."""
-    client = get_client()
-    streams = client.get_streams()
+    try:
+        client = get_client()
+        streams = client.get_streams()
 
-    return [
-        {
-            "id": stream.stream_id,
-            "name": stream.name,
-            "description": stream.description,
-            "is_private": stream.is_private,
-        }
-        for stream in streams
-    ]
+        return [
+            {
+                "id": stream.stream_id,
+                "name": stream.name,
+                "description": stream.description,
+                "is_private": stream.is_private,
+            }
+            for stream in streams
+        ]
+    except Exception as e:
+        logger.error(f"Error in get_streams: {e}")
+        return [{"error": "Failed to retrieve streams"}]
 
 
 @mcp.tool()
 def get_users() -> list[dict[str, Any]]:
-    """Get list of users in the organization."""
-    client = get_client()
-    users = client.get_users()
+    """Get list of users."""
+    try:
+        client = get_client()
+        users = client.get_users()
 
-    return [
-        {
-            "id": user.user_id,
-            "name": user.full_name,
-            "email": user.email,
-            "is_active": user.is_active,
-            "is_bot": user.is_bot,
-            "avatar_url": user.avatar_url,
-        }
-        for user in users
-    ]
+        return [
+            {
+                "id": user.user_id,
+                "name": user.full_name,
+                "email": user.email,
+                "is_active": user.is_active,
+                "is_bot": user.is_bot,
+            }
+            for user in users
+        ]
+    except Exception as e:
+        logger.error(f"Error in get_users: {e}")
+        return [{"error": "Failed to retrieve users"}]
 
 
 @mcp.tool()
 def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
-    """Add a reaction to a message.
+    """Add a reaction to a message with validation.
 
     Args:
         message_id: ID of the message to react to
-        emoji_name: Name of the emoji (e.g., "thumbs_up", "heart")
+        emoji_name: Name of the emoji reaction
     """
-    client = get_client()
-    return client.add_reaction(message_id, emoji_name)
+    try:
+        # Validate inputs
+        if not isinstance(message_id, int) or message_id <= 0:
+            return {"status": "error", "error": "Invalid message ID"}
+        if not validate_emoji(emoji_name):
+            return {"status": "error", "error": f"Invalid emoji name: {emoji_name}"}
+            
+        client = get_client()
+        result = client.add_reaction(message_id, emoji_name)
+        
+        if result.get("result") == "success":
+            return {"status": "success", "message": "Reaction added"}
+        else:
+            return {"status": "error", "error": result.get("msg", "Unknown error")}
+            
+    except Exception as e:
+        logger.error(f"Error in add_reaction: {e}")
+        return {"status": "error", "error": "Failed to add reaction"}
 
 
 @mcp.tool()
 def edit_message(
     message_id: int, content: str | None = None, topic: str | None = None
 ) -> dict[str, Any]:
-    """Edit a message.
+    """Edit a message with validation.
 
     Args:
         message_id: ID of the message to edit
         content: New content (optional)
         topic: New topic (optional)
     """
-    client = get_client()
-    return client.edit_message(message_id, content, topic)
+    try:
+        # Validate inputs
+        if not isinstance(message_id, int) or message_id <= 0:
+            return {"status": "error", "error": "Invalid message ID"}
+        if content:
+            content = sanitize_input(content)
+        if topic and not validate_topic(topic):
+            return {"status": "error", "error": f"Invalid topic: {topic}"}
+        if not content and not topic:
+            return {"status": "error", "error": "Must provide content or topic to edit"}
+            
+        client = get_client()
+        result = client.edit_message(message_id, content, topic)
+        
+        if result.get("result") == "success":
+            return {"status": "success", "message": "Message edited"}
+        else:
+            return {"status": "error", "error": result.get("msg", "Unknown error")}
+            
+    except Exception as e:
+        logger.error(f"Error in edit_message: {e}")
+        return {"status": "error", "error": "Failed to edit message"}
 
 
 @mcp.tool()
 def get_daily_summary(
     streams: list[str] | None = None, hours_back: int = 24
 ) -> dict[str, Any]:
-    """Get a summary of daily activity.
+    """Get a summary of daily activity with validation.
 
     Args:
         streams: List of stream names to include (optional)
-        hours_back: Hours to look back for the summary
+        hours_back: Number of hours to look back
     """
-    client = get_client()
-    return client.get_daily_summary(streams, hours_back)
+    try:
+        # Validate inputs
+        if streams:
+            for stream in streams:
+                if not validate_stream_name(stream):
+                    return {"status": "error", "error": f"Invalid stream name: {stream}"}
+        if not 1 <= hours_back <= 168:  # Max 1 week
+            return {"status": "error", "error": "hours_back must be between 1 and 168"}
+            
+        client = get_client()
+        summary = client.get_daily_summary(streams, hours_back)
+        return {"status": "success", "data": summary}
+        
+    except Exception as e:
+        logger.error(f"Error in get_daily_summary: {e}")
+        return {"status": "error", "error": "Failed to generate summary"}
 
 
-# Resource definitions
-@mcp.resource("messages://{stream_name}")
-def get_stream_messages(stream_name: str) -> str:
-    """Get recent messages from a specific stream."""
-    client = get_client()
-    messages = client.get_messages_from_stream(stream_name, hours_back=24)
+# Resources
+@mcp.resource("messages://stream/{stream_name}")
+def get_stream_messages(stream_name: str) -> list[TextContent]:
+    """Get recent messages from a stream as a resource."""
+    try:
+        if not validate_stream_name(stream_name):
+            return [TextContent(type="text", text=f"Invalid stream name: {stream_name}")]
+            
+        client = get_client()
+        messages = client.get_messages_from_stream(stream_name)
 
-    content = f"# Messages from #{stream_name} (Last 24 hours)\n\n"
+        content = f"# Messages from #{stream_name}\n\n"
+        for msg in messages[:50]:
+            timestamp = datetime.fromtimestamp(msg.timestamp).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            content += f"## {msg.subject or 'No topic'}\n"
+            content += f"**{msg.sender_full_name}** at {timestamp}:\n"
+            content += f"{msg.content}\n\n"
 
-    for msg in messages:
-        timestamp = datetime.fromtimestamp(msg.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-        content += f"**{msg.sender_full_name}** ({timestamp})\n"
-        if msg.subject:
-            content += f"*Topic: {msg.subject}*\n"
-        content += f"{msg.content}\n\n---\n\n"
-
-    return content
-
-
-@mcp.resource("streams://all")
-def get_all_streams() -> str:
-    """Get information about all available streams."""
-    client = get_client()
-    streams = client.get_streams()
-
-    content = "# Available Zulip Streams\n\n"
-
-    for stream in streams:
-        privacy = "🔒 Private" if stream.is_private else "🌐 Public"
-        content += f"## {stream.name} ({privacy})\n"
-        content += f"**ID:** {stream.stream_id}\n"
-        content += f"**Description:** {stream.description}\n\n"
-
-    return content
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in get_stream_messages resource: {e}")
+        return [TextContent(type="text", text="Failed to retrieve messages")]
 
 
-@mcp.resource("users://all")
-def get_all_users() -> str:
-    """Get information about all users."""
-    client = get_client()
-    users = client.get_users()
+@mcp.resource("streams://list")
+def list_streams() -> list[TextContent]:
+    """List all available streams as a resource."""
+    try:
+        client = get_client()
+        streams = client.get_streams()
 
-    content = "# Organization Users\n\n"
+        content = "# Available Zulip Streams\n\n"
+        for stream in streams:
+            status = "🔒 Private" if stream.is_private else "📢 Public"
+            content += f"- **{stream.name}** ({status}): {stream.description}\n"
 
-    active_users = [u for u in users if u.is_active and not u.is_bot]
-    bots = [u for u in users if u.is_bot]
-
-    content += f"## Active Users ({len(active_users)})\n\n"
-    for user in active_users:
-        content += f"- **{user.full_name}** ({user.email})\n"
-
-    content += f"\n## Bots ({len(bots)})\n\n"
-    for bot in bots:
-        content += f"- **{bot.full_name}** ({bot.email})\n"
-
-    return content
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in list_streams resource: {e}")
+        return [TextContent(type="text", text="Failed to retrieve streams")]
 
 
-# Custom prompts for team communication workflows
-@mcp.prompt("summarize")
-def summarize_day(streams: list[str] | None = None, hours_back: int = 24) -> list[Any]:
+@mcp.resource("users://list")
+def list_users() -> list[TextContent]:
+    """List all users as a resource."""
+    try:
+        client = get_client()
+        users = client.get_users()
+
+        content = "# Zulip Users\n\n"
+        active_users = [u for u in users if u.is_active and not u.is_bot]
+        bots = [u for u in users if u.is_bot]
+
+        content += f"## Active Users ({len(active_users)})\n\n"
+        for user in active_users:
+            content += f"- **{user.full_name}** ({user.email})\n"
+
+        if bots:
+            content += f"\n## Bots ({len(bots)})\n\n"
+            for bot in bots:
+                content += f"- **{bot.full_name}** ({bot.email})\n"
+
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in list_users resource: {e}")
+        return [TextContent(type="text", text="Failed to retrieve users")]
+
+
+# Prompts
+@mcp.prompt()
+def daily_summary_prompt(
+    streams: list[str] | None = None, hours: int = 24
+) -> list[Any]:
     """Generate an end-of-day summary with message stats and key conversations.
 
     Args:
         streams: List of stream names to include in summary
-        hours_back: Number of hours to look back
+        hours: Number of hours to look back (default: 24)
     """
-    client = get_client()
-    summary = client.get_daily_summary(streams, hours_back)
+    try:
+        if streams:
+            for stream in streams:
+                if not validate_stream_name(stream):
+                    return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
+        if not 1 <= hours <= 168:
+            return [TextContent(type="text", text="hours must be between 1 and 168")]
+            
+        client = get_client()
 
-    content = f"# Daily Summary - {datetime.now().strftime('%Y-%m-%d')}\n\n"
-    content += f"**Time Range:** {summary['time_range']}\n"
-    content += f"**Total Messages:** {summary['total_messages']}\n\n"
+        # Get all streams if none specified
+        if not streams:
+            all_streams = client.get_streams()
+            streams = [s.name for s in all_streams if not s.is_private][:10]
 
-    # Stream activity
-    content += "## Stream Activity\n\n"
-    for stream_name, stream_data in summary["streams"].items():
-        content += f"### #{stream_name}\n"
-        content += f"- **Messages:** {stream_data['message_count']}\n"
+        summary = client.get_daily_summary(streams, hours)
 
-        if stream_data["topics"]:
-            content += "- **Active Topics:**\n"
-            for topic, count in list(stream_data["topics"].items())[:5]:
-                content += f"  - {topic}: {count} messages\n"
-        content += "\n"
+        content = f"# Zulip Daily Summary\n\n"
+        content += f"**Period**: Last {hours} hours\n"
+        content += f"**Total Messages**: {summary['total_messages']}\n\n"
 
-    # Top contributors
-    if summary["top_senders"]:
-        content += "## Top Contributors\n\n"
-        for sender, count in list(summary["top_senders"].items())[:5]:
-            content += f"- **{sender}:** {count} messages\n"
+        if summary["streams"]:
+            content += "## Stream Activity\n\n"
+            for stream_name, stream_data in summary["streams"].items():
+                content += f"### #{stream_name}\n"
+                content += f"- Messages: {stream_data['message_count']}\n"
+                if stream_data["topics"]:
+                    content += "- Top topics:\n"
+                    for topic, count in list(stream_data["topics"].items())[:5]:
+                        content += f"  - {topic}: {count} messages\n"
+                content += "\n"
 
-    return [TextContent(type="text", text=content)]
+        if summary["top_senders"]:
+            content += "## Most Active Users\n\n"
+            for sender, count in list(summary["top_senders"].items())[:10]:
+                content += f"- {sender}: {count} messages\n"
+
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in daily_summary_prompt: {e}")
+        return [TextContent(type="text", text="Failed to generate summary")]
 
 
-@mcp.prompt("prepare")
-def prepare_morning_briefing(
-    streams: list[str] | None = None, days_back: int = 7
+@mcp.prompt()
+def morning_briefing_prompt(
+    streams: list[str] | None = None,
 ) -> list[Any]:
     """Generate a morning briefing with yesterday's highlights and weekly overview.
 
     Args:
         streams: List of stream names to include
-        days_back: Number of days to look back for weekly overview
     """
-    client = get_client()
+    try:
+        if streams:
+            for stream in streams:
+                if not validate_stream_name(stream):
+                    return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
+                    
+        client = get_client()
 
-    # Yesterday's summary
-    yesterday_summary = client.get_daily_summary(streams, 24)
+        # Get summaries for different periods
+        yesterday = client.get_daily_summary(streams, 24)
+        week = client.get_daily_summary(streams, 168)
 
-    # Weekly overview
-    weekly_summary = client.get_daily_summary(streams, days_back * 24)
+        content = "# Good Morning! Here's your Zulip briefing\n\n"
 
-    content = f"# Morning Briefing - {datetime.now().strftime('%Y-%m-%d')}\n\n"
+        # Yesterday's highlights
+        content += "## Yesterday's Activity\n"
+        content += f"- Total messages: {yesterday['total_messages']}\n"
+        content += f"- Active streams: {len(yesterday['streams'])}\n"
 
-    # Yesterday's highlights
-    content += "## Yesterday's Highlights\n\n"
-    content += f"**Total Messages:** {yesterday_summary['total_messages']}\n\n"
+        if yesterday["top_senders"]:
+            top_sender = list(yesterday["top_senders"].items())[0]
+            content += f"- Most active: {top_sender[0]} ({top_sender[1]} messages)\n"
 
-    if yesterday_summary["streams"]:
-        content += "### Most Active Streams:\n"
-        sorted_streams = sorted(
-            yesterday_summary["streams"].items(),
-            key=lambda x: x[1]["message_count"],
-            reverse=True,
-        )
+        # Weekly overview
+        content += f"\n## This Week\n"
+        content += f"- Total messages: {week['total_messages']}\n"
+        avg_daily = week["total_messages"] // 7
+        content += f"- Daily average: {avg_daily} messages\n"
 
-        for stream_name, stream_data in sorted_streams[:3]:
-            content += (
-                f"- **#{stream_name}:** {stream_data['message_count']} messages\n"
-            )
+        # Most active streams this week
+        if week["streams"]:
+            content += "\n### Most Active Streams\n"
+            sorted_streams = sorted(
+                week["streams"].items(), key=lambda x: x[1]["message_count"], reverse=True
+            )[:5]
+            for stream_name, stream_data in sorted_streams:
+                content += f"- #{stream_name}: {stream_data['message_count']} messages\n"
 
-            # Show top topics
-            if stream_data["topics"]:
-                top_topics = sorted(
-                    stream_data["topics"].items(), key=lambda x: x[1], reverse=True
-                )[:2]
-                for topic, count in top_topics:
-                    content += f"  - {topic} ({count} messages)\n"
+        # Trending topics
+        all_topics = {}
+        for stream_data in week["streams"].values():
+            for topic, count in stream_data["topics"].items():
+                all_topics[topic] = all_topics.get(topic, 0) + count
 
-    # Weekly overview
-    content += f"\n## Weekly Overview (Last {days_back} days)\n\n"
-    content += f"**Total Messages:** {weekly_summary['total_messages']}\n"
-    content += f"**Average Daily Messages:** {weekly_summary['total_messages'] // days_back}\n\n"
+        if all_topics:
+            content += "\n### Trending Topics\n"
+            sorted_topics = sorted(all_topics.items(), key=lambda x: x[1], reverse=True)[
+                :5
+            ]
+            for topic, count in sorted_topics:
+                content += f"- {topic}: {count} messages\n"
 
-    if weekly_summary["top_senders"]:
-        content += "### Most Active Contributors:\n"
-        for sender, count in list(weekly_summary["top_senders"].items())[:5]:
-            content += f"- **{sender}:** {count} messages\n"
-
-    return [TextContent(type="text", text=content)]
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in morning_briefing_prompt: {e}")
+        return [TextContent(type="text", text="Failed to generate briefing")]
 
 
-@mcp.prompt("catch_up")
-def catch_up_summary(
-    streams: list[str] | None = None, hours_back: int = 8
+@mcp.prompt()
+def catch_up_prompt(
+    streams: list[str] | None = None, hours: int = 4
 ) -> list[Any]:
     """Generate a quick catch-up summary for missed messages.
 
     Args:
         streams: List of stream names to include
-        hours_back: Number of hours to look back
+        hours: Number of hours to catch up on (default: 4)
     """
-    client = get_client()
+    try:
+        if streams:
+            for stream in streams:
+                if not validate_stream_name(stream):
+                    return [TextContent(type="text", text=f"Invalid stream name: {stream}")]
+        if not 1 <= hours <= 24:
+            return [TextContent(type="text", text="hours must be between 1 and 24")]
+            
+        client = get_client()
 
-    content = "# Catch-Up Summary\n\n"
-    content += f"**Missed Messages from Last {hours_back} Hours**\n\n"
-
-    if streams:
+        # Get streams if not specified
         target_streams = streams
-    else:
-        # Get all subscribed streams
-        all_streams = client.get_streams()
-        target_streams = [s.name for s in all_streams if not s.is_private][
-            :10
-        ]  # Limit to 10
+        if not target_streams:
+            all_streams = client.get_streams()
+            target_streams = [s.name for s in all_streams if not s.is_private][:5]
 
-    total_messages = 0
+        content = f"# Quick Catch-Up (Last {hours} hours)\n\n"
+        total_messages = 0
 
-    for stream_name in target_streams:
-        messages = client.get_messages_from_stream(stream_name, hours_back=hours_back)
-        if messages:
-            total_messages += len(messages)
-            content += f"## #{stream_name} ({len(messages)} messages)\n\n"
+        for stream_name in target_streams:
+            messages = client.get_messages_from_stream(stream_name, hours_back=hours)
+            if messages:
+                total_messages += len(messages)
+                content += f"## #{stream_name} ({len(messages)} messages)\n\n"
 
-            # Group by topic
-            topics: dict[str, list[Any]] = {}
-            for msg in messages:
-                topic = msg.subject or "General"
-                if topic not in topics:
-                    topics[topic] = []
-                topics[topic].append(msg)
+                # Group by topic
+                topics: dict[str, list[Any]] = {}
+                for msg in messages:
+                    topic = msg.subject or "General"
+                    if topic not in topics:
+                        topics[topic] = []
+                    topics[topic].append(msg)
 
-            for topic, topic_messages in topics.items():
-                content += f"### {topic}\n"
-                # Show latest 3 messages per topic
-                for msg in topic_messages[-3:]:
-                    timestamp = datetime.fromtimestamp(msg.timestamp).strftime("%H:%M")
-                    content += f"- **{msg.sender_full_name}** ({timestamp}): {msg.content[:100]}...\n"
-                content += "\n"
+                for topic, topic_messages in topics.items():
+                    content += f"### {topic}\n"
+                    # Show latest 3 messages per topic
+                    for msg in topic_messages[-3:]:
+                        timestamp = datetime.fromtimestamp(msg.timestamp).strftime("%H:%M")
+                        content += f"- **{msg.sender_full_name}** ({timestamp}): {msg.content[:100]}...\n"
+                    content += "\n"
 
-    if total_messages == 0:
-        content += "No new messages in the selected streams.\n"
-    else:
-        content += f"\n**Total: {total_messages} messages across {len(target_streams)} streams**\n"
+        if total_messages == 0:
+            content += "No new messages in the selected streams.\n"
+        else:
+            content += f"\n**Total: {total_messages} messages across {len(target_streams)} streams**\n"
 
-    return [TextContent(type="text", text=content)]
+        return [TextContent(type="text", text=content)]
+    except Exception as e:
+        logger.error(f"Error in catch_up_prompt: {e}")
+        return [TextContent(type="text", text="Failed to generate catch-up")]
 
 
 def main() -> None:
@@ -409,28 +595,13 @@ def main() -> None:
         sys.exit(1)
 
     command = sys.argv[1]
-
     if command == "server":
-        # Test configuration
-        try:
-            config_manager = ConfigManager()
-            if not config_manager.validate_config():
-                print("❌ Invalid configuration. Please check your settings.")
-                sys.exit(1)
-
-            # Test client connection
-            client = get_client()
-            streams = client.get_streams()
-            print(f"✅ Connected to Zulip! Found {len(streams)} streams.")
-        except Exception as e:
-            print(f"❌ Failed to connect to Zulip: {e}")
-            print("\nPlease check your configuration:")
-            print("- ZULIP_EMAIL environment variable")
-            print("- ZULIP_API_KEY environment variable")
-            print("- ZULIP_SITE environment variable")
-            print("- Or configuration file at ~/.config/zulipchat-mcp/config.json")
-            sys.exit(1)
-
+        # Set up logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
         # Start the MCP server
         mcp.run()
     else:
