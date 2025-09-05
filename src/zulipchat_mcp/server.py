@@ -10,6 +10,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent
 
+from .exceptions import ConnectionError, create_error_response
+
 # Import assistant tools to register them with FastMCP
 
 # Set up logging
@@ -54,7 +56,7 @@ def validate_emoji(emoji_name: str) -> bool:
     return bool(re.match(pattern, emoji_name)) and 0 < len(emoji_name) <= 50
 
 
-def get_client():
+def get_client() -> Any:
     """Get or create Zulip client instance."""
     global zulip_client, config_manager
     if zulip_client is None:
@@ -109,11 +111,9 @@ def send_message(
             return {"status": "error", "error": result.get("msg", "Unknown error")}
 
     except ValueError as e:
-        logger.error(f"Validation error in send_message: {e}")
-        return {"status": "error", "error": str(e)}
+        return create_error_response(e, "send_message", {"to": to})
     except Exception as e:
-        logger.error(f"Unexpected error in send_message: {e}")
-        return {"status": "error", "error": "Internal server error"}
+        return create_error_response(e, "send_message")
 
 
 @mcp.tool()
@@ -162,9 +162,12 @@ def get_messages(
             }
             for msg in messages
         ]
-    except Exception as e:
+    except (ConnectionError, ValueError) as e:
         logger.error(f"Error in get_messages: {e}")
-        return [{"error": "Failed to retrieve messages"}]
+        return [{"error": f"Failed to retrieve messages: {str(e)}"}]
+    except Exception as e:
+        logger.error(f"Unexpected error in get_messages: {e}")
+        return [{"error": "An unexpected error occurred while retrieving messages"}]
 
 
 @mcp.tool()
@@ -197,9 +200,12 @@ def search_messages(query: str, limit: int = 50) -> list[dict[str, Any]]:
             }
             for msg in messages
         ]
-    except Exception as e:
+    except (ConnectionError, ValueError) as e:
         logger.error(f"Error in search_messages: {e}")
-        return [{"error": "Search failed"}]
+        return [{"error": f"Search failed: {str(e)}"}]
+    except Exception as e:
+        logger.error(f"Unexpected error in search_messages: {e}")
+        return [{"error": "An unexpected error occurred during search"}]
 
 
 @mcp.tool()
@@ -218,9 +224,12 @@ def get_streams() -> list[dict[str, Any]]:
             }
             for stream in streams
         ]
-    except Exception as e:
+    except (ConnectionError, ValueError) as e:
         logger.error(f"Error in get_streams: {e}")
-        return [{"error": "Failed to retrieve streams"}]
+        return [{"error": f"Failed to retrieve streams: {str(e)}"}]
+    except Exception as e:
+        logger.error(f"Unexpected error in get_streams: {e}")
+        return [{"error": "An unexpected error occurred while retrieving streams"}]
 
 
 @mcp.tool()
@@ -240,9 +249,12 @@ def get_users() -> list[dict[str, Any]]:
             }
             for user in users
         ]
-    except Exception as e:
+    except (ConnectionError, ValueError) as e:
         logger.error(f"Error in get_users: {e}")
-        return [{"error": "Failed to retrieve users"}]
+        return [{"error": f"Failed to retrieve users: {str(e)}"}]
+    except Exception as e:
+        logger.error(f"Unexpected error in get_users: {e}")
+        return [{"error": "An unexpected error occurred while retrieving users"}]
 
 
 @mcp.tool()
@@ -268,9 +280,11 @@ def add_reaction(message_id: int, emoji_name: str) -> dict[str, Any]:
         else:
             return {"status": "error", "error": result.get("msg", "Unknown error")}
 
+    except (ConnectionError, ValueError) as e:
+        return create_error_response(e, "add_reaction", {"message_id": message_id, "emoji_name": emoji_name})
     except Exception as e:
-        logger.error(f"Error in add_reaction: {e}")
-        return {"status": "error", "error": "Failed to add reaction"}
+        logger.error(f"Unexpected error in add_reaction: {e}")
+        return create_error_response(e, "add_reaction")
 
 
 @mcp.tool()
@@ -303,9 +317,11 @@ def edit_message(
         else:
             return {"status": "error", "error": result.get("msg", "Unknown error")}
 
+    except (ConnectionError, ValueError) as e:
+        return create_error_response(e, "edit_message", {"message_id": message_id})
     except Exception as e:
-        logger.error(f"Error in edit_message: {e}")
-        return {"status": "error", "error": "Failed to edit message"}
+        logger.error(f"Unexpected error in edit_message: {e}")
+        return create_error_response(e, "edit_message")
 
 
 @mcp.tool()
@@ -331,9 +347,11 @@ def get_daily_summary(
         summary = client.get_daily_summary(streams, hours_back)
         return {"status": "success", "data": summary}
 
+    except (ConnectionError, ValueError) as e:
+        return create_error_response(e, "get_daily_summary", {"streams": streams, "hours_back": hours_back})
     except Exception as e:
-        logger.error(f"Error in get_daily_summary: {e}")
-        return {"status": "error", "error": "Failed to generate summary"}
+        logger.error(f"Unexpected error in get_daily_summary: {e}")
+        return create_error_response(e, "get_daily_summary")
 
 
 # Resources
@@ -669,24 +687,14 @@ async def smart_search(
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    if len(sys.argv) < 2:
-        print("Usage: zulipchat-mcp <command>")
-        print("Commands: server")
-        sys.exit(1)
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
-    command = sys.argv[1]
-    if command == "server":
-        # Set up logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-
-        # Start the MCP server
-        mcp.run()
-    else:
-        print(f"Unknown command: {command}")
-        sys.exit(1)
+    # Start the MCP server directly
+    mcp.run()
 
 
 if __name__ == "__main__":

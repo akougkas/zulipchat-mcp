@@ -236,6 +236,10 @@ class SendMessageCommand(Command):
             if not all([message_type, to, content]):
                 raise ValidationError("Missing required message parameters")
 
+            # Replace placeholders in topic with dynamic values
+            if topic:
+                topic = topic.format(**context.data)
+
             result = client.send_message(message_type, to, content, topic)
 
             if result.get("result") == "success":

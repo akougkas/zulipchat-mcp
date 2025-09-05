@@ -1,5 +1,15 @@
-"""ZulipChat MCP Server - Connect AI agents to Zulip Chat."""
+"""ZulipChat MCP Server."""
 
-__version__ = "1.0.0"
-__author__ = "Anthony Kougkas"
-__email__ = "contact@akougkas.io"
+from zulipchat_mcp.client import ZulipClientWrapper
+from zulipchat_mcp.config import ConfigManager
+from zulipchat_mcp.exceptions import ZulipMCPError
+from zulipchat_mcp.server import mcp
+
+__all__ = [
+    "mcp",
+    "ZulipClientWrapper",
+    "ConfigManager",
+    "ZulipMCPError",
+]
+
+__version__ = "1.2.0"

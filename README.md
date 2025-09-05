@@ -9,49 +9,56 @@
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 </div>
 
-## 🚀 Quick Start
+## 🚀 Installation
 
-### One-line Installation
-
-```bash
-curl -sSL https://raw.githubusercontent.com/akougkas2030/zulipchat-mcp/main/scripts/install.sh | bash
-```
-
-### Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  zulipchat-mcp:
-    image: akougkas2030/zulipchat-mcp:latest
-    environment:
-      - ZULIP_EMAIL=${ZULIP_EMAIL}
-      - ZULIP_API_KEY=${ZULIP_API_KEY}
-      - ZULIP_SITE=${ZULIP_SITE}
-    ports:
-      - "3000:3000"
-```
-
-### Quick Docker Run
+### One Command Install
 
 ```bash
-docker run -d \
-  --name zulipchat-mcp \
-  -e ZULIP_EMAIL="your-bot@zulip.com" \
-  -e ZULIP_API_KEY="your-api-key" \
-  -e ZULIP_SITE="https://your-org.zulipchat.com" \
-  -p 3000:3000 \
-  akougkas2030/zulipchat-mcp:latest
+# Install via uvx (recommended)
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```
+
+### Automated Installation
+
+```bash
+# One-line installer
+curl -fsSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/install.sh | bash
+```
+
+### Requirements
+
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (auto-installed by script)
+
+## ⚡ Quick Start
+
+1. **Install**
+   ```bash
+   uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+   ```
+
+2. **Configure**
+   ```bash
+   export ZULIP_EMAIL="your-bot@zulip.com"
+   export ZULIP_API_KEY="your-api-key" 
+   export ZULIP_SITE="https://your-org.zulipchat.com"
+   ```
+
+3. **Run**  
+   ```bash
+   uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+   ```
+
+That's it! Your MCP server is running and ready to connect to AI agents.
 
 ## 📋 Features
 
-- 🔌 **MCP Compatible** - Works with Claude Desktop, Continue, and other MCP clients
-- 🐳 **Cross-Platform** - Runs on Linux, macOS, and Windows via Docker
+- 🔌 **MCP Compatible** - Works with Claude Desktop, Continue, Cursor, and other MCP clients
+- ⚡ **Zero Dependencies** - No Docker, just Python + uv  
 - 🔐 **Secure** - Multiple authentication methods, no hardcoded credentials
-- 📨 **Full Zulip API** - Send messages, create streams, manage subscriptions
-- 📊 **Analytics** - Daily summaries, activity reports, and catch-up features
-- 🎯 **Smart Prompts** - Built-in templates for team communication workflows
+- 📨 **Full Zulip API** - Send messages, create streams, manage subscriptions  
+- 📊 **Smart Analytics** - Daily summaries, activity reports, and catch-up features
+- 🎯 **AI-Optimized** - Built-in prompts designed for AI workflows
 
 ### Available Tools
 
@@ -139,8 +146,8 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "zulipchat": {
-      "command": "docker",
-      "args": ["run", "-i", "--rm", "akougkas2030/zulipchat-mcp:latest"],
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
       "env": {
         "ZULIP_EMAIL": "your-bot@zulip.com",
         "ZULIP_API_KEY": "your-api-key",
@@ -151,19 +158,39 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### Continue IDE
+### Continue IDE  
 
 Add to your MCP configuration:
 
 ```json
 {
   "zulipchat": {
-    "command": "docker",
-    "args": ["run", "-i", "--rm", "akougkas2030/zulipchat-mcp:latest"],
+    "command": "uvx",
+    "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
     "env": {
       "ZULIP_EMAIL": "your-bot@zulip.com",
-      "ZULIP_API_KEY": "your-api-key",
+      "ZULIP_API_KEY": "your-api-key", 
       "ZULIP_SITE": "https://your-org.zulipchat.com"
+    }
+  }
+}
+```
+
+### Cursor
+
+Add to your Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "your-bot@zulip.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
     }
   }
 }
@@ -171,21 +198,24 @@ Add to your MCP configuration:
 
 ## 🛠️ Development
 
-### Local Installation
+### Local Development
 
 ```bash
-# Clone repository
-git clone https://github.com/akougkas2030/zulipchat-mcp.git
+# Clone repository  
+git clone https://github.com/akougkas/zulipchat-mcp.git
 cd zulipchat-mcp
 
-# Install with uv
+# Install dependencies
 uv sync
+
+# Run locally
+uv run zulipchat-mcp
 ```
 
-### Running Tests
+### Testing
 
 ```bash
-# Install with development dependencies
+# Install with dev dependencies
 uv sync
 
 # Run tests
@@ -193,72 +223,69 @@ uv run pytest
 
 # Run with coverage
 uv run pytest --cov=src/zulipchat_mcp
+
+# Type checking
+uv run mypy src/
 ```
 
-### Building Docker Image
+### Building & Distribution
 
 ```bash
-# Build locally
-docker build -t zulipchat-mcp .
+# Build package
+uv build
 
-# Test the build
-docker run --rm zulipchat-mcp uv run python -c "from src.zulipchat_mcp import __version__; print(__version__)"
+# Test locally with uvx
+uvx --from . zulipchat-mcp
 ```
 
 ## 🌐 Platform Support
 
-| Platform | Support | Installation Method |
-|----------|---------|-------------------|
-| Linux | ✅ Full | Docker, Native |
-| macOS | ✅ Full | Docker, Native |
-| Windows | ✅ Docker | Docker Desktop, WSL2 |
+| Platform | Support | Method |
+|----------|---------|---------|
+| Linux | ✅ Native | `uvx + Python 3.10+` |
+| macOS | ✅ Native | `uvx + Python 3.10+` |
+| Windows | ✅ Native | `uvx + Python 3.10+` |
+
+*No Docker required! Works anywhere Python runs.*
 
 ## 📖 Documentation
 
-- [Setup Guide](docs/setup-guide.md) - Detailed installation instructions
+- [Setup Guide](docs/setup-guide.md) - Detailed installation instructions  
 - [API Keys Guide](docs/api-keys.md) - How to get your Zulip API key
-- [Docker Hub](https://hub.docker.com/r/akougkas2030/zulipchat-mcp) - Official container registry
-
-## 🐳 Docker Hub
-
-The ZulipChat MCP server is available on Docker Hub with multi-architecture support:
-
-- **Repository**: [akougkas2030/zulipchat-mcp](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
-- **Platforms**: linux/amd64, linux/arm64
-- **Tags**: `latest`, `1.0.0`, and all version releases
-
-Pull the latest version:
-```bash
-docker pull akougkas2030/zulipchat-mcp:latest
-```
+- [Commands Guide](docs/commands.md) - Available MCP tools and usage
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
-**Connection Failed**
+**Installation Failed**
 ```bash
-# Check your credentials
-docker run --rm -e ZULIP_SITE="..." -e ZULIP_EMAIL="..." -e ZULIP_API_KEY="..." \
-  akougkas2030/zulipchat-mcp:latest uv run python -c \
-  "from src.zulipchat_mcp.config import ConfigManager; ConfigManager().validate_config()"
+# Check Python version
+python3 --version  # Should be 3.10+
+
+# Install/update uv manually
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Try installation again
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+```
+
+**Connection Failed** 
+```bash
+# Test your credentials
+export ZULIP_EMAIL="your-bot@zulip.com"
+export ZULIP_API_KEY="your-api-key" 
+export ZULIP_SITE="https://your-org.zulipchat.com"
+
+# Test configuration
+uv run --with git+https://github.com/akougkas/zulipchat-mcp.git \
+  python -c "from zulipchat_mcp.config import ConfigManager; print(ConfigManager().validate_config())"
 ```
 
 **Permission Denied**
-- Ensure your API key has the necessary permissions
-- Check that your bot user has access to the streams you're trying to access
-
-**Docker Issues**
-```bash
-# Check if container is running
-docker ps
-
-# View logs
-docker logs zulipchat-mcp
-
-# Restart container
-docker restart zulipchat-mcp
-```
+- Ensure your API key has necessary permissions
+- Check your bot user has access to target streams
+- Verify your Zulip site URL is correct
 
 ## 🤝 Contributing
 
@@ -294,7 +321,6 @@ Special thanks to the entire open source community that makes projects like this
 - [MCP Official Documentation](https://modelcontextprotocol.io)
 - [Zulip API Documentation](https://zulip.com/api/)
 - [Claude Desktop](https://claude.ai/desktop)
-- [Continue IDE](https://continue.dev)
 
 ---
 

@@ -203,3 +203,6 @@ config.json
 
 # Docker
 .dockerignore
+
+PLAN.md 
+

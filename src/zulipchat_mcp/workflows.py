@@ -5,12 +5,12 @@ events like messages, subscriptions, and user actions.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 from .client import ZulipClientWrapper
-from .commands import CommandChain, ProcessDataCommand, SendMessageCommand
+from .commands import CommandChain, SendMessageCommand
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +23,15 @@ class Workflow:
     trigger_event: str
     command_chain: CommandChain
     enabled: bool = True
-    created_at: datetime = datetime.now()
+    created_at: datetime = field(default_factory=datetime.now)
 
 
 class WorkflowEngine:
-    """Engine for managing and executing automated workflows."""
+    """Simple engine for executing basic workflows."""
 
     def __init__(self, client: ZulipClientWrapper | None = None):
         """Initialize workflow engine.
-        
+
         Args:
             client: Zulip client wrapper for executing workflows
         """
@@ -42,7 +42,7 @@ class WorkflowEngine:
             "realm_user": []
         }
 
-        # Register predefined workflows
+        # Register basic predefined workflows
         self._register_predefined_workflows()
 
     def register_workflow(
@@ -100,9 +100,14 @@ class WorkflowEngine:
             try:
                 logger.info(f"Executing workflow: {workflow.name}")
 
+                # Add dynamic timestamps to context for workflow templates
+                enhanced_event_data = event_data.copy()
+                enhanced_event_data["timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M')
+                enhanced_event_data["date"] = datetime.now().strftime('%Y-%m-%d')
+
                 # Execute the workflow's command chain
                 context = workflow.command_chain.execute(
-                    initial_context=event_data,
+                    initial_context=enhanced_event_data,
                     client=self.client
                 )
 
@@ -129,161 +134,29 @@ class WorkflowEngine:
         return results
 
     def _register_predefined_workflows(self) -> None:
-        """Register predefined workflows."""
+        """Register basic predefined workflows."""
 
-        # ONBOARDING_WORKFLOW: Welcome new users
-        onboarding_chain = CommandChain("onboarding_workflow")
-
-        # Set welcome message parameters
-        onboarding_chain.add_command(ProcessDataCommand(
-            name="set_welcome_params",
-            processor=lambda event_data: {
-                "message_type": "private",
-                "to": event_data.get("user_id", event_data.get("email", "unknown")),
-                "content": f"Welcome to Zulip, {event_data.get('full_name', 'new user')}! "
-                          f"Feel free to explore the streams and join conversations. "
-                          f"If you have any questions, don't hesitate to ask!"
-            },
-            input_key="dummy",
-            output_key="welcome_params"
-        ))
-
-        # Extract message parameters
-        onboarding_chain.add_command(ProcessDataCommand(
-            name="extract_welcome_type",
-            processor=lambda params: params["message_type"],
-            input_key="welcome_params",
-            output_key="message_type"
-        ))
-
-        onboarding_chain.add_command(ProcessDataCommand(
-            name="extract_welcome_to",
-            processor=lambda params: params["to"],
-            input_key="welcome_params",
-            output_key="to"
-        ))
-
-        onboarding_chain.add_command(ProcessDataCommand(
-            name="extract_welcome_content",
-            processor=lambda params: params["content"],
-            input_key="welcome_params",
-            output_key="content"
-        ))
-
-        # Send welcome message
-        onboarding_chain.add_command(SendMessageCommand(name="send_welcome"))
-
-        self.register_workflow("ONBOARDING_WORKFLOW", "realm_user", onboarding_chain)
-
-        # INCIDENT_WORKFLOW: Create incident stream when #incident is mentioned
+        # Simple incident workflow
         incident_chain = CommandChain("incident_workflow")
-
-        # Process incident message and create stream notification
-        incident_chain.add_command(ProcessDataCommand(
-            name="set_incident_params",
-            processor=lambda event_data: {
-                "message_type": "stream",
-                "to": "incidents",
-                "topic": f"Incident - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                "content": f"🚨 **INCIDENT DETECTED** 🚨\n\n"
-                          f"Original message from {event_data.get('sender_full_name', 'unknown')}:\n"
-                          f"> {event_data.get('content', 'No content')}\n\n"
-                          f"Stream: #{event_data.get('stream_name', 'unknown')}\n"
-                          f"Topic: {event_data.get('subject', 'unknown')}\n\n"
-                          f"Please investigate and respond appropriately."
-            },
-            input_key="dummy",
-            output_key="incident_params"
+        incident_chain.add_command(SendMessageCommand(
+            name="send_incident",
+            message_type="stream",
+            to="incidents",
+            topic="Incident - {timestamp}",
+            content="🚨 **INCIDENT DETECTED** 🚨\n\nPlease investigate and respond appropriately."
         ))
-
-        # Extract incident parameters
-        incident_chain.add_command(ProcessDataCommand(
-            name="extract_incident_type",
-            processor=lambda params: params["message_type"],
-            input_key="incident_params",
-            output_key="message_type"
-        ))
-
-        incident_chain.add_command(ProcessDataCommand(
-            name="extract_incident_to",
-            processor=lambda params: params["to"],
-            input_key="incident_params",
-            output_key="to"
-        ))
-
-        incident_chain.add_command(ProcessDataCommand(
-            name="extract_incident_topic",
-            processor=lambda params: params["topic"],
-            input_key="incident_params",
-            output_key="topic"
-        ))
-
-        incident_chain.add_command(ProcessDataCommand(
-            name="extract_incident_content",
-            processor=lambda params: params["content"],
-            input_key="incident_params",
-            output_key="content"
-        ))
-
-        # Send incident notification
-        incident_chain.add_command(SendMessageCommand(name="send_incident_notification"))
-
         self.register_workflow("INCIDENT_WORKFLOW", "message", incident_chain)
 
-        # CODE_REVIEW_WORKFLOW: Notify reviewers when PR: is mentioned
-        review_chain = CommandChain("code_review_workflow")
-
-        # Process PR message and notify reviewers
-        review_chain.add_command(ProcessDataCommand(
-            name="set_review_params",
-            processor=lambda event_data: {
-                "message_type": "stream",
-                "to": "code-review",
-                "topic": "Pull Request Reviews",
-                "content": f"📋 **Code Review Request** 📋\n\n"
-                          f"From: {event_data.get('sender_full_name', 'unknown')}\n"
-                          f"Message: {event_data.get('content', 'No content')}\n\n"
-                          f"Original stream: #{event_data.get('stream_name', 'unknown')}\n"
-                          f"Topic: {event_data.get('subject', 'unknown')}\n\n"
-                          f"@**code-reviewers** please review when available."
-            },
-            input_key="dummy",
-            output_key="review_params"
+        # Simple standup workflow
+        standup_chain = CommandChain("standup_workflow")
+        standup_chain.add_command(SendMessageCommand(
+            name="send_standup",
+            message_type="stream",
+            to="standup",
+            topic="Standup - {date}",
+            content="📋 **Daily Standup**\n\nWhat did you work on yesterday?\nWhat are you working on today?\nAny blockers?"
         ))
-
-        # Extract review parameters
-        review_chain.add_command(ProcessDataCommand(
-            name="extract_review_type",
-            processor=lambda params: params["message_type"],
-            input_key="review_params",
-            output_key="message_type"
-        ))
-
-        review_chain.add_command(ProcessDataCommand(
-            name="extract_review_to",
-            processor=lambda params: params["to"],
-            input_key="review_params",
-            output_key="to"
-        ))
-
-        review_chain.add_command(ProcessDataCommand(
-            name="extract_review_topic",
-            processor=lambda params: params["topic"],
-            input_key="review_params",
-            output_key="topic"
-        ))
-
-        review_chain.add_command(ProcessDataCommand(
-            name="extract_review_content",
-            processor=lambda params: params["content"],
-            input_key="review_params",
-            output_key="content"
-        ))
-
-        # Send review notification
-        review_chain.add_command(SendMessageCommand(name="send_review_notification"))
-
-        self.register_workflow("CODE_REVIEW_WORKFLOW", "message", review_chain)
+        self.register_workflow("STANDUP_WORKFLOW", "message", standup_chain)
 
     def get_workflows(self, event_type: str | None = None) -> dict[str, list[dict[str, Any]]]:
         """Get information about registered workflows.
@@ -352,15 +225,10 @@ class WorkflowEngine:
         return False
 
 
-# Helper functions for triggering workflows based on message content
-def should_trigger_incident_workflow(message_content: str) -> bool:
-    """Check if message should trigger incident workflow."""
-    return "#incident" in message_content.lower()
-
-
-def should_trigger_code_review_workflow(message_content: str) -> bool:
-    """Check if message should trigger code review workflow."""
-    return "PR:" in message_content or "pr:" in message_content.lower()
+# Simple trigger check
+def should_trigger_workflow(message_content: str, trigger_word: str) -> bool:
+    """Check if message should trigger a workflow."""
+    return trigger_word in message_content.lower()
 
 
 # Factory function for creating workflow engine with default client

@@ -10,8 +10,8 @@ ZulipChat MCP Server is a Model Context Protocol (MCP) server that enables AI ag
 - 8 MCP tools for comprehensive Zulip operations
 - 3 MCP resources for data access (messages, streams, users)
 - 3 custom prompts for summaries and reports
-- Multiple configuration methods (env vars, Docker secrets, config files)
-- Docker-first deployment with Alpine Linux
+- Multiple configuration methods (env vars, config files)
+- UV-first deployment with cross-platform support
 
 ## Development Environment
 
@@ -79,7 +79,7 @@ uv run mypy src/zulipchat_mcp/
 uv run python -c "from src.zulipchat_mcp.config import ConfigManager; print('✅ Valid' if ConfigManager().validate_config() else '❌ Invalid')"
 
 # Run MCP server locally
-uv run python -m src.zulipchat_mcp.server server
+uv run zulipchat-mcp
 
 # Test Zulip connection
 uv run python -c "
@@ -91,21 +91,16 @@ print(f'✅ Connected! Found {len(streams)} streams.')
 "
 ```
 
-### Docker Operations
+### UV Operations
 ```bash
-# Build Docker image
-docker build -t zulipchat-mcp .
+# Build package
+uv build
 
-# Run with Docker
-docker run -it --rm \
-  -e ZULIP_EMAIL="$ZULIP_EMAIL" \
-  -e ZULIP_API_KEY="$ZULIP_API_KEY" \
-  -e ZULIP_SITE="$ZULIP_SITE" \
-  zulipchat-mcp
+# Test with uvx from local
+uvx --from . zulipchat-mcp
 
-# Use Docker Compose
-docker-compose up -d
-docker logs -f zulipchat-mcp
+# Test from GitHub directly
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```
 
 ## Code Style Guidelines
@@ -149,13 +144,10 @@ zulipchat-mcp/
 ├── tests/
 │   ├── test_server.py     # Unit and integration tests
 │   └── __init__.py
-├── agents/                # AI agent specific implementations
+├── agent_adapters/        # Agent-specific command adapters
 ├── docs/                  # User documentation
-├── scripts/               # Installation and utility scripts
-├── slash_commands.py      # Universal slash commands
 ├── pyproject.toml         # Project configuration
-├── Dockerfile            # Multi-stage Alpine build
-└── docker-compose.yml    # Docker Compose configuration
+└── install.sh            # UV-based installation script
 ```
 
 ## Adding New Features

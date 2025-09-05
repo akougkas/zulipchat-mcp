@@ -103,40 +103,38 @@ class BatchProcessor:
         successful = []
         failed = []
 
-        async def send_single_message(client: AsyncZulipClient, msg_data: MessageData, index: int) -> None:
+        async def send_single_message(client: AsyncZulipClient, msg_data: MessageData, index: int) -> dict[str, Any]:
             async with self._semaphore:
-                try:
-                    result = await client.send_message_async(
-                        message_type=msg_data.message_type,
-                        to=msg_data.to,
-                        content=msg_data.content,
-                        topic=msg_data.topic
-                    )
-                    successful.append(result)
-
-                    if self.progress_callback:
-                        self.progress_callback(len(successful) + len(failed), len(messages))
-
-                except Exception as e:
-                    failed.append({
-                        "index": index,
-                        "message_data": msg_data,
-                        "error": str(e),
-                        "error_type": type(e).__name__
-                    })
-
-                    if self.progress_callback:
-                        self.progress_callback(len(successful) + len(failed), len(messages))
+                result = await client.send_message_async(
+                    message_type=msg_data.message_type,
+                    to=msg_data.to,
+                    content=msg_data.content,
+                    topic=msg_data.topic
+                )
+                return result
 
         async with AsyncZulipClient(self.config) as client:
-            # Process messages in chunks
-            for i in range(0, len(messages), self.chunk_size):
-                chunk = messages[i:i + self.chunk_size]
-                tasks = [
-                    send_single_message(client, msg_data, i + j)
-                    for j, msg_data in enumerate(chunk)
-                ]
-                await asyncio.gather(*tasks, return_exceptions=True)
+            # Process all messages concurrently with proper exception handling
+            tasks = [
+                send_single_message(client, msg_data, i)
+                for i, msg_data in enumerate(messages)
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process results and handle any exceptions that occurred
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    failed.append({
+                        "index": i,
+                        "message_data": messages[i],
+                        "error": str(result),
+                        "error_type": type(result).__name__
+                    })
+                else:
+                    successful.append(result)
+
+                if self.progress_callback:
+                    self.progress_callback(len(successful) + len(failed), len(messages))
 
         total_time = time.time() - start_time
         return BatchResult.from_results(successful, failed, total_time)
