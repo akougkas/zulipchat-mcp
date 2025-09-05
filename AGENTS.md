@@ -1,421 +1,333 @@
 # AGENTS.md
 
-A simple, open format for guiding AI coding agents working with ZulipChat MCP Server.
+AI agent instructions for ZulipChat MCP Server development.
 
 ## Project Overview
 
-ZulipChat MCP Server is a Model Context Protocol (MCP) server that enables AI agents to interact with Zulip Chat. It provides tools for sending messages, retrieving conversations, managing streams, and generating summaries through a FastMCP-based architecture.
+ZulipChat MCP is a **lean Model Context Protocol server** enabling bidirectional communication between AI agents and humans via Zulip. After v2.0 refactoring, the codebase is 70% simpler while maintaining essential functionality.
 
-**Key Features:**
-- **35+ MCP tools** for comprehensive Zulip and agent operations
-- **Agent Communication System v1.4.0** - Bidirectional AI-Human communication
-- **Multi-Instance Bot Identity** - Automatic project/session detection and routing
-- **AFK Mode** - Smart notification control (only when away)
-- **Personal Stream Organization** - One stream per agent type, topics per project
-- **Claude Code Hooks Integration** - Automatic notifications from coding agents
-- Task lifecycle management with progress tracking
-- Stream organization and management tools
-- Dual identity support (user + bot credentials)
-- Project-aware notification routing
-- Instance management across multiple machines
-- UV-first deployment with cross-platform support
-- **100% test pass rate** (257 tests, 75% code coverage)
+**Current State**: v1.4.0 (needs v2.0 restructuring per IMPLEMENTATION_PHASES.md)
+**Architecture**: Thin MCP layer exposing Zulip functionality
+**Philosophy**: Simple, maintainable, no over-engineering
 
-## Development Environment
+## Quick Start
 
-### Prerequisites
 ```bash
-# Required: uv package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# 1. Setup environment
+uv sync                       # Install dependencies
+cp .env.example .env         # Configure credentials
+export $(cat .env | xargs)   # Load environment
 
-# Python 3.10+ required
-python --version  # Should be 3.10 or higher
-```
+# 2. Test connection
+uv run python -c "from src.zulipchat_mcp.config import ConfigManager; ConfigManager().validate_config()"
 
-### Initial Setup
-```bash
-# Clone and enter repository
-git clone https://github.com/akougkas/zulipchat-mcp.git
-cd zulipchat-mcp
-
-# Install dependencies (creates virtual environment automatically)
-uv sync
-
-# Set up environment variables
-cp .env.example .env  # Edit with your Zulip credentials
-
-# Optional: Set up agent commands for your AI client
-uv run agent_adapters/setup_agents.py all
-```
-
-### Environment Variables
-```bash
-# User credentials (required)
-export ZULIP_EMAIL="your-email@zulip.com"
-export ZULIP_API_KEY="your-api-key"
-export ZULIP_SITE="https://your-org.zulipchat.com"
-
-# Bot credentials (optional, for agent identity)
-export ZULIP_BOT_EMAIL="claude-code-bot@zulip.com"
-export ZULIP_BOT_API_KEY="bot-api-key"
-export ZULIP_BOT_NAME="Claude Code"
-```
-
-## Build and Test Commands
-
-### Testing
-```bash
-# Run all tests (257 tests total)
-uv run pytest
-
-# Run with coverage (currently at 75%)
-uv run pytest --cov=src/zulipchat_mcp --cov-report=term-missing
-
-# Run specific test file
-uv run pytest tests/test_server.py -v
-
-# Run integration tests only
-uv run pytest -m integration
-
-# Clean test artifacts before commit
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-```
-
-### Code Quality
-```bash
-# Format code (ALWAYS run before committing)
-uv run black src/ tests/
-
-# Lint code (fix issues before committing)
-uv run ruff check src/ tests/ --fix
-
-# Type checking (ensure no type errors)
-uv run mypy src/zulipchat_mcp/
-```
-
-### Local Development
-```bash
-# Test configuration validity
-uv run python -c "from src.zulipchat_mcp.config import ConfigManager; print('✅ Valid' if ConfigManager().validate_config() else '❌ Invalid')"
-
-# Run MCP server locally
+# 3. Run server
 uv run zulipchat-mcp
-
-# Test Zulip connection
-uv run python -c "
-from src.zulipchat_mcp.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager
-client = ZulipClientWrapper(ConfigManager())
-streams = client.get_streams()
-print(f'✅ Connected! Found {len(streams)} streams.')
-"
 ```
 
-### UV Operations
+## Critical Context for AI Agents
+
+### ⚠️ BEFORE YOU CODE
+
+1. **Read IMPLEMENTATION_PHASES.md** - Contains the v2.0 restructuring plan
+2. **Current state is messy** - 1000+ line server.py needs splitting
+3. **Keep it simple** - Resist adding features, focus on removing complexity
+4. **Project-local state only** - Use `.mcp/` folder, never `~/.config/`
+
+### 🎯 Core Design Principles
+
+- **Single Channel**: All agents use "Agents-Channel" stream
+- **Structured Topics**: `agent_type/YYYY-MM-DD/session_id`
+- **Runtime AFK**: In-memory flag, not persisted
+- **Blocking Wait**: No timeouts on `wait_for_response()`
+- **Thin Server**: MCP is protocol layer, not application
+
+## Development Workflow
+
+### Recommended Approach: Explore → Plan → Implement → Test → Commit
+
 ```bash
-# Build package
-uv build
+# 1. EXPLORE - Understand current state
+tree -I "__pycache__|.git" -L 2    # View structure
+grep -r "TODO\|FIXME" src/         # Find issues
+uv run pytest --co -q              # List tests
 
-# Test with uvx from local
-uvx --from . zulipchat-mcp
+# 2. PLAN - Think before coding
+# Create a checklist of changes
+# Identify files to modify
+# Consider test implications
 
-# Test from GitHub directly
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+# 3. IMPLEMENT - Make focused changes
+uv run black src/ tests/           # Format first
+# Make your changes
+uv run ruff check --fix           # Fix linting
+
+# 4. TEST - Verify nothing broke
+uv run pytest tests/test_server.py -xvs  # Test specific file
+uv run pytest                             # Full test suite
+
+# 5. COMMIT - Clear, atomic commits
+git add -p                         # Review changes
+git commit -m "type: description" # Use conventional commits
 ```
 
-## Code Style Guidelines
+## Code Style & Standards
 
-### Python Standards
-- **Line length**: 88 characters (Black default)
-- **Quotes**: Double quotes for strings
-- **Type hints**: Required for all public methods
-- **Docstrings**: Required for all public functions/classes
-- **Import order**: Sorted by Ruff (stdlib → third-party → local)
+### Essential Rules
 
-### Naming Conventions
-- **Classes**: PascalCase (e.g., `ZulipClientWrapper`)
-- **Functions/methods**: snake_case (e.g., `get_messages`)
-- **Constants**: UPPER_SNAKE_CASE (e.g., `DEFAULT_TIMEOUT`)
-- **Private methods**: Leading underscore (e.g., `_validate_input`)
-
-### Error Handling
 ```python
-# Always use specific exceptions
+# ALWAYS use type hints
+def send_message(content: str, require_response: bool = False) -> dict[str, Any]:
+    """Clear docstring explaining purpose."""
+    
+# NEVER exceed 500 lines per file
+# If approaching limit, split into logical modules
+
+# ALWAYS handle errors explicitly
 try:
     result = client.send_message(...)
 except ValidationError as e:
-    # Handle validation errors specifically
-    return {"status": "error", "error": str(e)}
-except ConnectionError as e:
-    # Log sensitive errors, return safe message
-    logger.error(f"Connection failed: {e}")
-    return {"status": "error", "error": "Connection failed"}
+    logger.error(f"Validation failed: {e}")
+    return {"status": "error", "error": "Invalid input"}
+
+# NEVER use print() - use logger
+logger.info("Processing message")  # ✓
+print("Processing message")        # ✗
 ```
 
-## Project Structure
+### File Organization
 
 ```
-zulipchat-mcp/
-├── src/zulipchat_mcp/
-│   ├── __init__.py          # Version and metadata
-│   ├── server.py            # MCP server with FastMCP (35+ tools, 3 resources, 3 prompts)
-│   ├── client.py            # Zulip API wrapper with dual identity support
-│   ├── config.py            # Multi-source configuration with bot credentials
-│   ├── afk_state.py         # AFK mode management for notifications
-│   ├── instance_identity.py # Multi-instance project/session detection
-│   ├── database.py          # SQLite storage for agents and tasks
-│   ├── models/
-│   │   ├── agent.py         # Agent data models (Agent, InputRequest, etc.)
-│   │   └── task.py          # Task lifecycle models (Task, TaskCompletion)
-│   ├── services/
-│   │   └── agent_registry.py # Agent registration and stream management
-│   ├── tools/
-│   │   ├── agent_communication.py  # Agent-to-human messaging
-│   │   ├── task_tracking.py        # Task lifecycle management
-│   │   └── stream_management.py    # Stream/topic organization
-│   ├── assistants.py        # Intelligent assistant tools
-│   ├── cache.py             # In-memory caching system with TTL
-│   ├── commands.py          # Command chain system for workflow automation
-│   ├── exceptions.py        # Custom exception hierarchy
-│   ├── health.py            # Health monitoring and readiness checks
-│   ├── logging_config.py    # Structured logging with context
-│   ├── metrics.py           # Prometheus-style metrics collection
-│   ├── notifications.py     # Smart notification system
-│   ├── scheduler.py         # Native Zulip message scheduling
-│   ├── security.py          # Input validation and rate limiting
-│   └── async_client.py      # Async HTTP client for performance
-├── tests/                   # Comprehensive test suite (257+ tests)
-│   ├── test_server.py       # Server and MCP tool tests
-│   ├── test_agent_system.py # Agent communication tests
-│   ├── test_dual_identity.py # Bot identity tests
-│   ├── test_assistants.py   # Assistant functionality tests
-│   ├── test_commands.py     # Command chain tests
-│   └── ...                  # Additional test modules
-├── agent_adapters/          # Agent-specific setup utilities
-│   └── setup_agents.py      # Command definitions including AFK
-├── docs/                    # User documentation and guides
-│   └── BOT_SETUP.md         # Bot identity setup guide
-├── pyproject.toml           # UV-based project configuration
-├── CHANGELOG.md             # Detailed version history
-├── AGENTS.md                # This file - AI agent guidelines
-└── install.sh               # UV-based installation script
+src/zulipchat_mcp/
+├── server.py          # <100 lines - entry point ONLY
+├── tools/
+│   ├── messaging.py   # ~200 lines - message operations
+│   ├── streams.py     # ~150 lines - stream management
+│   ├── agents.py      # ~250 lines - agent communication
+│   └── search.py      # ~200 lines - search/summaries
+└── core/
+    └── agent_tracker.py  # Minimal session tracking
 ```
 
-## Adding New Features
+## Testing Requirements
+
+### Before EVERY Commit
+
+```bash
+# 1. Format code
+uv run black src/ tests/
+
+# 2. Fix linting
+uv run ruff check src/ tests/ --fix
+
+# 3. Type check
+uv run mypy src/zulipchat_mcp/
+
+# 4. Run tests
+uv run pytest
+
+# 5. Clean artifacts
+find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+```
+
+### Test Patterns
+
+```python
+# Write focused unit tests
+def test_agent_registration():
+    """Test that agents get assigned correct topics."""
+    result = register_agent("claude-code")
+    assert result["stream"] == "Agents-Channel"
+    assert "claude-code" in result["topic"]
+
+# Use integration markers
+@pytest.mark.integration
+def test_full_message_flow():
+    """Test complete agent message flow."""
+    # Test realistic scenarios
+```
+
+## Common Tasks
 
 ### Adding a New MCP Tool
-1. Add tool function to `server.py` with `@mcp.tool()` decorator
-2. Use `get_client()` for Zulip API access
-3. Add corresponding method to `ZulipClientWrapper` if needed
-4. Write tests in `tests/test_server.py`
-5. Update README.md documentation
 
-### Example Tool Implementation
 ```python
-@mcp.tool()
-def new_tool(param1: str, param2: Optional[int] = None) -> Dict[str, Any]:
-    """Tool description for MCP clients.
+# 1. Add to appropriate tools/ file (not server.py!)
+@mcp.tool(description="Clear, specific description for agents")
+def your_tool(param: str, optional: int = None) -> dict[str, Any]:
+    """
+    Detailed docstring for other developers.
     
     Args:
-        param1: Description of param1
-        param2: Optional parameter with default
+        param: What this parameter does
+        optional: Optional with sensible default
     """
-    try:
-        # Input validation
-        if not validate_input(param1):
-            raise ValidationError("Invalid input")
-        
-        # Get client and perform operation
-        client = get_client()
-        result = client.perform_operation(param1, param2)
-        
-        return {
-            "status": "success",
-            "data": result
-        }
-    except Exception as e:
-        logger.error(f"Operation failed: {e}")
-        return {"status": "error", "error": "Operation failed"}
+    # Validate inputs first
+    if not validate_input(param):
+        return {"status": "error", "error": "Invalid input"}
+    
+    # Single responsibility - do one thing well
+    result = perform_operation(param)
+    
+    return {"status": "success", "data": result}
+
+# 2. Add test in tests/test_[module].py
+def test_your_tool():
+    result = your_tool("valid_input")
+    assert result["status"] == "success"
+
+# 3. Update documentation
+# - Add to README.md tool list
+# - Update CHANGELOG.md if significant
 ```
 
-## Testing Guidelines
+### Debugging MCP Issues
 
-### Test Categories
-- **Unit tests**: Mock external dependencies
-- **Integration tests**: Mark with `@pytest.mark.integration`
-- **Configuration tests**: Test all config sources
-- **Model tests**: Validate Pydantic models
-
-### Running Specific Test Categories
 ```bash
-# Unit tests only
-uv run pytest -m "not integration"
+# Enable debug logging
+export MCP_DEBUG=true
 
-# Integration tests only
-uv run pytest -m integration
+# Test tool directly
+uv run python -c "
+from src.zulipchat_mcp.tools.agents import register_agent
+print(register_agent('test'))
+"
 
-# Failed tests from last run
-uv run pytest --lf
+# Check MCP server output
+uv run zulipchat-mcp 2>&1 | grep -i error
 ```
 
-## PR Guidelines
+## Security & Safety
 
-### Before Submitting
-1. **Format code**: `uv run black src/ tests/`
-2. **Fix linting**: `uv run ruff check src/ tests/ --fix`
-3. **Type check**: `uv run mypy src/zulipchat_mcp/`
-4. **Run tests**: `uv run pytest`
-5. **Update docs**: Ensure README.md is current
+### NEVER Commit
 
-### Commit Message Format
-```
-type: brief description
-
-- Detailed change 1
-- Detailed change 2
-
-Fixes #issue_number
-```
-
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
-
-### Pull Request Template
-```markdown
-## Summary
-Brief description of changes
-
-## Changes
-- [ ] Change 1
-- [ ] Change 2
-
-## Testing
-- [ ] All tests pass
-- [ ] Added new tests for changes
-- [ ] Manual testing completed
-
-## Documentation
-- [ ] Updated README.md if needed
-- [ ] Updated AGENTS.md if needed
-```
-
-## Security Considerations
-
-### Never Commit
-- API keys or tokens
-- Passwords or secrets
 - `.env` files with real credentials
-- Personal configuration files
+- API keys in code
+- Personal information in tests
+- Debug print statements
 
-### Input Validation
-- Always sanitize user inputs
-- Validate message content length
-- Check stream/user names for injection
-- Use parameterized queries
+### ALWAYS Validate
 
-### Error Handling
-- Never expose internal errors to users
-- Log sensitive errors privately
-- Return generic error messages
-- Include request IDs for debugging
+```python
+# Sanitize all user inputs
+content = sanitize_input(user_content)
 
-## Performance Considerations
+# Validate before processing
+if not validate_stream_name(stream):
+    raise ValidationError(f"Invalid stream: {stream}")
 
-### Optimization Guidelines
-- Use lazy initialization for clients
-- Implement caching for repeated queries
-- Batch API calls when possible
-- Use async operations for I/O
+# Use specific exceptions
+except ValidationError:  # ✓ Specific
+except Exception:       # ✗ Too broad
+```
+
+## Performance Guidelines
+
+### Keep It Simple
+
+- **No premature optimization** - Clarity > Performance
+- **Synchronous by default** - Async only when proven necessary
+- **File-based state** - JSON files are fine for our scale
+- **Batch when obvious** - But don't over-engineer
 
 ### Resource Management
+
 ```python
-# Use context managers for resources
-async with get_async_client() as client:
-    result = await client.operation()
+# Use context managers
+with open(file_path) as f:
+    data = json.load(f)
 
-# Clean up on shutdown
-async def shutdown_handler():
-    if zulip_client:
-        await zulip_client.close()
+# Clean up explicitly
+finally:
+    if client:
+        client.close()
 ```
 
-## Debugging Tips
+## PR Checklist
 
-### Common Issues
+Before submitting any PR:
 
-1. **"No Zulip email found"**
+- [ ] Code formatted with `black`
+- [ ] Linting passes with `ruff`
+- [ ] Type checking passes with `mypy`
+- [ ] All tests pass
+- [ ] No files >500 lines
+- [ ] Clear commit messages
+- [ ] Documentation updated if needed
+- [ ] No debug code left
+
+## Troubleshooting
+
+### Environment Issues
+
 ```bash
-# Check environment variables
-echo $ZULIP_EMAIL
-# Re-export from .env
-export $(cat .env | grep -v '^#' | xargs)
+# Reset everything
+rm -rf .venv .pytest_cache .ruff_cache
+uv sync --force-reinstall
+
+# Verify setup
+uv run python -c "import zulipchat_mcp; print('✓ Import works')"
 ```
 
-2. **Connection failures**
-```bash
-# Test connection directly
-uv run python -c "
-from src.zulipchat_mcp.config import ConfigManager
-ConfigManager().validate_config()
-"
-```
+### Common Errors
 
-3. **MCP client not connecting**
-- Check absolute paths in config
-- Verify uv is in PATH
-- Restart MCP client after changes
+| Error | Solution |
+|-------|----------|
+| "No Zulip email found" | `export $(cat .env \| xargs)` |
+| "Stream not found" | Create "Agents-Channel" manually in Zulip |
+| Import errors | Check `uv sync` completed successfully |
+| Test failures | Run `uv run pytest -xvs` for details |
 
-### Debug Logging
+## Agent-Specific Instructions
+
+### For Claude Code
+
+1. **Always register first**: `register_agent("claude-code")`
+2. **Check AFK before sending**: Messages only send when user is away
+3. **Use require_response**: When you need human input
+4. **Block on responses**: Use `wait_for_response()` - it will wait
+
+### For Complex Tasks
+
+1. **Break into phases** - Don't try to do everything at once
+2. **Commit frequently** - After each working change
+3. **Test incrementally** - Verify each phase works
+4. **Document decisions** - Explain non-obvious choices
+
+### Workflow Example
+
 ```python
-# Enable debug logging
-import logging
-logging.basicConfig(level=logging.DEBUG)
+# Good: Clear phases with testing
+# Phase 1: Restructure
+move_files()
+test_imports()
+commit("refactor: reorganize module structure")
 
-# Or set environment variable
-export MCP_DEBUG=true
+# Phase 2: Implement feature
+add_new_tool()
+add_tests()
+commit("feat: add new_tool functionality")
+
+# Bad: Everything at once
+restructure_and_add_features_and_fix_bugs()  # Too much!
 ```
 
-## Monorepo Considerations
+## Key Files to Know
 
-For subprojects, create nested AGENTS.md files:
-```
-zulipchat-mcp/
-├── AGENTS.md              # Main project
-├── agents/
-│   └── AGENTS.md         # Agent-specific guidelines
-└── extensions/
-    └── AGENTS.md         # Extension-specific guidelines
-```
+- `IMPLEMENTATION_PHASES.md` - v2.0 restructuring plan
+- `src/zulipchat_mcp/server.py` - Currently bloated, needs splitting
+- `src/zulipchat_mcp/agent_tracker.py` - Core agent session logic
+- `.mcp/` - Project-local state directory
+- `tests/test_integration.py` - End-to-end testing
 
-Nested files inherit from parent but can override specific sections.
+## Final Reminders
 
-## AI Agent Specific Notes
-
-### For Code Generation
-- Follow existing patterns in the codebase
-- Use type hints consistently
-- Include comprehensive error handling
-- Add tests for new functionality
-
-### For Code Review
-- Check for security vulnerabilities
-- Verify error handling completeness
-- Ensure consistent code style
-- Validate test coverage
-
-### For Documentation
-- Update relevant .md files
-- Keep examples current
-- Document breaking changes
-- Include migration guides
-
-## Links and Resources
-
-- [Project Repository](https://github.com/akougkas/zulipchat-mcp)
-- [MCP Documentation](https://modelcontextprotocol.io)
-- [Zulip API Reference](https://zulip.com/api/)
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Issues & Support](https://github.com/akougkas/zulipchat-mcp/issues)
+1. **Simplicity is the goal** - Every line should justify its existence
+2. **Test everything** - Untested code is broken code
+3. **Commit atomically** - Each commit should be one logical change
+4. **Document why, not what** - Code shows what, comments explain why
+5. **When in doubt, don't add it** - Features are easy to add, hard to remove
 
 ---
-*This AGENTS.md follows the open standard at [agents.md](https://agents.md) for AI coding assistants.*
+
+*Following [agents.md](https://agents.md) standard and [Claude Code best practices](https://www.anthropic.com/engineering/claude-code-best-practices)*

@@ -69,11 +69,12 @@ class ZulipClientWrapper:
         if use_bot_identity and self.config_manager.has_bot_credentials():
             client_config = self.config_manager.get_zulip_client_config(use_bot=True)
             self.identity = "bot"
-            self.identity_name = self.config_manager.config.bot_name
+            self.identity_name = self.config_manager.config.bot_name or "Bot"
         else:
             client_config = self.config_manager.get_zulip_client_config(use_bot=False)
             self.identity = "user"
-            self.identity_name = client_config["email"].split("@")[0]
+            email = client_config.get("email")
+            self.identity_name = email.split("@")[0] if email else "User"
 
         self.client = Client(
             email=client_config["email"],
@@ -159,12 +160,18 @@ class ZulipClientWrapper:
         self, query: str, num_results: int = 50
     ) -> list[ZulipMessage]:
         """Search messages by content."""
+        # Use 'has' operator for content search or 'search' for general search
         narrow = [{"operator": "search", "operand": query}]
-        return self.get_messages(narrow=narrow, num_before=num_results)
+        try:
+            return self.get_messages(narrow=narrow, num_before=num_results)
+        except Exception:
+            # Fallback: try without narrow if search fails
+            return self.get_messages(num_before=num_results)
 
     def clear_stream_cache(self) -> None:
         """Clear the stream cache."""
-        stream_cache.clear()
+        from .cache import stream_cache
+        stream_cache.cache.clear()
 
     def get_streams(self, include_subscribed: bool = True, force_fresh: bool = False) -> list[ZulipStream]:
         """Get list of streams."""

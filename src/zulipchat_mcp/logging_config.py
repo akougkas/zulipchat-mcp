@@ -65,7 +65,7 @@ def setup_structured_logging(level: str = "INFO") -> None:
     # Set up stdlib logging
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
+        stream=sys.stderr,
         level=getattr(logging, level.upper()),
     )
 

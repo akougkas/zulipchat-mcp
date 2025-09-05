@@ -221,13 +221,13 @@ class ConfigManager:
         """Check if bot credentials are configured."""
         return bool(self.config.bot_email and self.config.bot_api_key)
 
-    def get_zulip_client_config(self, use_bot: bool = False) -> dict[str, str]:
+    def get_zulip_client_config(self, use_bot: bool = False) -> dict[str, str | None]:
         """Get configuration dict for Zulip client initialization.
 
         Args:
             use_bot: If True and bot credentials exist, return bot config
         """
-        if use_bot and self.has_bot_credentials():
+        if use_bot and self.has_bot_credentials() and self.config.bot_email and self.config.bot_api_key:
             return {
                 "email": self.config.bot_email,
                 "api_key": self.config.bot_api_key,

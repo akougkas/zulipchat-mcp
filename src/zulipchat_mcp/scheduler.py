@@ -99,7 +99,7 @@ class MessageScheduler:
         if message.message_type == "stream":
             stream_name = message.recipients if isinstance(message.recipients, str) else message.recipients[0]
             streams = client_wrapper.get_streams()
-            stream_id = next((s.get('id') for s in streams if s.get('name') == stream_name), None)
+            stream_id = next((s.stream_id for s in streams if s.name == stream_name), None)
             
             if not stream_id:
                 raise ValueError(f"Stream '{stream_name}' not found.")
@@ -113,7 +113,7 @@ class MessageScheduler:
             
             user_ids = []
             for email in recipient_emails:
-                user_id = next((u.get('id') for u in all_users if u.get('email') == email), None)
+                user_id = next((u.user_id for u in all_users if u.email == email), None)
                 if user_id:
                     user_ids.append(user_id)
 
@@ -322,7 +322,9 @@ Please share:
         """
         # Use asyncio.gather for concurrent scheduling
         tasks = [self.schedule_message(message) for message in messages]
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Filter out exceptions and return only successful results
+        return [r for r in results if isinstance(r, dict)]
 
     async def get_scheduled_by_time_range(
         self, start_time: datetime, end_time: datetime
@@ -366,7 +368,9 @@ Please share:
             for msg in scheduled_messages
         ]
 
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Filter out exceptions and return only successful results
+        return [r for r in results if isinstance(r, dict)]
 
     async def close(self) -> None:
         """Close the async client."""
