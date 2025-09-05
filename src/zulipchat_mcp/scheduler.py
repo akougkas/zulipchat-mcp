@@ -27,7 +27,7 @@ class MessageScheduler:
 
     def __init__(self, config: ZulipConfig) -> None:
         """Initialize message scheduler.
-        
+
         Args:
             config: Zulip configuration
         """
@@ -76,10 +76,10 @@ class MessageScheduler:
 
     async def schedule_message(self, message: ScheduledMessage) -> dict[str, Any]:
         """Schedule a message using Zulip's native API.
-        
+
         Args:
             message: Scheduled message details
-            
+
         Returns:
             API response with scheduled message ID
         """
@@ -115,10 +115,10 @@ class MessageScheduler:
 
     async def cancel_scheduled(self, scheduled_id: int) -> dict[str, Any]:
         """Cancel a scheduled message.
-        
+
         Args:
             scheduled_id: ID of scheduled message to cancel
-            
+
         Returns:
             API response
         """
@@ -132,7 +132,7 @@ class MessageScheduler:
 
     async def list_scheduled(self) -> list[dict[str, Any]]:
         """List all scheduled messages.
-        
+
         Returns:
             List of scheduled messages
         """
@@ -152,11 +152,11 @@ class MessageScheduler:
         new_time: datetime
     ) -> dict[str, Any]:
         """Update the scheduled time of a message.
-        
+
         Args:
             scheduled_id: ID of scheduled message
             new_time: New scheduled time
-            
+
         Returns:
             API response
         """
@@ -180,19 +180,19 @@ class MessageScheduler:
         count: int = 7
     ) -> list[dict[str, Any]]:
         """Schedule multiple messages at regular intervals.
-        
+
         Args:
             message: Base message to schedule
             interval: Time interval between messages
             count: Number of messages to schedule
-            
+
         Returns:
             List of API responses for each scheduled message
         """
         results = []
         current_time = message.scheduled_time
 
-        for i in range(count):
+        for _i in range(count):
             # Create a new message for each occurrence
             recurring_message = ScheduledMessage(
                 content=message.content,
@@ -219,14 +219,14 @@ class MessageScheduler:
         topic: str | None = None
     ) -> dict[str, Any]:
         """Schedule a reminder message.
-        
+
         Args:
             content: Reminder message content
             minutes_from_now: Minutes from now to send reminder
             recipients: Who to send the reminder to
             message_type: Type of message (private or stream)
             topic: Topic for stream messages
-            
+
         Returns:
             API response
         """
@@ -250,13 +250,13 @@ class MessageScheduler:
         days_ahead: int = 7
     ) -> list[dict[str, Any]]:
         """Schedule daily standup messages.
-        
+
         Args:
             stream: Stream to send standup messages
             topic: Topic for standup messages
             time_of_day: Time in HH:MM format (24-hour)
             days_ahead: Number of days to schedule ahead
-            
+
         Returns:
             List of API responses for each scheduled standup
         """
@@ -264,7 +264,7 @@ class MessageScheduler:
         try:
             hour, minute = map(int, time_of_day.split(":"))
         except ValueError:
-            raise ValueError("time_of_day must be in HH:MM format")
+            raise ValueError("time_of_day must be in HH:MM format") from None
 
         # Create base standup message
         standup_content = """📅 **Daily Standup**
@@ -307,10 +307,10 @@ Please share:
 
     async def bulk_schedule(self, messages: list[ScheduledMessage]) -> list[dict[str, Any]]:
         """Schedule multiple messages in batch.
-        
+
         Args:
             messages: List of messages to schedule
-            
+
         Returns:
             List of API responses for each message
         """
@@ -324,11 +324,11 @@ Please share:
         end_time: datetime
     ) -> list[dict[str, Any]]:
         """Get scheduled messages within a time range.
-        
+
         Args:
             start_time: Start of time range
             end_time: End of time range
-            
+
         Returns:
             Filtered list of scheduled messages
         """
@@ -347,7 +347,7 @@ Please share:
 
     async def cancel_all_scheduled(self) -> list[dict[str, Any]]:
         """Cancel all scheduled messages.
-        
+
         Returns:
             List of cancellation results
         """
@@ -377,11 +377,11 @@ async def schedule_message(
     message: ScheduledMessage
 ) -> dict[str, Any]:
     """Schedule a message using the scheduler.
-    
+
     Args:
         config: Zulip configuration
         message: Message to schedule
-        
+
     Returns:
         API response
     """
@@ -398,7 +398,7 @@ async def schedule_reminder(
     topic: str | None = None
 ) -> dict[str, Any]:
     """Schedule a reminder message.
-    
+
     Args:
         config: Zulip configuration
         content: Reminder content
@@ -406,7 +406,7 @@ async def schedule_reminder(
         recipients: Recipients
         message_type: Message type
         topic: Topic for stream messages
-        
+
     Returns:
         API response
     """
@@ -421,11 +421,11 @@ async def cancel_scheduled_message(
     scheduled_id: int
 ) -> dict[str, Any]:
     """Cancel a scheduled message.
-    
+
     Args:
         config: Zulip configuration
         scheduled_id: ID of message to cancel
-        
+
     Returns:
         API response
     """

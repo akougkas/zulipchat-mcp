@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel
 from zulip import Client
 
+from .cache import cache_decorator, stream_cache, user_cache
 from .config import ConfigManager
 
 
@@ -113,30 +114,78 @@ class ZulipClientWrapper:
             ]
         return []
 
+    @cache_decorator(ttl=300, key_prefix="messages_")
     def get_messages_from_stream(
-        self, stream_name: str, topic: str | None = None, hours_back: int = 24
-    ) -> list[ZulipMessage]:
+        self, stream_name: str | None = None, topic: str | None = None,
+        hours_back: int = 24, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """Get messages from a specific stream."""
-        narrow = [{"operator": "stream", "operand": stream_name}]
+        narrow = []
+        if stream_name:
+            narrow.append({"operator": "stream", "operand": stream_name})
         if topic:
             narrow.append({"operator": "topic", "operand": topic})
 
         # Add time filter for recent messages
-        cutoff_time = datetime.now() - timedelta(hours=hours_back)
-        narrow.append({"operator": "date", "operand": cutoff_time.strftime("%Y-%m-%d")})
+        datetime.now() - timedelta(hours=hours_back)
 
-        return self.get_messages(narrow=narrow)
+        messages = self.get_messages(narrow=narrow, num_before=limit)
 
-    def search_messages(self, query: str, num_results: int = 50) -> list[ZulipMessage]:
+        # Convert to dict format expected by server
+        return [
+            {
+                "id": msg.id,
+                "content": msg.content,
+                "sender": msg.sender_full_name,
+                "email": msg.sender_email,
+                "timestamp": msg.timestamp,
+                "stream": msg.stream_name,
+                "topic": msg.subject,
+                "type": msg.type
+            }
+            for msg in messages
+        ]
+
+    def search_messages(self, query: str, num_results: int = 50) -> list[dict[str, Any]]:
         """Search messages by content."""
         narrow = [{"operator": "search", "operand": query}]
-        return self.get_messages(narrow=narrow, num_before=num_results)
+        messages = self.get_messages(narrow=narrow, num_before=num_results)
 
-    def get_streams(self, include_subscribed: bool = True) -> list[ZulipStream]:
+        # Convert to dict format expected by server
+        return [
+            {
+                "id": msg.id,
+                "content": msg.content,
+                "sender": msg.sender_full_name,
+                "email": msg.sender_email,
+                "timestamp": msg.timestamp,
+                "stream": msg.stream_name,
+                "topic": msg.subject,
+                "type": msg.type
+            }
+            for msg in messages
+        ]
+
+    def get_streams(self, include_subscribed: bool = True) -> list[dict[str, Any]]:
         """Get list of streams."""
+        # Check cache first
+        cached_streams = stream_cache.get_streams()
+        if cached_streams is not None:
+            # Convert cached objects to dict format
+            return [
+                {
+                    "id": stream.stream_id,
+                    "name": stream.name,
+                    "description": stream.description,
+                    "is_private": stream.is_private
+                }
+                for stream in cached_streams
+            ]
+
+        # Fetch from API and cache
         response = self.client.get_streams(include_subscribed=include_subscribed)
         if response["result"] == "success":
-            return [
+            streams = [
                 ZulipStream(
                     stream_id=stream["stream_id"],
                     name=stream["name"],
@@ -145,13 +194,42 @@ class ZulipClientWrapper:
                 )
                 for stream in response["streams"]
             ]
+            stream_cache.set_streams(streams)
+
+            # Return dict format
+            return [
+                {
+                    "id": stream.stream_id,
+                    "name": stream.name,
+                    "description": stream.description,
+                    "is_private": stream.is_private
+                }
+                for stream in streams
+            ]
         return []
 
-    def get_users(self) -> list[ZulipUser]:
+    def get_users(self) -> list[dict[str, Any]]:
         """Get list of users."""
+        # Check cache first
+        cached_users = user_cache.get_users()
+        if cached_users is not None:
+            # Convert cached objects to dict format
+            return [
+                {
+                    "id": user.user_id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    "is_bot": user.is_bot,
+                    "avatar_url": user.avatar_url
+                }
+                for user in cached_users
+            ]
+
+        # Fetch from API and cache
         response = self.client.get_users()
         if response["result"] == "success":
-            return [
+            users = [
                 ZulipUser(
                     user_id=user["user_id"],
                     full_name=user["full_name"],
@@ -161,6 +239,20 @@ class ZulipClientWrapper:
                     avatar_url=user.get("avatar_url"),
                 )
                 for user in response["members"]
+            ]
+            user_cache.set_users(users)
+
+            # Return dict format
+            return [
+                {
+                    "id": user.user_id,
+                    "full_name": user.full_name,
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    "is_bot": user.is_bot,
+                    "avatar_url": user.avatar_url
+                }
+                for user in users
             ]
         return []
 

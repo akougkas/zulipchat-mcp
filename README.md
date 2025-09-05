@@ -1,11 +1,9 @@
 # ZulipChat MCP Server
 
 <div align="center">
-  **Connect AI agents to Zulip Chat with ease**
-  
-  [![Docker](https://img.shields.io/docker/v/akougkas2030/zulipchat-mcp?label=docker&logo=docker)](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/akougkas2030/zulipchat-mcp?logo=docker)](https://hub.docker.com/r/akougkas2030/zulipchat-mcp)
-  [![License](https://img.shields.io/github/license/akougkas2030/zulipchat-mcp)](LICENSE)
+   **Connect AI agents to Zulip Chat with ease**
+
+   [![License](https://img.shields.io/github/license/akougkas2030/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 </div>
 
@@ -23,6 +21,24 @@ uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```bash
 # One-line installer
 curl -fsSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/install.sh | bash
+```
+
+### Agent Setup (Optional)
+
+After installation, set up commands for your AI agent:
+
+```bash
+# For Claude Code
+uv run agent_adapters/setup_agents.py claude
+
+# For Gemini CLI
+uv run agent_adapters/setup_agents.py gemini
+
+# For OpenCode
+uv run agent_adapters/setup_agents.py opencode
+
+# For all agents
+uv run agent_adapters/setup_agents.py all
 ```
 
 ### Requirements
@@ -107,17 +123,7 @@ Create `~/.config/zulipchat-mcp/config.json`:
 }
 ```
 
-### Method 3: Docker Secrets (Production)
 
-```bash
-# Create secrets
-echo "your-api-key" | docker secret create zulip_api_key -
-echo "your-bot@zulip.com" | docker secret create zulip_email -
-echo "https://your-org.zulipchat.com" | docker secret create zulip_site -
-
-# Use in docker-compose.yml
-docker-compose up -d
-```
 
 ## 🔑 Getting Your API Key
 
@@ -312,7 +318,7 @@ This project is built on the shoulders of amazing open source projects:
 - **[FastMCP](https://github.com/modelcontextprotocol/servers)** - Simplified MCP server framework
 - **[uv](https://docs.astral.sh/uv/)** - Blazing fast Python package management from Astral
 - **[Pydantic](https://pydantic.dev)** - Data validation and settings management using Python type annotations
-- **[Docker](https://docker.com)** - Containerization platform enabling consistent deployments
+
 
 Special thanks to the entire open source community that makes projects like this possible!
 

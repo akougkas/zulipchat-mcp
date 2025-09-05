@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.8.11,<0.9.0"]
+build-backend = "uv_build"
 
 [project]
 name = "zulipchat-mcp"
@@ -35,15 +35,16 @@ dependencies = [
     "prometheus-client>=0.19.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
-    "black>=23.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0",
-    "bandit>=1.7.0",
-    "safety>=2.0.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "black>=24.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13",
+    "bandit>=1.8",
+    "safety>=3.0",
 ]
 
 [project.urls]
@@ -56,18 +57,12 @@ Changelog = "https://github.com/akougkas/zulipchat-mcp/releases"
 [project.scripts]
 zulipchat-mcp = "zulipchat_mcp.server:main"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/zulipchat_mcp"]
+[tool.uv]
+package = true
+managed = true
+dev-dependencies = []
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/tests",
-    "/docs",
-    "/README.md",
-    "/LICENSE",
-    "/pyproject.toml",
-]
+[tool.uv.sources]
 
 # Tool configurations
 [tool.black]
@@ -143,8 +138,3 @@ markers = [
     "integration: marks tests as integration tests",
 ]
 
-[dependency-groups]
-dev = [
-    "bandit>=1.8.5",
-    "safety>=3.5.2",
-]

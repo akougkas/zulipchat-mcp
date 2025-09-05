@@ -25,7 +25,7 @@ class ConfigManager:
         self.config = self._load_config()
 
     def _load_config(self) -> ZulipConfig:
-        """Load configuration with priority: env vars > docker secrets > config file."""
+        """Load configuration with priority: env vars > config file."""
         # Get configuration values
         email = self._get_email()
         api_key = self._get_api_key()
@@ -43,12 +43,7 @@ class ConfigManager:
         if email := os.getenv("ZULIP_EMAIL"):
             return email
 
-        # 2. Docker secret
-        secret_path = Path("/run/secrets/zulip_email")
-        if secret_path.exists():
-            return secret_path.read_text().strip()
-
-        # 3. Config file
+        # 2. Config file
         if config_data := self._load_config_file():
             if "email" in config_data:
                 return config_data["email"]
@@ -64,12 +59,7 @@ class ConfigManager:
         if key := os.getenv("ZULIP_API_KEY"):
             return key
 
-        # 2. Docker secret
-        secret_path = Path("/run/secrets/zulip_api_key")
-        if secret_path.exists():
-            return secret_path.read_text().strip()
-
-        # 3. Config file
+        # 2. Config file
         if config_data := self._load_config_file():
             if "api_key" in config_data:
                 return config_data["api_key"]
@@ -85,12 +75,7 @@ class ConfigManager:
         if site := os.getenv("ZULIP_SITE"):
             return site
 
-        # 2. Docker secret
-        secret_path = Path("/run/secrets/zulip_site")
-        if secret_path.exists():
-            return secret_path.read_text().strip()
-
-        # 3. Config file
+        # 2. Config file
         if config_data := self._load_config_file():
             if "site" in config_data:
                 return config_data["site"]
@@ -114,21 +99,14 @@ class ConfigManager:
 
     def _load_config_file(self) -> dict[str, Any] | None:
         """Load configuration from JSON file."""
-        config_paths = [
-            Path.home() / ".config" / "zulipchat-mcp" / "config.json",
-            Path.home() / ".zulipchat-mcp.json",
-            Path.cwd() / "config.json",
-        ]
+        config_path = Path.home() / ".config" / "zulipchat-mcp" / "config.json"
 
-        for path in config_paths:
-            if path.exists():
-                try:
-                    return json.loads(path.read_text())
-                except (json.JSONDecodeError, OSError) as e:
-                    # Log warning but continue to next config file
-                    if self._get_debug():
-                        print(f"Warning: Could not load config from {path}: {e}")
-                    continue
+        if config_path.exists():
+            try:
+                return json.loads(config_path.read_text())
+            except (json.JSONDecodeError, OSError) as e:
+                if self._get_debug():
+                    print(f"Warning: Could not load config from {config_path}: {e}")
 
         return None
 

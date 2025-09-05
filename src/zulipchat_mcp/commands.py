@@ -1,7 +1,7 @@
 """Command chain system for ZulipChat MCP with workflow automation support.
 
-This module provides a flexible command chain system that allows chaining 
-Zulip API operations together with context passing, error handling, and 
+This module provides a flexible command chain system that allows chaining
+Zulip API operations together with context passing, error handling, and
 conditional execution support.
 
 Per Zulip API documentation: https://zulip.com/api/
@@ -139,7 +139,7 @@ class Command(ABC):
         rollback_enabled: bool = False
     ):
         """Initialize command.
-        
+
         Args:
             name: Command name/identifier
             description: Command description
@@ -166,14 +166,14 @@ class Command(ABC):
     @abstractmethod
     def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> Any:
         """Execute the command.
-        
+
         Args:
             context: Execution context with shared data
             client: Zulip client wrapper
-            
+
         Returns:
             Command result
-            
+
         Raises:
             ZulipMCPError: On execution failure
         """
@@ -181,7 +181,7 @@ class Command(ABC):
 
     def rollback(self, context: ExecutionContext, client: ZulipClientWrapper) -> None:
         """Rollback command effects if supported.
-        
+
         Args:
             context: Execution context
             client: Zulip client wrapper
@@ -211,7 +211,7 @@ class SendMessageCommand(Command):
         **kwargs
     ):
         """Initialize send message command.
-        
+
         Args:
             name: Command name
             message_type_key: Context key for message type
@@ -376,7 +376,7 @@ class ProcessDataCommand(Command):
         **kwargs
     ):
         """Initialize data processing command.
-        
+
         Args:
             name: Command name
             processor: Function to process the data
@@ -407,7 +407,7 @@ class ProcessDataCommand(Command):
 
 class CommandChain:
     """Command chain executor with error handling and rollback support.
-    
+
     Per Zulip API documentation, supports chaining operations across:
     - Message operations (send, edit, react, get)
     - Stream management (subscribe, create, update)
@@ -423,7 +423,7 @@ class CommandChain:
         enable_rollback: bool = False
     ):
         """Initialize command chain.
-        
+
         Args:
             name: Chain name/identifier
             client: Zulip client wrapper
@@ -439,10 +439,10 @@ class CommandChain:
 
     def add_command(self, command: Command) -> 'CommandChain':
         """Add command to the chain.
-        
+
         Args:
             command: Command to add
-            
+
         Returns:
             Self for method chaining
         """
@@ -455,14 +455,14 @@ class CommandChain:
         client: ZulipClientWrapper | None = None
     ) -> ExecutionContext:
         """Execute the command chain.
-        
+
         Args:
             initial_context: Initial context data
             client: Zulip client wrapper (overrides instance client)
-            
+
         Returns:
             Final execution context
-            
+
         Raises:
             ZulipMCPError: On chain execution failure
         """
@@ -521,7 +521,7 @@ class CommandChain:
                     if self.stop_on_error:
                         if self.enable_rollback:
                             self._rollback_chain(executed_commands, context, exec_client)
-                        raise ZulipMCPError(f"Chain execution failed at command {command.name}: {e}")
+                        raise ZulipMCPError(f"Chain execution failed at command {command.name}: {e}") from None
 
             # Check if any commands failed (for continue-on-error mode)
             if context.has_errors() and not self.stop_on_error:
@@ -594,14 +594,14 @@ class ChainBuilder:
         emoji: str = "white_check_mark"
     ) -> CommandChain:
         """Create a workflow to send message and optionally add reaction.
-        
+
         Args:
             stream_name: Target stream name
             topic: Message topic
-            content: Message content  
+            content: Message content
             add_reaction: Whether to add reaction after sending
             emoji: Emoji name for reaction
-            
+
         Returns:
             Configured command chain
         """
@@ -678,13 +678,13 @@ class ChainBuilder:
         target_topic: str = "Daily Digest"
     ) -> CommandChain:
         """Create a workflow to generate and send message digest.
-        
+
         Args:
             stream_names: Streams to include in digest
             hours_back: Hours to look back for messages
             target_stream: Stream to send digest to
             target_topic: Topic for digest message
-            
+
         Returns:
             Configured command chain
         """
@@ -695,7 +695,7 @@ class ChainBuilder:
             # Set stream parameters
             chain.add_command(ProcessDataCommand(
                 name=f"set_stream_{i}_params",
-                processor=lambda _: {"stream_name": stream_name, "hours_back": hours_back},
+                processor=lambda _, stream_name=stream_name, hours_back=hours_back: {"stream_name": stream_name, "hours_back": hours_back},
                 input_key="dummy",
                 output_key=f"stream_{i}_params"
             ))

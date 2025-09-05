@@ -13,7 +13,7 @@ class ZulipMCPError(Exception):
         details: dict[str, Any] | None = None
     ) -> None:
         """Initialize exception.
-        
+
         Args:
             message: Error message
             details: Additional error details
@@ -55,7 +55,7 @@ class RateLimitError(ZulipMCPError):
         retry_after: int | None = None
     ) -> None:
         """Initialize rate limit error.
-        
+
         Args:
             message: Error message
             retry_after: Seconds until the rate limit resets
@@ -77,7 +77,7 @@ class NotFoundError(ZulipMCPError):
 
     def __init__(self, resource: str = "Resource") -> None:
         """Initialize not found error.
-        
+
         Args:
             resource: Name of the resource that was not found
         """

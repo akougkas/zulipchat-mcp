@@ -18,7 +18,7 @@ class MetricsCollector:
 
     def increment_counter(self, name: str, value: int = 1, labels: dict[str, str] | None = None) -> None:
         """Increment a counter metric.
-        
+
         Args:
             name: Metric name
             value: Value to increment by
@@ -29,7 +29,7 @@ class MetricsCollector:
 
     def record_histogram(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         """Record a histogram value.
-        
+
         Args:
             name: Metric name
             value: Value to record
@@ -43,7 +43,7 @@ class MetricsCollector:
 
     def set_gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
         """Set a gauge value.
-        
+
         Args:
             name: Metric name
             value: Value to set
@@ -54,11 +54,11 @@ class MetricsCollector:
 
     def _make_key(self, name: str, labels: dict[str, str] | None = None) -> str:
         """Create metric key from name and labels.
-        
+
         Args:
             name: Metric name
             labels: Optional labels
-            
+
         Returns:
             Metric key
         """
@@ -69,7 +69,7 @@ class MetricsCollector:
 
     def get_metrics(self) -> dict[str, Any]:
         """Get all metrics.
-        
+
         Returns:
             Dictionary of all metrics
         """
@@ -128,7 +128,7 @@ class Timer:
 
     def __init__(self, metric_name: str, labels: dict[str, str] | None = None) -> None:
         """Initialize timer.
-        
+
         Args:
             metric_name: Name of the metric to record
             labels: Optional labels
@@ -151,7 +151,7 @@ class Timer:
 
 def track_tool_call(tool_name: str) -> None:
     """Track a tool call.
-    
+
     Args:
         tool_name: Name of the tool
     """
@@ -160,7 +160,7 @@ def track_tool_call(tool_name: str) -> None:
 
 def track_tool_error(tool_name: str, error_type: str) -> None:
     """Track a tool error.
-    
+
     Args:
         tool_name: Name of the tool
         error_type: Type of error
@@ -173,7 +173,7 @@ def track_tool_error(tool_name: str, error_type: str) -> None:
 
 def track_cache_hit(cache_type: str) -> None:
     """Track a cache hit.
-    
+
     Args:
         cache_type: Type of cache
     """
@@ -182,7 +182,7 @@ def track_cache_hit(cache_type: str) -> None:
 
 def track_cache_miss(cache_type: str) -> None:
     """Track a cache miss.
-    
+
     Args:
         cache_type: Type of cache
     """
@@ -191,7 +191,7 @@ def track_cache_miss(cache_type: str) -> None:
 
 def track_message_sent(message_type: str) -> None:
     """Track a sent message.
-    
+
     Args:
         message_type: Type of message (stream/private)
     """
@@ -200,7 +200,7 @@ def track_message_sent(message_type: str) -> None:
 
 def track_message_received(stream: str) -> None:
     """Track received messages.
-    
+
     Args:
         stream: Stream name
     """
@@ -209,7 +209,7 @@ def track_message_received(stream: str) -> None:
 
 def set_active_connections(count: int) -> None:
     """Set the number of active connections.
-    
+
     Args:
         count: Number of active connections
     """
@@ -218,7 +218,7 @@ def set_active_connections(count: int) -> None:
 
 def get_metrics_text() -> str:
     """Get metrics in text format.
-    
+
     Returns:
         Metrics in text format
     """

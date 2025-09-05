@@ -35,6 +35,9 @@ uv sync
 
 # Set up environment variables
 cp .env.example .env  # Edit with your Zulip credentials
+
+# Optional: Set up agent commands for your AI client
+uv run agent_adapters/setup_agents.py all
 ```
 
 ### Environment Variables

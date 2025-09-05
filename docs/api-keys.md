@@ -72,10 +72,7 @@ Create `~/.config/zulipchat-mcp/config.json`:
 }
 ```
 
-#### Docker Secrets (Production)
-```bash
-echo "your-secret-api-key" | docker secret create zulip_api_key -
-```
+
 
 ## Bot Users vs Personal Users
 
@@ -141,14 +138,14 @@ curl -X GET \
 
 ### Using the MCP Server
 
-Test with the Docker container:
+Test with UV:
 
 ```bash
-docker run --rm \
-  -e ZULIP_EMAIL="your-bot@zulip.com" \
-  -e ZULIP_API_KEY="your-api-key" \
-  -e ZULIP_SITE="https://your-org.zulipchat.com" \
-  ghcr.io/akougkas/zulipchat-mcp:latest \
+export ZULIP_EMAIL="your-bot@zulip.com"
+export ZULIP_API_KEY="your-api-key"
+export ZULIP_SITE="https://your-org.zulipchat.com"
+
+uv run --from git+https://github.com/akougkas/zulipchat-mcp.git \
   python -c "from src.zulipchat_mcp.config import ConfigManager; print('✅ Valid' if ConfigManager().validate_config() else '❌ Invalid')"
 ```
 

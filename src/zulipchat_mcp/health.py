@@ -24,7 +24,7 @@ class HealthCheck:
 
     def __init__(self, name: str, check_func: Any, critical: bool = True) -> None:
         """Initialize health check.
-        
+
         Args:
             name: Name of the health check
             check_func: Function to execute for check
@@ -39,7 +39,7 @@ class HealthCheck:
 
     async def execute(self) -> bool:
         """Execute the health check.
-        
+
         Returns:
             True if healthy, False otherwise
         """
@@ -54,7 +54,7 @@ class HealthCheck:
 
             self.last_result = bool(result)
             self.last_check_time = time.time() - start_time
-            self.last_error = None if self.last_result else "Check returned False"
+            self.last_error = None
 
             return self.last_result
 
@@ -66,12 +66,13 @@ class HealthCheck:
 
     def get_status(self) -> dict[str, Any]:
         """Get check status.
-        
+
         Returns:
             Dictionary with check status information
         """
         return {
             "name": self.name,
+            "healthy": self.last_result if self.last_result is not None else False,
             "status": "pass" if self.last_result else "fail",
             "critical": self.critical,
             "last_check_time_ms": round(self.last_check_time * 1000, 2) if self.last_check_time else None,
@@ -112,7 +113,7 @@ class HealthMonitor:
 
     def _check_config(self) -> bool:
         """Check if configuration is valid.
-        
+
         Returns:
             True if config is valid
         """
@@ -124,7 +125,7 @@ class HealthMonitor:
 
     def _check_cache(self) -> bool:
         """Check if cache is operational.
-        
+
         Returns:
             True if cache is working
         """
@@ -139,7 +140,7 @@ class HealthMonitor:
 
     def _check_metrics(self) -> bool:
         """Check if metrics collection is working.
-        
+
         Returns:
             True if metrics are being collected
         """
@@ -151,7 +152,7 @@ class HealthMonitor:
 
     def add_check(self, name: str, check_func: Any, critical: bool = True) -> None:
         """Add a health check.
-        
+
         Args:
             name: Name of the check
             check_func: Function to execute
@@ -161,7 +162,7 @@ class HealthMonitor:
 
     def remove_check(self, name: str) -> None:
         """Remove a health check.
-        
+
         Args:
             name: Name of the check to remove
         """
@@ -169,7 +170,7 @@ class HealthMonitor:
 
     async def check_health(self) -> dict[str, Any]:
         """Run all health checks.
-        
+
         Returns:
             Health status report
         """
@@ -182,7 +183,7 @@ class HealthMonitor:
         )
 
         # Process results
-        checks_status = []
+        checks_status = {}
         critical_healthy = True
         non_critical_healthy = True
 
@@ -192,7 +193,7 @@ class HealthMonitor:
                 check.last_error = str(result)
 
             status = check.get_status()
-            checks_status.append(status)
+            checks_status[check.name] = status
 
             if not check.last_result:
                 if check.critical:
@@ -225,7 +226,7 @@ class HealthMonitor:
 
     def get_liveness(self) -> dict[str, str]:
         """Get simple liveness check.
-        
+
         Returns:
             Liveness status
         """
@@ -236,7 +237,7 @@ class HealthMonitor:
 
     def get_readiness(self) -> dict[str, Any]:
         """Get readiness check (sync version).
-        
+
         Returns:
             Readiness status
         """
@@ -270,7 +271,7 @@ health_monitor = HealthMonitor()
 
 async def perform_health_check() -> dict[str, Any]:
     """Perform a comprehensive health check.
-    
+
     Returns:
         Health check results
     """
@@ -279,7 +280,7 @@ async def perform_health_check() -> dict[str, Any]:
 
 def get_liveness() -> dict[str, str]:
     """Get liveness status.
-    
+
     Returns:
         Liveness check result
     """
@@ -288,7 +289,7 @@ def get_liveness() -> dict[str, str]:
 
 def get_readiness() -> dict[str, Any]:
     """Get readiness status.
-    
+
     Returns:
         Readiness check result
     """

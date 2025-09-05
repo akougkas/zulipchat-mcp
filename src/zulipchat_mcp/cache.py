@@ -12,7 +12,7 @@ class MessageCache:
 
     def __init__(self, ttl: int = 300) -> None:
         """Initialize cache.
-        
+
         Args:
             ttl: Time to live in seconds (default: 5 minutes)
         """
@@ -26,10 +26,10 @@ class MessageCache:
 
     def get(self, key: str) -> Any | None:
         """Get value from cache.
-        
+
         Args:
             key: Cache key
-            
+
         Returns:
             Cached value or None if expired/not found
         """
@@ -42,7 +42,7 @@ class MessageCache:
 
     def set(self, key: str, value: Any) -> None:
         """Set value in cache.
-        
+
         Args:
             key: Cache key
             value: Value to cache
@@ -73,7 +73,7 @@ class StreamCache:
 
     def __init__(self, ttl: int = 600) -> None:
         """Initialize stream cache.
-        
+
         Args:
             ttl: Time to live in seconds (default: 10 minutes)
         """
@@ -101,7 +101,7 @@ class UserCache:
 
     def __init__(self, ttl: int = 900) -> None:
         """Initialize user cache.
-        
+
         Args:
             ttl: Time to live in seconds (default: 15 minutes)
         """
@@ -129,11 +129,11 @@ def cache_decorator(
     key_prefix: str = ""
 ) -> Callable:
     """Decorator for caching function results.
-    
+
     Args:
         ttl: Time to live in seconds
         key_prefix: Prefix for cache keys
-        
+
     Returns:
         Decorated function with caching
     """
@@ -155,10 +155,6 @@ def cache_decorator(
             cache.set(cache_key, result)
             return result
 
-        # Add cache control methods to wrapper function
-        wrapper.clear_cache = cache.clear
-        wrapper.cache_size = cache.size
-
         return wrapper
     return decorator
 
@@ -168,11 +164,11 @@ def async_cache_decorator(
     key_prefix: str = ""
 ) -> Callable:
     """Decorator for caching async function results.
-    
+
     Args:
         ttl: Time to live in seconds
         key_prefix: Prefix for cache keys
-        
+
     Returns:
         Decorated async function with caching
     """
@@ -194,10 +190,6 @@ def async_cache_decorator(
             cache.set(cache_key, result)
             return result
 
-        # Add cache control methods to wrapper function
-        wrapper.clear_cache = cache.clear
-        wrapper.cache_size = cache.size
-
         return wrapper
     return decorator
 
@@ -212,10 +204,10 @@ user_cache = UserCache(ttl=900)
 @lru_cache(maxsize=100)
 def get_cached_stream_id(stream_name: str) -> int | None:
     """Get cached stream ID by name.
-    
+
     Args:
         stream_name: Name of the stream
-        
+
     Returns:
         Stream ID or None
     """
@@ -226,10 +218,10 @@ def get_cached_stream_id(stream_name: str) -> int | None:
 @lru_cache(maxsize=200)
 def get_cached_user_id(email: str) -> int | None:
     """Get cached user ID by email.
-    
+
     Args:
         email: User's email address
-        
+
     Returns:
         User ID or None
     """

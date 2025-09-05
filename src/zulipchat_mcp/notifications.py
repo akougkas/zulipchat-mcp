@@ -120,13 +120,13 @@ async def smart_notify(
     priority: NotificationPriority = NotificationPriority.MEDIUM
 ) -> dict[str, Any]:
     """Helper function to create and send a smart notification.
-    
+
     Args:
         config: Zulip configuration
         recipients: List of recipient emails
         content: Notification content
         priority: Notification priority level
-        
+
     Returns:
         Notification result
     """

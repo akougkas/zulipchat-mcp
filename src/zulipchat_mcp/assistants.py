@@ -2,7 +2,7 @@
 
 This module provides AI-powered assistant tools that enhance Zulip interactions:
 - Smart reply suggestions based on conversation context
-- Automatic summarization of stream conversations  
+- Automatic summarization of stream conversations
 - Enhanced semantic search capabilities
 
 These tools integrate with the existing command chain system and AsyncZulipClient
@@ -19,6 +19,7 @@ from .async_client import AsyncZulipClient
 from .client import ZulipMessage
 from .config import ConfigManager, ZulipConfig
 from .exceptions import ZulipMCPError
+from .security import sanitize_input, validate_stream_name
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +40,7 @@ def get_async_client() -> AsyncZulipClient:
     return _async_client
 
 
-def sanitize_input(content: str, max_length: int = 10000) -> str:
-    """Sanitize user input to prevent injection attacks."""
-    import html
-    content = html.escape(content)
-    content = re.sub(r'`', '', content)
-    return content[:max_length]
 
-
-def validate_stream_name(name: str) -> bool:
-    """Validate stream name against injection."""
-    pattern = r'^[a-zA-Z0-9\-_\s\.]+$'
-    return bool(re.match(pattern, name)) and 0 < len(name) <= 100
 
 
 def extract_keywords(messages: list[ZulipMessage]) -> list[str]:
@@ -88,16 +78,16 @@ async def smart_reply_impl(
     context_messages: int = 10
 ) -> dict[str, Any]:
     """Analyze conversation context and suggest appropriate replies.
-    
+
     Analyzes recent messages in a stream/topic to understand the conversation
     context and generates intelligent reply suggestions.
-    
+
     Args:
         stream_name: Stream to analyze for context
         topic: Optional topic to focus on
         hours_back: How many hours back to look for context
         context_messages: Maximum messages to analyze for context
-        
+
     Returns:
         Dictionary with reply suggestions and context analysis
     """
@@ -170,17 +160,17 @@ async def auto_summarize_impl(
     max_messages: int = 100
 ) -> dict[str, Any]:
     """Generate summaries of stream conversations.
-    
+
     Automatically summarizes conversations in streams/topics with intelligent
     analysis of key points, participants, and themes.
-    
+
     Args:
         stream_name: Stream to summarize
         topic: Optional topic to focus summary on
         hours_back: How many hours back to summarize
         summary_type: Type of summary ('brief', 'standard', 'detailed')
         max_messages: Maximum messages to include in summary
-        
+
     Returns:
         Dictionary with conversation summary and analysis
     """
@@ -223,7 +213,7 @@ async def auto_summarize_impl(
         summary_data = {
             "summary": f"Found {len(messages)} messages in the specified time period.",
             "key_points": [f"Total messages: {len(messages)}"],
-            "participants": list(set(msg.sender_full_name for msg in messages)),
+            "participants": {msg.sender_full_name for msg in messages},
             "topics": [],
             "message_count": len(messages)
         }
@@ -251,16 +241,16 @@ async def smart_search_impl(
     limit: int = 20
 ) -> dict[str, Any]:
     """Enhanced search with semantic understanding.
-    
+
     Performs intelligent search across Zulip messages with query enhancement,
     semantic understanding, and relevance scoring.
-    
+
     Args:
         query: Search query to enhance and execute
         stream_name: Optional stream to limit search to
         hours_back: How many hours back to search
         limit: Maximum number of results to return
-        
+
     Returns:
         Dictionary with enhanced search results and analysis
     """

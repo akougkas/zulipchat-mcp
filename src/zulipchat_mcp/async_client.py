@@ -15,7 +15,7 @@ class AsyncZulipClient:
 
     def __init__(self, config: ZulipConfig) -> None:
         """Initialize async Zulip client.
-        
+
         Args:
             config: Zulip configuration
         """
@@ -62,13 +62,13 @@ class AsyncZulipClient:
         topic: str | None = None
     ) -> dict[str, Any]:
         """Send message asynchronously.
-        
+
         Args:
             message_type: Type of message (stream or private)
             to: Recipient(s)
             content: Message content
             topic: Topic for stream messages
-            
+
         Returns:
             API response
         """
@@ -101,13 +101,13 @@ class AsyncZulipClient:
         hours_back: int = 24
     ) -> list[ZulipMessage]:
         """Get messages asynchronously.
-        
+
         Args:
             stream_name: Stream to filter by
             topic: Topic to filter by
             limit: Maximum number of messages
             hours_back: How far back to search
-            
+
         Returns:
             List of messages
         """
@@ -163,7 +163,7 @@ class AsyncZulipClient:
 
     async def get_streams_async(self) -> list[ZulipStream]:
         """Get list of streams asynchronously.
-        
+
         Returns:
             List of streams
         """
@@ -187,7 +187,7 @@ class AsyncZulipClient:
 
     async def get_users_async(self) -> list[ZulipUser]:
         """Get list of users asynchronously.
-        
+
         Returns:
             List of users
         """
@@ -217,11 +217,11 @@ class AsyncZulipClient:
         emoji_name: str
     ) -> dict[str, Any]:
         """Add reaction to a message asynchronously.
-        
+
         Args:
             message_id: ID of the message
             emoji_name: Name of the emoji
-            
+
         Returns:
             API response
         """
@@ -241,12 +241,12 @@ class AsyncZulipClient:
         topic: str | None = None
     ) -> dict[str, Any]:
         """Edit a message asynchronously.
-        
+
         Args:
             message_id: ID of the message
             content: New content
             topic: New topic
-            
+
         Returns:
             API response
         """
@@ -271,11 +271,11 @@ class AsyncZulipClient:
         limit: int = 50
     ) -> list[ZulipMessage]:
         """Search messages asynchronously.
-        
+
         Args:
             query: Search query
             limit: Maximum results
-            
+
         Returns:
             List of matching messages
         """
@@ -330,14 +330,14 @@ async def send_message_async(
     topic: str | None = None
 ) -> dict[str, Any]:
     """Send message using async client.
-    
+
     Args:
         config: Zulip configuration
         message_type: Type of message
         to: Recipient(s)
         content: Message content
         topic: Topic for stream messages
-        
+
     Returns:
         API response
     """
@@ -352,13 +352,13 @@ async def get_messages_async(
     limit: int = 50
 ) -> list[ZulipMessage]:
     """Get messages using async client.
-    
+
     Args:
         config: Zulip configuration
         stream_name: Stream to filter by
         topic: Topic to filter by
         limit: Maximum number of messages
-        
+
     Returns:
         List of messages
     """

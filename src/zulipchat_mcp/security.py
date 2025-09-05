@@ -13,7 +13,7 @@ class RateLimiter:
 
     def __init__(self, max_calls: int = 100, window: int = 60) -> None:
         """Initialize rate limiter.
-        
+
         Args:
             max_calls: Maximum number of calls allowed in the window
             window: Time window in seconds
@@ -24,10 +24,10 @@ class RateLimiter:
 
     def check_rate_limit(self, client_id: str) -> bool:
         """Check if client is within rate limit.
-        
+
         Args:
             client_id: Unique identifier for the client
-            
+
         Returns:
             True if within limits, False otherwise
         """
@@ -50,11 +50,11 @@ class RateLimiter:
 
 def sanitize_input(content: str, max_length: int = 10000) -> str:
     """Sanitize user input to prevent injection attacks.
-    
+
     Args:
         content: The input content to sanitize
         max_length: Maximum allowed length
-        
+
     Returns:
         Sanitized content string
     """
@@ -71,10 +71,10 @@ def sanitize_input(content: str, max_length: int = 10000) -> str:
 
 def validate_stream_name(name: str) -> bool:
     """Validate stream name against injection.
-    
+
     Args:
         name: Stream name to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -85,10 +85,10 @@ def validate_stream_name(name: str) -> bool:
 
 def validate_topic(topic: str) -> bool:
     """Validate topic name against injection.
-    
+
     Args:
         topic: Topic name to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -99,10 +99,10 @@ def validate_topic(topic: str) -> bool:
 
 def validate_emoji(emoji_name: str) -> bool:
     """Validate emoji name.
-    
+
     Args:
         emoji_name: Name of the emoji to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -113,10 +113,10 @@ def validate_emoji(emoji_name: str) -> bool:
 
 def validate_email(email: str) -> bool:
     """Basic email validation.
-    
+
     Args:
         email: Email address to validate
-        
+
     Returns:
         True if valid email format, False otherwise
     """
@@ -126,10 +126,10 @@ def validate_email(email: str) -> bool:
 
 def validate_message_type(message_type: str) -> bool:
     """Validate message type.
-    
+
     Args:
         message_type: Type of message (stream or private)
-        
+
     Returns:
         True if valid, False otherwise
     """
@@ -141,11 +141,11 @@ def rate_limit_decorator(
     window: int = 60
 ) -> Callable:
     """Decorator for applying rate limiting to functions.
-    
+
     Args:
         max_calls: Maximum calls allowed in window
         window: Time window in seconds
-        
+
     Returns:
         Decorated function with rate limiting
     """
@@ -171,11 +171,11 @@ def rate_limit_decorator(
 
 def secure_log(message: str, sensitive_keys: list[str] | None = None) -> str:
     """Sanitize log messages to remove sensitive information.
-    
+
     Args:
         message: Log message to sanitize
         sensitive_keys: List of keys to redact
-        
+
     Returns:
         Sanitized log message
     """

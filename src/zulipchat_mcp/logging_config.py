@@ -8,12 +8,13 @@ try:
     import structlog
     STRUCTLOG_AVAILABLE = True
 except ImportError:
+    structlog = None  # type: ignore
     STRUCTLOG_AVAILABLE = False
 
 
 def setup_basic_logging(level: str = "INFO") -> None:
     """Set up basic logging configuration.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
@@ -28,7 +29,7 @@ def setup_basic_logging(level: str = "INFO") -> None:
 
 def setup_structured_logging(level: str = "INFO") -> None:
     """Configure structured logging with structlog if available.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
@@ -72,10 +73,10 @@ def setup_structured_logging(level: str = "INFO") -> None:
 
 def get_logger(name: str) -> Any:
     """Get a logger instance.
-    
+
     Args:
         name: Logger name (usually __name__)
-        
+
     Returns:
         Logger instance (structlog or stdlib)
     """
@@ -89,7 +90,7 @@ class LogContext:
 
     def __init__(self, logger: Any, **kwargs: Any) -> None:
         """Initialize log context.
-        
+
         Args:
             logger: Logger instance
             **kwargs: Context key-value pairs
@@ -113,13 +114,13 @@ class LogContext:
 def log_function_call(
     logger: Any,
     func_name: str,
-    args: tuple = (),
-    kwargs: dict = {},
+    args: tuple | None = None,
+    kwargs: dict | None = None,
     result: Any = None,
     error: Exception | None = None
 ) -> None:
     """Log a function call with parameters and result.
-    
+
     Args:
         logger: Logger instance
         func_name: Name of the function
@@ -128,6 +129,11 @@ def log_function_call(
         result: Function result
         error: Exception if function failed
     """
+    if args is None:
+        args = ()
+    if kwargs is None:
+        kwargs = {}
+
     log_data: dict[str, Any] = {
         "function": func_name,
         "args": str(args)[:200],  # Truncate long args
@@ -158,7 +164,7 @@ def log_api_request(
     error: str | None = None
 ) -> None:
     """Log an API request.
-    
+
     Args:
         logger: Logger instance
         method: HTTP method
