@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Building upon the successful Phase 1 implementation, this plan outlines the next iteration of improvements to achieve >85% test coverage, polish existing features, and add advanced capabilities. The focus is on production readiness, developer experience, and enterprise features.
+Building upon the successful Phase 1 implementation, this plan outlines the next iteration of improvements to achieve >85% test coverage, polish existing features, and enhance the MCP server with powerful custom commands and intelligent tooling. The focus is on making the server more capable and autonomous through predetermined workflows and command chains.
 
 ## Current State (Post-Phase 1)
 
@@ -15,10 +15,10 @@ Building upon the successful Phase 1 implementation, this plan outlines the next
 
 ### 🎯 Target State
 - **Testing**: >85% coverage with integration and E2E tests
-- **Documentation**: Complete API docs, tutorials, examples
+- **Custom Commands**: Powerful command chains and workflows
+- **Intelligent Tooling**: Smart assistants and automated workflows
 - **Performance**: WebSocket support, optimized caching
 - **Enterprise**: Multi-tenancy, advanced auth, audit logging
-- **Developer Experience**: CLI tools, development mode, debugging aids
 
 ## Priority 1: Test Coverage to 85%+ (Critical)
 
@@ -214,105 +214,207 @@ class AuditLogger:
         """Generate audit report for time period."""
 ```
 
-## Priority 4: Developer Experience (Medium)
+## Priority 4: Custom Commands and Workflows (High)
 
-### 4.1 CLI Management Tool
+### 4.1 Command Chain System
 **Impact**: High | **Effort**: Medium
 
 ```python
-# src/zulipchat_mcp/cli.py
-@app.command()
-def test_connection():
-    """Test Zulip connection."""
+# src/zulipchat_mcp/commands.py
+class CommandChain:
+    """Execute multiple commands in sequence with context passing."""
+    
+    def add_command(self, command: str, params: Dict):
+        """Add command to chain."""
+        
+    def execute(self) -> List[Any]:
+        """Execute all commands in order."""
+        
+    def with_condition(self, condition: Callable):
+        """Add conditional execution."""
 
-@app.command()
-def send_test_message():
-    """Send a test message."""
+# Predefined command chains
+DAILY_STANDUP = CommandChain([
+    ("get_messages", {"hours_back": 24}),
+    ("summarize", {"type": "by_user"}),
+    ("send_message", {"stream": "standup", "topic": "daily"})
+])
 
-@app.command()
-def show_stats():
-    """Show server statistics."""
-
-@app.command()
-def export_metrics():
-    """Export metrics to file."""
-
-@app.command()
-def validate_config():
-    """Validate configuration."""
+INCIDENT_RESPONSE = CommandChain([
+    ("create_stream", {"name": "incident-{timestamp}"}),
+    ("invite_users", {"role": "oncall"}),
+    ("pin_message", {"content": "Incident declared"}),
+    ("start_timer", {"name": "resolution_time"})
+])
 ```
 
-### 4.2 Development Mode
+### 4.2 Intelligent Assistant Tools
+**Impact**: High | **Effort**: High
+
+```python
+# src/zulipchat_mcp/assistants.py
+@mcp.tool()
+def smart_reply(message_id: int, context_depth: int = 10):
+    """Generate intelligent reply based on conversation context."""
+    # Analyze previous messages
+    # Understand topic and tone
+    # Generate contextual response
+    
+@mcp.tool()
+def auto_moderate(stream: str, rules: Dict[str, Any]):
+    """Automatically moderate stream based on rules."""
+    # Monitor messages in real-time
+    # Apply moderation rules
+    # Flag/remove inappropriate content
+    # Send warnings
+
+@mcp.tool()
+def smart_search(query: str, semantic: bool = True):
+    """Enhanced search with semantic understanding."""
+    # Parse natural language query
+    # Search across multiple dimensions
+    # Rank by relevance
+    # Return structured results
+
+@mcp.tool()
+def auto_summarize(stream: str, frequency: str = "daily"):
+    """Automatic periodic summaries."""
+    # Schedule summary generation
+    # Identify key topics
+    # Extract action items
+    # Send to designated stream
+```
+
+### 4.3 Workflow Automation
+**Impact**: High | **Effort**: Medium
+
+```python
+# src/zulipchat_mcp/workflows.py
+class WorkflowEngine:
+    """Execute complex multi-step workflows."""
+    
+    def register_workflow(self, name: str, steps: List[WorkflowStep]):
+        """Register a new workflow."""
+    
+    def trigger(self, workflow: str, context: Dict):
+        """Trigger workflow execution."""
+    
+    def on_event(self, event_type: str, handler: Callable):
+        """Register event-driven workflows."""
+
+# Predefined workflows
+ONBOARDING_WORKFLOW = Workflow([
+    Step("create_private_stream", {"name": "onboarding-{user}"}),
+    Step("send_welcome_message", {"template": "welcome"}),
+    Step("assign_buddy", {"from_pool": "mentors"}),
+    Step("schedule_checkins", {"intervals": [1, 7, 30]}),
+    Step("add_to_teams", {"based_on": "role"})
+])
+
+CODE_REVIEW_WORKFLOW = Workflow([
+    Step("parse_pr_link", {"extract": ["repo", "number"]}),
+    Step("fetch_pr_details", {"via": "github_api"}),
+    Step("create_review_thread", {"stream": "code-review"}),
+    Step("notify_reviewers", {"based_on": "CODEOWNERS"}),
+    Step("track_status", {"update_on": "pr_events"})
+])
+```
+
+### 4.4 Smart Notifications
+**Impact**: Medium | **Effort**: Medium
+
+```python
+# src/zulipchat_mcp/notifications.py
+@mcp.tool()
+def smart_notify(
+    criteria: Dict[str, Any],
+    channels: List[str] = ["zulip", "email", "slack"]
+):
+    """Intelligent multi-channel notifications."""
+    # Analyze urgency and relevance
+    # Choose appropriate channel
+    # Batch or send immediately
+    # Track delivery and read status
+
+@mcp.tool()
+def digest_mode(user: str, preferences: Dict):
+    """Create personalized digests."""
+    # Collect messages based on preferences
+    # Group by importance/topic
+    # Generate digest at preferred time
+    # Send via preferred channel
+```
+
+## Priority 5: Advanced MCP Tool Enhancements (Medium)
+
+### 5.1 Context-Aware Tools
+**Impact**: High | **Effort**: Medium
+
+```python
+# Enhanced tools that understand context
+@mcp.tool()
+def contextual_send(content: str):
+    """Send message with automatic context detection."""
+    # Detect current conversation thread
+    # Choose appropriate stream/topic
+    # Tag relevant users
+    # Add context metadata
+
+@mcp.tool()
+def smart_react(message_id: int):
+    """Add contextually appropriate reaction."""
+    # Analyze message sentiment
+    # Choose appropriate emoji
+    # Consider cultural context
+    # Track reaction patterns
+```
+
+### 5.2 Batch Operations
 **Impact**: Medium | **Effort**: Low
 
 ```python
-# Development features:
-- Hot reload support
-- Debug logging
-- Request/response logging
-- Performance profiling
-- Mock data generation
+@mcp.tool()
+def batch_send(messages: List[Dict[str, Any]]):
+    """Send multiple messages efficiently."""
+    # Validate all messages
+    # Optimize API calls
+    # Handle partial failures
+    # Return detailed results
+
+@mcp.tool()
+def bulk_invite(stream: str, criteria: Dict):
+    """Bulk invite users based on criteria."""
+    # Query users matching criteria
+    # Send batch invitations
+    # Track acceptance
+    # Report statistics
 ```
 
-### 4.3 Interactive Documentation
-**Impact**: High | **Effort**: Medium
+### 5.3 Analytics Tools
+**Impact**: Medium | **Effort**: Medium
 
 ```python
-# docs/interactive.py
-- Swagger/OpenAPI generation
-- Interactive API playground
-- Code examples in multiple languages
-- Video tutorials integration
-- Troubleshooting guide
-```
+@mcp.tool()
+def conversation_analytics(stream: str, period: str = "week"):
+    """Analyze conversation patterns."""
+    return {
+        "message_velocity": calculate_velocity(),
+        "response_times": analyze_response_times(),
+        "engagement_score": calculate_engagement(),
+        "top_contributors": identify_contributors(),
+        "sentiment_trend": analyze_sentiment(),
+        "topic_clusters": identify_topics()
+    }
 
-### 4.4 SDK Generation
-**Impact**: Medium | **Effort**: High
-
-```python
-# Generate client SDKs:
-- TypeScript/JavaScript SDK
-- Python client library
-- Go client library
-- REST API wrapper
-```
-
-## Priority 5: Production Features (Low)
-
-### 5.1 Database Integration
-**Impact**: Low | **Effort**: High
-
-```python
-# src/zulipchat_mcp/database.py
-- SQLite for development
-- PostgreSQL for production
-- Message archival
-- Analytics data storage
-- Configuration persistence
-```
-
-### 5.2 Kubernetes Support
-**Impact**: Low | **Effort**: Medium
-
-```yaml
-# k8s/
-- Helm chart
-- ConfigMaps for configuration
-- Secrets management
-- HPA for autoscaling
-- Service mesh integration
-```
-
-### 5.3 Monitoring Dashboard
-**Impact**: Low | **Effort**: Medium
-
-```python
-# src/zulipchat_mcp/dashboard.py
-- Real-time metrics visualization
-- Health status overview
-- Performance graphs
-- Alert configuration
-- Log aggregation view
+@mcp.tool()
+def user_analytics(user: str):
+    """Detailed user activity analytics."""
+    return {
+        "activity_pattern": analyze_activity(),
+        "interaction_network": map_interactions(),
+        "expertise_areas": identify_expertise(),
+        "response_quality": measure_quality()
+    }
 ```
 
 ## Implementation Roadmap
@@ -331,19 +433,19 @@ def validate_config():
 - [ ] Type safety improvements
 - [ ] Update documentation
 
-### Sprint 3: Real-time Features (Week 3)
-- [ ] WebSocket client implementation
-- [ ] Real-time event handling
-- [ ] Presence updates
-- [ ] Message streaming
-- [ ] Integration tests
+### Sprint 3: Custom Commands & Workflows (Week 3)
+- [ ] Command chain system implementation
+- [ ] Predefined workflows (standup, incident response)
+- [ ] Workflow engine with event triggers
+- [ ] Smart notification system
+- [ ] Batch operation tools
 
-### Sprint 4: Enterprise Features (Week 4)
-- [ ] Advanced authentication
-- [ ] Multi-tenancy support
-- [ ] Audit logging
-- [ ] CLI tool
-- [ ] Production documentation
+### Sprint 4: Intelligent Tooling (Week 4)
+- [ ] Smart reply and search tools
+- [ ] Auto-moderation system
+- [ ] Context-aware tools
+- [ ] Analytics tools
+- [ ] Auto-summarization
 
 ## Success Metrics
 
@@ -355,15 +457,15 @@ def validate_config():
 
 ### Short-term (Sprint 2-3)
 - **Performance**: <50ms average response
-- **Real-time**: WebSocket implementation complete
-- **Developer Experience**: CLI tool functional
+- **Command Chains**: 5+ predefined workflows
+- **Custom Commands**: 10+ intelligent tools
 - **Error Handling**: All edge cases covered
 
 ### Long-term (Sprint 4+)
-- **Enterprise Ready**: Multi-tenancy, audit logs
-- **Production Deployments**: 3+ organizations
-- **Community**: 10+ contributors
-- **SDK Adoption**: 100+ downloads
+- **Workflow Automation**: 10+ automated workflows
+- **Smart Tools**: Context-aware operations
+- **Analytics**: Comprehensive conversation insights
+- **Batch Operations**: Efficient bulk processing
 
 ## Testing Strategy
 
@@ -458,12 +560,12 @@ git push origin improvement-plan
 
 ## Conclusion
 
-This Phase 2 plan builds on the solid foundation established in Phase 1. The primary focus is achieving >85% test coverage while adding production-ready features. The modular approach allows for incremental improvements with clear success metrics at each stage.
+This Phase 2 plan builds on the solid foundation established in Phase 1. The primary focus is achieving >85% test coverage while adding powerful custom commands and intelligent tooling that make the MCP server more capable and autonomous.
 
 Priority should be given to:
 1. **Test coverage** (foundation for all future work)
 2. **Import fixes** (developer experience)
-3. **Real-time features** (key differentiator)
-4. **Enterprise capabilities** (market readiness)
+3. **Custom commands** (powerful predetermined workflows)
+4. **Intelligent tooling** (smart, context-aware operations)
 
-With this plan executed, ZulipChat MCP Server will be a best-in-class, production-ready MCP implementation suitable for enterprise deployment.
+With this plan executed, ZulipChat MCP Server will be a best-in-class MCP implementation with unparalleled automation capabilities and intelligent assistance features.
