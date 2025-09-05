@@ -49,8 +49,12 @@ class StreamManagement:
             )
 
             if result.get("result") == "success":
-                # Get stream ID
-                streams = self.client.get_streams()
+                # The python-zulip-api does not return the stream_id directly on creation.
+                # We must fetch it again. To avoid cache issues, we clear the stream cache first.
+                if hasattr(self.client, "clear_stream_cache"):
+                    self.client.clear_stream_cache()
+
+                streams = self.client.get_streams(force_fresh=True)
                 for stream in streams:
                     if stream.get("name") == name:
                         return {

@@ -141,7 +141,7 @@ class ZulipClientWrapper:
         topic: str | None = None,
         hours_back: int = 24,
         limit: int = 100,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ZulipMessage]:
         """Get messages from a specific stream."""
         narrow = []
         if stream_name:
@@ -150,62 +150,29 @@ class ZulipClientWrapper:
             narrow.append({"operator": "topic", "operand": topic})
 
         # Add time filter for recent messages
-        datetime.now() - timedelta(hours=hours_back)
+        since_time = datetime.now() - timedelta(hours=hours_back)
+        narrow.append({"operator": "search", "operand": f"sent_after:{since_time.strftime('%Y-%m-%d')}"})
 
-        messages = self.get_messages(narrow=narrow, num_before=limit)
-
-        # Convert to dict format expected by server
-        return [
-            {
-                "id": msg.id,
-                "content": msg.content,
-                "sender": msg.sender_full_name,
-                "email": msg.sender_email,
-                "timestamp": msg.timestamp,
-                "stream": msg.stream_name,
-                "topic": msg.subject,
-                "type": msg.type,
-            }
-            for msg in messages
-        ]
+        return self.get_messages(narrow=narrow, num_before=limit)
 
     def search_messages(
         self, query: str, num_results: int = 50
-    ) -> list[dict[str, Any]]:
+    ) -> list[ZulipMessage]:
         """Search messages by content."""
         narrow = [{"operator": "search", "operand": query}]
-        messages = self.get_messages(narrow=narrow, num_before=num_results)
+        return self.get_messages(narrow=narrow, num_before=num_results)
 
-        # Convert to dict format expected by server
-        return [
-            {
-                "id": msg.id,
-                "content": msg.content,
-                "sender": msg.sender_full_name,
-                "email": msg.sender_email,
-                "timestamp": msg.timestamp,
-                "stream": msg.stream_name,
-                "topic": msg.subject,
-                "type": msg.type,
-            }
-            for msg in messages
-        ]
+    def clear_stream_cache(self) -> None:
+        """Clear the stream cache."""
+        stream_cache.clear()
 
-    def get_streams(self, include_subscribed: bool = True) -> list[dict[str, Any]]:
+    def get_streams(self, include_subscribed: bool = True, force_fresh: bool = False) -> list[ZulipStream]:
         """Get list of streams."""
-        # Check cache first
-        cached_streams = stream_cache.get_streams()
-        if cached_streams is not None:
-            # Convert cached objects to dict format
-            return [
-                {
-                    "id": stream.stream_id,
-                    "name": stream.name,
-                    "description": stream.description,
-                    "is_private": stream.is_private,
-                }
-                for stream in cached_streams
-            ]
+        if not force_fresh:
+            # Check cache first
+            cached_streams = stream_cache.get_streams()
+            if cached_streams is not None:
+                return cached_streams
 
         # Fetch from API and cache
         response = self.client.get_streams(include_subscribed=include_subscribed)
@@ -220,36 +187,15 @@ class ZulipClientWrapper:
                 for stream in response["streams"]
             ]
             stream_cache.set_streams(streams)
-
-            # Return dict format
-            return [
-                {
-                    "id": stream.stream_id,
-                    "name": stream.name,
-                    "description": stream.description,
-                    "is_private": stream.is_private,
-                }
-                for stream in streams
-            ]
+            return streams
         return []
 
-    def get_users(self) -> list[dict[str, Any]]:
+    def get_users(self) -> list[ZulipUser]:
         """Get list of users."""
         # Check cache first
         cached_users = user_cache.get_users()
         if cached_users is not None:
-            # Convert cached objects to dict format
-            return [
-                {
-                    "id": user.user_id,
-                    "full_name": user.full_name,
-                    "email": user.email,
-                    "is_active": user.is_active,
-                    "is_bot": user.is_bot,
-                    "avatar_url": user.avatar_url,
-                }
-                for user in cached_users
-            ]
+            return cached_users
 
         # Fetch from API and cache
         response = self.client.get_users()
@@ -266,19 +212,7 @@ class ZulipClientWrapper:
                 for user in response["members"]
             ]
             user_cache.set_users(users)
-
-            # Return dict format
-            return [
-                {
-                    "id": user.user_id,
-                    "full_name": user.full_name,
-                    "email": user.email,
-                    "is_active": user.is_active,
-                    "is_bot": user.is_bot,
-                    "avatar_url": user.avatar_url,
-                }
-                for user in users
-            ]
+            return users
         return []
 
     def add_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:

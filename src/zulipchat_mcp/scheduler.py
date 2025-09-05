@@ -90,21 +90,37 @@ class MessageScheduler:
             "type": message.message_type,
         }
 
+        # Get client for lookups
+        from .client import ZulipClientWrapper
+        from .config import ConfigManager
+        client_wrapper = ZulipClientWrapper(ConfigManager())
+
         # Set recipients based on message type
         if message.message_type == "stream":
-            data["to"] = (
-                message.recipients
-                if isinstance(message.recipients, str)
-                else message.recipients[0]
-            )
+            stream_name = message.recipients if isinstance(message.recipients, str) else message.recipients[0]
+            streams = client_wrapper.get_streams()
+            stream_id = next((s.get('id') for s in streams if s.get('name') == stream_name), None)
+            
+            if not stream_id:
+                raise ValueError(f"Stream '{stream_name}' not found.")
+
+            data["to"] = stream_id
             if message.topic:
                 data["topic"] = message.topic
         else:  # private message
-            data["to"] = json.dumps(
-                message.recipients
-                if isinstance(message.recipients, list)
-                else [message.recipients]
-            )
+            recipient_emails = message.recipients if isinstance(message.recipients, list) else [message.recipients]
+            all_users = client_wrapper.get_users()
+            
+            user_ids = []
+            for email in recipient_emails:
+                user_id = next((u.get('id') for u in all_users if u.get('email') == email), None)
+                if user_id:
+                    user_ids.append(user_id)
+
+            if not user_ids:
+                raise ValueError("No valid user IDs found for the given emails.")
+
+            data["to"] = json.dumps(user_ids)
 
         response = await client.post(f"{self.base_url}/scheduled_messages", data=data)
         response.raise_for_status()
