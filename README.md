@@ -1,155 +1,63 @@
 # ZulipChat MCP Server
 
 <div align="center">
-   **Connect AI agents to Zulip Chat with ease**
 
-   [![License](https://img.shields.io/github/license/akougkas2030/zulipchat-mcp)](LICENSE)
-  [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
+**Connect AI assistants to Zulip Chat**
+
+[![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+
+[Quick Start](#quick-start) • [Installation](#installation) • [Tools](#available-tools) • [Examples](#examples)
+
 </div>
 
-## 🚀 Installation
+## What is this?
 
-### One Command Install
+ZulipChat MCP lets AI assistants like Claude, ChatGPT, and Cursor interact with your Zulip workspace. Send messages, search conversations, create summaries - all through natural language.
 
+### Real Examples
+
+```text
+You: "Send a message to #general saying the deployment is complete"
+AI: ✓ Message sent to #general
+
+You: "What did people discuss in #engineering today?"
+AI: Here's a summary of today's engineering discussions...
+
+You: "Generate a daily summary of all active streams"
+AI: Creating your daily digest...
+```
+
+## Quick Start
+
+**1. Get your Zulip API key**
+```
+Visit your Zulip → Settings → Account & Privacy → API Key → Generate
+```
+
+**2. Install**
 ```bash
-# Install via uvx (recommended)
 uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```
 
-### Automated Installation
-
+**3. Set credentials**
 ```bash
-# One-line installer
-curl -fsSL https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/install.sh | bash
-```
-
-### Agent Setup (Optional)
-
-After installation, set up commands for your AI agent:
-
-```bash
-# For Claude Code
-uv run agent_adapters/setup_agents.py claude
-
-# For Gemini CLI
-uv run agent_adapters/setup_agents.py gemini
-
-# For OpenCode
-uv run agent_adapters/setup_agents.py opencode
-
-# For all agents
-uv run agent_adapters/setup_agents.py all
-```
-
-### Requirements
-
-- Python 3.10+
-- [uv](https://docs.astral.sh/uv/) (auto-installed by script)
-
-## ⚡ Quick Start
-
-1. **Install**
-   ```bash
-   uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-   ```
-
-2. **Configure**
-   ```bash
-   export ZULIP_EMAIL="your-bot@zulip.com"
-   export ZULIP_API_KEY="your-api-key" 
-   export ZULIP_SITE="https://your-org.zulipchat.com"
-   ```
-
-3. **Run**  
-   ```bash
-   uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-   ```
-
-That's it! Your MCP server is running and ready to connect to AI agents.
-
-## 📋 Features
-
-- 🔌 **MCP Compatible** - Works with Claude Desktop, Continue, Cursor, and other MCP clients
-- ⚡ **Zero Dependencies** - No Docker, just Python + uv  
-- 🔐 **Secure** - Multiple authentication methods, no hardcoded credentials
-- 📨 **Full Zulip API** - Send messages, create streams, manage subscriptions  
-- 📊 **Smart Analytics** - Daily summaries, activity reports, and catch-up features
-- 🎯 **AI-Optimized** - Built-in prompts designed for AI workflows
-- ✅ **Production Ready** - 100% test pass rate with 75% code coverage
-- 🚀 **High Performance** - Async operations with intelligent caching
-- 🛡️ **Enterprise Features** - Health monitoring, metrics, rate limiting
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `send_message` | Send messages to streams or users |
-| `get_messages` | Retrieve messages with filtering |
-| `search_messages` | Search message content |
-| `get_streams` | List available streams |
-| `get_users` | List organization users |
-| `add_reaction` | Add emoji reactions |
-| `edit_message` | Edit existing messages |
-| `get_daily_summary` | Generate activity reports |
-
-### Available Resources
-
-- `zulip://stream/{stream_name}` - Recent messages from specific streams
-- `zulip://streams` - Complete streams directory
-- `zulip://users` - Organization user directory
-
-### Custom Prompts
-
-- `daily_summary` - Generate comprehensive daily activity report
-- `morning_briefing` - Morning briefing with overnight activity
-- `catch_up` - Quick catch-up for missed messages
-
-## 🔧 Configuration
-
-### Method 1: Environment Variables
-
-```bash
-export ZULIP_EMAIL="your-bot@zulip.com"
+export ZULIP_EMAIL="bot@your-org.zulipchat.com"
 export ZULIP_API_KEY="your-api-key"
 export ZULIP_SITE="https://your-org.zulipchat.com"
 ```
 
-### Method 2: Configuration File
+That's it! Your AI can now talk to Zulip.
 
-Create `~/.config/zulipchat-mcp/config.json`:
+## Installation
 
-```json
-{
-  "email": "your-bot@zulip.com",
-  "api_key": "your-api-key",
-  "site": "https://your-org.zulipchat.com"
-}
-```
+### For Claude Desktop
 
+Add to `claude_desktop_config.json`:
 
-
-## 🔑 Getting Your API Key
-
-### Step 1: Log into your Zulip organization
-Visit your Zulip organization (e.g., `https://your-org.zulipchat.com`)
-
-### Step 2: Navigate to Settings
-- Click your profile picture in the top right
-- Select "Personal settings"
-
-### Step 3: Generate API Key
-- Go to the "Account & privacy" tab
-- Scroll to "API key" section
-- Click "Generate API key"
-- Copy the key and your email
-
-For detailed instructions with screenshots, see our [API Keys Guide](docs/api-keys.md).
-
-## 🔌 MCP Client Configuration
-
-### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
+<details>
+<summary>View configuration</summary>
 
 ```json
 {
@@ -158,7 +66,7 @@ Add to your `claude_desktop_config.json`:
       "command": "uvx",
       "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
       "env": {
-        "ZULIP_EMAIL": "your-bot@zulip.com",
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
         "ZULIP_API_KEY": "your-api-key",
         "ZULIP_SITE": "https://your-org.zulipchat.com"
       }
@@ -167,27 +75,14 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### Continue IDE  
+</details>
 
-Add to your MCP configuration:
+### For Cursor
 
-```json
-{
-  "zulipchat": {
-    "command": "uvx",
-    "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-    "env": {
-      "ZULIP_EMAIL": "your-bot@zulip.com",
-      "ZULIP_API_KEY": "your-api-key", 
-      "ZULIP_SITE": "https://your-org.zulipchat.com"
-    }
-  }
-}
-```
+Add to `~/.cursor/mcp.json`:
 
-### Cursor
-
-Add to your Cursor MCP settings:
+<details>
+<summary>View configuration</summary>
 
 ```json
 {
@@ -196,7 +91,7 @@ Add to your Cursor MCP settings:
       "command": "uvx",
       "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
       "env": {
-        "ZULIP_EMAIL": "your-bot@zulip.com",
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
         "ZULIP_API_KEY": "your-api-key",
         "ZULIP_SITE": "https://your-org.zulipchat.com"
       }
@@ -205,138 +100,199 @@ Add to your Cursor MCP settings:
 }
 ```
 
-## 🛠️ Development
+</details>
 
-### Local Development
+### For VS Code
 
+Add to VS Code settings:
+
+<details>
+<summary>View configuration</summary>
+
+```json
+{
+  "mcp.servers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+</details>
+
+### Other Clients
+
+<details>
+<summary>Continue, Windsurf, and more</summary>
+
+The same pattern works for any MCP client:
+- **Command**: `uvx`
+- **Args**: `["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"]`
+- **Environment**: Your Zulip credentials
+
+</details>
+
+## Available Tools
+
+Your AI assistant can use these Zulip tools:
+
+| Tool | What it does | Example |
+|------|--------------|---------|
+| `send_message` | Send messages to streams or users | "Post update to #releases" |
+| `get_messages` | Retrieve recent messages | "Show me the last 10 messages in #general" |
+| `search_messages` | Search across all messages | "Find messages about deployment" |
+| `get_streams` | List available streams | "What streams can I access?" |
+| `get_users` | List organization users | "Who's in the workspace?" |
+| `add_reaction` | Add emoji reactions | "React with 👍 to the last message" |
+| `edit_message` | Edit existing messages | "Fix the typo in my last message" |
+| `get_daily_summary` | Generate activity reports | "Create a summary of today's activity" |
+
+## Resources
+
+Access Zulip data directly:
+
+- `zulip://stream/{name}` - Stream message history
+- `zulip://streams` - All available streams
+- `zulip://users` - Organization users
+
+## Smart Prompts
+
+Built-in prompts for common tasks:
+
+- `daily_summary` - Comprehensive daily report
+- `morning_briefing` - Overnight activity summary  
+- `catch_up` - Quick summary of recent messages
+
+## Examples
+
+### Daily Standup Automation
+```text
+You: "Post our daily standup reminder to #team"
+AI: ✓ Posted standup reminder with yesterday's summary
+```
+
+### Smart Search
+```text
+You: "Find all messages from Alice about the API redesign"
+AI: Found 12 messages from Alice discussing API redesign...
+```
+
+### Activity Reports
+```text
+You: "Generate a weekly summary for #product"
+AI: Here's your weekly product channel summary...
+```
+
+### Message Management
+```text
+You: "Edit my last message to fix the meeting time to 3pm"
+AI: ✓ Message updated
+```
+
+## Configuration Options
+
+### Environment Variables
 ```bash
-# Clone repository  
+export ZULIP_EMAIL="bot@zulip.com"
+export ZULIP_API_KEY="your-key"
+export ZULIP_SITE="https://org.zulipchat.com"
+```
+
+### Config File
+Create `~/.config/zulipchat-mcp/config.json`:
+```json
+{
+  "email": "bot@zulip.com",
+  "api_key": "your-key",
+  "site": "https://org.zulipchat.com"
+}
+```
+
+### Direct in MCP Client
+Pass credentials directly in your MCP client configuration (see installation section).
+
+## Development
+
+### Local Setup
+```bash
 git clone https://github.com/akougkas/zulipchat-mcp.git
 cd zulipchat-mcp
-
-# Install dependencies
 uv sync
-
-# Run locally
 uv run zulipchat-mcp
 ```
 
-### Testing
-
+### Testing Connection
 ```bash
-# Install with dev dependencies
-uv sync
-
-# Run tests (257 tests, 100% pass rate)
-uv run pytest
-
-# Run with coverage (75% coverage)
-uv run pytest --cov=src/zulipchat_mcp --cov-report=term-missing
-
-# Type checking
-uv run mypy src/
-
-# Linting
-uv run ruff check src/ tests/
+uv run python -c "
+from src.zulipchat_mcp.client import ZulipClientWrapper
+client = ZulipClientWrapper()
+print(f'Connected! Found {len(client.get_streams())} streams.')
+"
 ```
 
-### Building & Distribution
+## Troubleshooting
 
-```bash
-# Build package
-uv build
+**"No Zulip email found"**
+- Set the environment variables shown in Quick Start
+- Or create a config file in `~/.config/zulipchat-mcp/config.json`
 
-# Test locally with uvx
-uvx --from . zulipchat-mcp
-```
+**"Connection failed"**
+- Verify your API key is correct
+- Check your Zulip site URL includes `https://`
+- Ensure your bot has permissions for the streams
 
-## 🌐 Platform Support
+**"Module not found"**
+- Update uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- Reinstall: `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp`
 
-| Platform | Support | Method |
-|----------|---------|---------|
-| Linux | ✅ Native | `uvx + Python 3.10+` |
-| macOS | ✅ Native | `uvx + Python 3.10+` |
-| Windows | ✅ Native | `uvx + Python 3.10+` |
+## Use Cases
 
-*No Docker required! Works anywhere Python runs.*
+- **DevOps**: Automate deployment notifications and incident updates
+- **Support**: Route customer questions and create ticket summaries
+- **Product**: Generate sprint reports and feature request digests
+- **Team Leads**: Daily standups and team activity summaries
+- **HR**: Onboarding workflows and announcement automation
 
-## 📖 Documentation
+## Architecture
 
-- [Setup Guide](docs/setup-guide.md) - Detailed installation instructions  
-- [API Keys Guide](docs/api-keys.md) - How to get your Zulip API key
-- [Commands Guide](docs/commands.md) - Available MCP tools and usage
+ZulipChat MCP is built with:
+- [FastMCP](https://github.com/jlowin/fastmcp) - MCP server framework
+- [Pydantic](https://pydantic.dev) - Data validation
+- [UV](https://docs.astral.sh/uv/) - Fast Python package management
+- Async operations for performance
+- Smart caching for efficiency
+- Comprehensive error handling
 
-## 🚨 Troubleshooting
+## Contributing
 
-### Common Issues
-
-**Installation Failed**
-```bash
-# Check Python version
-python3 --version  # Should be 3.10+
-
-# Install/update uv manually
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Try installation again
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-```
-
-**Connection Failed** 
-```bash
-# Test your credentials
-export ZULIP_EMAIL="your-bot@zulip.com"
-export ZULIP_API_KEY="your-api-key" 
-export ZULIP_SITE="https://your-org.zulipchat.com"
-
-# Test configuration
-uv run --with git+https://github.com/akougkas/zulipchat-mcp.git \
-  python -c "from zulipchat_mcp.config import ConfigManager; print(ConfigManager().validate_config())"
-```
-
-**Permission Denied**
-- Ensure your API key has necessary permissions
-- Check your bot user has access to target streams
-- Verify your Zulip site URL is correct
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Development Setup
+We welcome contributions! To get started:
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Run tests before committing: `uv run pytest`
-4. Follow code style: `uv run ruff check --fix`
-5. Update documentation as needed
-6. Submit a pull request
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-## 📄 License
+See [AGENTS.md](AGENTS.md) for development guidelines.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## License
 
-## 🙏 Acknowledgments
+MIT - See [LICENSE](LICENSE) for details.
 
-This project is built on the shoulders of amazing open source projects:
+## Links
 
-- **[Model Context Protocol (MCP)](https://modelcontextprotocol.io)** - The foundation that makes AI-to-service integration possible
-- **[Zulip](https://zulip.com)** - Outstanding open source team chat platform with excellent API
-- **[FastMCP](https://github.com/modelcontextprotocol/servers)** - Simplified MCP server framework
-- **[uv](https://docs.astral.sh/uv/)** - Blazing fast Python package management from Astral
-- **[Pydantic](https://pydantic.dev)** - Data validation and settings management using Python type annotations
-
-
-Special thanks to the entire open source community that makes projects like this possible!
-
-## 🔗 Related Projects
-
-- [MCP Official Documentation](https://modelcontextprotocol.io)
 - [Zulip API Documentation](https://zulip.com/api/)
-- [Claude Desktop](https://claude.ai/desktop)
+- [Model Context Protocol](https://modelcontextprotocol.io)
+- [Report Issues](https://github.com/akougkas/zulipchat-mcp/issues)
 
 ---
 
 <div align="center">
-  <sub>MIT Licensed • Community Driven • Open Source</sub>
+  <sub>Built with ❤️ for the Zulip community</sub>
 </div>
