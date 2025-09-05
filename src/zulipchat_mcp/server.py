@@ -1,7 +1,6 @@
 """Enhanced MCP server for Zulip integration with security and error handling."""
 
 import logging
-import os
 from datetime import datetime
 from typing import Any
 
@@ -12,8 +11,6 @@ from .exceptions import ConnectionError, create_error_response
 
 # Import structured logging
 from .logging_config import LogContext, get_logger, setup_structured_logging
-
-
 
 # Import scheduler
 from .scheduler import MessageScheduler, ScheduledMessage
@@ -238,84 +235,81 @@ async def schedule_message(
 
 @mcp.tool()
 async def cancel_scheduled(scheduled_id: int) -> dict[str, Any]:
-        """Cancel a scheduled message.
+    """Cancel a scheduled message.
 
-        Args:
-            scheduled_id: ID of the scheduled message to cancel
+    Args:
+        scheduled_id: ID of the scheduled message to cancel
 
-        Returns:
-            Cancellation result
-        """
-        with Timer("zulip_mcp_tool_duration_seconds", {"tool": "cancel_scheduled"}):
-            with LogContext(logger, tool="cancel_scheduled", scheduled_id=scheduled_id):
-                track_tool_call("cancel_scheduled")
-                try:
-                    global config_manager
-                    if config_manager is None:
-                        config_manager = ConfigManager()
-                    async with MessageScheduler(config_manager.config) as scheduler:
-                        result = await scheduler.cancel_scheduled(scheduled_id)
+    Returns:
+        Cancellation result
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "cancel_scheduled"}):
+        with LogContext(logger, tool="cancel_scheduled", scheduled_id=scheduled_id):
+            track_tool_call("cancel_scheduled")
+            try:
+                global config_manager
+                if config_manager is None:
+                    config_manager = ConfigManager()
+                async with MessageScheduler(config_manager.config) as scheduler:
+                    result = await scheduler.cancel_scheduled(scheduled_id)
 
-                    if result.get("result") == "success":
-                        return {
-                            "status": "success",
-                            "message": "Scheduled message cancelled",
-                        }
-                    else:
-                        return {
-                            "status": "error",
-                            "error": result.get("msg", "Unknown error"),
-                        }
+                if result.get("result") == "success":
+                    return {
+                        "status": "success",
+                        "message": "Scheduled message cancelled",
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
-                except Exception as e:
-                    track_tool_error("cancel_scheduled", "Exception")
-                    return create_error_response(
-                        e, "cancel_scheduled", {"scheduled_id": scheduled_id}
-                    )
+            except Exception as e:
+                track_tool_error("cancel_scheduled", "Exception")
+                return create_error_response(
+                    e, "cancel_scheduled", {"scheduled_id": scheduled_id}
+                )
 
 
 @mcp.tool()
 async def list_scheduled() -> list[dict[str, Any]]:
-        """List all scheduled messages.
+    """List all scheduled messages.
 
-        Returns:
-            List of scheduled messages with their details
-        """
-        with Timer("zulip_mcp_tool_duration_seconds", {"tool": "list_scheduled"}):
-            with LogContext(logger, tool="list_scheduled"):
-                track_tool_call("list_scheduled")
-                try:
-                    global config_manager
-                    if config_manager is None:
-                        config_manager = ConfigManager()
-                    async with MessageScheduler(config_manager.config) as scheduler:
-                        messages = await scheduler.list_scheduled()
+    Returns:
+        List of scheduled messages with their details
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "list_scheduled"}):
+        with LogContext(logger, tool="list_scheduled"):
+            track_tool_call("list_scheduled")
+            try:
+                global config_manager
+                if config_manager is None:
+                    config_manager = ConfigManager()
+                async with MessageScheduler(config_manager.config) as scheduler:
+                    messages = await scheduler.list_scheduled()
 
-                    return [
-                        {
-                            "id": msg["scheduled_message_id"],
-                            "content": (
-                                msg["content"][:100] + "..."
-                                if len(msg["content"]) > 100
-                                else msg["content"]
-                            ),
-                            "scheduled_time": datetime.fromtimestamp(
-                                msg["scheduled_delivery_timestamp"]
-                            ).isoformat(),
-                            "type": msg["type"],
-                            "to": msg["to"],
-                            "topic": msg.get("topic"),
-                        }
-                        for msg in messages
-                    ]
+                return [
+                    {
+                        "id": msg["scheduled_message_id"],
+                        "content": (
+                            msg["content"][:100] + "..."
+                            if len(msg["content"]) > 100
+                            else msg["content"]
+                        ),
+                        "scheduled_time": datetime.fromtimestamp(
+                            msg["scheduled_delivery_timestamp"]
+                        ).isoformat(),
+                        "type": msg["type"],
+                        "to": msg["to"],
+                        "topic": msg.get("topic"),
+                    }
+                    for msg in messages
+                ]
 
-                except Exception as e:
-                    track_tool_error("list_scheduled", "Exception")
-                    logger.error(f"Error in list_scheduled: {e}")
-                    return [{"error": f"Failed to retrieve scheduled messages: {str(e)}"}]
-
-
-
+            except Exception as e:
+                track_tool_error("list_scheduled", "Exception")
+                logger.error(f"Error in list_scheduled: {e}")
+                return [{"error": f"Failed to retrieve scheduled messages: {str(e)}"}]
 
 
 @mcp.tool()
@@ -340,7 +334,7 @@ def get_messages(
         return [{"error": f"Invalid topic: {topic}"}]
     if hours_back < 1 or hours_back > 168:  # Max 1 week
         return [{"error": "hours_back must be between 1 and 168"}]
-    if limit < 1 or limit > 1000: # Increased limit for more flexibility
+    if limit < 1 or limit > 1000:  # Increased limit for more flexibility
         return [{"error": "limit must be between 1 and 1000"}]
 
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "get_messages"}):
@@ -355,7 +349,7 @@ def get_messages(
                     messages = client.get_messages_from_stream(
                         stream_name, topic, hours_back, limit
                     )
-                
+
                 return [m.model_dump() for m in messages]
 
             except ConnectionError as e:
@@ -473,10 +467,12 @@ def create_stream(
                 global config_manager
                 if config_manager is None:
                     from .config import ConfigManager
+
                     config_manager = ConfigManager()
 
                 # Import and use stream management
                 from .tools.stream_management import StreamManagement
+
                 stream_manager = StreamManagement(config_manager, client)
 
                 result = stream_manager.create_stream(
@@ -666,15 +662,18 @@ def agent_message(
             track_tool_call("agent_message")
             try:
                 from .agent_tracker import AgentTracker
+
                 tracker = AgentTracker()
-                
+
                 # Get formatted message with routing info
-                msg_info = tracker.format_agent_message(content, agent_type, require_response)
-                
+                msg_info = tracker.format_agent_message(
+                    content, agent_type, require_response
+                )
+
                 # Check if we should send
                 if msg_info["status"] == "skipped" and not force_send:
                     return msg_info
-                
+
                 # If force_send, get the routing info even if AFK is disabled
                 if force_send and msg_info["status"] == "skipped":
                     reg_info = tracker.register_agent(agent_type)
@@ -683,20 +682,20 @@ def agent_message(
                         "stream": reg_info["stream"],
                         "topic": reg_info["topic"],
                         "content": content,
-                        "response_id": None
+                        "response_id": None,
                     }
-                
+
                 # Get client with bot identity if available
                 client = get_bot_client()
 
                 # Check if Agents-Channel exists
                 streams = client.get_streams()
                 stream_exists = any(s.name == msg_info["stream"] for s in streams)
-                
+
                 if not stream_exists:
                     return {
                         "status": "error",
-                        "error": f"Stream '{msg_info['stream']}' does not exist. Please run setup script or create manually."
+                        "error": f"Stream '{msg_info['stream']}' does not exist. Please run setup script or create manually.",
                     }
 
                 result = client.send_message(
@@ -714,15 +713,14 @@ def agent_message(
                         "timestamp": datetime.now().isoformat(),
                     }
                 else:
-                    return {"status": "error", "error": result.get("msg", "Unknown error")}
+                    return {
+                        "status": "error",
+                        "error": result.get("msg", "Unknown error"),
+                    }
 
             except Exception as e:
                 track_tool_error("agent_message", "Exception")
                 return create_error_response(e, "agent_message")
-
-
-
-
 
 
 # Health and monitoring endpoints
@@ -791,7 +789,7 @@ def get_metrics() -> dict[str, Any]:
 @mcp.tool()
 def rename_stream(stream_id: int, new_name: str) -> dict[str, Any]:
     """Rename an existing Zulip stream.
-    
+
     Args:
         stream_id: The ID of the stream to rename
         new_name: The new name for the stream
@@ -800,7 +798,7 @@ def rename_stream(stream_id: int, new_name: str) -> dict[str, Any]:
         track_tool_call("rename_stream")
         try:
             from .tools.stream_management import StreamManagement
-            
+
             client = get_client()
             stream_mgmt = StreamManagement(config_manager, client)
             return stream_mgmt.rename_stream(stream_id, new_name)
@@ -811,9 +809,11 @@ def rename_stream(stream_id: int, new_name: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-def archive_stream(stream_id: int, farewell_message: str | None = None) -> dict[str, Any]:
+def archive_stream(
+    stream_id: int, farewell_message: str | None = None
+) -> dict[str, Any]:
     """Archive a Zulip stream with optional farewell message.
-    
+
     Args:
         stream_id: The ID of the stream to archive
         farewell_message: Optional message to post before archiving
@@ -822,7 +822,7 @@ def archive_stream(stream_id: int, farewell_message: str | None = None) -> dict[
         track_tool_call("archive_stream")
         try:
             from .tools.stream_management import StreamManagement
-            
+
             client = get_client()
             stream_mgmt = StreamManagement(config_manager, client)
             return stream_mgmt.archive_stream(stream_id, farewell_message)
@@ -835,29 +835,30 @@ def archive_stream(stream_id: int, farewell_message: str | None = None) -> dict[
 @mcp.tool()
 def wait_for_response(response_id: str, timeout_minutes: int = 5) -> dict[str, Any]:
     """Wait for a user response to a previous message.
-    
+
     When you send a message with require_response=True, use this to wait for the reply.
     The user should reply with: @response [response_id] [their message]
-    
+
     Args:
         response_id: The response ID from the agent_message call
         timeout_minutes: How long to wait (max 30 minutes)
-    
+
     Returns:
         The user's response or timeout status
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
-            from .agent_tracker import AgentTracker
             import time
-            
+
+            from .agent_tracker import AgentTracker
+
             tracker = AgentTracker()
             timeout_minutes = min(timeout_minutes, 30)
             timeout_seconds = timeout_minutes * 60
             check_interval = 5  # Check every 5 seconds
             elapsed = 0
-            
+
             while elapsed < timeout_seconds:
                 # Check for response
                 response = tracker.check_for_response(response_id)
@@ -866,20 +867,20 @@ def wait_for_response(response_id: str, timeout_minutes: int = 5) -> dict[str, A
                         "status": "success",
                         "response": response["response"],
                         "responded_at": response.get("responded_at"),
-                        "wait_time_seconds": elapsed
+                        "wait_time_seconds": elapsed,
                     }
-                
+
                 # Wait before next check
                 time.sleep(check_interval)
                 elapsed += check_interval
-            
+
             # Timeout reached
             return {
                 "status": "timeout",
                 "message": f"No response received after {timeout_minutes} minutes",
-                "response_id": response_id
+                "response_id": response_id,
             }
-            
+
         except Exception as e:
             track_tool_error("wait_for_response", "Exception")
             logger.error(f"Failed to wait for response: {e}")
@@ -889,10 +890,10 @@ def wait_for_response(response_id: str, timeout_minutes: int = 5) -> dict[str, A
 @mcp.tool()
 def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
     """Register an AI agent and get its assigned topic in Agents-Channel.
-    
+
     Registers the agent with automatic session tracking and returns
     the topic structure: agent_type/date/session_id
-    
+
     Args:
         agent_type: Type of agent (claude-code, gemini, cursor, etc.)
     """
@@ -900,18 +901,21 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
         track_tool_call("register_agent")
         try:
             from .agent_tracker import AgentTracker
+
             tracker = AgentTracker()
-            
+
             reg_info = tracker.register_agent(agent_type)
-            
+
             # Check if Agents-Channel exists
             client = get_client()
             streams = client.get_streams()
             stream_exists = any(s.name == reg_info["stream"] for s in streams)
-            
+
             if not stream_exists:
-                reg_info["warning"] = f"Stream '{reg_info['stream']}' does not exist. Please run setup or create manually."
-            
+                reg_info["warning"] = (
+                    f"Stream '{reg_info['stream']}' does not exist. Please run setup or create manually."
+                )
+
             return reg_info
         except Exception as e:
             track_tool_error("register_agent", "Exception")
@@ -922,7 +926,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
 @mcp.tool()
 def list_active_agents(hours: int = 24) -> dict[str, Any]:
     """List all agents that have been active recently.
-    
+
     Args:
         hours: How many hours back to look (default 24, max 168/1 week)
     """
@@ -930,16 +934,17 @@ def list_active_agents(hours: int = 24) -> dict[str, Any]:
         track_tool_call("list_active_agents")
         try:
             from .agent_tracker import AgentTracker
+
             tracker = AgentTracker()
-            
+
             hours = min(hours, 168)  # Max 1 week
             agents = tracker.get_active_agents(hours)
-            
+
             return {
                 "status": "success",
                 "count": len(agents),
                 "agents": agents,
-                "period_hours": hours
+                "period_hours": hours,
             }
         except Exception as e:
             logger.error(f"Failed to list active agents: {e}")
@@ -949,7 +954,7 @@ def list_active_agents(hours: int = 24) -> dict[str, Any]:
 @mcp.tool()
 def get_stream_topics(stream_id: int, include_archived: bool = False) -> dict[str, Any]:
     """Get all topics in a Zulip stream.
-    
+
     Args:
         stream_id: The ID of the stream
         include_archived: Whether to include archived topics
@@ -958,7 +963,7 @@ def get_stream_topics(stream_id: int, include_archived: bool = False) -> dict[st
         track_tool_call("get_stream_topics")
         try:
             from .tools.stream_management import StreamManagement
-            
+
             client = get_client()
             stream_mgmt = StreamManagement(config_manager, client)
             return stream_mgmt.get_stream_topics(stream_id, include_archived)
@@ -999,7 +1004,6 @@ def get_stream_messages(stream_name: str) -> list[Any]:
         return [TextContent(type="text", text=f"Error retrieving messages: {str(e)}")]
 
 
-
 @mcp.resource("zulip://streams")
 def list_streams() -> list[Any]:
     """List all available Zulip streams as a resource."""
@@ -1017,19 +1021,22 @@ def list_streams() -> list[Any]:
         if public_streams:
             content_lines.append("\n📢 Public Streams:")
             for stream in public_streams:
-                content_lines.append(f"  • {stream.name} - {stream.description or 'No description'}")
+                content_lines.append(
+                    f"  • {stream.name} - {stream.description or 'No description'}"
+                )
 
         if private_streams:
             content_lines.append("\n🔒 Private Streams:")
             for stream in private_streams:
-                content_lines.append(f"  • {stream.name} - {stream.description or 'No description'}")
+                content_lines.append(
+                    f"  • {stream.name} - {stream.description or 'No description'}"
+                )
 
         return [TextContent(type="text", text="\n".join(content_lines))]
 
     except Exception as e:
         logger.error(f"Error in list_streams resource: {e}")
         return [TextContent(type="text", text=f"Error retrieving streams: {str(e)}")]
-
 
 
 @mcp.resource("zulip://users")
@@ -1065,7 +1072,6 @@ def list_users() -> list[Any]:
     except Exception as e:
         logger.error(f"Error in list_users resource: {e}")
         return [TextContent(type="text", text=f"Error retrieving users: {str(e)}")]
-
 
 
 # MCP Prompts

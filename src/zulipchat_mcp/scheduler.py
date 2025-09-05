@@ -93,14 +93,21 @@ class MessageScheduler:
         # Get client for lookups
         from .client import ZulipClientWrapper
         from .config import ConfigManager
+
         client_wrapper = ZulipClientWrapper(ConfigManager())
 
         # Set recipients based on message type
         if message.message_type == "stream":
-            stream_name = message.recipients if isinstance(message.recipients, str) else message.recipients[0]
+            stream_name = (
+                message.recipients
+                if isinstance(message.recipients, str)
+                else message.recipients[0]
+            )
             streams = client_wrapper.get_streams()
-            stream_id = next((s.stream_id for s in streams if s.name == stream_name), None)
-            
+            stream_id = next(
+                (s.stream_id for s in streams if s.name == stream_name), None
+            )
+
             if not stream_id:
                 raise ValueError(f"Stream '{stream_name}' not found.")
 
@@ -108,9 +115,13 @@ class MessageScheduler:
             if message.topic:
                 data["topic"] = message.topic
         else:  # private message
-            recipient_emails = message.recipients if isinstance(message.recipients, list) else [message.recipients]
+            recipient_emails = (
+                message.recipients
+                if isinstance(message.recipients, list)
+                else [message.recipients]
+            )
             all_users = client_wrapper.get_users()
-            
+
             user_ids = []
             for email in recipient_emails:
                 user_id = next((u.user_id for u in all_users if u.email == email), None)

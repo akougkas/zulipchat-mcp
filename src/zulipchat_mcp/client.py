@@ -152,13 +152,16 @@ class ZulipClientWrapper:
 
         # Add time filter for recent messages
         since_time = datetime.now() - timedelta(hours=hours_back)
-        narrow.append({"operator": "search", "operand": f"sent_after:{since_time.strftime('%Y-%m-%d')}"})
+        narrow.append(
+            {
+                "operator": "search",
+                "operand": f"sent_after:{since_time.strftime('%Y-%m-%d')}",
+            }
+        )
 
         return self.get_messages(narrow=narrow, num_before=limit)
 
-    def search_messages(
-        self, query: str, num_results: int = 50
-    ) -> list[ZulipMessage]:
+    def search_messages(self, query: str, num_results: int = 50) -> list[ZulipMessage]:
         """Search messages by content."""
         # Use 'has' operator for content search or 'search' for general search
         narrow = [{"operator": "search", "operand": query}]
@@ -171,9 +174,12 @@ class ZulipClientWrapper:
     def clear_stream_cache(self) -> None:
         """Clear the stream cache."""
         from .cache import stream_cache
+
         stream_cache.cache.clear()
 
-    def get_streams(self, include_subscribed: bool = True, force_fresh: bool = False) -> list[ZulipStream]:
+    def get_streams(
+        self, include_subscribed: bool = True, force_fresh: bool = False
+    ) -> list[ZulipStream]:
         """Get list of streams."""
         if not force_fresh:
             # Check cache first

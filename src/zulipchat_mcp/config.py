@@ -8,6 +8,7 @@ from typing import Any
 
 try:
     from dotenv import load_dotenv
+
     # Load .env file from current working directory
     load_dotenv()
 except ImportError:
@@ -227,7 +228,12 @@ class ConfigManager:
         Args:
             use_bot: If True and bot credentials exist, return bot config
         """
-        if use_bot and self.has_bot_credentials() and self.config.bot_email and self.config.bot_api_key:
+        if (
+            use_bot
+            and self.has_bot_credentials()
+            and self.config.bot_email
+            and self.config.bot_api_key
+        ):
             return {
                 "email": self.config.bot_email,
                 "api_key": self.config.bot_api_key,

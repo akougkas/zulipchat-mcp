@@ -79,10 +79,12 @@ class StreamManagement:
         """Rename an existing stream."""
         try:
             # Update stream name
-            result = self.client.client.update_stream({
-                "stream_id": stream_id,
-                "name": new_name,
-            })
+            result = self.client.client.update_stream(
+                {
+                    "stream_id": stream_id,
+                    "name": new_name,
+                }
+            )
 
             if result.get("result") == "success":
                 return {

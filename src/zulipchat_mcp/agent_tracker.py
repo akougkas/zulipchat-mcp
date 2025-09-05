@@ -5,41 +5,47 @@ and communication state.
 """
 
 import json
+import logging
 import os
 import platform
 import subprocess
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
-
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class AgentTracker:
-    """Simple agent instance tracker using file-based storage."""
-    
-    # Configuration directory
-    CONFIG_DIR = Path.home() / ".config" / "zulipchat-mcp"
-    
+    """Simple agent instance tracker using project-local storage.
+
+    Uses the `.mcp/` directory under the current working directory for any
+    temporary state. AFK is maintained as a runtime (in-memory) flag and is
+    not persisted across runs.
+    """
+
+    # Configuration directory (project-local)
+    CONFIG_DIR = Path.cwd() / ".mcp"
+
     # File paths
-    AFK_STATE_FILE = CONFIG_DIR / "afk_state.json"
+    AFK_STATE_FILE = CONFIG_DIR / "afk_state.json"  # kept for backward compat, unused
     AGENT_REGISTRY_FILE = CONFIG_DIR / "agent_registry.json"
     PENDING_RESPONSES_FILE = CONFIG_DIR / "pending_responses.json"
-    
+
     # Standard channel name
     AGENTS_CHANNEL = "Agents-Channel"
-    
+
     def __init__(self):
         """Initialize the agent tracker."""
         self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.session_id = str(uuid.uuid4())[:8]  # Short session ID
-        
+        # Runtime AFK flag (not persisted)
+        self.afk_enabled: bool = False
+
     def get_instance_identity(self) -> dict[str, str]:
         """Get current instance identity from environment.
-        
+
         Returns a dict with:
         - project: Current project name (from git or directory)
         - branch: Current git branch if available
@@ -53,56 +59,56 @@ class AgentTracker:
             "user": os.environ.get("USER", "unknown"),
             "timestamp": datetime.now().isoformat(),
         }
-        
+
         # Try to get project info from git
         try:
             # Get current directory name as fallback
             cwd = Path.cwd()
             identity["project"] = cwd.name
-            
+
             # Try to get git info
             result = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
                 capture_output=True,
                 text=True,
-                timeout=1
+                timeout=1,
             )
             if result.returncode == 0:
                 git_root = Path(result.stdout.strip())
                 identity["project"] = git_root.name
-                
+
                 # Get branch name
                 branch_result = subprocess.run(
                     ["git", "branch", "--show-current"],
                     capture_output=True,
                     text=True,
-                    timeout=1
+                    timeout=1,
                 )
                 if branch_result.returncode == 0:
                     identity["branch"] = branch_result.stdout.strip() or "main"
         except Exception as e:
             logger.debug(f"Could not get git info: {e}")
-            
+
         return identity
-    
+
     def register_agent(self, agent_type: str = "claude-code") -> dict[str, Any]:
         """Register an agent instance and save to registry.
-        
+
         Args:
             agent_type: Type of agent (claude-code, gemini, cursor, etc.)
-            
+
         Returns:
             Registration info including stream name and topic
         """
         identity = self.get_instance_identity()
-        
+
         # Create structured topic: agent_type/date/session_id
         date_str = datetime.now().strftime("%Y-%m-%d")
         topic = f"{agent_type}/{date_str}/{self.session_id}"
-        
+
         # Always use standard Agents-Channel
         stream_name = self.AGENTS_CHANNEL
-        
+
         # Create registration record
         registration = {
             "agent_type": agent_type,
@@ -111,21 +117,21 @@ class AgentTracker:
             "topic": topic,
             "identity": identity,
             "registered_at": datetime.now().isoformat(),
-            "last_active": datetime.now().isoformat()
+            "last_active": datetime.now().isoformat(),
         }
-        
+
         # Save to registry
         self._update_agent_registry(registration)
-        
+
         return {
             "status": "success",
             "stream": stream_name,
             "topic": topic,
             "session_id": self.session_id,
             "identity": identity,
-            "message": f"Agent registered to {stream_name}/{topic}"
+            "message": f"Agent registered to {stream_name}/{topic}",
         }
-    
+
     def _update_agent_registry(self, registration: dict) -> None:
         """Update the agent registry file."""
         try:
@@ -134,193 +140,169 @@ class AgentTracker:
                 registry = json.loads(self.AGENT_REGISTRY_FILE.read_text())
             else:
                 registry = {"agents": []}
-            
+
             # Add new registration
             registry["agents"].append(registration)
-            
+
             # Keep only last 100 registrations
             registry["agents"] = registry["agents"][-100:]
-            
+
             # Save back
             self.AGENT_REGISTRY_FILE.write_text(json.dumps(registry, indent=2))
         except Exception as e:
             logger.error(f"Failed to update agent registry: {e}")
-    
+
     def get_active_agents(self, hours: int = 24) -> list[dict[str, Any]]:
         """Get list of recently active agents.
-        
+
         Args:
             hours: How many hours back to look for active agents
         """
         try:
             if not self.AGENT_REGISTRY_FILE.exists():
                 return []
-            
+
             registry = json.loads(self.AGENT_REGISTRY_FILE.read_text())
             cutoff = datetime.now() - timedelta(hours=hours)
-            
+
             active_agents = []
             for agent in registry.get("agents", []):
                 last_active = datetime.fromisoformat(agent["last_active"])
                 if last_active > cutoff:
                     active_agents.append(agent)
-            
+
             return active_agents
         except Exception as e:
             logger.error(f"Failed to get active agents: {e}")
             return []
-    
+
     def get_afk_state(self) -> dict[str, Any]:
-        """Get current AFK state."""
-        try:
-            if self.AFK_STATE_FILE.exists():
-                data = json.loads(self.AFK_STATE_FILE.read_text())
-                
-                # Check if AFK has expired
-                if data.get("enabled") and data.get("expires_at"):
-                    expires = datetime.fromisoformat(data["expires_at"])
-                    if datetime.now() > expires:
-                        # AFK expired, disable it
-                        data["enabled"] = False
-                        data["expires_at"] = None
-                        self.AFK_STATE_FILE.write_text(json.dumps(data, indent=2))
-                
-                return data
-        except Exception as e:
-            logger.debug(f"Could not read AFK state: {e}")
-        
+        """Get current AFK state (runtime only)."""
+        # Runtime-only AFK per v2 design. Not persisted.
         return {
-            "enabled": False,
+            "enabled": self.afk_enabled,
             "reason": None,
             "expires_at": None,
-            "set_at": None
+            "set_at": None,
         }
-    
-    def set_afk(self, enabled: bool, reason: Optional[str] = None, hours: float = 8) -> dict[str, Any]:
-        """Set AFK state.
-        
-        Args:
-            enabled: Whether to enable AFK mode
-            reason: Optional reason for being AFK
-            hours: Hours until auto-disable (default 8)
-        """
-        state = {
-            "enabled": enabled,
-            "reason": reason if enabled else None,
-            "set_at": datetime.now().isoformat() if enabled else None,
-            "expires_at": (datetime.now() + timedelta(hours=hours)).isoformat() if enabled else None
+
+    def set_afk(
+        self, enabled: bool, reason: str | None = None, hours: float = 8
+    ) -> dict[str, Any]:
+        """Set AFK state (runtime only)."""
+        self.afk_enabled = bool(enabled)
+        return {
+            "status": "success",
+            "afk_enabled": self.afk_enabled,
+            "message": f"AFK mode {'enabled' if self.afk_enabled else 'disabled'}",
+            "expires_in_hours": hours if self.afk_enabled else None,
         }
-        
-        try:
-            self.AFK_STATE_FILE.write_text(json.dumps(state, indent=2))
-            return {
-                "status": "success",
-                "afk_enabled": enabled,
-                "message": f"AFK mode {'enabled' if enabled else 'disabled'}",
-                "expires_in_hours": hours if enabled else None
-            }
-        except Exception as e:
-            logger.error(f"Failed to set AFK state: {e}")
-            return {"status": "error", "error": str(e)}
-    
+
     def should_notify(self) -> bool:
         """Check if notifications should be sent (only when AFK is enabled)."""
         state = self.get_afk_state()
         return state.get("enabled", False)
-    
-    def format_agent_message(self, content: str, agent_type: str = "claude-code", require_response: bool = False) -> dict[str, Any]:
+
+    def format_agent_message(
+        self,
+        content: str,
+        agent_type: str = "claude-code",
+        require_response: bool = False,
+    ) -> dict[str, Any]:
         """Format an agent message with proper routing.
-        
+
         Args:
             content: Message content
             agent_type: Type of agent
             require_response: Whether this message expects a response
-        
+
         Returns:
             Dict with stream, topic, and formatted content
         """
         # Get or create registration
-        if not hasattr(self, '_current_registration'):
+        if not hasattr(self, "_current_registration"):
             self._current_registration = self.register_agent(agent_type)
-        
+
         reg_info = self._current_registration
-        
+
         # Check AFK state
         afk_state = self.get_afk_state()
-        
+
         # Only send if AFK is enabled
         if not afk_state.get("enabled"):
             return {
                 "status": "skipped",
                 "reason": "AFK mode is disabled",
-                "would_send_to": f"{reg_info['stream']}/{reg_info['topic']}"
+                "would_send_to": f"{reg_info['stream']}/{reg_info['topic']}",
             }
-        
+
         # Format the message with session info
         identity = reg_info["identity"]
         header = f"[{agent_type}@{identity['project']}]"
-        
+
         formatted_content = f"{header} {content}"
-        
+
         # If response required, create a pending response entry
         response_id = None
         if require_response:
             response_id = self._create_pending_response(agent_type, content)
-            formatted_content += f"\n\n_Reply with: @response {response_id} [your message]_"
-        
+            formatted_content += (
+                f"\n\n_Reply with: @response {response_id} [your message]_"
+            )
+
         return {
             "status": "ready",
             "stream": reg_info["stream"],
             "topic": reg_info["topic"],
             "content": formatted_content,
             "response_id": response_id,
-            "afk_enabled": True
+            "afk_enabled": True,
         }
-    
+
     def _create_pending_response(self, agent_type: str, prompt: str) -> str:
         """Create a pending response entry."""
         try:
             response_id = str(uuid.uuid4())[:8]
-            
+
             # Load existing responses
             if self.PENDING_RESPONSES_FILE.exists():
                 responses = json.loads(self.PENDING_RESPONSES_FILE.read_text())
             else:
                 responses = {"pending": {}}
-            
+
             # Add new pending response
             responses["pending"][response_id] = {
                 "agent_type": agent_type,
                 "session_id": self.session_id,
                 "prompt": prompt,
                 "created_at": datetime.now().isoformat(),
-                "status": "waiting"
+                "status": "waiting",
             }
-            
+
             # Clean old responses (older than 24 hours)
             cutoff = datetime.now() - timedelta(hours=24)
             for rid, data in list(responses["pending"].items()):
                 created = datetime.fromisoformat(data["created_at"])
                 if created < cutoff:
                     del responses["pending"][rid]
-            
+
             # Save back
             self.PENDING_RESPONSES_FILE.write_text(json.dumps(responses, indent=2))
             return response_id
-            
+
         except Exception as e:
             logger.error(f"Failed to create pending response: {e}")
             return str(uuid.uuid4())[:8]
-    
+
     def check_for_response(self, response_id: str) -> dict[str, Any] | None:
         """Check if a response has been received."""
         try:
             if not self.PENDING_RESPONSES_FILE.exists():
                 return None
-            
+
             responses = json.loads(self.PENDING_RESPONSES_FILE.read_text())
             response_data = responses["pending"].get(response_id)
-            
+
             if response_data and response_data.get("response"):
                 # Mark as received and return
                 response_data["status"] = "received"
@@ -328,11 +310,11 @@ class AgentTracker:
                 return {
                     "response": response_data["response"],
                     "responded_at": response_data.get("responded_at"),
-                    "status": "received"
+                    "status": "received",
                 }
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to check for response: {e}")
             return None
