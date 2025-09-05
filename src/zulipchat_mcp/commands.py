@@ -197,11 +197,12 @@ class Command(ABC):
         logger.info(f"Rolling back command: {self.name}")
         self._rollback_impl(context, client)
 
+    @abstractmethod
     def _rollback_impl(
         self, context: ExecutionContext, client: ZulipClientWrapper
     ) -> None:
         """Implementation of rollback logic. Override in subclasses."""
-        pass
+        ...
 
 
 class SendMessageCommand(Command):

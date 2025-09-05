@@ -4,9 +4,11 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from mcp.server.fastmcp import FastMCP
+
 from .config import ConfigManager
 from .exceptions import ConnectionError, create_error_response
-from .logging_config import LogContext
+from .logging_config import LogContext, get_logger, setup_structured_logging
 from .metrics import Timer, track_message_sent, track_tool_call, track_tool_error
 from .scheduler import MessageScheduler, ScheduledMessage
 from .security import (
@@ -15,6 +17,15 @@ from .security import (
     validate_stream_name,
     validate_topic,
 )
+
+# Initialize logging and MCP server early so decorators can bind
+setup_structured_logging()
+logger = get_logger(__name__)
+mcp = FastMCP("ZulipChat MCP")
+
+# Global client state
+zulip_client = None
+config_manager = None
 
 
 def get_client() -> Any:

@@ -1,1 +1,3 @@
-from .core.agent_tracker import *  # noqa: F401,F403
+from .core.agent_tracker import AgentTracker  # explicit re-export
+
+__all__ = ["AgentTracker"]

@@ -45,7 +45,7 @@ class AgentTracker:
 
     def get_instance_identity(self) -> dict[str, str]:
         """Get current instance identity from environment.
-
+        
         Returns a dict with:
         - project: Current project name (from git or directory)
         - branch: Current git branch if available
@@ -71,7 +71,7 @@ class AgentTracker:
                 ["git", "rev-parse", "--show-toplevel"],
                 capture_output=True,
                 text=True,
-                timeout=1,
+                timeout=1
             )
             if result.returncode == 0:
                 git_root = Path(result.stdout.strip())
@@ -82,7 +82,7 @@ class AgentTracker:
                     ["git", "branch", "--show-current"],
                     capture_output=True,
                     text=True,
-                    timeout=1,
+                    timeout=1
                 )
                 if branch_result.returncode == 0:
                     identity["branch"] = branch_result.stdout.strip() or "main"
@@ -93,10 +93,10 @@ class AgentTracker:
 
     def register_agent(self, agent_type: str = "claude-code") -> dict[str, Any]:
         """Register an agent instance and save to registry.
-
+        
         Args:
             agent_type: Type of agent (claude-code, gemini, cursor, etc.)
-
+            
         Returns:
             Registration info including stream name and topic
         """
@@ -117,7 +117,7 @@ class AgentTracker:
             "topic": topic,
             "identity": identity,
             "registered_at": datetime.now().isoformat(),
-            "last_active": datetime.now().isoformat(),
+            "last_active": datetime.now().isoformat()
         }
 
         # Save to registry
@@ -129,7 +129,7 @@ class AgentTracker:
             "topic": topic,
             "session_id": self.session_id,
             "identity": identity,
-            "message": f"Agent registered to {stream_name}/{topic}",
+            "message": f"Agent registered to {stream_name}/{topic}"
         }
 
     def _update_agent_registry(self, registration: dict) -> None:
@@ -154,7 +154,7 @@ class AgentTracker:
 
     def get_active_agents(self, hours: int = 24) -> list[dict[str, Any]]:
         """Get list of recently active agents.
-
+        
         Args:
             hours: How many hours back to look for active agents
         """
@@ -186,9 +186,7 @@ class AgentTracker:
             "set_at": None,
         }
 
-    def set_afk(
-        self, enabled: bool, reason: str | None = None, hours: float = 8
-    ) -> dict[str, Any]:
+    def set_afk(self, enabled: bool, reason: str | None = None, hours: float = 8) -> dict[str, Any]:
         """Set AFK state (runtime only)."""
         self.afk_enabled = bool(enabled)
         return {
@@ -203,24 +201,19 @@ class AgentTracker:
         state = self.get_afk_state()
         return state.get("enabled", False)
 
-    def format_agent_message(
-        self,
-        content: str,
-        agent_type: str = "claude-code",
-        require_response: bool = False,
-    ) -> dict[str, Any]:
+    def format_agent_message(self, content: str, agent_type: str = "claude-code", require_response: bool = False) -> dict[str, Any]:
         """Format an agent message with proper routing.
-
+        
         Args:
             content: Message content
             agent_type: Type of agent
             require_response: Whether this message expects a response
-
+        
         Returns:
             Dict with stream, topic, and formatted content
         """
         # Get or create registration
-        if not hasattr(self, "_current_registration"):
+        if not hasattr(self, '_current_registration'):
             self._current_registration = self.register_agent(agent_type)
 
         reg_info = self._current_registration
@@ -233,7 +226,7 @@ class AgentTracker:
             return {
                 "status": "skipped",
                 "reason": "AFK mode is disabled",
-                "would_send_to": f"{reg_info['stream']}/{reg_info['topic']}",
+                "would_send_to": f"{reg_info['stream']}/{reg_info['topic']}"
             }
 
         # Format the message with session info
@@ -246,9 +239,7 @@ class AgentTracker:
         response_id = None
         if require_response:
             response_id = self._create_pending_response(agent_type, content)
-            formatted_content += (
-                f"\n\n_Reply with: @response {response_id} [your message]_"
-            )
+            formatted_content += f"\n\n_Reply with: @response {response_id} [your message]_"
 
         return {
             "status": "ready",
@@ -256,7 +247,7 @@ class AgentTracker:
             "topic": reg_info["topic"],
             "content": formatted_content,
             "response_id": response_id,
-            "afk_enabled": True,
+            "afk_enabled": True
         }
 
     def _create_pending_response(self, agent_type: str, prompt: str) -> str:
@@ -276,7 +267,7 @@ class AgentTracker:
                 "session_id": self.session_id,
                 "prompt": prompt,
                 "created_at": datetime.now().isoformat(),
-                "status": "waiting",
+                "status": "waiting"
             }
 
             # Clean old responses (older than 24 hours)
@@ -310,7 +301,7 @@ class AgentTracker:
                 return {
                     "response": response_data["response"],
                     "responded_at": response_data.get("responded_at"),
-                    "status": "received",
+                    "status": "received"
                 }
 
             return None
