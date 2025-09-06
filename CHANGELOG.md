@@ -73,7 +73,7 @@
 - **Deviation Cost**: Complex setup vs one-line installation of competitors
 
 ### Next Session Priority
-- **Standardization Implementation** (see NEXT-SESSION-PROMPT.md)
+- **Standardization Implementation** (see docs/NEXT-SESSION-PROMPT.md)
   - Remove DuckDB config storage (keep DuckDB for app data only)
   - Simplify ConfigManager to environment variables only
   - Fix pyproject.toml for proper uvx compatibility
