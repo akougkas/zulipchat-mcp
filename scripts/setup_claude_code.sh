@@ -111,7 +111,7 @@ echo -e "${YELLOW}Step 6: Configure Hooks (Optional)${NC}"
 echo "-----------------------------------"
 echo ""
 echo "To enable Claude Code → Zulip notifications:"
-echo -e "  ${GREEN}./hooks/setup_hooks.sh${NC}"
+echo -e "  ${GREEN}./examples/hooks/setup_hooks.sh${NC}"
 echo ""
 
 echo "=================================="

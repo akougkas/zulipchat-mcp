@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from zulip import Client
 
 from .cache import cache_decorator, stream_cache, user_cache
-from .config import ConfigManager
+from ..config import ConfigManager
 
 
 class ZulipMessage(BaseModel):
@@ -173,7 +173,7 @@ class ZulipClientWrapper:
 
     def clear_stream_cache(self) -> None:
         """Clear the stream cache."""
-        from .cache import stream_cache
+        from .core.cache import stream_cache
 
         stream_cache.cache.clear()
 

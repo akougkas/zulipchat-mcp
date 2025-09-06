@@ -1,11 +1,11 @@
 #!/usr/bin/env uv run python
 """
-Interactive test script for ZulipChat MCP Agent Communication System
+Interactive test script for ZulipChat MCP Agent Communication System (legacy)
 Tests all agent-related MCP tools directly
 
 Run with:
-  uv run test_mcp_tools.py
-  uv run test_mcp_tools.py --interactive
+  uv run examples/test_mcp_tools_legacy.py
+  uv run examples/test_mcp_tools_legacy.py --interactive
 """
 
 import json

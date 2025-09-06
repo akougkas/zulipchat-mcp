@@ -28,13 +28,13 @@ Install commands to your Claude Code configuration:
 
 ```bash
 # Install to default location (~/.claude/commands/zulipchat/)
-uv run agent_adapters/claude_code.py install
+uv run examples/adapters/setup_agents.py claude
 
 # Install to custom location
-uv run agent_adapters/claude_code.py install /path/to/custom/dir
+uv run examples/adapters/setup_agents.py claude --dir /path/to/custom/dir
 
 # List available commands
-uv run agent_adapters/claude_code.py list
+uv run examples/adapters/setup_agents.py list
 ```
 
 ### Gemini CLI Installation
@@ -43,16 +43,16 @@ Install commands to your Gemini CLI configuration:
 
 ```bash
 # Install to user scope (default)
-uv run agent_adapters/gemini_cli.py install
+uv run examples/adapters/setup_agents.py gemini
 
 # Install to project scope
-uv run agent_adapters/gemini_cli.py install --scope project
+uv run examples/adapters/setup_agents.py gemini --scope project
 
 # Install to custom location
-uv run agent_adapters/gemini_cli.py install /path/to/custom/dir
+uv run examples/adapters/setup_agents.py gemini --dir /path/to/custom/dir
 
 # List available commands
-uv run agent_adapters/gemini_cli.py list
+uv run examples/adapters/setup_agents.py list
 ```
 
 ### OpenCode Installation
@@ -61,16 +61,16 @@ Install commands to your OpenCode configuration:
 
 ```bash
 # Install to user scope (default)
-uv run agent_adapters/opencode.py install
+uv run examples/adapters/setup_agents.py opencode
 
 # Install to project scope
-uv run agent_adapters/opencode.py install --scope project
+uv run examples/adapters/setup_agents.py opencode --scope project
 
 # Install to custom location
-uv run agent_adapters/opencode.py install /path/to/custom/dir
+uv run examples/adapters/setup_agents.py opencode --dir /path/to/custom/dir
 
 # List available commands
-uv run agent_adapters/opencode.py list
+uv run examples/adapters/setup_agents.py list
 ```
 
 ## Usage Examples
@@ -258,13 +258,13 @@ Test your setup with these commands:
 
 ```bash
 # Test Claude Code adapter
-uv run agent_adapters/claude_code.py list
+uv run examples/adapters/setup_agents.py list
 
 # Test Gemini CLI adapter
-uv run agent_adapters/gemini_cli.py list
+uv run examples/adapters/setup_agents.py list
 
 # Test OpenCode adapter
-uv run agent_adapters/opencode.py list
+uv run examples/adapters/setup_agents.py list
 
 # Check MCP server (if available)
 uv run python -c "from src.zulipchat_mcp.config import ConfigManager; print('Valid' if ConfigManager().validate_config() else 'Invalid')"

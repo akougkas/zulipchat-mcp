@@ -1,6 +1,6 @@
 #!/bin/bash
-# Integration Test Script for ZulipChat MCP with Claude Code
-# This script sets up and tests the complete integration
+# Integration Test Script for ZulipChat MCP with Claude Code (legacy)
+# This script set up end-to-end integration; superseded by examples and docs.
 
 set -e  # Exit on error
 
@@ -132,14 +132,14 @@ echo -e "${YELLOW}Step 6: Installing Claude Code hooks...${NC}"
 echo "----------------------------------------"
 
 # Check if hooks directory exists
-if [ ! -d "hooks" ]; then
-    echo -e "${RED}ERROR: hooks directory not found!${NC}"
+if [ ! -d "examples/hooks" ]; then
+    echo -e "${RED}ERROR: examples/hooks directory not found!${NC}"
     exit 1
 fi
 
 # Run setup script
-chmod +x hooks/setup_hooks.sh
-./hooks/setup_hooks.sh
+chmod +x examples/hooks/setup_hooks.sh
+./examples/hooks/setup_hooks.sh
 
 echo -e "${GREEN}✓ Hooks installed${NC}\n"
 

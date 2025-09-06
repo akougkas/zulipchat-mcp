@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
-from .config import ZulipConfig
+from ..config import ZulipConfig
 
 
 class ScheduledMessage(BaseModel):

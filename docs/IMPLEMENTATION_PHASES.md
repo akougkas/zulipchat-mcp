@@ -14,7 +14,7 @@ Transform the overcomplicated ZulipChat MCP into a **lean, maintainable server**
 # PHASE 1: Foundation & Structure (2 hours)
 *Goal: Create clean directory structure and split bloated server.py*
 
-## Step 1.1: Initial Setup (15 min)
+## Step 1.1: Initial Setup (15 min) ✓ Completed
 ```bash
 # Create new branch
 git checkout -b feat/v2-simplification
@@ -27,7 +27,7 @@ mkdir -p .mcp  # Project-local state directory
 # COMMIT: "feat: create v2 directory structure"
 ```
 
-## Step 1.2: Move Core Files (30 min)
+## Step 1.2: Move Core Files (30 min) ✓ Completed
 Move and organize existing files:
 ```
 src/zulipchat_mcp/
@@ -51,7 +51,7 @@ src/zulipchat_mcp/
 # COMMIT: "refactor: organize core modules into subdirectories"
 ```
 
-## Step 1.3: Split server.py (45 min)
+## Step 1.3: Split server.py (45 min) ✓ Completed
 Current server.py is 1000+ lines. Split into:
 
 **tools/messaging.py** (~200 lines):
@@ -151,7 +151,7 @@ uv run python -m zulipchat_mcp.server
 # COMMIT: "refactor: split server.py into modular tool groups"
 ```
 
-## Step 1.4: Clean Up Imports (30 min)
+## Step 1.4: Clean Up Imports (30 min) ✓ Completed
 - Fix all import paths
 - Remove circular dependencies
 - Update __init__.py files
@@ -168,7 +168,7 @@ uv run pytest tests/ -xvs
 # PHASE 2: Agent Communication System (1.5 hours)
 *Goal: Implement simplified agent-human communication*
 
-## Step 2.1: Simplified Agent Tracker (30 min)
+## Step 2.1: Simplified Agent Tracker (30 min) ✓ Completed
 Create `core/agent_tracker.py`:
 ```python
 import json
@@ -240,7 +240,7 @@ class AgentTracker:
 # COMMIT: "feat: implement minimal agent tracker with project-local state"
 ```
 
-## Step 2.2: Hook Script for Message Handling (30 min)
+## Step 2.2: Hook Script for Message Handling (30 min) ✓ Completed
 Create `examples/hook_handler.py`:
 ```python
 #!/usr/bin/env python3
@@ -281,7 +281,7 @@ if __name__ == "__main__":
 # COMMIT: "feat: add hook handler for agent message routing"
 ```
 
-## Step 2.3: Response Monitor (30 min)
+## Step 2.3: Response Monitor (30 min) ✓ Completed
 Create `examples/response_monitor.py`:
 ```python
 #!/usr/bin/env python3
@@ -329,7 +329,7 @@ if __name__ == "__main__":
 # PHASE 3: Command Chains & Integration (1 hour)
 *Goal: Expose command chains and integrate components*
 
-## Step 3.1: Expose Command Chains (30 min)
+## Step 3.1: Expose Command Chains (30 min) ✓ Completed
 Update `tools/commands.py`:
 ```python
 from mcp.server.fastmcp import FastMCP
@@ -366,7 +366,7 @@ def register_command_tools(mcp: FastMCP):
 # COMMIT: "feat: expose command chains as MCP tools"
 ```
 
-## Step 3.2: AFK Command Handler (30 min)
+## Step 3.2: AFK Command Handler (30 min) ✓ Completed
 Create `examples/afk_command.py`:
 ```python
 #!/usr/bin/env python3
@@ -413,6 +413,7 @@ if __name__ == "__main__":
 *Goal: Ensure everything works and document the system*
 
 ## Step 4.1: Integration Tests (30 min)
+Pending. We will revisit after repository cleanup.
 Create `tests/test_integration.py`:
 ```python
 def test_agent_registration():
@@ -465,6 +466,7 @@ uv run pytest tests/ -xvs
 ```
 
 ## Step 4.2: Update Documentation (30 min)
+In progress. README and docs will be aligned to v2 after codebase cleanup.
 Update `README.md`:
 ```markdown
 # ZulipChat MCP v2.0
@@ -500,7 +502,8 @@ Always:
 # PHASE 5: Cleanup & Optimization (30 min)
 *Goal: Remove old code and optimize*
 
-## Step 5.1: Remove Old Files
+## Step 5.1: Remove Old Files ✓ Completed (soft)
+Legacy modules retained only where needed for compatibility; hooks moved under examples; stream_management marked legacy.
 ```bash
 # Remove overcomplicated files
 rm -rf src/zulipchat_mcp/database.py
@@ -534,16 +537,16 @@ uv run python examples/test_flow.py
 
 ## Architecture Goals ✓
 - [ ] No file > 500 lines
-- [ ] server.py < 100 lines  
-- [ ] Clear separation of concerns
-- [ ] Project-local state (no global filesystem)
+- [x] server.py < 100 lines  
+- [x] Clear separation of concerns
+- [x] Project-local state (no global filesystem)
 
 ## Feature Goals ✓
 - [ ] Single Agents-Channel
-- [ ] Structured topics (type/date/session)
-- [ ] Runtime AFK flag (not persisted)
-- [ ] Blocking wait_for_response
-- [ ] Command chains exposed
+- [x] Structured topics (type/date/session)
+- [x] Runtime AFK flag (not persisted)
+- [x] Blocking wait_for_response
+- [x] Command chains exposed
 
 ## Quality Goals ✓
 - [ ] All tests passing
@@ -570,3 +573,85 @@ A **lean, maintainable MCP server** that:
 5. **Don't Over-Engineer**: If it feels complex, it probably is
 
 Remember: This is about **removing complexity**, not adding features. The goal is a thin MCP protocol layer that enables agent-human communication via Zulip, nothing more.
+
+---
+
+# PHASE 6: Repository Cleanup & Consolidation (45–60 min)
+*Goal: Remove redundancy, consolidate examples, and ensure single-source-of-truth modules before test redesign.*
+
+## Step 6.1: Consolidate Examples (10 min)
+- Move `hooks/` → `examples/hooks/` and update any paths in scripts/docs
+- Move `agent_adapters/` → `examples/adapters/`
+- Keep only one set under `examples/`; delete top-level duplicates
+
+```bash
+git mv hooks examples/hooks
+git mv agent_adapters examples/adapters
+# Update any scripts referring to old paths
+```
+
+## Step 6.2: Eliminate Duplicate Modules (20 min)
+- Source of truth:
+  - `core/`: `agent_tracker.py`, `security.py`, `cache.py`, `exceptions.py`
+  - `utils/`: `logging.py`, `metrics.py`, `health.py`
+- Transitional wrappers exist at `src/zulipchat_mcp/{logging_config.py,metrics.py,health.py,exceptions.py,cache.py,agent_tracker.py}`.
+- Task: Update imports in repo to `core/` and `utils/`, then remove the wrappers.
+
+```bash
+# After updating imports
+git rm src/zulipchat_mcp/{logging_config.py,metrics.py,health.py,exceptions.py,cache.py,agent_tracker.py}
+```
+
+## Step 6.3: Remove Legacy/Unused Tools (10 min)
+- Replace any usage of `tools/stream_management.py` with `tools/streams.py`
+- Delete `tools/stream_management.py` once references are gone
+
+## Step 6.4: Archive or Delete Outdated Scripts (10 min)
+- `scripts/test_mcp_tools.py` and `scripts/test_integration.sh` reference old HTTP tool endpoints
+- Move them to `examples/` as reference or delete if no longer needed
+
+```bash
+git mv scripts/test_mcp_tools.py examples/test_mcp_tools_legacy.py
+git mv scripts/test_integration.sh examples/test_integration_legacy.sh
+```
+
+## Step 6.5: Final Layout Target
+```
+src/zulipchat_mcp/
+  core/        # cache.py, exceptions.py, security.py, agent_tracker.py
+  utils/       # logging.py, metrics.py, health.py
+  tools/       # messaging.py, streams.py, agents.py, search.py, commands.py
+  server.py    # <100 lines, registers tools
+examples/
+  hooks/       # claude_code_bridge.py, setup_hooks.sh, example_settings.json
+  adapters/    # setup_agents.py
+  afk_command.py, hook_handler.py, response_monitor.py
+```
+
+## Acceptance Criteria
+- No duplicate modules at top-level in `src/zulipchat_mcp/` (wrappers removed)
+- No references to legacy `stream_management.py`
+- All example assets live under `examples/`
+- `server.py` remains < 100 lines and only registers tool groups
+
+---
+
+# NEXT SESSION STARTER PROMPT
+
+Perform PHASE 6: Repository Cleanup & Consolidation.
+
+Constraints:
+- Do not run tests yet; focus on structure and imports
+- Use `uv run` only if needed for quick sanity checks, no long-running commands
+- Keep commits atomic with clear messages
+
+Tasks:
+1) Move `hooks/` → `examples/hooks/` and `agent_adapters/` → `examples/adapters/`; update scripts to new paths
+2) Update all imports to use `core/` and `utils/`; remove wrapper modules from `src/zulipchat_mcp/`
+3) Replace references to `tools/stream_management.py` with `tools/streams.py`; delete the legacy file
+4) Move legacy test scripts in `scripts/` to `examples/` (archive as legacy) or delete
+5) Run format/lint/typecheck once structure is stable (no test execution yet)
+
+Deliverables:
+- PR with the above changes
+- Short summary of removed files and updated import paths
