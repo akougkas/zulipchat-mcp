@@ -8,17 +8,17 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.client import ZulipMessage, ZulipStream, ZulipUser
-from src.zulipchat_mcp.exceptions import ConnectionError, ValidationError
+from zulipchat_mcp.client import ZulipMessage, ZulipStream, ZulipUser
+from zulipchat_mcp.exceptions import ConnectionError, ValidationError
 
 
 class TestSendMessageTool:
     """Comprehensive tests for send_message MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_send_message_stream_success(self, mock_get_client):
         """Test successful stream message sending."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.return_value = {"result": "success", "id": 123}
@@ -33,10 +33,10 @@ class TestSendMessageTool:
             "stream", "general", "Hello world!", "test-topic"
         )
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_send_message_private_success(self, mock_get_client):
         """Test successful private message sending."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.return_value = {"result": "success", "id": 456}
@@ -52,7 +52,7 @@ class TestSendMessageTool:
 
     def test_send_message_invalid_type(self):
         """Test send_message with invalid message type."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         result = send_message("invalid", "general", "Hello!", "topic")
 
@@ -61,7 +61,7 @@ class TestSendMessageTool:
 
     def test_send_message_stream_missing_topic(self):
         """Test stream message without required topic."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         result = send_message("stream", "general", "Hello!")
 
@@ -70,7 +70,7 @@ class TestSendMessageTool:
 
     def test_send_message_invalid_stream_name(self):
         """Test send_message with invalid stream name."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         result = send_message("stream", "invalid<script>", "Hello!", "topic")
 
@@ -79,17 +79,17 @@ class TestSendMessageTool:
 
     def test_send_message_invalid_topic(self):
         """Test send_message with invalid topic."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         result = send_message("stream", "general", "Hello!", "invalid<script>topic")
 
         assert result["status"] == "error"
         assert "Invalid topic" in result["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_send_message_api_failure(self, mock_get_client):
         """Test send_message when API returns failure."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.return_value = {
@@ -103,10 +103,10 @@ class TestSendMessageTool:
         assert result["status"] == "error"
         assert "Stream does not exist" in result["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_send_message_sanitizes_content(self, mock_get_client):
         """Test that message content gets sanitized."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.return_value = {"result": "success", "id": 123}
@@ -118,10 +118,10 @@ class TestSendMessageTool:
         called_args = mock_client.send_message.call_args[0]
         assert "&lt;script&gt;" in called_args[2]  # Content should be HTML escaped
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_send_message_exception_handling(self, mock_get_client):
         """Test exception handling in send_message."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.side_effect = ValueError("Invalid input")
@@ -136,10 +136,10 @@ class TestSendMessageTool:
 class TestGetMessagesTool:
     """Comprehensive tests for get_messages MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_messages_from_stream(self, mock_get_client):
         """Test getting messages from a specific stream."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         mock_message = ZulipMessage(
             id=1,
@@ -164,10 +164,10 @@ class TestGetMessagesTool:
         assert result[0]["stream"] == "general"
         assert result[0]["topic"] == "topic1"
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_messages_all_streams(self, mock_get_client):
         """Test getting messages from all streams."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         mock_message = ZulipMessage(
             id=2,
@@ -190,7 +190,7 @@ class TestGetMessagesTool:
 
     def test_get_messages_invalid_stream_name(self):
         """Test get_messages with invalid stream name."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         result = get_messages("invalid<script>stream")
 
@@ -200,7 +200,7 @@ class TestGetMessagesTool:
 
     def test_get_messages_invalid_topic(self):
         """Test get_messages with invalid topic."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         result = get_messages("general", "invalid<script>topic")
 
@@ -210,7 +210,7 @@ class TestGetMessagesTool:
 
     def test_get_messages_invalid_hours_back(self):
         """Test get_messages with invalid hours_back."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         result = get_messages("general", hours_back=200)  # Max is 168
 
@@ -220,7 +220,7 @@ class TestGetMessagesTool:
 
     def test_get_messages_invalid_limit(self):
         """Test get_messages with invalid limit."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         result = get_messages("general", limit=150)  # Max is 100
 
@@ -228,10 +228,10 @@ class TestGetMessagesTool:
         assert "error" in result[0]
         assert "limit must be between 1 and 100" in result[0]["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_messages_connection_error(self, mock_get_client):
         """Test get_messages with connection error."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         mock_client = Mock()
         mock_client.get_messages_from_stream.side_effect = ConnectionError(
@@ -249,10 +249,10 @@ class TestGetMessagesTool:
 class TestSearchMessagesTool:
     """Comprehensive tests for search_messages MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_search_messages_success(self, mock_get_client):
         """Test successful message search."""
-        from src.zulipchat_mcp.server import search_messages
+        from zulipchat_mcp.server import search_messages
 
         mock_message = ZulipMessage(
             id=1,
@@ -279,7 +279,7 @@ class TestSearchMessagesTool:
 
     def test_search_messages_empty_query(self):
         """Test search with empty query."""
-        from src.zulipchat_mcp.server import search_messages
+        from zulipchat_mcp.server import search_messages
 
         result = search_messages("", 50)
 
@@ -289,7 +289,7 @@ class TestSearchMessagesTool:
 
     def test_search_messages_invalid_limit(self):
         """Test search with invalid limit."""
-        from src.zulipchat_mcp.server import search_messages
+        from zulipchat_mcp.server import search_messages
 
         result = search_messages("test", 150)  # Max is 100
 
@@ -297,10 +297,10 @@ class TestSearchMessagesTool:
         assert "error" in result[0]
         assert "limit must be between 1 and 100" in result[0]["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_search_messages_sanitizes_query(self, mock_get_client):
         """Test that search query gets sanitized."""
-        from src.zulipchat_mcp.server import search_messages
+        from zulipchat_mcp.server import search_messages
 
         mock_client = Mock()
         mock_client.search_messages.return_value = []
@@ -315,10 +315,10 @@ class TestSearchMessagesTool:
 class TestStreamsTool:
     """Comprehensive tests for get_streams MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_streams_success(self, mock_get_client):
         """Test successful streams retrieval."""
-        from src.zulipchat_mcp.server import get_streams
+        from zulipchat_mcp.server import get_streams
 
         mock_stream = ZulipStream(
             stream_id=1,
@@ -337,10 +337,10 @@ class TestStreamsTool:
         assert result[0]["name"] == "general"
         assert result[0]["is_private"] is False
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_streams_connection_error(self, mock_get_client):
         """Test get_streams with connection error."""
-        from src.zulipchat_mcp.server import get_streams
+        from zulipchat_mcp.server import get_streams
 
         mock_client = Mock()
         mock_client.get_streams.side_effect = ConnectionError("API unavailable")
@@ -356,10 +356,10 @@ class TestStreamsTool:
 class TestUsersTool:
     """Comprehensive tests for get_users MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_users_success(self, mock_get_client):
         """Test successful users retrieval."""
-        from src.zulipchat_mcp.server import get_users
+        from zulipchat_mcp.server import get_users
 
         mock_user = ZulipUser(
             user_id=1,
@@ -379,10 +379,10 @@ class TestUsersTool:
         assert result[0]["full_name"] == "John Doe"
         assert result[0]["is_bot"] is False
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_users_error_handling(self, mock_get_client):
         """Test get_users error handling."""
-        from src.zulipchat_mcp.server import get_users
+        from zulipchat_mcp.server import get_users
 
         mock_client = Mock()
         mock_client.get_users.side_effect = Exception("Unexpected error")
@@ -398,10 +398,10 @@ class TestUsersTool:
 class TestAddReactionTool:
     """Comprehensive tests for add_reaction MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_add_reaction_success(self, mock_get_client):
         """Test successful reaction addition."""
-        from src.zulipchat_mcp.server import add_reaction
+        from zulipchat_mcp.server import add_reaction
 
         mock_client = Mock()
         mock_client.add_reaction.return_value = {"result": "success"}
@@ -415,7 +415,7 @@ class TestAddReactionTool:
 
     def test_add_reaction_invalid_message_id(self):
         """Test add_reaction with invalid message ID."""
-        from src.zulipchat_mcp.server import add_reaction
+        from zulipchat_mcp.server import add_reaction
 
         result = add_reaction(-1, "thumbs_up")
 
@@ -424,17 +424,17 @@ class TestAddReactionTool:
 
     def test_add_reaction_invalid_emoji(self):
         """Test add_reaction with invalid emoji name."""
-        from src.zulipchat_mcp.server import add_reaction
+        from zulipchat_mcp.server import add_reaction
 
         result = add_reaction(123, "invalid<script>emoji")
 
         assert result["status"] == "error"
         assert "Invalid emoji name" in result["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_add_reaction_api_failure(self, mock_get_client):
         """Test add_reaction when API fails."""
-        from src.zulipchat_mcp.server import add_reaction
+        from zulipchat_mcp.server import add_reaction
 
         mock_client = Mock()
         mock_client.add_reaction.return_value = {
@@ -452,10 +452,10 @@ class TestAddReactionTool:
 class TestEditMessageTool:
     """Comprehensive tests for edit_message MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_edit_message_content_success(self, mock_get_client):
         """Test successful message content editing."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         mock_client = Mock()
         mock_client.edit_message.return_value = {"result": "success"}
@@ -467,10 +467,10 @@ class TestEditMessageTool:
         assert result["message"] == "Message edited"
         mock_client.edit_message.assert_called_once_with(123, "Updated content", None)
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_edit_message_topic_success(self, mock_get_client):
         """Test successful message topic editing."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         mock_client = Mock()
         mock_client.edit_message.return_value = {"result": "success"}
@@ -483,7 +483,7 @@ class TestEditMessageTool:
 
     def test_edit_message_invalid_message_id(self):
         """Test edit_message with invalid message ID."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         result = edit_message(0, content="New content")
 
@@ -492,7 +492,7 @@ class TestEditMessageTool:
 
     def test_edit_message_invalid_topic(self):
         """Test edit_message with invalid topic."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         result = edit_message(123, topic="invalid<script>topic")
 
@@ -501,17 +501,17 @@ class TestEditMessageTool:
 
     def test_edit_message_no_changes(self):
         """Test edit_message without content or topic."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         result = edit_message(123)
 
         assert result["status"] == "error"
         assert "Must provide content or topic to edit" in result["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_edit_message_sanitizes_content(self, mock_get_client):
         """Test that edited content gets sanitized."""
-        from src.zulipchat_mcp.server import edit_message
+        from zulipchat_mcp.server import edit_message
 
         mock_client = Mock()
         mock_client.edit_message.return_value = {"result": "success"}
@@ -526,10 +526,10 @@ class TestEditMessageTool:
 class TestGetDailySummaryTool:
     """Comprehensive tests for get_daily_summary MCP tool."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_daily_summary_success(self, mock_get_client):
         """Test successful daily summary generation."""
-        from src.zulipchat_mcp.server import get_daily_summary
+        from zulipchat_mcp.server import get_daily_summary
 
         mock_summary = {
             "total_messages": 10,
@@ -551,7 +551,7 @@ class TestGetDailySummaryTool:
 
     def test_get_daily_summary_invalid_stream(self):
         """Test daily summary with invalid stream name."""
-        from src.zulipchat_mcp.server import get_daily_summary
+        from zulipchat_mcp.server import get_daily_summary
 
         result = get_daily_summary(["invalid<script>stream"], 24)
 
@@ -560,17 +560,17 @@ class TestGetDailySummaryTool:
 
     def test_get_daily_summary_invalid_hours_back(self):
         """Test daily summary with invalid hours_back."""
-        from src.zulipchat_mcp.server import get_daily_summary
+        from zulipchat_mcp.server import get_daily_summary
 
         result = get_daily_summary(["general"], 200)  # Max is 168
 
         assert result["status"] == "error"
         assert "hours_back must be between 1 and 168" in result["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_daily_summary_multiple_streams(self, mock_get_client):
         """Test daily summary with multiple streams."""
-        from src.zulipchat_mcp.server import get_daily_summary
+        from zulipchat_mcp.server import get_daily_summary
 
         mock_summary = {
             "total_messages": 25,
@@ -597,10 +597,10 @@ class TestGetDailySummaryTool:
 class TestMCPResources:
     """Tests for MCP resources (stream messages, streams list, users list)."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_get_stream_messages_resource(self, mock_get_client):
         """Test stream messages resource."""
-        from src.zulipchat_mcp.server import get_stream_messages
+        from zulipchat_mcp.server import get_stream_messages
 
         mock_message = ZulipMessage(
             id=1,
@@ -626,17 +626,17 @@ class TestMCPResources:
 
     def test_get_stream_messages_invalid_stream(self):
         """Test stream messages resource with invalid stream."""
-        from src.zulipchat_mcp.server import get_stream_messages
+        from zulipchat_mcp.server import get_stream_messages
 
         result = get_stream_messages("invalid<script>stream")
 
         assert len(result) == 1
         assert "Invalid stream name" in result[0].text
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_list_streams_resource(self, mock_get_client):
         """Test streams list resource."""
-        from src.zulipchat_mcp.server import list_streams
+        from zulipchat_mcp.server import list_streams
 
         mock_stream = ZulipStream(
             stream_id=1,
@@ -656,10 +656,10 @@ class TestMCPResources:
         assert "general" in result[0].text
         assert "📢 Public" in result[0].text
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_list_users_resource(self, mock_get_client):
         """Test users list resource."""
-        from src.zulipchat_mcp.server import list_users
+        from zulipchat_mcp.server import list_users
 
         active_user = ZulipUser(
             user_id=1,
@@ -694,10 +694,10 @@ class TestMCPResources:
 class TestMCPPrompts:
     """Tests for MCP prompts (daily summary, morning briefing, catch-up)."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_daily_summary_prompt(self, mock_get_client):
         """Test daily summary prompt."""
-        from src.zulipchat_mcp.server import daily_summary_prompt
+        from zulipchat_mcp.server import daily_summary_prompt
 
         mock_summary = {
             "total_messages": 50,
@@ -723,10 +723,10 @@ class TestMCPPrompts:
         assert "Stream Activity" in content
         assert "Most Active Users" in content
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_morning_briefing_prompt(self, mock_get_client):
         """Test morning briefing prompt."""
-        from src.zulipchat_mcp.server import morning_briefing_prompt
+        from zulipchat_mcp.server import morning_briefing_prompt
 
         mock_yesterday = {
             "total_messages": 25,
@@ -754,10 +754,10 @@ class TestMCPPrompts:
         assert "This Week" in content
         assert "Most Active Streams" in content
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_catch_up_prompt(self, mock_get_client):
         """Test catch-up prompt."""
-        from src.zulipchat_mcp.server import catch_up_prompt
+        from zulipchat_mcp.server import catch_up_prompt
 
         mock_message = {
             "id": 1,
@@ -790,7 +790,7 @@ class TestMCPPrompts:
 
     def test_catch_up_prompt_invalid_hours(self):
         """Test catch-up prompt with invalid hours."""
-        from src.zulipchat_mcp.server import catch_up_prompt
+        from zulipchat_mcp.server import catch_up_prompt
 
         result = catch_up_prompt(["general"], 30)  # Max is 24
 
@@ -803,7 +803,7 @@ class TestSecurityFunctions:
 
     def test_sanitize_input_comprehensive(self):
         """Test comprehensive input sanitization."""
-        from src.zulipchat_mcp.server import sanitize_input
+        from zulipchat_mcp.server import sanitize_input
 
         # Test HTML escaping
         result = sanitize_input("<script>alert('xss')</script>")
@@ -820,7 +820,7 @@ class TestSecurityFunctions:
 
     def test_validate_stream_name_comprehensive(self):
         """Test comprehensive stream name validation."""
-        from src.zulipchat_mcp.server import validate_stream_name
+        from zulipchat_mcp.server import validate_stream_name
 
         # Valid names
         assert validate_stream_name("general")
@@ -836,7 +836,7 @@ class TestSecurityFunctions:
 
     def test_validate_topic_comprehensive(self):
         """Test comprehensive topic validation."""
-        from src.zulipchat_mcp.server import validate_topic
+        from zulipchat_mcp.server import validate_topic
 
         # Valid topics
         assert validate_topic("Bug fixes")
@@ -850,7 +850,7 @@ class TestSecurityFunctions:
 
     def test_validate_emoji_comprehensive(self):
         """Test comprehensive emoji validation."""
-        from src.zulipchat_mcp.security import validate_emoji
+        from zulipchat_mcp.security import validate_emoji
 
         # Valid emojis
         assert validate_emoji("thumbs_up")
@@ -867,10 +867,10 @@ class TestSecurityFunctions:
 class TestErrorHandling:
     """Test comprehensive error handling scenarios."""
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_connection_errors_handled(self, mock_get_client):
         """Test that ConnectionError exceptions are handled properly."""
-        from src.zulipchat_mcp.server import get_messages
+        from zulipchat_mcp.server import get_messages
 
         mock_client = Mock()
         mock_client.get_messages_from_stream.side_effect = ConnectionError(
@@ -884,10 +884,10 @@ class TestErrorHandling:
         assert "error" in result[0]
         assert "Failed to retrieve messages" in result[0]["error"]
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_validation_errors_handled(self, mock_get_client):
         """Test that ValidationError exceptions are handled properly."""
-        from src.zulipchat_mcp.server import send_message
+        from zulipchat_mcp.server import send_message
 
         mock_client = Mock()
         mock_client.send_message.side_effect = ValidationError("Invalid input")
@@ -898,10 +898,10 @@ class TestErrorHandling:
         assert result["status"] == "error"
         assert "error" in result
 
-    @patch("src.zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.get_client")
     def test_unexpected_errors_handled(self, mock_get_client):
         """Test that unexpected exceptions are handled gracefully."""
-        from src.zulipchat_mcp.server import get_streams
+        from zulipchat_mcp.server import get_streams
 
         mock_client = Mock()
         mock_client.get_streams.side_effect = Exception("Unexpected error")

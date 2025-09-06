@@ -1,10 +1,10 @@
-"""Configuration management for ZulipChat MCP Server."""
+"""Configuration management for ZulipChat MCP Server.
 
-import json
+CLI arguments with .env fallback - matches context7 pattern.
+"""
+
 import os
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
 
 try:
     from dotenv import load_dotenv
@@ -33,84 +33,92 @@ class ZulipConfig:
 
 
 class ConfigManager:
-    """Handle configuration from multiple sources with priority order."""
+    """CLI-based configuration with .env fallback for development."""
 
-    def __init__(self) -> None:
-        self.config = self._load_config()
-
-    def _load_config(self) -> ZulipConfig:
-        """Load configuration with priority: env vars > config file."""
-        # Get configuration values
-        email = self._get_email()
-        api_key = self._get_api_key()
-        site = self._get_site()
-        debug = self._get_debug()
-        port = self._get_port()
-
-        # Bot credentials (optional)
-        bot_email = self._get_bot_email()
-        bot_api_key = self._get_bot_api_key()
-        bot_name = self._get_bot_name()
-        bot_avatar_url = self._get_bot_avatar_url()
-
-        return ZulipConfig(
+    def __init__(
+        self,
+        email: str | None = None,
+        api_key: str | None = None,
+        site: str | None = None,
+        bot_email: str | None = None,
+        bot_api_key: str | None = None,
+        bot_name: str | None = None,
+        bot_avatar_url: str | None = None,
+        debug: bool = False,
+    ) -> None:
+        self.config = self._load_config(
             email=email,
             api_key=api_key,
             site=site,
-            debug=debug,
-            port=port,
             bot_email=bot_email,
             bot_api_key=bot_api_key,
             bot_name=bot_name,
             bot_avatar_url=bot_avatar_url,
+            debug=debug,
+        )
+
+    def _load_config(
+        self,
+        email: str | None = None,
+        api_key: str | None = None,
+        site: str | None = None,
+        bot_email: str | None = None,
+        bot_api_key: str | None = None,
+        bot_name: str | None = None,
+        bot_avatar_url: str | None = None,
+        debug: bool = False,
+    ) -> ZulipConfig:
+        """Load configuration from CLI args with .env fallback."""
+        # Priority: CLI args > environment variables > error
+        final_email = email or self._get_email()
+        final_api_key = api_key or self._get_api_key()
+        final_site = site or self._get_site()
+        final_debug = debug or self._get_debug()
+        final_port = self._get_port()
+
+        # Bot credentials (optional)
+        final_bot_email = bot_email or self._get_bot_email()
+        final_bot_api_key = bot_api_key or self._get_bot_api_key()
+        final_bot_name = bot_name or self._get_bot_name()
+        final_bot_avatar_url = bot_avatar_url or self._get_bot_avatar_url()
+
+        return ZulipConfig(
+            email=final_email,
+            api_key=final_api_key,
+            site=final_site,
+            debug=final_debug,
+            port=final_port,
+            bot_email=final_bot_email,
+            bot_api_key=final_bot_api_key,
+            bot_name=final_bot_name,
+            bot_avatar_url=final_bot_avatar_url,
         )
 
     def _get_email(self) -> str:
-        """Get Zulip email with fallback chain."""
-        # 1. Environment variable
+        """Get Zulip email from environment variable."""
         if email := os.getenv("ZULIP_EMAIL"):
             return email
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "email" in config_data:
-                return config_data["email"]
-
         raise ValueError(
-            "No Zulip email found. Please set ZULIP_EMAIL environment variable "
-            "or add 'email' to your config file."
+            "No Zulip email found. Please provide --zulip-email argument "
+            "or set ZULIP_EMAIL environment variable."
         )
 
     def _get_api_key(self) -> str:
-        """Get Zulip API key with fallback chain."""
-        # 1. Environment variable
+        """Get Zulip API key from environment variable."""
         if key := os.getenv("ZULIP_API_KEY"):
             return key
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "api_key" in config_data:
-                return config_data["api_key"]
-
         raise ValueError(
-            "No Zulip API key found. Please set ZULIP_API_KEY environment variable "
-            "or add 'api_key' to your config file."
+            "No Zulip API key found. Please provide --zulip-api-key argument "
+            "or set ZULIP_API_KEY environment variable."
         )
 
     def _get_site(self) -> str:
-        """Get Zulip site URL with fallback chain."""
-        # 1. Environment variable
+        """Get Zulip site URL from environment variable."""
         if site := os.getenv("ZULIP_SITE"):
             return site
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "site" in config_data:
-                return config_data["site"]
-
         raise ValueError(
-            "No Zulip site URL found. Please set ZULIP_SITE environment variable "
-            "or add 'site' to your config file."
+            "No Zulip site URL found. Please provide --zulip-site argument "
+            "or set ZULIP_SITE environment variable."
         )
 
     def _get_debug(self) -> bool:
@@ -124,19 +132,6 @@ class ConfigManager:
             return int(os.getenv("MCP_PORT", "3000"))
         except ValueError:
             return 3000
-
-    def _load_config_file(self) -> dict[str, Any] | None:
-        """Load configuration from JSON file."""
-        config_path = Path.home() / ".config" / "zulipchat-mcp" / "config.json"
-
-        if config_path.exists():
-            try:
-                return json.loads(config_path.read_text())
-            except (json.JSONDecodeError, OSError) as e:
-                if self._get_debug():
-                    print(f"Warning: Could not load config from {config_path}: {e}")
-
-        return None
 
     def validate_config(self) -> bool:
         """Validate that all required configuration is present."""
@@ -168,55 +163,19 @@ class ConfigManager:
 
     def _get_bot_email(self) -> str | None:
         """Get bot email for AI agents."""
-        # 1. Environment variable
-        if email := os.getenv("ZULIP_BOT_EMAIL"):
-            return email
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "bot_email" in config_data:
-                return config_data["bot_email"]
-
-        return None
+        return os.getenv("ZULIP_BOT_EMAIL")
 
     def _get_bot_api_key(self) -> str | None:
         """Get bot API key for AI agents."""
-        # 1. Environment variable
-        if key := os.getenv("ZULIP_BOT_API_KEY"):
-            return key
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "bot_api_key" in config_data:
-                return config_data["bot_api_key"]
-
-        return None
+        return os.getenv("ZULIP_BOT_API_KEY")
 
     def _get_bot_name(self) -> str:
         """Get bot display name."""
-        # 1. Environment variable
-        if name := os.getenv("ZULIP_BOT_NAME"):
-            return name
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "bot_name" in config_data:
-                return config_data["bot_name"]
-
-        return "Claude Code"
+        return os.getenv("ZULIP_BOT_NAME", "Claude Code")
 
     def _get_bot_avatar_url(self) -> str | None:
         """Get bot avatar URL."""
-        # 1. Environment variable
-        if url := os.getenv("ZULIP_BOT_AVATAR_URL"):
-            return url
-
-        # 2. Config file
-        if config_data := self._load_config_file():
-            if "bot_avatar_url" in config_data:
-                return config_data["bot_avatar_url"]
-
-        return None
+        return os.getenv("ZULIP_BOT_AVATAR_URL")
 
     def has_bot_credentials(self) -> bool:
         """Check if bot credentials are configured."""

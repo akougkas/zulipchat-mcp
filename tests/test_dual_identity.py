@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager, ZulipConfig
-from src.zulipchat_mcp.services.agent_registry import AgentRegistry
-from src.zulipchat_mcp.tools.agent_communication import AgentCommunication
+from zulipchat_mcp.client import ZulipClientWrapper
+from zulipchat_mcp.config import ConfigManager, ZulipConfig
+from zulipchat_mcp.services.agent_registry import AgentRegistry
+from zulipchat_mcp.tools.agent_communication import AgentCommunication
 
 
 class TestDualIdentityConfig:
@@ -81,7 +81,7 @@ class TestDualIdentityConfig:
 class TestZulipClientWrapper:
     """Test ZulipClientWrapper with dual identity support."""
 
-    @patch("src.zulipchat_mcp.client.Client")
+    @patch("zulipchat_mcp.client.Client")
     def test_client_with_user_identity(self, mock_client_class):
         """Test client initialization with user identity."""
         mock_client = Mock()
@@ -106,7 +106,7 @@ class TestZulipClientWrapper:
         assert client.current_email == "user@example.com"
         mock_client_class.assert_called_once()
 
-    @patch("src.zulipchat_mcp.client.Client")
+    @patch("zulipchat_mcp.client.Client")
     def test_client_with_bot_identity(self, mock_client_class):
         """Test client initialization with bot identity."""
         mock_client = Mock()
@@ -136,7 +136,7 @@ class TestZulipClientWrapper:
         assert client.current_email == "bot@example.com"
         mock_client_class.assert_called_once()
 
-    @patch("src.zulipchat_mcp.client.Client")
+    @patch("zulipchat_mcp.client.Client")
     def test_client_fallback_when_bot_requested_but_unavailable(
         self, mock_client_class
     ):
@@ -333,9 +333,9 @@ class TestAgentRegistry:
 class TestServerIntegration:
     """Test server.py integration with bot clients."""
 
-    @patch("src.zulipchat_mcp.server.get_bot_client")
-    @patch("src.zulipchat_mcp.server.get_client")
-    @patch("src.zulipchat_mcp.server.config_manager")
+    @patch("zulipchat_mcp.server.get_bot_client")
+    @patch("zulipchat_mcp.server.get_client")
+    @patch("zulipchat_mcp.server.config_manager")
     def test_agent_tools_use_bot_client_when_available(
         self, mock_config, mock_get_client, mock_get_bot_client
     ):
@@ -350,7 +350,7 @@ class TestServerIntegration:
         mock_get_bot_client.return_value = mock_bot_client
 
         # Import and test the logic
-        from src.zulipchat_mcp.server import get_bot_client, get_client
+        from zulipchat_mcp.server import get_bot_client, get_client
 
         # When bot credentials exist, should use bot client
         bot_client = get_bot_client()

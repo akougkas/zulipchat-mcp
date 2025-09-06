@@ -54,73 +54,152 @@ AI: Creating your daily digest...
 
 ## Quick Start
 
-### Claude Code (Current Setup)
 ```bash
-# Clone and setup for development:
-git clone https://github.com/akougkas/zulipchat-mcp.git
-cd zulipchat-mcp
-uv sync
-
-# Add to Claude Code:
-claude mcp add zulipchat uv run zulipchat-mcp
-
-# Configure credentials in Claude Code when prompted:
-# - ZULIP_EMAIL: your-email@domain.com  
-# - ZULIP_API_KEY: your-api-key
-# - ZULIP_SITE: https://your-org.zulipchat.com
-# - ZULIP_BOT_EMAIL: bot-email@domain.com (optional)
-# - ZULIP_BOT_API_KEY: bot-api-key (optional)
-```
-
-### Coming Soon: Standard MCP Installation
-```bash
-# Next version will support:
-uvx zulipchat-mcp
-claude mcp add zulipchat
-# (Credentials managed by Claude Code automatically)
+uvx zulipchat-mcp --zulip-email YOUR_EMAIL --zulip-api-key YOUR_API_KEY --zulip-site YOUR_SITE
 ```
 
 ## Installation
 
-### For Claude Desktop
+<details>
+<summary><strong>Install in Claude Desktop</strong></summary>
 
-Add to `claude_desktop_config.json`:
+### Local Server Connection
 
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-### For Cursor / Continue / Windsurf
-
-Same configuration format - just add to your client's MCP config:
+Open Claude Desktop developer settings and edit your `claude_desktop_config.json` file to add the following configuration:
 
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ]
     }
   }
 }
 ```
+
+</details>
+
+<details>
+<summary><strong>Install in Claude Code</strong></summary>
+
+```bash
+claude mcp add zulipchat -- uvx zulipchat-mcp --zulip-email YOUR_EMAIL --zulip-api-key YOUR_API_KEY --zulip-site YOUR_SITE
+```
+
+</details>
+
+<details>
+<summary><strong>Install in VS Code</strong></summary>
+
+```json
+{
+  "mcp.servers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Install in Cursor</strong></summary>
+
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Install in Gemini CLI</strong></summary>
+
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Install in Opencode</strong></summary>
+
+```json
+{
+  "mcp": {
+    "zulipchat": {
+      "type": "local",
+      "command": [
+        "uvx", "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ],
+      "enabled": true
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Install in Crush CLI</strong></summary>
+
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-email", "YOUR_EMAIL",
+        "--zulip-api-key", "YOUR_API_KEY",
+        "--zulip-site", "YOUR_SITE"
+      ]
+    }
+  }
+}
+```
+
+</details>
 
 
 ## Available Tools
@@ -200,27 +279,19 @@ You: "Edit my last message to fix the meeting time to 3pm"
 AI: ✓ Message updated
 ```
 
-## Configuration Options
+## Configuration
 
-### Environment Variables
+Pass credentials as CLI arguments (recommended) or use environment variables for development:
+
 ```bash
-export ZULIP_EMAIL="bot@zulip.com"
-export ZULIP_API_KEY="your-key"
-export ZULIP_SITE="https://org.zulipchat.com"
-```
+# CLI arguments (for MCP clients)
+--zulip-email YOUR_EMAIL --zulip-api-key YOUR_API_KEY --zulip-site YOUR_SITE
 
-### Config File
-Create `~/.config/zulipchat-mcp/config.json`:
-```json
-{
-  "email": "bot@zulip.com",
-  "api_key": "your-key",
-  "site": "https://org.zulipchat.com"
-}
+# Environment variables (for development)
+export ZULIP_EMAIL="your-email@domain.com"
+export ZULIP_API_KEY="your-api-key" 
+export ZULIP_SITE="https://your-org.zulipchat.com"
 ```
-
-### Direct in MCP Client
-Pass credentials directly in your MCP client configuration (see installation section).
 
 ## Development
 

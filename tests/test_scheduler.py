@@ -24,8 +24,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import httpx
 import pytest
 
-from src.zulipchat_mcp.config import ZulipConfig
-from src.zulipchat_mcp.scheduler import (
+from zulipchat_mcp.config import ZulipConfig
+from zulipchat_mcp.scheduler import (
     MessageScheduler,
     ScheduledMessage,
     cancel_scheduled_message,
@@ -474,7 +474,7 @@ class TestDailyStandup:
         mock_client.post.return_value = mock_response
 
         # Mock datetime.now() to control the scheduling
-        with patch("src.zulipchat_mcp.scheduler.datetime") as mock_datetime:
+        with patch("zulipchat_mcp.scheduler.datetime") as mock_datetime:
             # Set a specific Monday
             mock_datetime.now.return_value = datetime(2024, 1, 15, 8, 0, 0)  # Monday
             mock_datetime.side_effect = lambda *args, **kwargs: datetime(
