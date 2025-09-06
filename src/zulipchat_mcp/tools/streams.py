@@ -75,8 +75,8 @@ def rename_stream(stream_id: int, new_name: str) -> dict[str, Any]:
                     }
 
                 client = _get_client()
-                request = {"new_name": new_name}
-                result = client.client.update_stream(stream_id, request)
+                request = {"stream_id": stream_id, "new_name": new_name}
+                result = client.client.update_stream(request)
 
                 if result.get("result") == "success":
                     return {"status": "success", "message": "Stream renamed"}

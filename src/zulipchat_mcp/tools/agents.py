@@ -73,8 +73,9 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
 
             # Check if Agents-Channel stream exists
             client = _get_client_bot()
-            streams = client.get_streams()
-            stream_exists = any(s.name == "Agents-Channel" for s in streams)
+            response = client.get_streams()
+            streams = response.get("streams", []) if response.get("result") == "success" else []
+            stream_exists = any(s.get("name") == "Agents-Channel" for s in streams)
 
             result = {
                 "status": "success",
@@ -191,7 +192,7 @@ def send_agent_status(
 def request_user_input(
     agent_id: str, question: str, context: str = "", options: list[str] | None = None
 ) -> dict[str, Any]:
-    """Request input from user."""
+    """Request input from user via Zulip message."""
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "request_user_input"}):
         track_tool_call("request_user_input")
         try:
@@ -216,7 +217,48 @@ def request_user_input(
                 ),
             )
 
-            return {"status": "success", "request_id": request_id}
+            # Format message content
+            message_content = f"""🤖 **Agent Request**
+
+**Question**: {question}
+
+**Context**: {context}"""
+
+            if options:
+                message_content += "\n\n**Options**:\n"
+                for i, option in enumerate(options, 1):
+                    message_content += f"{i}. {option}\n"
+                message_content += "\nReply with the number of your choice or type your response."
+            else:
+                message_content += "\n\nPlease respond with your answer."
+
+            message_content += f"\n\n*Request ID: `{request_id}`*"
+
+            # Get agent info to determine user
+            agent_data = db.query_one(
+                "SELECT agent_type, metadata FROM agents WHERE agent_id = ?",
+                [agent_id]
+            )
+
+            if not agent_data:
+                return {"status": "error", "error": "Agent not found"}
+
+            agent_type = agent_data[0]
+
+            # For now, send to Agents-Channel stream since we don't have user mapping
+            # TODO: In future, implement proper user detection from agent metadata
+            from ..tools.messaging import send_message
+            result = send_message(
+                message_type="stream",
+                to="Agents-Channel",
+                content=message_content,
+                topic=f"User Input Request - {agent_type}"
+            )
+
+            if result.get("status") != "success":
+                return {"status": "error", "error": f"Failed to send message: {result.get('error')}"}
+
+            return {"status": "success", "request_id": request_id, "message_sent": True}
         except Exception as e:
             track_tool_error("request_user_input", type(e).__name__)
             return {"status": "error", "error": str(e)}

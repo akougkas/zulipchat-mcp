@@ -1,6 +1,0 @@
-{
-  "command": "uv",
-  "args": ["run", "--directory", "/home/akougkas/projects/zulipchat-mcp", "zulipchat-mcp"],
-  "name": "zulipchat",
-  "description": "ZulipChat MCP Server for Zulip integration"
-}
