@@ -2,6 +2,16 @@
 
 AI agent instructions for ZulipChat MCP Server development.
 
+## Agent Discovery for Multi-Platform AI Systems
+
+When working with AI assistants (Claude, Gemini, GPT), specialized subagents are available in the `.claude/agents/` directory (or equivalent for your platform). Each agent is optimized for specific computational needs:
+
+- **High-Reasoning (Opus)**: orchestrator, code-architect, debugger
+- **Balanced (Sonnet)**: code-writer, test-implementer
+- **Fast (Haiku)**: api-researcher, pattern-analyzer
+
+Use the orchestrator for complex multi-step tasks, letting it coordinate the team efficiently.
+
 ## Project Overview
 
 ZulipChat MCP is a **professional Model Context Protocol server** enabling AI agents to communicate with humans via Zulip. **v2.0 architectural refactor COMPLETE** with sophisticated bot identity system and optimized performance.
@@ -32,10 +42,6 @@ uv run zulipchat-mcp         # Server initializes DuckDB + starts MCP
 # 3. Connect Claude Code to MCP
 claude mcp add zulipchat uv run zulipchat-mcp
 
-# 4. Test in Claude Code - try these tools:
-# - get_streams (works) ✅
-# - register_agent (works) ✅ 
-# - get_messages (needs debugging) ❌
 ```
 
 ## Current Status & Next Priorities
@@ -48,24 +54,6 @@ claude mcp add zulipchat uv run zulipchat-mcp
 4. **Integration**: Claude Code successfully connected (`claude mcp add zulipchat`)
 5. **Tools Working**: `get_streams`, `register_agent`, database operations
 
-### ❌ **NEEDS DEBUGGING (HIGH PRIORITY)**
-
-1. **Message Tools**: `get_messages`, `search_messages` return generic "unexpected error"
-2. **Error Handling**: Tools catch all exceptions and hide real error details
-3. **Zulip API**: Core `ZulipClientWrapper` methods may be broken/missing
-4. **Authentication**: Environment variables may not be loading correctly
-
-### 🎯 **DEBUGGING PRIORITIES**
-
-**CRITICAL**: Fix message retrieval tools - they're the core functionality
-
-### 🎯 Core Design Principles
-
-- **Single Channel**: All agents use "Agents-Channel" stream
-- **Structured Topics**: `agent_type/YYYY-MM-DD/session_id`
-- **Runtime AFK**: In-memory flag, not persisted
-- **Blocking Wait**: No timeouts on `wait_for_response()`
-- **Thin Server**: MCP is protocol layer, not application
 
 ## Development Workflow
 
@@ -118,37 +106,6 @@ except ValidationError as e:
 # NEVER use print() - use logger
 logger.info("Processing message")  # ✓
 print("Processing message")        # ✗
-```
-
-### Current Architecture (v2.0)
-
-```
-src/zulipchat_mcp/
-├── server.py                    # Entry point - registers tools only
-├── core/                        # Domain logic and primitives
-│   ├── client.py               # ZulipClientWrapper (may need debugging)
-│   ├── commands/
-│   │   ├── engine.py           # Command chain system
-│   │   └── workflows.py        # Common workflow patterns
-│   ├── agent_tracker.py        # Session tracking
-│   ├── security.py             # Input validation
-│   ├── exceptions.py           # Custom exceptions
-│   └── cache.py               # Caching utilities
-├── utils/                       # Cross-cutting utilities
-│   ├── database.py             # DuckDB persistence (✅ working)
-│   ├── logging.py              # Structured logging
-│   ├── metrics.py              # Performance tracking
-│   └── health.py              # Health checks
-├── services/                    # Long-lived services
-│   └── scheduler.py            # Message scheduling
-├── tools/                       # MCP tool registrars (19 tools)
-│   ├── messaging.py            # send_message, edit_message, add_reaction, get_messages
-│   ├── streams.py              # get_streams (✅), create_stream, etc.
-│   ├── agents.py               # register_agent (✅), agent lifecycle tools
-│   └── search.py               # search_messages, get_daily_summary
-└── integrations/                # Agent-specific installers
-    ├── registry.py             # CLI: zulipchat-mcp-integrate
-    └── claude_code/            # Generates .claude/commands/*.json
 ```
 
 ## Testing Requirements
@@ -247,21 +204,7 @@ uv run zulipchat-mcp 2>&1 | grep -i error
 - API keys in code
 - Personal information in tests
 - Debug print statements
-
-### ALWAYS Validate
-
-```python
-# Sanitize all user inputs
-content = sanitize_input(user_content)
-
-# Validate before processing
-if not validate_stream_name(stream):
-    raise ValidationError(f"Invalid stream: {stream}")
-
-# Use specific exceptions
-except ValidationError:  # ✓ Specific
-except Exception:       # ✗ Too broad
-```
+- Attribution to Claude Code or Anthropic
 
 ## Performance Guidelines
 
@@ -272,18 +215,6 @@ except Exception:       # ✗ Too broad
 - **File-based state** - JSON files are fine for our scale
 - **Batch when obvious** - But don't over-engineer
 
-### Resource Management
-
-```python
-# Use context managers
-with open(file_path) as f:
-    data = json.load(f)
-
-# Clean up explicitly
-finally:
-    if client:
-        client.close()
-```
 
 ## PR Checklist
 
@@ -354,20 +285,6 @@ commit("feat: add new_tool functionality")
 restructure_and_add_features_and_fix_bugs()  # Too much!
 ```
 
-## Key Files for Next Session
-
-### 🔧 **Files Needing Debug/Investigation**
-- `src/zulipchat_mcp/core/client.py` - ZulipClientWrapper.get_messages() method
-- `src/zulipchat_mcp/tools/messaging.py` - get_messages tool (line ~120)
-- `src/zulipchat_mcp/tools/search.py` - search_messages tool  
-- `src/zulipchat_mcp/config.py` - Environment variable loading
-
-### ✅ **Files Working Correctly**
-- `src/zulipchat_mcp/server.py` - Clean, registers 19 tools correctly
-- `src/zulipchat_mcp/utils/database.py` - DuckDB operations working
-- `src/zulipchat_mcp/tools/streams.py` - get_streams() working perfectly
-- `src/zulipchat_mcp/tools/agents.py` - register_agent() working
-- `.mcp/zulipchat/zulipchat.duckdb` - Database with all required tables
 
 ## Final Reminders
 
@@ -375,8 +292,5 @@ restructure_and_add_features_and_fix_bugs()  # Too much!
 2. **Test everything** - Untested code is broken code
 3. **Commit atomically** - Each commit should be one logical change
 4. **Document why, not what** - Code shows what, comments explain why
-5. **When in doubt, don't add it** - Features are easy to add, hard to remove
-
----
-
-*Following [agents.md](https://agents.md) standard and [Claude Code best practices](https://www.anthropic.com/engineering/claude-code-best-practices)*
+5. **When in doubt, don't add it, ASK USER** - Features are easy to add, hard to remove
+s
