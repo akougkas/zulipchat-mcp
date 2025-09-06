@@ -1,8 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "uv run $CLAUDE_PROJECT_DIR/.claude/statusline/variation1-clean.py"
-  },
   "model": "sonnet",
   "preferences": {
     "pythonPackageManager": "uv"
@@ -29,29 +25,5 @@
   "environment": {
     "PYTHON_PACKAGE_MANAGER": "uv",
     "MCP_SERVER": "zulipchat-mcp"
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run $CLAUDE_PROJECT_DIR/.claude/hooks/code-validator.py",
-            "timeout": 3
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo '🚀 Zulip MCP Development Session Started' && test -f .env || echo '⚠️  Warning: .env file not found'"
-          }
-        ]
-      }
-    ]
   }
 }

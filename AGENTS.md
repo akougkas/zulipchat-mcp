@@ -1,16 +1,50 @@
 # AGENTS.md
 
-AI agent instructions for ZulipChat MCP Server development.
+## Purpose & Agent Behavior
 
-## Agent Discovery for Multi-Platform AI Systems
+- This file is the single source of truth for coding agents working on `zulipchat-mcp`.
+- Always use `uv` for Python operations; never use `pip` directly.
+- Before committing, automatically run formatting, linting, type checks, and tests. Do not commit unless all are green.
+- Follow MCP specification, project rules, and security guidance exactly. Prefer editing existing files over creating new ones.
+- Precedence: the nearest `AGENTS.md` applies; explicit user prompts override repository guidance.
+- Handle secrets via environment variables; never commit credentials or sensitive data.
 
-When working with AI assistants (Claude, Gemini, GPT), specialized subagents are available in the `.claude/agents/` directory (or equivalent for your platform). Each agent is optimized for specific computational needs:
+Reference: [AGENTS.md standard](https://agents.md/)
 
-- **High-Reasoning (Opus)**: orchestrator, code-architect, debugger
-- **Balanced (Sonnet)**: code-writer, test-implementer
-- **Fast (Haiku)**: api-researcher, pattern-analyzer
+## Table of Contents
 
-Use the orchestrator for complex multi-step tasks, letting it coordinate the team efficiently.
+- [Project Overview](#project-overview)
+- [Quick Start](#quick-start)
+- [Current Status & Next Priorities](#current-status--next-priorities)
+- [Development Guidelines](#development-guidelines)
+  - [Python Environment](#python-environment)
+  - [MCP Protocol Standards](#mcp-protocol-standards)
+  - [Zulip API Best Practices](#zulip-api-best-practices)
+- [Development Workflow](#development-workflow)
+- [Code Style & Standards](#code-style--standards)
+  - [Essential Rules](#essential-rules)
+- [Testing Requirements](#testing-requirements)
+  - [Before EVERY Commit](#before-every-commit)
+  - [Test Patterns](#test-patterns)
+- [Agent-First Development](#agent-first-development)
+  - [Intelligent Task Delegation](#intelligent-task-delegation)
+  - [Workflow Patterns](#workflow-patterns)
+  - [Agent Discovery for Multi-Platform AI Systems](#agent-discovery-for-multi-platform-ai-systems)
+- [Common Tasks](#common-tasks)
+  - [Adding a New MCP Tool](#adding-a-new-mcp-tool)
+  - [Debugging MCP Issues](#debugging-mcp-issues)
+- [Important Reminders](#important-reminders)
+- [Environment Variables](#environment-variables)
+- [Quick Links](#quick-links)
+- [Security & Safety](#security--safety)
+  - [NEVER Commit](#never-commit)
+- [Performance Guidelines](#performance-guidelines)
+  - [Keep It Simple](#keep-it-simple)
+- [Report Checklist](#report-checklist)
+- [Troubleshooting](#troubleshooting)
+  - [Environment Issues](#environment-issues)
+  - [Common Errors](#common-errors)
+- [Final Reminders](#final-reminders)
 
 ## Project Overview
 
@@ -21,13 +55,6 @@ ZulipChat MCP is a **professional Model Context Protocol server** enabling AI ag
 **Bot Identity**: ✅ Sophisticated dual-credential system (user + bot identity)
 **Status**: ✅ All critical bugs fixed, ✅ Bot identity working, 🎯 Ready for standard MCP packaging
 **Philosophy**: Follow MCP standards, simple user experience, professional architecture
-
-## 🎯 **Next Session Priority: Standard MCP Packaging**
-
-**Research Finding**: ZulipChat MCP over-engineered configuration vs MCP standards
-**Standard Pattern**: `uvx package` → `claude mcp add` → client handles credentials  
-**Current Gap**: Need proper uvx packaging and cleanup of non-standard config approaches
-**Goal**: Match GitHub/AWS MCP server user experience patterns
 
 ## Quick Start
 
@@ -54,6 +81,28 @@ claude mcp add zulipchat uv run zulipchat-mcp
 4. **Integration**: Claude Code successfully connected (`claude mcp add zulipchat`)
 5. **Tools Working**: `get_streams`, `register_agent`, database operations
 
+## Development Guidelines
+
+### Python Environment
+
+- **ALWAYS** use `uv run` for Python operations (never use pip directly)
+- Use `uv add <package>` to install dependencies
+- Use `uv sync` to synchronize environment
+- Maintain `pyproject.toml` as single source of truth
+
+### MCP Protocol Standards
+
+- Follow official MCP specification for all tool implementations
+- Ensure proper error handling and schema validation
+- Implement comprehensive logging for debugging
+- Use async/await patterns for all I/O operations
+
+### Zulip API Best Practices
+
+- Implement rate limiting and backoff strategies
+- Cache frequently accessed data (streams, users)
+- Use bulk operations where available
+- Handle authentication securely via environment variables
 
 ## Development Workflow
 
@@ -146,6 +195,31 @@ def test_full_message_flow():
     # Test realistic scenarios
 ```
 
+## Agent-First Development
+
+### Intelligent Task Delegation
+
+Our optimized agent team uses compute efficiently:
+
+- **Opus (High Reasoning)**: orchestrator, code-architect, debugger
+- **Sonnet (Balanced)**: code-writer, test-implementer  
+- **Haiku (Fast Execution)**: api-researcher, pattern-analyzer
+
+### Workflow Patterns
+
+1. **Research Phase**: Launch lightweight agents in parallel
+2. **Design Phase**: Engage architect for system design
+3. **Implementation**: Sequential code writing and testing
+4. **Validation**: Debug and optimize
+
+### Agent Discovery for Multi-Platform AI Systems
+
+When working with AI assistants (Claude, Gemini, GPT), specialized subagents are available in the `.claude/agents/` directory (or equivalent for your platform). Each agent is optimized for specific computational needs:
+
+- **High-Reasoning (Opus)**: orchestrator, code-architect, debugger
+- **Balanced (Sonnet)**: code-writer, test-implementer
+- **Fast (Haiku)**: api-researcher, pattern-analyzer
+
 ## Common Tasks
 
 ### Adding a New MCP Tool
@@ -196,6 +270,30 @@ print(register_agent('test'))
 uv run zulipchat-mcp 2>&1 | grep -i error
 ```
 
+## Important Reminders
+
+- **NEVER** create files unless necessary - prefer editing
+- **ALWAYS** validate against MCP specification
+- **VERIFY** Zulip API responses and handle errors
+- **DOCUMENT** architectural decisions in code
+- **TEST** every new feature comprehensively
+
+## Environment Variables
+
+Required for operation:
+
+```bash
+ZULIP_EMAIL=bot@example.com
+ZULIP_API_KEY=your-api-key
+ZULIP_SITE=https://your-domain.zulipchat.com
+```
+
+## Quick Links
+
+- [MCP Specification](https://modelcontextprotocol.io/specification)
+- [Zulip API Documentation](https://zulip.com/api/)
+- [Project Repository](https://github.com/user/zulipchat-mcp)
+
 ## Security & Safety
 
 ### NEVER Commit
@@ -215,17 +313,15 @@ uv run zulipchat-mcp 2>&1 | grep -i error
 - **File-based state** - JSON files are fine for our scale
 - **Batch when obvious** - But don't over-engineer
 
+## Report Checklist
 
-## PR Checklist
-
-Before submitting any PR:
+Before declaring completion of any task:
 
 - [ ] Code formatted with `black`
 - [ ] Linting passes with `ruff`
 - [ ] Type checking passes with `mypy`
 - [ ] All tests pass
 - [ ] No files >500 lines
-- [ ] Clear commit messages
 - [ ] Documentation updated if needed
 - [ ] No debug code left
 
@@ -251,41 +347,6 @@ uv run python -c "import zulipchat_mcp; print('✓ Import works')"
 | Import errors | Check `uv sync` completed successfully |
 | Test failures | Run `uv run pytest -xvs` for details |
 
-## Agent-Specific Instructions
-
-### For Claude Code
-
-1. **Always register first**: `register_agent("claude-code")`
-2. **Check AFK before sending**: Messages only send when user is away
-3. **Use require_response**: When you need human input
-4. **Block on responses**: Use `wait_for_response()` - it will wait
-
-### For Complex Tasks
-
-1. **Break into phases** - Don't try to do everything at once
-2. **Commit frequently** - After each working change
-3. **Test incrementally** - Verify each phase works
-4. **Document decisions** - Explain non-obvious choices
-
-### Workflow Example
-
-```python
-# Good: Clear phases with testing
-# Phase 1: Restructure
-move_files()
-test_imports()
-commit("refactor: reorganize module structure")
-
-# Phase 2: Implement feature
-add_new_tool()
-add_tests()
-commit("feat: add new_tool functionality")
-
-# Bad: Everything at once
-restructure_and_add_features_and_fix_bugs()  # Too much!
-```
-
-
 ## Final Reminders
 
 1. **Simplicity is the goal** - Every line should justify its existence
@@ -293,4 +354,3 @@ restructure_and_add_features_and_fix_bugs()  # Too much!
 3. **Commit atomically** - Each commit should be one logical change
 4. **Document why, not what** - Code shows what, comments explain why
 5. **When in doubt, don't add it, ASK USER** - Features are easy to add, hard to remove
-s
