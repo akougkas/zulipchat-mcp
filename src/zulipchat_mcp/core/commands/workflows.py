@@ -8,16 +8,15 @@ This module implements workflow patterns inspired by effective agent design:
 Reference: Building effective agents (https://www.anthropic.com/engineering/building-effective-agents)
 """
 
-from typing import Any
 
 from .engine import (
-    CommandChain,
-    SendMessageCommand, 
-    GetMessagesCommand,
     AddReactionCommand,
-    ProcessDataCommand,
+    CommandChain,
     Condition,
     ConditionOperator,
+    GetMessagesCommand,
+    ProcessDataCommand,
+    SendMessageCommand,
 )
 
 
@@ -295,22 +294,22 @@ class ChainBuilder:
         hours_back: int = 24,
     ) -> CommandChain:
         """Create a daily summary workflow (common pattern for agent integrations).
-        
+
         This implements an orchestrator-worker pattern where:
         - Orchestrator coordinates data gathering from multiple streams
         - Workers process individual stream data
         - Evaluator consolidates results into a summary
-        
+
         Args:
             streams: List of stream names to summarize (None for all subscribed)
             hours_back: Hours to look back for messages
-            
+
         Returns:
             Configured daily summary command chain
         """
         if streams is None:
             streams = ["general", "development", "random"]
-            
+
         return ChainBuilder.create_digest_workflow(
             stream_names=streams,
             hours_back=hours_back,
@@ -318,29 +317,29 @@ class ChainBuilder:
             target_topic="Daily Summary",
         )
 
-    @staticmethod 
+    @staticmethod
     def create_morning_briefing_workflow(
         priority_streams: list[str] | None = None,
     ) -> CommandChain:
         """Create a morning briefing workflow with priority stream focus.
-        
+
         Implements evaluator-optimizer pattern:
         - Evaluates message importance across streams
         - Optimizes content for concise briefing format
-        
+
         Args:
             priority_streams: High-priority streams for morning updates
-            
+
         Returns:
             Configured morning briefing command chain
         """
         if priority_streams is None:
             priority_streams = ["general", "important", "announcements"]
-            
+
         return ChainBuilder.create_digest_workflow(
             stream_names=priority_streams,
             hours_back=16,  # Since evening before
-            target_stream="general", 
+            target_stream="general",
             target_topic="Morning Briefing",
         )
 
@@ -350,22 +349,22 @@ class ChainBuilder:
         max_streams: int = 5,
     ) -> CommandChain:
         """Create a catch-up workflow for recent activity.
-        
+
         Implements prompt chaining pattern:
         - Initial prompt gathers recent activity
         - Chained prompts filter and prioritize content
         - Final prompt formats for easy consumption
-        
+
         Args:
             since_hours: Hours to look back
             max_streams: Maximum number of streams to include
-            
+
         Returns:
             Configured catch-up command chain
         """
         # For now, use a subset approach
         streams = ["general", "development"][:max_streams]
-        
+
         return ChainBuilder.create_digest_workflow(
             stream_names=streams,
             hours_back=since_hours,

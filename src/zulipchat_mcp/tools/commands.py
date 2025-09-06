@@ -2,9 +2,9 @@
 
 from typing import Any
 
+from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
 from ..core.commands.engine import CommandChain, SendMessageCommand
-from ..config import ConfigManager
 
 
 def execute_chain(commands: list[dict]) -> dict:
@@ -22,7 +22,11 @@ def execute_chain(commands: list[dict]) -> dict:
             )
         # Add more command mappings as needed
     context = chain.execute(initial_context={})
-    return {"status": "success", "summary": chain.get_execution_summary(), "context": context.data}
+    return {
+        "status": "success",
+        "summary": chain.get_execution_summary(),
+        "context": context.data,
+    }
 
 
 def list_command_types() -> list[str]:

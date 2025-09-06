@@ -3,33 +3,30 @@
 This is a skeleton implementation that will be enhanced later.
 """
 
-from typing import Dict, Any, List
+from typing import Any
 
 # Placeholder capabilities
 CAPABILITIES = {
     "placeholder": {
         "enabled": False,
-        "description": "Placeholder capability for future implementation"
+        "description": "Placeholder capability for future implementation",
     }
 }
 
-DEFAULT_CONFIG = {
-    "agent_type": "opencode",
-    "implemented": False
-}
+DEFAULT_CONFIG = {"agent_type": "opencode", "implemented": False}
 
 
-def get_capabilities() -> Dict[str, Any]:
+def get_capabilities() -> dict[str, Any]:
     """Get capabilities for OpenCode integration."""
     return CAPABILITIES
 
 
-def get_default_config() -> Dict[str, Any]:
+def get_default_config() -> dict[str, Any]:
     """Get default configuration for OpenCode integration."""
     return DEFAULT_CONFIG
 
 
-def get_workflow_commands() -> List[str]:
+def get_workflow_commands() -> list[str]:
     """Get workflow commands for OpenCode integration."""
     return []
 

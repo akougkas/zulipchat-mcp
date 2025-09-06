@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uv",
+      "args": ["run", "--directory", "/home/akougkas/projects/zulipchat-mcp", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "your-bot@example.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}

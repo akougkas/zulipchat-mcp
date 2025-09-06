@@ -2,9 +2,9 @@
 
 from mcp.server.fastmcp import FastMCP
 
-from .utils.logging import get_logger, setup_structured_logging
+from .tools import agents, messaging, search, streams
 from .utils.database import init_database
-from .tools import messaging, streams, agents, search
+from .utils.logging import get_logger, setup_structured_logging
 
 # Setup logging
 setup_structured_logging()
@@ -23,6 +23,7 @@ messaging.register_messaging_tools(mcp)
 streams.register_stream_tools(mcp)
 agents.register_agent_tools(mcp)
 search.register_search_tools(mcp)
+
 
 def main() -> None:
     """Main entry point for the MCP server."""

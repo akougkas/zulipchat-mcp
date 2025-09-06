@@ -611,5 +611,3 @@ class CommandChain:
             ],
             "context_keys": list(self.execution_context.data.keys()),
         }
-
-

@@ -3,46 +3,10 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel
 from zulip import Client
 
-from .cache import cache_decorator, stream_cache, user_cache
 from ..config import ConfigManager
-
-
-class ZulipMessage(BaseModel):
-    """Zulip message model."""
-
-    id: int
-    sender_full_name: str
-    sender_email: str
-    timestamp: int
-    content: str
-    stream_name: str | None = None
-    subject: str | None = None
-    type: str
-    reactions: list[dict[str, Any]] = []
-
-
-class ZulipStream(BaseModel):
-    """Zulip stream model."""
-
-    stream_id: int
-    name: str
-    description: str
-    is_private: bool
-    subscribers: list[str] = []
-
-
-class ZulipUser(BaseModel):
-    """Zulip user model."""
-
-    user_id: int
-    full_name: str
-    email: str
-    is_active: bool
-    is_bot: bool
-    avatar_url: str | None = None
+from .cache import cache_decorator, stream_cache, user_cache
 
 
 class ZulipClientWrapper:
@@ -102,38 +66,28 @@ class ZulipClientWrapper:
 
         return self.client.send_message(request)
 
-    def get_messages(
+    def get_messages_raw(
         self,
         anchor: str = "newest",
         num_before: int = 100,
         num_after: int = 0,
         narrow: list[dict[str, str]] | None = None,
-    ) -> list[ZulipMessage]:
-        """Get messages with optional filtering."""
+        include_anchor: bool = True,
+        client_gravatar: bool = True,
+        apply_markdown: bool = True,
+    ) -> dict[str, Any]:
+        """Get raw messages response from Zulip API."""
         request = {
             "anchor": anchor,
             "num_before": num_before,
             "num_after": num_after,
             "narrow": narrow or [],
+            "include_anchor": include_anchor,
+            "client_gravatar": client_gravatar,
+            "apply_markdown": apply_markdown,
         }
 
-        response = self.client.get_messages(request)
-        if response["result"] == "success":
-            return [
-                ZulipMessage(
-                    id=msg["id"],
-                    sender_full_name=msg["sender_full_name"],
-                    sender_email=msg["sender_email"],
-                    timestamp=msg["timestamp"],
-                    content=msg["content"],
-                    stream_name=msg.get("display_recipient"),
-                    subject=msg.get("subject"),
-                    type=msg["type"],
-                    reactions=msg.get("reactions", []),
-                )
-                for msg in response["messages"]
-            ]
-        return []
+        return self.client.get_messages(request)
 
     @cache_decorator(ttl=300, key_prefix="messages_")
     def get_messages_from_stream(
@@ -142,7 +96,7 @@ class ZulipClientWrapper:
         topic: str | None = None,
         hours_back: int = 24,
         limit: int = 100,
-    ) -> list[ZulipMessage]:
+    ) -> dict[str, Any]:
         """Get messages from a specific stream."""
         narrow = []
         if stream_name:
@@ -159,74 +113,62 @@ class ZulipClientWrapper:
             }
         )
 
-        return self.get_messages(narrow=narrow, num_before=limit)
+        return self.get_messages_raw(
+            narrow=narrow,
+            num_before=limit,
+            include_anchor=True,
+            client_gravatar=True,
+            apply_markdown=True,
+        )
 
-    def search_messages(self, query: str, num_results: int = 50) -> list[ZulipMessage]:
+    def search_messages(self, query: str, num_results: int = 50) -> dict[str, Any]:
         """Search messages by content."""
-        # Use 'has' operator for content search or 'search' for general search
         narrow = [{"operator": "search", "operand": query}]
         try:
-            return self.get_messages(narrow=narrow, num_before=num_results)
+            return self.get_messages_raw(
+                narrow=narrow,
+                num_before=num_results,
+                include_anchor=True,
+                client_gravatar=True,
+                apply_markdown=True,
+            )
         except Exception:
             # Fallback: try without narrow if search fails
-            return self.get_messages(num_before=num_results)
-
-    def clear_stream_cache(self) -> None:
-        """Clear the stream cache."""
-        from .core.cache import stream_cache
-
-        stream_cache.cache.clear()
+            return self.get_messages_raw(
+                num_before=num_results,
+                include_anchor=True,
+                client_gravatar=True,
+                apply_markdown=True,
+            )
 
     def get_streams(
         self, include_subscribed: bool = True, force_fresh: bool = False
-    ) -> list[ZulipStream]:
+    ) -> dict[str, Any]:
         """Get list of streams."""
         if not force_fresh:
             # Check cache first
             cached_streams = stream_cache.get_streams()
             if cached_streams is not None:
-                return cached_streams
+                return {"result": "success", "streams": cached_streams}
 
-        # Fetch from API and cache
+        # Fetch from API
         response = self.client.get_streams(include_subscribed=include_subscribed)
         if response["result"] == "success":
-            streams = [
-                ZulipStream(
-                    stream_id=stream["stream_id"],
-                    name=stream["name"],
-                    description=stream["description"],
-                    is_private=stream.get("invite_only", False),
-                )
-                for stream in response["streams"]
-            ]
-            stream_cache.set_streams(streams)
-            return streams
-        return []
+            stream_cache.set_streams(response["streams"])
+        return response
 
-    def get_users(self) -> list[ZulipUser]:
+    def get_users(self) -> dict[str, Any]:
         """Get list of users."""
         # Check cache first
         cached_users = user_cache.get_users()
         if cached_users is not None:
-            return cached_users
+            return {"result": "success", "members": cached_users}
 
-        # Fetch from API and cache
+        # Fetch from API
         response = self.client.get_users()
         if response["result"] == "success":
-            users = [
-                ZulipUser(
-                    user_id=user["user_id"],
-                    full_name=user["full_name"],
-                    email=user["email"],
-                    is_active=user["is_active"],
-                    is_bot=user["is_bot"],
-                    avatar_url=user.get("avatar_url"),
-                )
-                for user in response["members"]
-            ]
-            user_cache.set_users(users)
-            return users
-        return []
+            user_cache.set_users(response["members"])
+        return response
 
     def add_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:
         """Add reaction to a message."""
@@ -235,7 +177,14 @@ class ZulipClientWrapper:
         )
 
     def edit_message(
-        self, message_id: int, content: str | None = None, topic: str | None = None
+        self,
+        message_id: int,
+        content: str | None = None,
+        topic: str | None = None,
+        propagate_mode: str = "change_one",
+        send_notification_to_old_thread: bool = False,
+        send_notification_to_new_thread: bool = True,
+        stream_id: int | None = None,
     ) -> dict[str, Any]:
         """Edit a message."""
         request: dict[str, Any] = {"message_id": message_id}
@@ -243,6 +192,11 @@ class ZulipClientWrapper:
             request["content"] = content
         if topic:
             request["topic"] = topic
+        if stream_id:
+            request["stream_id"] = stream_id
+        request["propagate_mode"] = propagate_mode
+        request["send_notification_to_old_thread"] = send_notification_to_old_thread
+        request["send_notification_to_new_thread"] = send_notification_to_new_thread
 
         return self.client.update_message(request)
 
@@ -252,8 +206,15 @@ class ZulipClientWrapper:
         """Get daily message summary."""
         if not streams:
             # Get all subscribed streams
-            all_streams = self.get_streams()
-            streams = [s.name for s in all_streams if not s.is_private]
+            streams_response = self.get_streams()
+            if streams_response["result"] == "success":
+                streams = [
+                    s["name"]
+                    for s in streams_response["streams"]
+                    if not s.get("invite_only", False)
+                ]
+            else:
+                return {"error": "Failed to fetch streams"}
 
         summary: dict[str, Any] = {
             "total_messages": 0,
@@ -263,7 +224,14 @@ class ZulipClientWrapper:
         }
 
         for stream_name in streams:
-            messages = self.get_messages_from_stream(stream_name, hours_back=hours_back)
+            messages_response = self.get_messages_from_stream(
+                stream_name, hours_back=hours_back
+            )
+
+            if messages_response.get("result") != "success":
+                continue
+
+            messages = messages_response.get("messages", [])
             summary["streams"][stream_name] = {
                 "message_count": len(messages),
                 "topics": {},
@@ -273,19 +241,18 @@ class ZulipClientWrapper:
                 summary["total_messages"] += 1
 
                 # Count by sender
-                sender = msg.sender_full_name
+                sender = msg.get("sender_full_name", "Unknown")
                 summary["top_senders"][sender] = (
                     summary["top_senders"].get(sender, 0) + 1
                 )
 
                 # Count by topic
-                if msg.subject:
+                topic = msg.get("subject")
+                if topic:
                     topic_count = summary["streams"][stream_name]["topics"].get(
-                        msg.subject, 0
+                        topic, 0
                     )
-                    summary["streams"][stream_name]["topics"][msg.subject] = (
-                        topic_count + 1
-                    )
+                    summary["streams"][stream_name]["topics"][topic] = topic_count + 1
 
         # Sort top senders
         summary["top_senders"] = dict(

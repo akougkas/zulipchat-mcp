@@ -4,35 +4,52 @@ AI agent instructions for ZulipChat MCP Server development.
 
 ## Project Overview
 
-ZulipChat MCP is a **lean Model Context Protocol server** enabling bidirectional communication between AI agents and humans via Zulip. After v2.0 refactoring, the codebase is 70% simpler while maintaining essential functionality.
+ZulipChat MCP is a **lean Model Context Protocol server** enabling bidirectional communication between AI agents and humans via Zulip. **v2.0 architectural refactor is COMPLETE** with clean separation of concerns and DuckDB persistence.
 
-**Current State**: v1.4.0 (needs v2.0 restructuring per IMPLEMENTATION_PHASES.md)
-**Architecture**: Thin MCP layer exposing Zulip functionality
-**Philosophy**: Simple, maintainable, no over-engineering
+**Current State**: v2.0 - Clean architecture with 19 MCP tools registered
+**Architecture**: `core/utils/services/tools/integrations` pattern with DuckDB persistence
+**Status**: ✅ MCP connection works, ❌ Some tool implementations need debugging
+**Philosophy**: Simple, maintainable, database-backed persistence
 
 ## Quick Start
 
 ```bash
-# 1. Setup environment
-uv sync                       # Install dependencies
-cp .env.example .env         # Configure credentials
-export $(cat .env | xargs)   # Load environment
+# 1. Setup environment (uv handles everything)
+uv sync                       # Install dependencies + create venv
+# Note: .env credentials auto-loaded from environment
 
-# 2. Test connection
-uv run python -c "from src.zulipchat_mcp.config import ConfigManager; ConfigManager().validate_config()"
+# 2. Test server startup
+uv run zulipchat-mcp         # Server initializes DuckDB + starts MCP
 
-# 3. Run server
-uv run zulipchat-mcp
+# 3. Connect Claude Code to MCP
+claude mcp add zulipchat uv run zulipchat-mcp
+
+# 4. Test in Claude Code - try these tools:
+# - get_streams (works) ✅
+# - register_agent (works) ✅ 
+# - get_messages (needs debugging) ❌
 ```
 
-## Critical Context for AI Agents
+## Current Status & Next Priorities
 
-### ⚠️ BEFORE YOU CODE
+### ✅ **COMPLETED (v2.0 Refactor)**
 
-1. **Read IMPLEMENTATION_PHASES.md** - Contains the v2.0 restructuring plan
-2. **Current state is messy** - 1000+ line server.py needs splitting
-3. **Keep it simple** - Resist adding features, focus on removing complexity
-4. **Project-local state only** - Use `.mcp/` folder, never `~/.config/`
+1. **Architecture**: Clean `core/utils/services/tools/integrations` structure
+2. **Database**: DuckDB persistence with proper migrations and tables
+3. **Server**: FastMCP stdio-only server with 19 registered tools
+4. **Integration**: Claude Code successfully connected (`claude mcp add zulipchat`)
+5. **Tools Working**: `get_streams`, `register_agent`, database operations
+
+### ❌ **NEEDS DEBUGGING (HIGH PRIORITY)**
+
+1. **Message Tools**: `get_messages`, `search_messages` return generic "unexpected error"
+2. **Error Handling**: Tools catch all exceptions and hide real error details
+3. **Zulip API**: Core `ZulipClientWrapper` methods may be broken/missing
+4. **Authentication**: Environment variables may not be loading correctly
+
+### 🎯 **DEBUGGING PRIORITIES**
+
+**CRITICAL**: Fix message retrieval tools - they're the core functionality
 
 ### 🎯 Core Design Principles
 
@@ -95,18 +112,35 @@ logger.info("Processing message")  # ✓
 print("Processing message")        # ✗
 ```
 
-### File Organization
+### Current Architecture (v2.0)
 
 ```
 src/zulipchat_mcp/
-├── server.py          # <100 lines - entry point ONLY
-├── tools/
-│   ├── messaging.py   # ~200 lines - message operations
-│   ├── streams.py     # ~150 lines - stream management
-│   ├── agents.py      # ~250 lines - agent communication
-│   └── search.py      # ~200 lines - search/summaries
-└── core/
-    └── agent_tracker.py  # Minimal session tracking
+├── server.py                    # Entry point - registers tools only
+├── core/                        # Domain logic and primitives
+│   ├── client.py               # ZulipClientWrapper (may need debugging)
+│   ├── commands/
+│   │   ├── engine.py           # Command chain system
+│   │   └── workflows.py        # Common workflow patterns
+│   ├── agent_tracker.py        # Session tracking
+│   ├── security.py             # Input validation
+│   ├── exceptions.py           # Custom exceptions
+│   └── cache.py               # Caching utilities
+├── utils/                       # Cross-cutting utilities
+│   ├── database.py             # DuckDB persistence (✅ working)
+│   ├── logging.py              # Structured logging
+│   ├── metrics.py              # Performance tracking
+│   └── health.py              # Health checks
+├── services/                    # Long-lived services
+│   └── scheduler.py            # Message scheduling
+├── tools/                       # MCP tool registrars (19 tools)
+│   ├── messaging.py            # send_message, edit_message, add_reaction, get_messages
+│   ├── streams.py              # get_streams (✅), create_stream, etc.
+│   ├── agents.py               # register_agent (✅), agent lifecycle tools
+│   └── search.py               # search_messages, get_daily_summary
+└── integrations/                # Agent-specific installers
+    ├── registry.py             # CLI: zulipchat-mcp-integrate
+    └── claude_code/            # Generates .claude/commands/*.json
 ```
 
 ## Testing Requirements
@@ -312,13 +346,20 @@ commit("feat: add new_tool functionality")
 restructure_and_add_features_and_fix_bugs()  # Too much!
 ```
 
-## Key Files to Know
+## Key Files for Next Session
 
-- `IMPLEMENTATION_PHASES.md` - v2.0 restructuring plan
-- `src/zulipchat_mcp/server.py` - Currently bloated, needs splitting
-- `src/zulipchat_mcp/agent_tracker.py` - Core agent session logic
-- `.mcp/` - Project-local state directory
-- `tests/test_integration.py` - End-to-end testing
+### 🔧 **Files Needing Debug/Investigation**
+- `src/zulipchat_mcp/core/client.py` - ZulipClientWrapper.get_messages() method
+- `src/zulipchat_mcp/tools/messaging.py` - get_messages tool (line ~120)
+- `src/zulipchat_mcp/tools/search.py` - search_messages tool  
+- `src/zulipchat_mcp/config.py` - Environment variable loading
+
+### ✅ **Files Working Correctly**
+- `src/zulipchat_mcp/server.py` - Clean, registers 19 tools correctly
+- `src/zulipchat_mcp/utils/database.py` - DuckDB operations working
+- `src/zulipchat_mcp/tools/streams.py` - get_streams() working perfectly
+- `src/zulipchat_mcp/tools/agents.py` - register_agent() working
+- `.mcp/zulipchat/zulipchat.duckdb` - Database with all required tables
 
 ## Final Reminders
 
