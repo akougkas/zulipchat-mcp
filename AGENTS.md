@@ -50,11 +50,13 @@ Reference: [AGENTS.md standard](https://agents.md/)
 
 ZulipChat MCP is a **professional Model Context Protocol server** enabling AI agents to communicate with humans via Zulip. **v2.0 architectural refactor COMPLETE** with sophisticated bot identity system and optimized performance.
 
-**Current State**: v2.0 - Production-ready with 19/19 MCP tools working (100% success rate)
+**Current State**: v1.5.0 - Enhanced with project management documentation and bug tracking
 **Architecture**: Clean `core/utils/services/tools/integrations` pattern with 59ms average latency
 **Bot Identity**: ✅ Sophisticated dual-credential system (user + bot identity)
-**Status**: ✅ All critical bugs fixed, ✅ Bot identity working, 🎯 Ready for standard MCP packaging
+**Status**: ✅ Comprehensive testing complete, ✅ Documentation updated, 🎯 Ready for public release
 **Philosophy**: Follow MCP standards, simple user experience, professional architecture
+
+**Documentation**: ✅ ROADMAP.md (scheduling features planned), ✅ BUGS.md (5 known issues tracked)
 
 ## Quick Start
 
@@ -77,9 +79,17 @@ claude mcp add zulipchat uv run zulipchat-mcp
 
 1. **Architecture**: Clean `core/utils/services/tools/integrations` structure
 2. **Database**: DuckDB persistence with proper migrations and tables
-3. **Server**: FastMCP stdio-only server with 19 registered tools
+3. **Server**: FastMCP stdio-only server with core MCP tools
 4. **Integration**: Claude Code successfully connected (`claude mcp add zulipchat`)
-5. **Tools Working**: `get_streams`, `register_agent`, database operations
+5. **Tools Working**: Core messaging, agent registration, database operations
+6. **Documentation**: Professional project management with ROADMAP.md and BUGS.md
+
+### 📋 **DOCUMENTED ISSUES & ROADMAP**
+
+See **BUGS.md** for complete issue tracking and **ROADMAP.md** for planned enhancements:
+- Comprehensive bug documentation and workarounds
+- Message scheduling features planned for v2.0
+- Enhanced user interaction system roadmap
 
 ## Development Guidelines
 
