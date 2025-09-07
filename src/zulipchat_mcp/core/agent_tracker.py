@@ -34,7 +34,7 @@ class AgentTracker:
     PENDING_RESPONSES_FILE = CONFIG_DIR / "pending_responses.json"
 
     # Standard channel name
-    AGENTS_CHANNEL = "Agents-Channel"
+    AGENTS_CHANNEL = "Agent-Channel"
 
     def __init__(self):
         """Initialize the agent tracker."""
@@ -102,11 +102,15 @@ class AgentTracker:
         """
         identity = self.get_instance_identity()
 
-        # Create structured topic: agent_type/date/session_id
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        topic = f"{agent_type}/{date_str}/{self.session_id}"
+        # Create descriptive topic: agent_type/date/time/project/session_id
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M")
+        project_name = identity.get("project", "unknown")
+        
+        topic = f"{agent_type} | {date_str} {time_str} | {project_name} | {self.session_id}"
 
-        # Always use standard Agents-Channel
+        # Always use standard Agent-Channel
         stream_name = self.AGENTS_CHANNEL
 
         # Create registration record
@@ -225,16 +229,9 @@ class AgentTracker:
 
         reg_info = self._current_registration
 
-        # Check AFK state
-        afk_state = self.get_afk_state()
-
-        # Only send if AFK is enabled
-        if not afk_state.get("enabled"):
-            return {
-                "status": "skipped",
-                "reason": "AFK mode is disabled",
-                "would_send_to": f"{reg_info['stream']}/{reg_info['topic']}",
-            }
+        # AFK mode is only for special cases when user is away
+        # Normal agent communication works regardless of AFK state
+        # AFK only affects automatic notifications, not direct agent messages
 
         # Format the message with session info
         identity = reg_info["identity"]
@@ -256,7 +253,7 @@ class AgentTracker:
             "topic": reg_info["topic"],
             "content": formatted_content,
             "response_id": response_id,
-            "afk_enabled": True,
+            "afk_enabled": self.afk_enabled,
         }
 
     def _create_pending_response(self, agent_type: str, prompt: str) -> str:

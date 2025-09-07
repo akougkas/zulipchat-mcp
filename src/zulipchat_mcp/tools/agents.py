@@ -62,32 +62,32 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                 ),
             )
 
-            # Initialize AFK state
+            # Initialize AFK state (disabled by default)
             db.execute(
                 """
                 INSERT OR REPLACE INTO afk_state (id, is_afk, reason, updated_at)
                 VALUES (1, ?, ?, ?)
                 """,
-                (True, "Agent starting up", datetime.utcnow()),
+                (False, "Agent ready for normal operations", datetime.utcnow()),
             )
 
-            # Check if Agents-Channel stream exists
+            # Check if Agent-Channel stream exists
             client = _get_client_bot()
             response = client.get_streams()
             streams = response.get("streams", []) if response.get("result") == "success" else []
-            stream_exists = any(s.get("name") == "Agents-Channel" for s in streams)
+            stream_exists = any(s.get("name") == "Agent-Channel" for s in streams)
 
             result = {
                 "status": "success",
                 "agent_id": agent_id,
                 "instance_id": instance_id,
                 "agent_type": agent_type,
-                "stream": "Agents-Channel",
-                "afk_enabled": True,
+                "stream": "Agent-Channel",
+                "afk_enabled": False,
             }
 
             if not stream_exists:
-                result["warning"] = "Stream 'Agents-Channel' does not exist."
+                result["warning"] = "Stream 'Agent-Channel' does not exist."
 
             return result
 
@@ -121,7 +121,7 @@ def agent_message(
                         "status": "success",
                         "message_id": result.get("id"),
                         "response_id": msg_info.get("response_id"),
-                        "afk_enabled": True,
+                        "sent_via": "agent_message",
                     }
                 return {"status": "error", "error": result.get("msg", "Failed to send")}
             except Exception as e:
@@ -245,12 +245,12 @@ def request_user_input(
 
             agent_type = agent_data[0]
 
-            # For now, send to Agents-Channel stream since we don't have user mapping
+            # For now, send to Agent-Channel stream since we don't have user mapping
             # TODO: In future, implement proper user detection from agent metadata
             from ..tools.messaging import send_message
             result = send_message(
                 message_type="stream",
-                to="Agents-Channel",
+                to="Agent-Channel",
                 content=message_content,
                 topic=f"User Input Request - {agent_type}"
             )
@@ -376,9 +376,44 @@ def list_instances() -> dict[str, Any]:
             return {"status": "error", "error": str(e)}
 
 
+def enable_afk_mode(hours: int = 8, reason: str = "Away from computer") -> dict[str, Any]:
+    """Enable AFK mode for automatic notifications when away."""
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "enable_afk_mode"}):
+        track_tool_call("enable_afk_mode")
+        try:
+            result = _tracker.set_afk(enabled=True, hours=hours)
+            return {"status": "success", "message": f"AFK mode enabled for {hours} hours", "reason": reason}
+        except Exception as e:
+            track_tool_error("enable_afk_mode", type(e).__name__)
+            return {"status": "error", "error": str(e)}
+
+
+def disable_afk_mode() -> dict[str, Any]:
+    """Disable AFK mode - normal agent communication."""
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "disable_afk_mode"}):
+        track_tool_call("disable_afk_mode")
+        try:
+            result = _tracker.set_afk(enabled=False, hours=0)
+            return {"status": "success", "message": "AFK mode disabled - normal operation"}
+        except Exception as e:
+            track_tool_error("disable_afk_mode", type(e).__name__)
+            return {"status": "error", "error": str(e)}
+
+
+def get_afk_status() -> dict[str, Any]:
+    """Get current AFK mode status."""
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "get_afk_status"}):
+        track_tool_call("get_afk_status")
+        try:
+            return {"status": "success", "afk_state": _tracker.get_afk_state()}
+        except Exception as e:
+            track_tool_error("get_afk_status", type(e).__name__)
+            return {"status": "error", "error": str(e)}
+
+
 def register_agent_tools(mcp: Any) -> None:
     mcp.tool(description="Register agent and get topic")(register_agent)
-    mcp.tool(description="Send agent message (AFK gated)")(agent_message)
+    mcp.tool(description="Send agent message")(agent_message)
     mcp.tool(description="Wait for human response")(wait_for_response)
     mcp.tool(description="Send agent status update")(send_agent_status)
     mcp.tool(description="Request input from user")(request_user_input)
@@ -386,3 +421,6 @@ def register_agent_tools(mcp: Any) -> None:
     mcp.tool(description="Update task progress")(update_task_progress)
     mcp.tool(description="Complete a task")(complete_task)
     mcp.tool(description="List agent instances")(list_instances)
+    mcp.tool(description="Enable AFK mode for away notifications")(enable_afk_mode)
+    mcp.tool(description="Disable AFK mode")(disable_afk_mode)
+    mcp.tool(description="Get AFK mode status")(get_afk_status)
