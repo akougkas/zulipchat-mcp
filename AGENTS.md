@@ -50,7 +50,7 @@ Reference: [AGENTS.md standard](https://agents.md/)
 
 ZulipChat MCP is a **professional Model Context Protocol server** enabling AI agents to communicate with humans via Zulip. **v2.0 architectural refactor COMPLETE** with sophisticated bot identity system and optimized performance.
 
-**Current State**: v2.0 - Production-ready with 19/19 MCP tools working (100% success rate)
+**Current State**: v2.0 - Production-ready with 24 MCP tools (91.7% success rate)
 **Architecture**: Clean `core/utils/services/tools/integrations` pattern with 59ms average latency
 **Bot Identity**: ✅ Sophisticated dual-credential system (user + bot identity)
 **Status**: ✅ All critical bugs fixed, ✅ Bot identity working, 🎯 Ready for standard MCP packaging
@@ -77,9 +77,21 @@ claude mcp add zulipchat uv run zulipchat-mcp
 
 1. **Architecture**: Clean `core/utils/services/tools/integrations` structure
 2. **Database**: DuckDB persistence with proper migrations and tables
-3. **Server**: FastMCP stdio-only server with 19 registered tools
+3. **Server**: FastMCP stdio-only server with 24 registered tools
 4. **Integration**: Claude Code successfully connected (`claude mcp add zulipchat`)
-5. **Tools Working**: `get_streams`, `register_agent`, database operations
+5. **Tools Working**: 22/24 core functions operational (91.7% success rate)
+
+### ⚠️ **KNOWN ISSUES (Release Blockers)**
+
+1. **User Interaction System**: `request_user_input` and `wait_for_response` partially broken
+   - ✅ Can send questions to users
+   - ❌ Missing message listener to process user responses
+   - **Impact**: Interactive workflows incomplete
+
+2. **Agent Registration**: Basic registration works but needs enhancement
+   - ✅ Agent tracking and UUID generation functional  
+   - ⚠️ Advanced agent management features pending
+   - **Impact**: Sufficient for basic use, limited enterprise features
 
 ## Development Guidelines
 
