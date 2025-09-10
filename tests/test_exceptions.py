@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, "src")
 
-from zulipchat_mcp.exceptions import (
+from src.zulipchat_mcp.core.exceptions import (
     AuthenticationError,
     ConfigurationError,
     ConnectionError,

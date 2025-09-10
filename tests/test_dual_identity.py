@@ -5,10 +5,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.client import ZulipClientWrapper
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
 from src.zulipchat_mcp.config import ConfigManager, ZulipConfig
-from src.zulipchat_mcp.services.agent_registry import AgentRegistry
-from src.zulipchat_mcp.tools.agent_communication import AgentCommunication
+# Agent modules updated in v2 architecture
+# from src.zulipchat_mcp.tools.agents import ...
+# from src.zulipchat_mcp.core.agent_tracker import ...
 
 
 class TestDualIdentityConfig:

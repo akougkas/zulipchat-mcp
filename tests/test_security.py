@@ -5,7 +5,7 @@ import time
 
 sys.path.insert(0, "src")
 
-from zulipchat_mcp.security import (
+from src.zulipchat_mcp.core.security import (
     RateLimiter,
     sanitize_input,
     secure_log,

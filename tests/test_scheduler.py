@@ -25,7 +25,7 @@ import httpx
 import pytest
 
 from src.zulipchat_mcp.config import ZulipConfig
-from src.zulipchat_mcp.scheduler import (
+from src.zulipchat_mcp.services.scheduler import (
     MessageScheduler,
     ScheduledMessage,
     cancel_scheduled_message,

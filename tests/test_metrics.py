@@ -3,7 +3,7 @@
 import time
 from datetime import datetime
 
-from src.zulipchat_mcp.metrics import (
+from src.zulipchat_mcp.utils.metrics import (
     MetricsCollector,
     metrics,
 )

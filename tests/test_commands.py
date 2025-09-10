@@ -15,8 +15,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.zulipchat_mcp.client import ZulipMessage
-from src.zulipchat_mcp.commands import (
+from src.zulipchat_mcp.core.commands.engine import (
     AddReactionCommand,
     ChainBuilder,
     Command,
@@ -29,7 +28,13 @@ from src.zulipchat_mcp.commands import (
     ProcessDataCommand,
     SendMessageCommand,
 )
-from src.zulipchat_mcp.exceptions import ValidationError, ZulipMCPError
+from src.zulipchat_mcp.core.exceptions import ValidationError, ZulipMCPError
+
+# Mock ZulipMessage for tests
+class ZulipMessage:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 
 class TestExecutionContext:

@@ -3,7 +3,7 @@
 import logging
 from unittest.mock import MagicMock, patch
 
-from src.zulipchat_mcp.logging_config import (
+from src.zulipchat_mcp.utils.logging import (
     get_logger,
     log_api_request,
     log_function_call,

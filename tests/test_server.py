@@ -8,8 +8,23 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.client import ZulipMessage, ZulipStream, ZulipUser
-from src.zulipchat_mcp.exceptions import ConnectionError, ValidationError
+from src.zulipchat_mcp.core.exceptions import ConnectionError, ValidationError
+
+# Mock Zulip data classes for tests
+class ZulipMessage:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class ZulipStream:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class ZulipUser:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 
 class TestSendMessageTool:

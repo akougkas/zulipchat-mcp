@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.health import (
+from src.zulipchat_mcp.utils.health import (
     HealthCheck,
     HealthMonitor,
     HealthStatus,
