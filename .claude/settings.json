@@ -1,5 +1,8 @@
 {
-  "model": "sonnet",
+  "statusLine": {
+    "type": "command",
+    "command": "uv run $CLAUDE_PROJECT_DIR/.claude/statusline/variation2-rich.py"
+  },
   "preferences": {
     "pythonPackageManager": "uv"
   },
@@ -19,11 +22,44 @@
     "deny": [
       "Read(.env*)",
       "Write(.env*)",
-      "Read(**/secrets/**)"
+      "Read(**/secrets/**)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(git add*)",
+      "Bash(git reset*)",
+      "Bash(git merge*)",
+      "Bash(git rebase*)",
+      "Bash(git tag*)",
+      "Bash(git checkout*)",
+      "Bash(git branch*)"
     ]
   },
   "environment": {
     "PYTHON_PACKAGE_MANAGER": "uv",
     "MCP_SERVER": "zulipchat-mcp"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run $CLAUDE_PROJECT_DIR/.claude/hooks/code-validator.py",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🚀 Zulip MCP Development Session Started' && test -f .env || echo '⚠️  Warning: .env file not found'"
+          }
+        ]
+      }
+    ]
   }
 }
