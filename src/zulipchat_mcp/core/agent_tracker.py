@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from ..utils.topics import topic_chat, project_from_path
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,13 +104,9 @@ class AgentTracker:
         """
         identity = self.get_instance_identity()
 
-        # Create descriptive topic: agent_type/date/time/project/session_id
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H:%M")
-        project_name = identity.get("project", "unknown")
-        
-        topic = f"{agent_type} | {date_str} {time_str} | {project_name} | {self.session_id}"
+        # Consistent chat topic
+        project_name = identity.get("project", "Project")
+        topic = topic_chat(project_name, agent_type, self.session_id)
 
         # Always use standard Agent-Channel
         stream_name = self.AGENTS_CHANNEL

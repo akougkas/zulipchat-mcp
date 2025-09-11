@@ -109,6 +109,19 @@ class DatabaseManager:
         """
         )
 
+        # Agent status audit trail (optional)
+        self.conn.execute(
+            """
+          CREATE TABLE IF NOT EXISTS agent_status(
+            status_id TEXT PRIMARY KEY,
+            agent_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            message TEXT,
+            created_at TIMESTAMP NOT NULL
+          );
+        """
+        )
+
         # Optional cache tables
         self.conn.execute(
             """
@@ -140,6 +153,21 @@ class DatabaseManager:
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)",
                 [datetime.utcnow()],
             )
+
+        # Table for agent inbound chat events (from Zulip)
+        self.conn.execute(
+            """
+          CREATE TABLE IF NOT EXISTS agent_events(
+            id TEXT PRIMARY KEY,
+            zulip_message_id INTEGER,
+            topic TEXT,
+            sender_email TEXT,
+            content TEXT,
+            created_at TIMESTAMP,
+            acked BOOLEAN DEFAULT FALSE
+          );
+        """
+        )
 
     def execute(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None

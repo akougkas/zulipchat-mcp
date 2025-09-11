@@ -1,17 +1,20 @@
 """Agent communication tools for ZulipChat MCP."""
 
 import os
+import json
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from ..config import ConfigManager
 from ..core.agent_tracker import AgentTracker
 from ..core.client import ZulipClientWrapper
-from ..utils.database import get_database
+from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
+from ..utils.topics import topic_input, project_from_path
 
 logger = get_logger(__name__)
 
@@ -32,7 +35,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "register_agent"}):
         track_tool_call("register_agent")
         try:
-            db = get_database()
+            db = DatabaseManager()
             agent_id = str(uuid.uuid4())
             instance_id = str(uuid.uuid4())
 
@@ -103,6 +106,10 @@ def agent_message(
         with LogContext(logger, tool="agent_message", agent_type=agent_type):
             track_tool_call("agent_message")
             try:
+                afk_state = DatabaseManager().get_afk_state() or {}
+                dev_override = os.getenv("ZULIP_DEV_NOTIFY", "0") in ("1", "true", "True")
+                if not afk_state.get("is_afk") and not dev_override:
+                    return {"status": "skipped", "reason": "AFK disabled; notifications gated"}
                 msg_info = _tracker.format_agent_message(
                     content, agent_type, require_response
                 )
@@ -130,42 +137,39 @@ def agent_message(
 
 
 def wait_for_response(request_id: str) -> dict[str, Any]:
-    """Wait for user response by polling the database."""
+    """Wait for user response - timeout-based polling via DatabaseManager."""
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
-            db = get_database()
+            db = DatabaseManager()
+            timeout_seconds = 300
+            start = time.time()
 
-            # Blocking loop polling database every ~1s until status is terminal
-            while True:
-                result = db.query_one(
-                    """
-                    SELECT status, response, responded_at
-                    FROM user_input_requests
-                    WHERE request_id = ?
-                    """,
-                    [request_id],
-                )
+            while time.time() - start < timeout_seconds:
+                result = db.get_input_request(request_id)
 
                 if not result:
                     return {"status": "error", "error": "Request not found"}
 
-                status, response, responded_at = result
-
-                # Check if status is terminal
+                status = result.get("status")
                 if status in ["answered", "cancelled"]:
+                    responded_at = result.get("responded_at")
+                    if isinstance(responded_at, datetime):
+                        responded_at_val = responded_at.isoformat()
+                    else:
+                        responded_at_val = responded_at
                     return {
                         "status": "success",
                         "request_status": status,
-                        "response": response,
-                        "responded_at": (
-                            responded_at.isoformat() if responded_at else None
-                        ),
+                        "response": result.get("response"),
+                        "responded_at": responded_at_val,
                     }
 
-                # Send agent status update periodically (every 30 seconds)
-                # This is optional but helps with monitoring
-                time.sleep(1.0)
+                time.sleep(1)
+
+            # Timeout reached
+            db.update_input_request(request_id, status="timeout")
+            return {"status": "error", "error": "Response timeout"}
 
         except Exception as e:
             track_tool_error("wait_for_response", type(e).__name__)
@@ -179,86 +183,102 @@ def send_agent_status(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "send_agent_status"}):
         track_tool_call("send_agent_status")
         try:
-            # TODO: Implement with DatabaseManager in Task 6
-            return {
-                "status": "success",
-                "message": "Status updated (stub implementation)",
-            }
+            db = DatabaseManager()
+            status_id = str(uuid.uuid4())
+            db.create_agent_status(status_id=status_id, agent_type=agent_type, status=status, message=message)
+            return {"status": "success", "status_id": status_id}
         except Exception as e:
             track_tool_error("send_agent_status", type(e).__name__)
             return {"status": "error", "error": str(e)}
 
 
 def request_user_input(
-    agent_id: str, question: str, context: str = "", options: list[str] | None = None
+    agent_id: str,
+    question: str,
+    options: list[str] | None = None,
+    context: str = "",
 ) -> dict[str, Any]:
-    """Request input from user via Zulip message."""
+    """Request input from user - smart routing via agent metadata."""
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "request_user_input"}):
         track_tool_call("request_user_input")
         try:
-            request_id = str(uuid.uuid4())
-            db = get_database()
+            afk_state = DatabaseManager().get_afk_state() or {}
+            dev_override = os.getenv("ZULIP_DEV_NOTIFY", "0") in ("1", "true", "True")
+            if not afk_state.get("is_afk") and not dev_override:
+                return {"status": "skipped", "reason": "AFK disabled; input request gated"}
+            db = DatabaseManager()
 
-            # Insert user input request into database
-            db.execute(
-                """
-                INSERT INTO user_input_requests
-                (request_id, agent_id, question, context, options, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    request_id,
-                    agent_id,
-                    question,
-                    context,
-                    str(options) if options else None,
-                    "pending",
-                    datetime.utcnow(),
-                ),
+            # Get agent instance and metadata to determine routing
+            agent_instance = db.get_agent_instance(agent_id)
+            # Load agent metadata for richer routing if available
+            agent_meta_row = db.query_one(
+                "SELECT metadata FROM agents WHERE agent_id = ?",
+                [agent_id],
             )
-
-            # Format message content
-            message_content = f"""🤖 **Agent Request**
-
-**Question**: {question}
-
-**Context**: {context}"""
-
-            if options:
-                message_content += "\n\n**Options**:\n"
-                for i, option in enumerate(options, 1):
-                    message_content += f"{i}. {option}\n"
-                message_content += "\nReply with the number of your choice or type your response."
-            else:
-                message_content += "\n\nPlease respond with your answer."
-
-            message_content += f"\n\n*Request ID: `{request_id}`*"
-
-            # Get agent info to determine user
-            agent_data = db.query_one(
-                "SELECT agent_type, metadata FROM agents WHERE agent_id = ?",
-                [agent_id]
-            )
-
-            if not agent_data:
+            agent_metadata = {}
+            if agent_meta_row and agent_meta_row[0]:
+                try:
+                    agent_metadata = json.loads(agent_meta_row[0])
+                except Exception:
+                    agent_metadata = {}
+            if not agent_instance and not agent_metadata:
                 return {"status": "error", "error": "Agent not found"}
 
-            agent_type = agent_data[0]
+            # Short request ID for human-friendly replies
+            request_id = str(uuid.uuid4())[:8]
 
-            # For now, send to Agent-Channel stream since we don't have user mapping
-            # TODO: In future, implement proper user detection from agent metadata
-            from ..tools.messaging import send_message
-            result = send_message(
-                message_type="stream",
-                to="Agent-Channel",
-                content=message_content,
-                topic=f"User Input Request - {agent_type}"
+            # Store request
+            db.create_input_request(
+                request_id=request_id,
+                agent_id=agent_id,
+                question=question,
+                options=json.dumps(options) if options else None,
+                context=context,
             )
 
-            if result.get("status") != "success":
-                return {"status": "error", "error": f"Failed to send message: {result.get('error')}"}
+            # Prepare message
+            message = f"**Input Requested** (ID: {request_id})\n\n{question}"
+            if options:
+                message += "\n\nOptions:\n" + "\n".join(f"- {opt}" for opt in options)
+            if context:
+                message += f"\n\nContext: {context}"
 
-            return {"status": "success", "request_id": request_id, "message_sent": True}
+            client = _get_client_bot()
+
+            # Route based on available metadata
+            user_email = agent_metadata.get("user_email") or (agent_instance.get("user_email") if agent_instance else None)
+            stream_name = agent_metadata.get("stream_name")
+            project_name = agent_metadata.get("project_name") or project_from_path(agent_instance.get("project_dir") if agent_instance else None)
+
+            if user_email:
+                result = client.send_message(
+                    message_type="private",
+                    to=[user_email],
+                    content=message,
+                )
+            elif stream_name:
+                result = client.send_message(
+                    message_type="stream",
+                    to=stream_name,
+                    content=message,
+                    topic=topic_input(project_name or "Project", request_id),
+                )
+            else:
+                result = client.send_message(
+                    message_type="stream",
+                    to="Agent-Channel",
+                    content=message,
+                    topic=topic_input(project_name or agent_id, request_id),
+                )
+
+            if result.get("result") == "success":
+                return {
+                    "status": "success",
+                    "request_id": request_id,
+                    "message": "Input request sent",
+                }
+
+            return {"status": "error", "error": result.get("msg", "Failed to send")}
         except Exception as e:
             track_tool_error("request_user_input", type(e).__name__)
             return {"status": "error", "error": str(e)}
@@ -270,7 +290,7 @@ def start_task(agent_id: str, name: str, description: str = "") -> dict[str, Any
         track_tool_call("start_task")
         try:
             task_id = str(uuid.uuid4())
-            db = get_database()
+            db = DatabaseManager()
 
             # Insert task into database
             db.execute(
@@ -295,7 +315,7 @@ def update_task_progress(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "update_task_progress"}):
         track_tool_call("update_task_progress")
         try:
-            db = get_database()
+            db = DatabaseManager()
 
             # Update task progress in database
             update_sql = "UPDATE tasks SET progress = ?"
@@ -321,7 +341,7 @@ def complete_task(task_id: str, outputs: str = "", metrics: str = "") -> dict[st
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "complete_task"}):
         track_tool_call("complete_task")
         try:
-            db = get_database()
+            db = DatabaseManager()
 
             # Complete task in database
             db.execute(
@@ -344,7 +364,7 @@ def list_instances() -> dict[str, Any]:
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "list_instances"}):
         track_tool_call("list_instances")
         try:
-            db = get_database()
+            db = DatabaseManager()
 
             # Query agent instances from database
             instances = db.query(
@@ -381,7 +401,7 @@ def enable_afk_mode(hours: int = 8, reason: str = "Away from computer") -> dict[
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "enable_afk_mode"}):
         track_tool_call("enable_afk_mode")
         try:
-            result = _tracker.set_afk(enabled=True, hours=hours)
+            DatabaseManager().set_afk_state(enabled=True, reason=reason, hours=hours)
             return {"status": "success", "message": f"AFK mode enabled for {hours} hours", "reason": reason}
         except Exception as e:
             track_tool_error("enable_afk_mode", type(e).__name__)
@@ -393,7 +413,7 @@ def disable_afk_mode() -> dict[str, Any]:
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "disable_afk_mode"}):
         track_tool_call("disable_afk_mode")
         try:
-            result = _tracker.set_afk(enabled=False, hours=0)
+            DatabaseManager().set_afk_state(enabled=False, reason="", hours=0)
             return {"status": "success", "message": "AFK mode disabled - normal operation"}
         except Exception as e:
             track_tool_error("disable_afk_mode", type(e).__name__)
@@ -405,9 +425,34 @@ def get_afk_status() -> dict[str, Any]:
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "get_afk_status"}):
         track_tool_call("get_afk_status")
         try:
-            return {"status": "success", "afk_state": _tracker.get_afk_state()}
+            state = DatabaseManager().get_afk_state() or {}
+            normalized = {
+                "enabled": bool(state.get("is_afk")),
+                "reason": state.get("reason"),
+                "updated_at": state.get("updated_at"),
+            }
+            return {"status": "success", "afk_state": normalized}
         except Exception as e:
             track_tool_error("get_afk_status", type(e).__name__)
+            return {"status": "error", "error": str(e)}
+
+
+def poll_agent_events(limit: int = 50, topic_prefix: str | None = "Agents/Chat/") -> dict[str, Any]:
+    """Poll unacknowledged chat events from Zulip.
+
+    This allows an agent to receive user replies when AFK is enabled.
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
+        track_tool_call("poll_agent_events")
+        try:
+            db = DatabaseManager()
+            events = db.get_unacked_events(limit=limit, topic_prefix=topic_prefix)
+            ids = [e["id"] for e in events]
+            if ids:
+                db.ack_events(ids)
+            return {"status": "success", "events": events, "count": len(events)}
+        except Exception as e:
+            track_tool_error("poll_agent_events", type(e).__name__)
             return {"status": "error", "error": str(e)}
 
 
@@ -424,3 +469,4 @@ def register_agent_tools(mcp: Any) -> None:
     mcp.tool(description="Enable AFK mode for away notifications")(enable_afk_mode)
     mcp.tool(description="Disable AFK mode")(disable_afk_mode)
     mcp.tool(description="Get AFK mode status")(get_afk_status)
+    mcp.tool(description="Poll agent chat events")(poll_agent_events)
