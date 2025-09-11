@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.zulipchat_mcp.utils.health import (
+from zulipchat_mcp.health import (
     HealthCheck,
     HealthMonitor,
     HealthStatus,
@@ -154,7 +154,7 @@ class TestHealthMonitor:
             HealthCheck("non_critical_check", Mock(return_value=True), critical=False),
         ]
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {
                 "uptime_seconds": 100,
                 "counters": {"messages": 10},
@@ -180,7 +180,7 @@ class TestHealthMonitor:
             HealthCheck("non_critical_check", Mock(return_value=False), critical=False),
         ]
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {}
 
             result = await monitor.check_health()
@@ -200,7 +200,7 @@ class TestHealthMonitor:
             HealthCheck("non_critical_check", Mock(return_value=True), critical=False),
         ]
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {}
 
             result = await monitor.check_health()
@@ -220,7 +220,7 @@ class TestHealthMonitor:
             ),
         ]
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {}
 
             result = await monitor.check_health()
@@ -293,7 +293,7 @@ class TestDefaultHealthChecks:
         """Test config validation check."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.ConfigManager") as mock_config_class:
+        with patch("zulipchat_mcp.health.ConfigManager") as mock_config_class:
             mock_config = Mock()
             mock_config.validate_config.return_value = True
             mock_config_class.return_value = mock_config
@@ -307,7 +307,7 @@ class TestDefaultHealthChecks:
         """Test config validation check with invalid config."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.ConfigManager") as mock_config_class:
+        with patch("zulipchat_mcp.health.ConfigManager") as mock_config_class:
             mock_config = Mock()
             mock_config.validate_config.return_value = False
             mock_config_class.return_value = mock_config
@@ -320,7 +320,7 @@ class TestDefaultHealthChecks:
         """Test config validation check with exception."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.ConfigManager") as mock_config_class:
+        with patch("zulipchat_mcp.health.ConfigManager") as mock_config_class:
             mock_config_class.side_effect = Exception("Config error")
 
             result = monitor._check_config()
@@ -331,7 +331,7 @@ class TestDefaultHealthChecks:
         """Test cache operational check."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.message_cache") as mock_cache:
+        with patch("zulipchat_mcp.health.message_cache") as mock_cache:
             mock_cache.get.return_value = "test"
             mock_cache.set.return_value = None
 
@@ -345,7 +345,7 @@ class TestDefaultHealthChecks:
         """Test cache check when cache fails."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.message_cache") as mock_cache:
+        with patch("zulipchat_mcp.health.message_cache") as mock_cache:
             mock_cache.get.return_value = "wrong_value"
             mock_cache.set.return_value = None
 
@@ -357,7 +357,7 @@ class TestDefaultHealthChecks:
         """Test cache check with exception."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.message_cache") as mock_cache:
+        with patch("zulipchat_mcp.health.message_cache") as mock_cache:
             mock_cache.set.side_effect = Exception("Cache error")
 
             result = monitor._check_cache()
@@ -368,7 +368,7 @@ class TestDefaultHealthChecks:
         """Test metrics operational check."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {"uptime_seconds": 100}
 
             result = monitor._check_metrics()
@@ -380,7 +380,7 @@ class TestDefaultHealthChecks:
         """Test metrics check with missing data."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {}
 
             result = monitor._check_metrics()
@@ -391,7 +391,7 @@ class TestDefaultHealthChecks:
         """Test metrics check with exception."""
         monitor = HealthMonitor()
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.side_effect = Exception("Metrics error")
 
             result = monitor._check_metrics()
@@ -405,7 +405,7 @@ class TestConvenienceFunctions:
     @pytest.mark.asyncio
     async def test_perform_health_check(self):
         """Test the perform_health_check function."""
-        with patch("src.zulipchat_mcp.health.health_monitor") as mock_monitor:
+        with patch("zulipchat_mcp.health.health_monitor") as mock_monitor:
             mock_monitor.check_health = AsyncMock(return_value={"status": "healthy"})
 
             result = await perform_health_check()
@@ -415,7 +415,7 @@ class TestConvenienceFunctions:
 
     def test_get_liveness_function(self):
         """Test the get_liveness function."""
-        with patch("src.zulipchat_mcp.health.health_monitor") as mock_monitor:
+        with patch("zulipchat_mcp.health.health_monitor") as mock_monitor:
             mock_monitor.get_liveness.return_value = {"status": "alive"}
 
             result = get_liveness()
@@ -425,7 +425,7 @@ class TestConvenienceFunctions:
 
     def test_get_readiness_function(self):
         """Test the get_readiness function."""
-        with patch("src.zulipchat_mcp.health.health_monitor") as mock_monitor:
+        with patch("zulipchat_mcp.health.health_monitor") as mock_monitor:
             mock_monitor.get_readiness.return_value = {"ready": True}
 
             result = get_readiness()
@@ -451,7 +451,7 @@ class TestIntegration:
         for i in range(5):
             monitor.add_check(f"slow_check_{i}", slow_check, critical=False)
 
-        with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+        with patch("zulipchat_mcp.health.metrics") as mock_metrics:
             mock_metrics.get_metrics.return_value = {}
 
             start_time = time.time()
@@ -479,16 +479,16 @@ class TestIntegration:
         monitor.add_check("custom", custom_check, critical=False)
 
         # Mock external dependencies
-        with patch("src.zulipchat_mcp.health.ConfigManager") as mock_config_class:
+        with patch("zulipchat_mcp.health.ConfigManager") as mock_config_class:
             mock_config = Mock()
             mock_config.validate_config.return_value = True
             mock_config_class.return_value = mock_config
 
-            with patch("src.zulipchat_mcp.health.message_cache") as mock_cache:
+            with patch("zulipchat_mcp.health.message_cache") as mock_cache:
                 mock_cache.get.return_value = "test"
                 mock_cache.set.return_value = None
 
-                with patch("src.zulipchat_mcp.health.metrics") as mock_metrics:
+                with patch("zulipchat_mcp.health.metrics") as mock_metrics:
                     mock_metrics.get_metrics.return_value = {"uptime_seconds": 100}
 
                     # Run health checks
