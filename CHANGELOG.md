@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.5.1] - 2025-09-12 — Testing & Docs
+
+### ✅ Test Suite Enhancements (≥90% coverage)
+- Re-included `search_v25.py` and `streams_v25.py` in coverage scope and raised the coverage gate to `--cov-fail-under=90`.
+- Added focused unit/component tests covering:
+  - Advanced Search (messages/users/streams/topics): relevance + time ranges, oldest/newest windows, highlights, aggregations, has_more semantics, zero-match paths.
+  - Daily Summary: mixed stream results with error-continue, single-active-stream insights, heavy-senders slicing to top 10.
+  - Analytics: activity/sentiment/topics/participation across summary/detailed/chart_data formats; group_by user/stream/day/hour; no-messages and exception guards.
+  - Streams: manage_streams list permutations; manage_topics delete/move/mark_read error handling; stream_analytics stats with error/exception branches.
+- Introduced shared fixtures to reduce duplication:
+  - `make_msg` (message factory) and `fake_client_class` (tiny client base for deterministic fakes).
+- Added boundary tests: exactly-at-limit has_more for messages/topics, TimeRange(start/end) → `after:`/`before:` narrow filters.
+- Added JSON schema “contract tests” for transformation-layer outputs: `advanced_search`, `analytics`, and `get_daily_summary` shapes.
+- Kept the suite fast and offline (≈5–6s, no network); integration tests remain opt-in.
+
+### 📄 Documentation
+- New testing guide at `docs/testing/README.md` (scope, fixtures/fakes, contract tests, coverage gate, cleaning, performance tips).
+- Note in `AGENTS.md` about contract-only runs and the coverage gate.
+- v2.5.0 documentation set retained under `docs/v2.5.0/` (reviewed alongside the testing work). Documentation efforts were coordinated with the Claude agent; this release bundles the testing and docs improvements.
+
+### Result
+- Full run: 253 passed, 3 skipped; total coverage 90.08% (gate met).
+- Commands: `UV_CACHE_DIR=.uv_cache uv sync --reinstall && UV_CACHE_DIR=.uv_cache uv run pytest -q`.
+
 ## [2.5.0] - 2025-09-11 ✅ IMPLEMENTED
 
 ### Major Architecture Consolidation
@@ -109,4 +133,3 @@
 (Rest of the existing CHANGELOG content)
 
 ---
-
