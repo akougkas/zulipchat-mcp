@@ -22,16 +22,7 @@
     "deny": [
       "Read(.env*)",
       "Write(.env*)",
-      "Read(**/secrets/**)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(git add:*)",
-      "Bash(git reset:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git tag:*)",
-      "Bash(git checkout:*)",
-      "Bash(git branch:*)"
+      "Read(**/secrets/**)"
     ]
   },
   "environment": {
