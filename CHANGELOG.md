@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.5.1] - 2025-09-12 — Testing & Docs
+## [2.5.0] - 2025-09-12 — Testing & Docs
 
 ### ✅ Test Suite Enhancements (≥90% coverage)
 - Re-included `search_v25.py` and `streams_v25.py` in coverage scope and raised the coverage gate to `--cov-fail-under=90`.

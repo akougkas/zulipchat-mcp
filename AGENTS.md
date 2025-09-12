@@ -10,7 +10,7 @@
 - `uv sync` — install dependencies.
 - `uv run zulipchat-mcp --zulip-email ... --zulip-api-key ... --zulip-site ... [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
-- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage.
+- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 90%.
 - `uv run ruff check .` — lint; `uv run black .` — format; `uv run mypy src` — type-check.
 
 ## Coding Style & Naming Conventions
@@ -22,9 +22,16 @@
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.
 - Mark long/external tests with `@pytest.mark.slow` or `@pytest.mark.integration` and gate in CI via markers.
 - Prefer fast, deterministic unit tests; mock Zulip API calls. Aim for meaningful coverage with `pytest --cov=src`.
-- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* && uv sync --reinstall`), raise the coverage gate incrementally (e.g., 40% → 60% → 75% → 90%+) while adding minimal, targeted tests without altering functionality.
+- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache && uv sync --reinstall`), and maintain the coverage gate at 90% while adding minimal, targeted tests without altering functionality.
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
+
+## Cleanup Plan (v2.5 follow-up)
+- tools.commands: replace legacy import of `tools.search` with a v2.5 adaptor (use `advanced_search`) or remove the command if unused; add a smoke test.
+- Scheduler surface: stop exporting non-existent names; either keep `services/scheduler.py` internal with corrected imports or defer public surface.
+- Metrics: consolidate on `utils.metrics`; either façade or remove top-level `metrics.py` and update tests accordingly.
+- Docs hygiene: move/remove `docs/v2.5.0/api-reference/streams.md.backup`.
+- Optional: move `.claude/` to `.archived/claude/` or document as dev tooling.
 
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).
