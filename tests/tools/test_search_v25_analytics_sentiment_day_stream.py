@@ -2,26 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 
-def _m(ts_offset: int, stream: str, content: str):
-    return {
-        "id": ts_offset,
-        "sender_full_name": "U",
-        "display_recipient": stream,
-        "timestamp": int(datetime.now().timestamp()) - ts_offset,
-        "content": content,
-        "subject": "t",
-    }
-
-
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_sentiment_group_by_day_and_stream(mock_managers) -> None:
+async def test_analytics_sentiment_group_by_day_and_stream(mock_managers, make_msg) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -30,9 +18,9 @@ async def test_analytics_sentiment_group_by_day_and_stream(mock_managers) -> Non
     mock_validator.validate_tool_params.return_value = {}
 
     msgs = [
-        _m(5, "general", "great work"),
-        _m(10, "dev", "bad issue"),
-        _m(15, "dev", "good news"),
+        make_msg(1, minutes_ago=1, stream="general", content="great work"),
+        make_msg(2, minutes_ago=2, stream="dev", content="bad issue"),
+        make_msg(3, minutes_ago=3, stream="dev", content="good news"),
     ]
 
     class Client:
@@ -53,4 +41,3 @@ async def test_analytics_sentiment_group_by_day_and_stream(mock_managers) -> Non
     # group_by stream
     stream = await analytics(metric="sentiment", group_by="stream")
     assert stream["status"] == "success" and "sentiment" in stream["data"]
-

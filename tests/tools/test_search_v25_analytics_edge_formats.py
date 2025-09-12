@@ -2,21 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-
-def _msg(ts_offset: int, sender="Alice", stream="general", content="Hello", subject="topic"):
-    return {
-        "id": ts_offset,
-        "sender_full_name": sender,
-        "display_recipient": stream,
-        "timestamp": int((datetime.now() - timedelta(seconds=ts_offset)).timestamp()),
-        "content": content,
-        "subject": subject,
-    }
 
 
 class _ClientBase:
@@ -29,7 +17,7 @@ class _ClientBase:
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers) -> None:
+async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers, make_msg) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -38,9 +26,9 @@ async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers) ->
     mock_validator.validate_tool_params.return_value = {}
 
     msgs = [
-        _msg(10, sender="A", stream="s1"),
-        _msg(20, sender="B", stream="s2"),
-        _msg(30, sender="A", stream="s1"),
+        make_msg(1, minutes_ago=1, sender="A", stream="s1"),
+        make_msg(2, minutes_ago=2, sender="B", stream="s2"),
+        make_msg(3, minutes_ago=3, sender="A", stream="s1"),
     ]
 
     class Client(_ClientBase):
@@ -63,7 +51,7 @@ async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers) ->
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_topics_and_participation_detailed(mock_managers) -> None:
+async def test_analytics_topics_and_participation_detailed(mock_managers, make_msg) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -72,9 +60,9 @@ async def test_analytics_topics_and_participation_detailed(mock_managers) -> Non
     mock_validator.validate_tool_params.return_value = {}
 
     msgs = [
-        _msg(5, sender="Alice", stream="general", content="project meeting plan"),
-        _msg(6, sender="Bob", stream="dev", content="fix bug error logs"),
-        _msg(7, sender="Alice", stream="dev", content="release planning deploy"),
+        make_msg(5, minutes_ago=1, sender="Alice", stream="general", content="project meeting plan", subject="topic"),
+        make_msg(6, minutes_ago=2, sender="Bob", stream="dev", content="fix bug error logs", subject="topic"),
+        make_msg(7, minutes_ago=3, sender="Alice", stream="dev", content="release planning deploy", subject="topic"),
     ]
 
     class Client(_ClientBase):
@@ -97,7 +85,7 @@ async def test_analytics_topics_and_participation_detailed(mock_managers) -> Non
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_sentiment_negative_insight(mock_managers) -> None:
+async def test_analytics_sentiment_negative_insight(mock_managers, make_msg) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -106,10 +94,10 @@ async def test_analytics_sentiment_negative_insight(mock_managers) -> None:
     mock_validator.validate_tool_params.return_value = {}
 
     msgs = [
-        _msg(5, content="this is bad and terrible error"),
-        _msg(6, content="awful bug and bad experience"),
-        _msg(7, content="bad"),
-        _msg(8, content="good"),
+        make_msg(1, minutes_ago=1, content="this is bad and terrible error"),
+        make_msg(2, minutes_ago=2, content="awful bug and bad experience"),
+        make_msg(3, minutes_ago=3, content="bad"),
+        make_msg(4, minutes_ago=4, content="good"),
     ]
 
     class Client(_ClientBase):
