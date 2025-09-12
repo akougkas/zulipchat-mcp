@@ -49,6 +49,9 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+
+# Local uv cache (optional, used in sandboxes)
+.uv_cache/
 cover/
 
 # Translations
