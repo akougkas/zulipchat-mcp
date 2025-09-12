@@ -24,6 +24,8 @@
 - Prefer fast, deterministic unit tests; mock Zulip API calls. Aim for meaningful coverage with `pytest --cov=src`.
 - Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* && uv sync --reinstall`), raise the coverage gate incrementally (e.g., 40% → 60% → 75% → 90%+) while adding minimal, targeted tests without altering functionality.
 
+- Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
+
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).
 - PRs should include: clear summary/motivation, linked issues, tests (or rationale), and example CLI invocation/output when relevant.
