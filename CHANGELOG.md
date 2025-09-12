@@ -1,6 +1,14 @@
 # Changelog
 
-## [2.5.0] - 2025-09-11 (PLANNED - OPT-v2.0)
+## [2.5.0] - 2025-09-11 ✅ IMPLEMENTED
+
+### Major Architecture Consolidation
+- **24+ tools → 7 categories**: Complete consolidation with foundation layer
+- **Foundation Components**: IdentityManager, ParameterValidator, ErrorHandler, MigrationManager  
+- **New Capabilities**: Event streaming, scheduled messaging, bulk operations, admin tools
+- **Multi-Identity**: User/bot/admin authentication with capability boundaries
+- **100% Backward Compatibility**: Migration layer preserves all legacy functionality
+- **Simplified Design**: Removed over-engineering while maintaining power
 
 ### 🚀 Complete Architecture Transformation - OPT-v2.0
 **The Ultimate Optimization**: 70% complexity reduction + 200% capability increase

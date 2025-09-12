@@ -4,7 +4,16 @@ import argparse
 from mcp.server.fastmcp import FastMCP
 
 from .config import ConfigManager
-from .tools import agents, commands, messaging, search, streams
+from .tools import (
+    register_messaging_v25_tools, 
+    register_streams_v25_tools, 
+    register_events_v25_tools,
+    register_users_v25_tools,
+    register_search_v25_tools,
+    register_files_v25_tools,
+    register_admin_v25_tools
+)
+from .core.migration import MigrationManager
 from .utils.database import init_database
 from .utils.logging import get_logger, setup_structured_logging
 
@@ -56,12 +65,32 @@ def main() -> None:
     # Initialize MCP
     mcp = FastMCP("ZulipChat MCP")
     
-    # Register tool groups
-    messaging.register_messaging_tools(mcp)
-    streams.register_stream_tools(mcp)
+    # Initialize migration manager for backward compatibility
+    migration_manager = MigrationManager()
+    
+    # Register V2.5.0 consolidated tools ONLY
+    # The migration manager handles backward compatibility for legacy tool names
+    logger.info("Registering v2.5.0 consolidated tools...")
+    register_messaging_v25_tools(mcp)     # Replaces: send_message, get_messages, edit_message, add_reaction
+    register_streams_v25_tools(mcp)       # Replaces: get_streams, create_stream, rename_stream, archive_stream
+    register_events_v25_tools(mcp)        # Replaces: register_agent, poll_agent_events (agent system)
+    register_users_v25_tools(mcp)         # New: Identity-aware user management
+    register_search_v25_tools(mcp)        # Replaces: search_messages, get_daily_summary
+    register_files_v25_tools(mcp)         # New: File management with security
+    register_admin_v25_tools(mcp)         # New: Admin tools with permission boundaries
+    
+    # Register ONLY agent tools (no conflicts, needed for AFK mode and direct imports)
+    # These are specialized tools that don't have v2.5.0 equivalents
+    from .tools import agents
     agents.register_agent_tools(mcp)
-    search.register_search_tools(mcp)
+    
+    # Register command tools (needed for workflow chains)
+    from .tools import commands
     commands.register_command_tools(mcp)
+    
+    # Store migration manager for tool interception if needed
+    mcp._migration_manager = migration_manager
+    logger.info("v2.5.0 architecture consolidation complete: 17 tools → 7 categories + specialized tools")
     
     # Start message listener based on CLI flag and/or AFK state watcher
     try:

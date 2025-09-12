@@ -94,6 +94,16 @@ class PermissionError(ZulipMCPError):
         self.action = action
 
 
+class CircuitBreakerOpenError(ZulipMCPError):
+    """Circuit breaker is in open state."""
+
+    def __init__(
+        self, message: str = "Circuit breaker is open", service: str | None = None
+    ) -> None:
+        """Initialize circuit breaker open error."""
+        super().__init__(message, {"service": service} if service else None)
+
+
 def create_error_response(
     error: Exception, operation: str, details: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -127,3 +137,18 @@ def create_error_response(
         response["error"] = "An unexpected error occurred"
 
     return response
+
+
+# Export all exception classes
+__all__ = [
+    "ZulipMCPError",
+    "ConfigurationError", 
+    "ConnectionError",
+    "ValidationError",
+    "RateLimitError",
+    "AuthenticationError",
+    "NotFoundError",
+    "PermissionError",
+    "CircuitBreakerOpenError",
+    "create_error_response",
+]

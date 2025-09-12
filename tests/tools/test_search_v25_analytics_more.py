@@ -36,6 +36,8 @@ async def test_analytics_sentiment_detailed_by_user(mock_managers) -> None:
                 _msg(10, sender="Bob", content="This is a bad problem"),
                 _msg(15, sender="Alice", content="Thanks! awesome work"),
             ]}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -65,6 +67,8 @@ async def test_analytics_topics_group_by_stream(mock_managers) -> None:
                 _msg(6, stream="dev", content="Fix bug and error logs"),
                 _msg(7, stream="dev", content="Release planning and deploy"),
             ]}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -93,6 +97,8 @@ async def test_analytics_participation_chart_overall(mock_managers) -> None:
                 _msg(5, sender="Alice", content="Hello world", subject="t1", stream="general"),
                 _msg(6, sender="Bob", content="Another message here", subject="t2", stream="dev"),
             ]}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -103,4 +109,3 @@ async def test_analytics_participation_chart_overall(mock_managers) -> None:
     assert res["status"] == "success"
     assert "participation" in res["data"]
     assert "series" in res.get("chart_data", {})
-

@@ -116,6 +116,8 @@ async def test_bulk_operations_read_with_narrow_and_add_flag_error(mock_managers
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": [{"id": 1}, {"id": 2}]}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
         def update_message_flags(self, messages, op, flag):  # type: ignore[no-redef]
             assert messages == [1, 2]
             return {"result": "success"}
@@ -158,8 +160,9 @@ async def test_cross_post_message_success(mock_managers) -> None:
                     "display_recipient": "general",
                 },
             }
-        def send_message(self, payload):  # type: ignore[no-redef]
-            assert payload["type"] == "stream"
+        def send_message(self, mtype, recipients, content, topic):  # type: ignore[no-redef]
+            assert mtype == "stream"
+            assert isinstance(recipients, (str, list))
             return {"result": "success", "id": 11}
 
     async def execute(tool, params, func, identity=None):

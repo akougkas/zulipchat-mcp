@@ -7,6 +7,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+[![Version](https://img.shields.io/badge/Version-2.5.0-green)](https://github.com/akougkas2030/zulipchat-mcp)
 
 [Quick Start](#quick-start) • [Installation](#installation) • [Tools](#available-tools) • [Examples](#examples)
 
@@ -63,14 +64,14 @@ AI: Creating your daily digest...
 ❌ **Client-Side Features** - Removed inappropriate local echo, deduplication  
 ❌ **Tool Fragmentation** - Consolidated related operations
 
-### **New Tool Categories** (OPT-v2.0)
-1. **Core Messaging** - Send, schedule, search, edit with full Zulip power
-2. **Stream & Topic Management** - Create, manage, bulk operations  
-3. **Event Streaming** - Real-time capabilities without complexity
-4. **User & Authentication** - Identity-aware operations
-5. **Advanced Search & Analytics** - Powerful search with insights
-6. **File & Media Management** - Streaming uploads/downloads
-7. **Administration & Settings** - Admin operations with permission boundaries
+### **Enhanced Capabilities** (v2.5.0)
+1. **Messaging** - Send, schedule, search, edit with advanced filtering
+2. **Streams & Topics** - Comprehensive management with bulk operations  
+3. **Real-time Events** - Live event streaming and monitoring
+4. **Identity Management** - Multi-credential user/bot/admin operations
+5. **Search & Analytics** - Advanced search with aggregations and insights
+6. **File Operations** - Secure file uploads and management
+7. **Administration** - Organization settings and user management
 
 ### **Perfect Backward Compatibility**
 - ✅ **Zero Breaking Changes** - All existing workflows continue working
@@ -228,7 +229,7 @@ claude mcp add zulipchat -- uvx zulipchat-mcp --zulip-email YOUR_EMAIL --zulip-a
 </details>
 
 
-## Available Tools (OPT-v2.0 Architecture)
+## Available Tools (v2.5.0 Architecture)
 
 ### 1. Core Messaging Tools - **Unified & Powerful**
 | Tool | Capabilities | Simple Example | Advanced Example |

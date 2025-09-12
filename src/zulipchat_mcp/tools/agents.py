@@ -60,7 +60,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                     agent_id,
                     str(uuid.uuid4())[:8],  # Short session ID
                     str(os.getcwd()),
-                    "localhost",
+                    os.getenv("HOSTNAME", "localhost"),
                     datetime.utcnow(),
                 ),
             )
@@ -74,23 +74,23 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                 (False, "Agent ready for normal operations", datetime.utcnow()),
             )
 
-            # Check if Agent-Channel stream exists
+            # Check if Agents-Channel stream exists
             client = _get_client_bot()
             response = client.get_streams()
             streams = response.get("streams", []) if response.get("result") == "success" else []
-            stream_exists = any(s.get("name") == "Agent-Channel" for s in streams)
+            stream_exists = any(s.get("name") == "Agents-Channel" for s in streams)
 
             result = {
                 "status": "success",
                 "agent_id": agent_id,
                 "instance_id": instance_id,
                 "agent_type": agent_type,
-                "stream": "Agent-Channel",
+                "stream": "Agents-Channel",
                 "afk_enabled": False,
             }
 
             if not stream_exists:
-                result["warning"] = "Stream 'Agent-Channel' does not exist."
+                result["warning"] = "Stream 'Agents-Channel' does not exist."
 
             return result
 
@@ -266,7 +266,7 @@ def request_user_input(
             else:
                 result = client.send_message(
                     message_type="stream",
-                    to="Agent-Channel",
+                    to="Agents-Channel",
                     content=message,
                     topic=topic_input(project_name or agent_id, request_id),
                 )

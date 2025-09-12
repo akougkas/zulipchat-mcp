@@ -1,7 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "uv run $CLAUDE_PROJECT_DIR/.claude/statusline/variation2-rich.py"
+    "command": "uv run $CLAUDE_PROJECT_DIR/.claude/statusline/agent-command-center.py"
   },
   "preferences": {
     "pythonPackageManager": "uv"
@@ -23,15 +23,15 @@
       "Read(.env*)",
       "Write(.env*)",
       "Read(**/secrets/**)",
-      "Bash(git commit*)",
-      "Bash(git push*)",
-      "Bash(git add*)",
-      "Bash(git reset*)",
-      "Bash(git merge*)",
-      "Bash(git rebase*)",
-      "Bash(git tag*)",
-      "Bash(git checkout*)",
-      "Bash(git branch*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git tag:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)"
     ]
   },
   "environment": {

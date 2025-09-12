@@ -8,7 +8,17 @@ from typing import Any
 
 from ..config import ConfigManager
 from ..core.cache import message_cache
-from .metrics import metrics
+from ..metrics import metrics
+
+__all__ = [
+    "HealthStatus",
+    "HealthCheck",
+    "HealthMonitor",
+    "health_monitor",
+    "perform_health_check",
+    "get_liveness",
+    "get_readiness",
+]
 
 
 class HealthStatus(Enum):

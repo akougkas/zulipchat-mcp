@@ -1,4 +1,4 @@
-"""Topic naming helpers for consistent Agent-Channel threading.
+"""Topic naming helpers for consistent Agents-Channel threading.
 
 Provides a stable, readable scheme for all agent communications.
 """
@@ -30,4 +30,3 @@ def topic_chat(project: str, agent_type: str, session_id: str) -> str:
 def topic_status(agent_type: str) -> str:
     """Topic for status updates: Agents/Status/<agent>"""
     return f"Agents/Status/{agent_type}"
-

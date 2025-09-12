@@ -1,5 +1,6 @@
 """Zulip API client wrapper for MCP integration."""
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -7,6 +8,37 @@ from zulip import Client
 
 from ..config import ConfigManager
 from .cache import cache_decorator, stream_cache, user_cache
+
+
+@dataclass
+class ZulipMessage:
+    """Represents a Zulip message."""
+    id: int
+    sender_full_name: str
+    sender_email: str
+    timestamp: int
+    content: str
+    type: str
+    stream_name: str = ""
+    subject: str = ""
+
+
+@dataclass
+class ZulipStream:
+    """Represents a Zulip stream."""
+    id: int
+    name: str
+    description: str
+    invite_only: bool = False
+
+
+@dataclass  
+class ZulipUser:
+    """Represents a Zulip user."""
+    id: int
+    full_name: str
+    email: str
+    is_active: bool = True
 
 
 class ZulipClientWrapper:
@@ -176,6 +208,12 @@ class ZulipClientWrapper:
             {"message_id": message_id, "emoji_name": emoji_name}
         )
 
+    def remove_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:
+        """Remove reaction from a message."""
+        return self.client.remove_reaction(
+            {"message_id": message_id, "emoji_name": emoji_name}
+        )
+
     def edit_message(
         self,
         message_id: int,
@@ -262,3 +300,12 @@ class ZulipClientWrapper:
         )
 
         return summary
+
+
+# Export list for compatibility wrapper
+__all__ = [
+    "ZulipClientWrapper",
+    "ZulipMessage", 
+    "ZulipStream",
+    "ZulipUser",
+]

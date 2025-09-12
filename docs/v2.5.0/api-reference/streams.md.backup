@@ -1,0 +1,767 @@
+# Streams API Reference
+
+The streams category provides comprehensive stream and topic management with basic analytics and settings management. All functions are internally identity-aware.
+
+## Tool Overview
+
+| Function | Purpose | Identity Support |
+|----------|---------|------------------|
+| [`manage_streams()`](#manage_streams) | Stream CRUD operations | User, Bot, Admin |
+| [`manage_topics()`](#manage_topics) | Topic operations | User, Admin |
+| [`get_stream_info()`](#get_stream_info) | Stream details & metadata | User, Bot, Admin |
+| [`stream_analytics()`](#stream_analytics) | Stream statistics (approximated) | User, Bot, Admin |
+| [`manage_stream_settings()`](#manage_stream_settings) | Stream settings & notifications | User |
+
+## Functions
+
+### `manage_streams()`
+
+Comprehensive stream management including creation, modification, subscription management, and deletion with bulk operations support.
+
+#### Signature
+```python
+async def manage_streams(
+    operation: Literal["list", "create", "update", "delete", "subscribe", "unsubscribe"],
+    
+    # Stream identification (bulk operations supported)
+    stream_ids: Optional[List[int]] = None,  # For bulk operations
+    stream_names: Optional[List[str]] = None,  # For bulk operations
+    
+    # Stream properties
+    properties: Optional[Dict[str, Any]] = None,
+    
+    # Subscription management
+    principals: Optional[List[str]] = None,  # Email addresses of users
+    announce: bool = False,
+    invite_only: bool = False,
+    
+    # List operation filters
+    include_public: bool = True,
+    include_subscribed: bool = True,
+    include_all_active: bool = False,
+    
+    # Expert parameters
+    authorization_errors_fatal: bool = True,
+    history_public_to_subscribers: Optional[bool] = None,
+    stream_post_policy: Optional[int] = None,
+    message_retention_days: Optional[int] = None
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+##### Required Parameters
+- **`operation`** (Literal): Stream operation type
+  - `"list"`: Get accessible streams
+  - `"create"`: Create new streams
+  - `"update"`: Update stream properties  
+  - `"delete"`: Delete streams (admin only)
+  - `"subscribe"`: Subscribe users to streams
+  - `"unsubscribe"`: Unsubscribe users from streams
+
+##### Stream Identification
+- **`stream_ids`** (List[int]): Stream IDs for bulk operations (update/delete/subscribe/unsubscribe)
+- **`stream_names`** (List[str]): Stream names for bulk operations (create/subscribe/unsubscribe)
+
+##### Stream Properties
+- **`properties`** (Dict): Properties for create/update operations
+  - `description`: Stream description
+  - `is_private`: Private stream flag
+  - `is_web_public`: Web public access
+  - `invite_only`: Invitation requirement
+
+##### Subscription Management
+- **`principals`** (List[str]): Email addresses of users to subscribe/unsubscribe
+- **`announce`** (bool): Announce stream creation organization-wide
+- **`invite_only`** (bool): Whether stream requires invitation
+
+##### List Operation Filters
+- **`include_public`** (bool): Include public streams (default: True)
+- **`include_subscribed`** (bool): Include subscribed streams (default: True)
+- **`include_all_active`** (bool): Include all active streams - admin only (default: False)
+
+##### Expert Parameters
+- **`authorization_errors_fatal`** (bool): Whether auth errors should fail the operation
+- **`history_public_to_subscribers`** (bool): Historical message access for new subscribers
+- **`stream_post_policy`** (int): Who can post to the stream
+- **`message_retention_days`** (int): Message retention policy (admin only)
+
+#### Progressive Disclosure Examples
+
+**Basic Mode** - List streams:
+```python
+# Get all accessible streams
+result = await manage_streams("list")
+```
+
+**Advanced Mode** - Create stream with properties:
+```python
+# Create project stream
+result = await manage_streams(
+    operation="create",
+    stream_names=["project-alpha"],
+    properties={
+        "description": "Alpha project coordination",
+        "is_private": False
+    }
+)
+```
+
+**Expert Mode** - Full stream creation with announcement:
+```python
+# Create public stream with full configuration
+result = await manage_streams(
+    operation="create", 
+    stream_names=["company-wide-updates"],
+    properties={
+        "description": "Important company announcements and updates",
+        "is_private": False,
+        "is_web_public": False,
+        "invite_only": False
+    },
+    announce=True,
+    history_public_to_subscribers=True,
+    validation_mode=ValidationMode.EXPERT
+)
+```
+
+#### Response Format
+
+**List Operation**:
+```python
+{
+    "status": "success",
+    "operation": "list",
+    "streams": [
+        {
+            "stream_id": 123,
+            "name": "general",
+            "description": "General discussion",
+            "invite_only": False,
+            "is_web_public": False,
+            "stream_post_policy": 1,
+            "history_public_to_subscribers": True,
+            "first_message_id": 1000,
+            "message_retention_days": None,
+            "date_created": "2023-01-15T10:30:00Z"
+        }
+    ],
+    "total_streams": 15,
+    "identity_used": "user"
+}
+```
+
+**Create Operation**:
+```python
+{
+    "status": "success",
+    "operation": "create",
+    "created_streams": [
+        {
+            "name": "project-alpha", 
+            "stream_id": 456,
+            "subscribed": True
+        }
+    ],
+    "already_subscribed": [],
+    "unauthorized": [],
+    "announced": False
+}
+```
+
+#### Usage Examples by Operation
+
+**Stream Subscription Management**:
+```python
+# Subscribe users to streams
+result = await manage_streams(
+    operation="subscribe",
+    stream_names=["development", "design"],
+    user_ids=[123, 456, 789]
+)
+
+# Unsubscribe from streams
+result = await manage_streams(
+    operation="unsubscribe", 
+    stream_names=["old-project"],
+    user_ids=[123]  # If empty, unsubscribes current user
+)
+```
+
+**Stream Updates**:
+```python
+# Update stream properties
+result = await manage_streams(
+    operation="update",
+    stream_id=123,
+    properties={
+        "description": "Updated project description",
+        "is_private": True
+    }
+)
+```
+
+### `manage_topics()`
+
+Advanced topic operations including moving, renaming, deletion, and muting.
+
+#### Signature
+```python
+async def manage_topics(
+    stream_id: int,  # Required: target stream
+    operation: str,  # Required: topic operation
+    
+    # Topic identification (operation-dependent)
+    topic_name: Optional[str] = None,
+    source_topic: Optional[str] = None,
+    target_topic: Optional[str] = None,
+    
+    # Advanced parameters  
+    target_stream_id: Optional[int] = None,
+    propagate_mode: str = "change_one",
+    
+    # Expert parameters
+    send_notification_to_old_thread: bool = False,
+    
+    # System parameters
+    validation_mode: ValidationMode = ValidationMode.BASIC
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+##### Required Parameters
+- **`stream_id`** (int): Stream containing the topics
+- **`operation`** (str): Topic operation
+  - `"list"`: Get topics in stream
+  - `"move"`: Move topic to different stream
+  - `"rename"`: Rename topic within stream
+  - `"delete"`: Delete topic and messages (admin only)
+  - `"mark_read"`: Mark all topic messages as read
+  - `"mute"`: Mute topic notifications
+  - `"unmute"`: Unmute topic notifications
+
+##### Topic Identification
+- **`topic_name`** (str): Topic name for single-topic operations
+- **`source_topic`** (str): Original topic name for move/rename
+- **`target_topic`** (str): New topic name for move/rename
+
+##### Advanced Parameters
+- **`target_stream_id`** (int): Destination stream for move operations
+- **`propagate_mode`** (str): Change propagation scope
+  - `"change_one"`: Change only one message
+  - `"change_later"`: Change this and later messages  
+  - `"change_all"`: Change all messages in topic
+
+##### Expert Parameters
+- **`send_notification_to_old_thread`** (bool): Notify old thread of topic move
+
+#### Usage Examples
+
+**Basic Topic Listing**:
+```python
+# List all topics in stream
+result = await manage_topics(
+    stream_id=123,
+    operation="list"
+)
+```
+
+**Advanced Topic Movement**:
+```python
+# Move topic to different stream
+result = await manage_topics(
+    stream_id=123,
+    operation="move",
+    source_topic="old-discussion",
+    target_topic="moved-discussion", 
+    target_stream_id=456,
+    propagate_mode="change_all"
+)
+```
+
+**Expert Topic Management**:
+```python
+# Move topic with notifications and full propagation
+result = await manage_topics(
+    stream_id=123,
+    operation="move",
+    source_topic="project-planning",
+    target_topic="archived-planning",
+    target_stream_id=789,
+    propagate_mode="change_all",
+    send_notification_to_old_thread=True,
+    validation_mode=ValidationMode.EXPERT
+)
+```
+
+#### Response Format
+
+**List Operation**:
+```python
+{
+    "status": "success",
+    "operation": "list", 
+    "topics": [
+        {
+            "name": "general discussion",
+            "max_id": 12345,
+            "history": [
+                {
+                    "timestamp": "2024-01-15T10:30:00Z",
+                    "rendered_content": "Topic created",
+                    "content_type": "text/html",
+                    "user_id": 123
+                }
+            ]
+        }
+    ],
+    "stream_id": 123,
+    "total_topics": 5
+}
+```
+
+**Move/Rename Operations**:
+```python
+{
+    "status": "success",
+    "operation": "move",
+    "messages_moved": 15,
+    "old_stream_id": 123,
+    "new_stream_id": 456,
+    "old_topic": "project-planning", 
+    "new_topic": "archived-planning",
+    "notification_sent": True
+}
+```
+
+### `get_stream_info()`
+
+Retrieve detailed stream information including topics, subscribers, and settings.
+
+#### Signature
+```python
+async def get_stream_info(
+    # Stream identification (one required)
+    stream_name: Optional[str] = None,
+    stream_id: Optional[int] = None,
+    
+    # Advanced parameters
+    include_topics: bool = False,
+    include_subscribers: bool = False,
+    include_settings: bool = False,
+    
+    # System parameters
+    validation_mode: ValidationMode = ValidationMode.BASIC
+) -> Dict[str, Any]
+```
+
+#### Usage Examples
+
+**Basic Stream Info**:
+```python
+# Get basic stream information
+result = await get_stream_info(stream_name="general")
+```
+
+**Advanced Stream Details**:
+```python
+# Get comprehensive stream information
+result = await get_stream_info(
+    stream_id=123,
+    include_topics=True,
+    include_subscribers=True,
+    include_settings=True
+)
+```
+
+#### Response Format
+```python
+{
+    "status": "success",
+    "stream": {
+        "stream_id": 123,
+        "name": "general",
+        "description": "General discussion for the team",
+        "invite_only": False,
+        "is_web_public": False,
+        "stream_post_policy": 1,
+        "history_public_to_subscribers": True,
+        "first_message_id": 1000,
+        "message_retention_days": None,
+        "date_created": "2023-01-15T10:30:00Z",
+        "rendered_description": "<p>General discussion for the team</p>",
+        "is_announcement_only": False
+    },
+    
+    # Included if include_topics=True
+    "topics": [
+        {
+            "name": "welcome",
+            "max_id": 12345,
+            "message_count": 25
+        }
+    ],
+    
+    # Included if include_subscribers=True  
+    "subscribers": [
+        {
+            "user_id": 123,
+            "full_name": "Alice Johnson",
+            "email": "alice@example.com"
+        }
+    ],
+    
+    # Included if include_settings=True
+    "subscription_settings": {
+        "audible_notifications": True,
+        "desktop_notifications": True,
+        "email_notifications": False,
+        "push_notifications": True,
+        "wildcard_mentions_notify": True
+    }
+}
+```
+
+### `stream_analytics()`
+
+Generate comprehensive analytics and insights for stream activity and engagement.
+
+#### Signature
+```python
+async def stream_analytics(
+    # Stream identification (one required)
+    stream_name: Optional[str] = None,
+    stream_id: Optional[int] = None,
+    
+    # Advanced parameters
+    include_user_activity: bool = False,
+    include_topic_stats: bool = False,
+    
+    # Expert parameters  
+    time_range_days: int = 30,
+    generate_insights: bool = False,
+    
+    # System parameters
+    validation_mode: ValidationMode = ValidationMode.ADVANCED
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+##### Advanced Parameters
+- **`include_user_activity`** (bool): Include per-user activity breakdown
+- **`include_topic_stats`** (bool): Include topic-level statistics
+
+##### Expert Parameters
+- **`time_range_days`** (int): Analysis period in days (default: 30)
+- **`generate_insights`** (bool): Generate AI-powered insights
+
+#### Usage Examples
+
+**Advanced Analytics**:
+```python
+# Get stream analytics with user activity
+result = await stream_analytics(
+    stream_name="development",
+    include_user_activity=True,
+    include_topic_stats=True
+)
+```
+
+**Expert Analytics with Insights**:
+```python
+# Comprehensive analytics with AI insights  
+result = await stream_analytics(
+    stream_id=123,
+    include_user_activity=True,
+    include_topic_stats=True,
+    time_range_days=60,
+    generate_insights=True,
+    validation_mode=ValidationMode.EXPERT
+)
+```
+
+#### Response Format
+```python
+{
+    "status": "success",
+    "stream_id": 123,
+    "stream_name": "development",
+    "analysis_period": {
+        "start_date": "2023-12-15T00:00:00Z",
+        "end_date": "2024-01-15T00:00:00Z", 
+        "days": 30
+    },
+    
+    "message_stats": {
+        "total_messages": 1250,
+        "messages_per_day": 41.7,
+        "peak_day": "2024-01-10T00:00:00Z",
+        "peak_day_messages": 87,
+        "active_days": 28
+    },
+    
+    "engagement_metrics": {
+        "unique_senders": 15,
+        "avg_messages_per_sender": 83.3,
+        "reaction_rate": 0.34,
+        "thread_participation_rate": 0.67
+    },
+    
+    # Included if include_user_activity=True
+    "user_activity": [
+        {
+            "user_id": 123,
+            "full_name": "Alice Johnson",
+            "message_count": 156,
+            "reaction_count": 89,
+            "most_active_topic": "code-review"
+        }
+    ],
+    
+    # Included if include_topic_stats=True
+    "topic_statistics": [
+        {
+            "topic_name": "sprint-planning",
+            "message_count": 234,
+            "unique_participants": 8,
+            "avg_messages_per_day": 7.8,
+            "last_activity": "2024-01-14T15:30:00Z"
+        }
+    ],
+    
+    # Included if generate_insights=True
+    "insights": [
+        "Stream shows healthy engagement with consistent daily activity",
+        "Code review discussions generate the most interaction",
+        "Peak activity occurs on Tuesday and Wednesday mornings"
+    ]
+}
+```
+
+### `manage_stream_settings()`
+
+Configure personal notification and display preferences for streams.
+
+#### Signature
+```python
+async def manage_stream_settings(
+    stream_id: int,  # Required: target stream
+    
+    # Advanced parameters (at least one required)
+    settings: Dict[str, Any],
+    
+    # System parameters  
+    validation_mode: ValidationMode = ValidationMode.ADVANCED
+) -> Dict[str, Any]
+```
+
+#### Parameters
+
+##### Required Parameters
+- **`stream_id`** (int): Stream to configure
+
+##### Advanced Parameters
+- **`settings`** (Dict): Notification and display settings
+  - `audible_notifications`: Enable sound notifications
+  - `desktop_notifications`: Enable desktop popups
+  - `email_notifications`: Enable email notifications  
+  - `push_notifications`: Enable mobile push notifications
+  - `wildcard_mentions_notify`: Notify on @all/@everyone
+  - `pin_to_top`: Pin stream to top of stream list
+  - `color`: Stream color hex code
+
+#### Usage Example
+```python
+# Configure stream notification preferences
+result = await manage_stream_settings(
+    stream_id=123,
+    settings={
+        "audible_notifications": False,
+        "desktop_notifications": True,
+        "email_notifications": False, 
+        "push_notifications": True,
+        "wildcard_mentions_notify": True,
+        "pin_to_top": True,
+        "color": "#FF5733"
+    }
+)
+```
+
+#### Response Format
+```python
+{
+    "status": "success",
+    "operation": "update_settings",
+    "stream_id": 123,
+    "updated_settings": {
+        "audible_notifications": False,
+        "desktop_notifications": True,
+        "email_notifications": False,
+        "push_notifications": True,
+        "wildcard_mentions_notify": True,
+        "pin_to_top": True, 
+        "color": "#FF5733"
+    },
+    "identity_used": "user"
+}
+```
+
+## Identity & Permissions
+
+### Required Capabilities by Function
+
+| Function | User | Bot | Admin | Notes |
+|----------|------|-----|-------|-------|
+| `manage_streams()` | ✅ Limited | ✅ Read | ✅ Full | Users can create/subscribe, Admin can delete |
+| `manage_topics()` | ✅ Own | ❌ | ✅ All | Users can manage own topics |
+| `get_stream_info()` | ✅ | ✅ | ✅ | All identities can read stream info |
+| `stream_analytics()` | ✅ | ✅ | ✅ | All identities can access analytics |
+| `manage_stream_settings()` | ✅ | ❌ | ✅ | Personal settings only |
+
+### Permission Matrix
+
+#### Stream Creation & Management
+- **User**: Can create public streams, manage subscriptions
+- **Bot**: Read-only access to stream information
+- **Admin**: Full stream lifecycle management including deletion
+
+#### Topic Operations  
+- **User**: Can move/rename topics in owned streams or own messages
+- **Bot**: No topic management capabilities
+- **Admin**: Full topic management across all streams
+
+## Error Handling
+
+### Common Error Scenarios
+
+#### Stream Not Found
+```python
+{
+    "status": "error",
+    "error": "Stream 'nonexistent-stream' not found",
+    "error_type": "NotFoundError",
+    "retryable": False
+}
+```
+
+#### Permission Denied
+```python
+{
+    "status": "error", 
+    "error": "Insufficient permissions to delete stream",
+    "error_type": "PermissionError",
+    "retryable": False
+}
+```
+
+#### Invalid Stream Properties
+```python
+{
+    "status": "error",
+    "error": "Stream name cannot contain special characters",
+    "error_type": "ValidationError", 
+    "invalid_field": "stream_name",
+    "retryable": False
+}
+```
+
+## Performance & Caching
+
+### Caching Strategy
+- **Stream list**: 15-minute TTL
+- **Stream details**: 10-minute TTL  
+- **Topic lists**: 5-minute TTL
+- **Analytics data**: 30-minute TTL
+- **Stream settings**: 1-hour TTL
+
+### Rate Limiting
+- **Stream operations**: 30 requests/minute
+- **Topic operations**: 60 requests/minute
+- **Analytics**: 10 requests/minute
+- **Settings**: 120 requests/minute
+
+### Best Practices
+
+1. **Cache stream lists** - Stream data changes infrequently
+2. **Use stream IDs** - More reliable than stream names  
+3. **Batch subscription operations** - Subscribe multiple users at once
+4. **Monitor analytics periodically** - Use caching for repeated analytics calls
+5. **Validate permissions** - Check capabilities before operations
+6. **Handle topic moves carefully** - Consider notification implications
+
+## Integration Examples
+
+### Stream Creation Workflow
+```python
+# Create stream, add users, configure settings
+async def setup_project_stream(project_name: str, team_members: List[int]):
+    # 1. Create stream
+    stream_result = await manage_streams(
+        operation="create",
+        stream_names=[f"project-{project_name}"],
+        properties={
+            "description": f"Discussion for {project_name} project",
+            "is_private": False
+        },
+        announce=True
+    )
+    
+    stream_id = stream_result["created_streams"][0]["stream_id"]
+    
+    # 2. Subscribe team members
+    await manage_streams(
+        operation="subscribe",
+        stream_names=[f"project-{project_name}"],
+        user_ids=team_members
+    )
+    
+    # 3. Configure default settings
+    await manage_stream_settings(
+        stream_id=stream_id,
+        settings={
+            "desktop_notifications": True,
+            "email_notifications": False,
+            "pin_to_top": True
+        }
+    )
+    
+    return stream_id
+```
+
+### Stream Analytics Dashboard  
+```python
+# Generate comprehensive stream health report
+async def generate_stream_report(stream_ids: List[int]):
+    reports = []
+    
+    for stream_id in stream_ids:
+        # Get detailed analytics
+        analytics = await stream_analytics(
+            stream_id=stream_id,
+            include_user_activity=True,
+            include_topic_stats=True,
+            time_range_days=30,
+            generate_insights=True
+        )
+        
+        # Get current stream info
+        info = await get_stream_info(
+            stream_id=stream_id,
+            include_subscribers=True,
+            include_topics=True
+        )
+        
+        reports.append({
+            "stream": info["stream"],
+            "analytics": analytics,
+            "health_score": calculate_health_score(analytics)
+        })
+    
+    return reports
+```
+
+---
+
+**Related**: [Messaging API](messaging.md) | [Events API](events.md) | [Admin API](admin.md)

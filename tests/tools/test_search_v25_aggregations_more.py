@@ -39,6 +39,8 @@ async def test_advanced_search_aggregations_counts(mock_managers, _mock_key) -> 
                     _msg("Alice", "general", "content three"),
                 ],
             }
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)

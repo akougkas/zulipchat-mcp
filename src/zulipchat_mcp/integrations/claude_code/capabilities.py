@@ -33,7 +33,7 @@ CAPABILITIES = {
 # Default configuration for Claude Code
 DEFAULT_CONFIG = {
     "agent_type": "claude-code",
-    "default_stream": "Agent-Channel",
+    "default_stream": "Agents-Channel",
     "status_update_interval": 30,
     "max_message_length": 2000,
     "retry_attempts": 3,

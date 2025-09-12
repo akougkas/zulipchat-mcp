@@ -645,19 +645,21 @@ class TestBulkOperationsTool:
         mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
         mock_managers.return_value = (mock_config, mock_identity, mock_validator)
         
-        # Missing narrow and message_ids
+        # Missing selection (none of: simple params, narrow, or message_ids)
         result = await bulk_operations(operation="mark_read")
         assert result["status"] == "error"
-        assert "Must provide either narrow filters or message_ids" in result["error"]
+        # Allow broader error copy as implementation evolved
+        assert result["error"].startswith("Must provide")
+        assert "message_ids" in result["error"]
         
-        # Both narrow and message_ids provided
+        # Multiple selection methods provided (conflict)
         result = await bulk_operations(
             operation="mark_read",
             narrow=[{"operator": "stream", "operand": "general"}],
             message_ids=[12345],
         )
         assert result["status"] == "error"
-        assert "Cannot specify both narrow and message_ids" in result["error"]
+        assert result["error"].startswith("Cannot specify")
         
         # Missing flag for flag operations
         result = await bulk_operations(

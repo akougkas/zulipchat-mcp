@@ -36,6 +36,8 @@ async def test_analytics_activity_chart_data(mock_managers) -> None:
                 _msg(20, sender="Bob", stream="dev"),
                 _msg(30, sender="Alice", stream="general"),
             ]}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -48,4 +50,3 @@ async def test_analytics_activity_chart_data(mock_managers) -> None:
     assert "statistics" in res["data"]
     assert "chart_data" in res
     assert isinstance(res["chart_data"]["series"], list)
-

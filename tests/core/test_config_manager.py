@@ -41,4 +41,12 @@ def test_config_manager_errors_and_defaults(monkeypatch) -> None:
     cm = ConfigManager()
     assert cm.config.port == 3000  # fallback on invalid port
     assert cm.config.debug is True
+    # With bot creds set, use_bot returns bot creds
+    user_cfg = cm.get_zulip_client_config(use_bot=True)
+    assert user_cfg["email"] == os.environ["ZULIP_BOT_EMAIL"]
 
+    # Clear bot env; has_bot_credentials should be False
+    os.environ.pop("ZULIP_BOT_EMAIL", None)
+    os.environ.pop("ZULIP_BOT_API_KEY", None)
+    cm2 = ConfigManager()
+    assert cm2.has_bot_credentials() is False

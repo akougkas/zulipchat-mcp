@@ -4,7 +4,19 @@ from typing import Any, Dict
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
-from ..core.commands.engine import Command, CommandChain, SendMessageCommand
+from ..core.commands.engine import (
+    AddReactionCommand,
+    Command,
+    CommandChain,
+    Condition,
+    ConditionOperator,
+    ExecutionContext,
+    ExecutionStatus,
+    GetMessagesCommand,
+    ProcessDataCommand,
+    SendMessageCommand,
+)
+from ..core.commands.workflows import ChainBuilder
 
 
 class WaitForResponseCommand(Command):
@@ -112,3 +124,29 @@ def list_command_types() -> list[str]:
 def register_command_tools(mcp: Any) -> None:
     mcp.tool(description="Execute a command chain")(execute_chain)
     mcp.tool(description="List available command types")(list_command_types)
+
+
+# Export all symbols for compatibility wrapper
+__all__ = [
+    # Base classes
+    "Command",
+    "CommandChain", 
+    "ExecutionContext",
+    "Condition",
+    # Enums
+    "ExecutionStatus",
+    "ConditionOperator",
+    # Command implementations
+    "SendMessageCommand",
+    "GetMessagesCommand", 
+    "AddReactionCommand",
+    "ProcessDataCommand",
+    "WaitForResponseCommand",
+    "SearchMessagesCommand",
+    "ConditionalActionCommand",
+    # Builders and utilities
+    "ChainBuilder",
+    "execute_chain",
+    "list_command_types",
+    "build_command",
+]

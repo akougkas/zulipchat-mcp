@@ -40,6 +40,8 @@ async def test_advanced_search_aggregations_and_cache(mock_managers) -> None:
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": messages}
+        def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
+            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
         def get_users(self, request):  # type: ignore[no-redef]
             return {"result": "success", "members": [{"full_name": "Alice", "email": "alice@example.com"}]}
         def get_streams(self, request):  # type: ignore[no-redef]

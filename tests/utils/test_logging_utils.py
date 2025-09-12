@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from zulipchat_mcp.utils.logging import (
     setup_basic_logging,
+    setup_structured_logging,
     get_logger,
     LogContext,
     log_function_call,
@@ -28,3 +29,5 @@ def test_logging_helpers_basic() -> None:
         log_api_request(bound, "GET", "/api", status_code=200, duration=0.01)
         log_api_request(bound, "POST", "/api", status_code=500, error="fail")
 
+    # Structured logging setup path
+    setup_structured_logging("INFO")

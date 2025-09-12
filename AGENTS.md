@@ -22,6 +22,7 @@
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.
 - Mark long/external tests with `@pytest.mark.slow` or `@pytest.mark.integration` and gate in CI via markers.
 - Prefer fast, deterministic unit tests; mock Zulip API calls. Aim for meaningful coverage with `pytest --cov=src`.
+- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* && uv sync --reinstall`), raise the coverage gate incrementally (e.g., 40% → 60% → 75% → 90%+) while adding minimal, targeted tests without altering functionality.
 
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).
@@ -32,4 +33,3 @@
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
 - Prefer CLI flags for credentials in MCP clients. For background features, `--enable-listener` is available.
 - Optional checks before release: `uv run bandit -q -r src` and `uv run safety check`.
-
