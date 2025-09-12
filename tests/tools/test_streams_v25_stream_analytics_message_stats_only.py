@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -10,7 +9,7 @@ import pytest
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
-async def test_stream_analytics_message_stats_only(mock_managers) -> None:
+async def test_stream_analytics_message_stats_only(mock_managers, make_msg, fake_client_class) -> None:
     from zulipchat_mcp.tools.streams_v25 import stream_analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -18,17 +17,15 @@ async def test_stream_analytics_message_stats_only(mock_managers) -> None:
     mock_validator.suggest_mode.return_value = Mock()
     mock_validator.validate_tool_params.side_effect = lambda name, p, mode: p
 
-    now = int(datetime.now().timestamp())
-
-    class Client:
+    class Client(fake_client_class):
         def get_streams(self, include_subscribed=True, include_public=True):  # type: ignore[no-redef]
             return {"result": "success", "streams": [{"name": "x", "stream_id": 5}]}
         def get_stream_id(self, sid):  # type: ignore[no-redef]
             return {"result": "success", "stream": {"stream_id": sid, "name": "x"}}
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": [
-                {"id": 1, "content": "hello", "timestamp": now, "sender_full_name": "A", "subject": "t"},
-                {"id": 2, "content": "world", "timestamp": now, "sender_full_name": "B", "subject": "t"},
+                make_msg(1, content="hello", sender="A", stream="x", subject="t"),
+                make_msg(2, content="world", sender="B", stream="x", subject="t"),
             ]}
 
     async def execute(tool, params, func, identity=None):
@@ -44,4 +41,3 @@ async def test_stream_analytics_message_stats_only(mock_managers) -> None:
     )
     assert out["status"] == "success"
     assert "message_stats" in out and "user_activity" not in out and "topic_stats" not in out
-

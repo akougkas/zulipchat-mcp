@@ -6,7 +6,7 @@ import asyncio
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Callable, Generator
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
@@ -235,6 +235,44 @@ def sample_narrow_filters() -> list[dict[str, str]]:
         {"operator": "has", "operand": "link"},
         {"operator": "near", "operand": "12345"},
     ]
+
+
+@pytest.fixture
+def make_msg() -> Callable[..., dict[str, Any]]:
+    """Factory to produce a Zulip-like message dict."""
+
+    def _factory(
+        id: int,
+        minutes_ago: int = 0,
+        *,
+        content: str = "msg",
+        sender: str = "User",
+        stream: str = "general",
+        subject: str = "",
+        reactions: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        ts = int((datetime.now().timestamp()) - (minutes_ago * 60))
+        return {
+            "id": id,
+            "sender_full_name": sender,
+            "display_recipient": stream,
+            "timestamp": ts,
+            "content": content,
+            "subject": subject,
+            "reactions": reactions or [],
+        }
+
+    return _factory
+
+
+@pytest.fixture
+def fake_client_class():
+    """A tiny flexible fake client class to attach methods dynamically."""
+
+    class _Fake:
+        pass
+
+    return _Fake
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ are propagated. Also touches count_by_time and emoji_usage aggregations.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -14,35 +13,22 @@ import pytest
 from zulipchat_mcp.tools.search_v25 import TimeRange, advanced_search
 
  
-
-
-def _msg(i: int, minutes_ago: int, content: str = "deploy", reactions=None):
-    return {
-        "id": i,
-        "sender_full_name": "User",
-        "display_recipient": "general",
-        "timestamp": int((datetime.now() - timedelta(minutes=minutes_ago)).timestamp()),
-        "content": content,
-        "reactions": reactions or [],
-    }
-
-
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="rel-less")
-async def test_advanced_search_messages_relevance_has_less(_mock_key, mock_managers) -> None:
+async def test_advanced_search_messages_relevance_has_less(_mock_key, mock_managers, make_msg, fake_client_class) -> None:
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
     mock_validator.suggest_mode.return_value = Mock()
     mock_validator.validate_tool_params.side_effect = lambda name, p, mode: p
 
     now_msgs = [
-        _msg(1, 1, reactions=[{"emoji_name": ":tada:", "user_ids": [1]}]),
-        _msg(2, 2),
-        _msg(3, 3, reactions=[{"emoji_name": ":thumbsup:", "user_ids": [1, 2]}]),
+        make_msg(1, 1, reactions=[{"emoji_name": ":tada:", "user_ids": [1]}], content="deploy"),
+        make_msg(2, 2, content="deploy"),
+        make_msg(3, 3, reactions=[{"emoji_name": ":thumbsup:", "user_ids": [1, 2]}], content="deploy"),
     ]  # only 3 messages
 
-    class Client:
+    class Client(fake_client_class):
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "success", "messages": now_msgs}
 
