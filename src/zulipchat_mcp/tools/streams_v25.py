@@ -1108,23 +1108,59 @@ async def stream_analytics(
 
                     # Get basic stream info
                     stream_result = client.get_stream_id(target_stream_id)
+                    logger.debug(
+                        "stream_analytics.get_stream_id",
+                        extra={
+                            "stream_id": target_stream_id,
+                            "raw_keys": list(stream_result.keys()),
+                        },
+                    )
                     if stream_result.get("result") == "success":
-                        # Handle different response formats from get_stream_id
-                        if "stream" in stream_result:
-                            analytics_data["stream_info"] = stream_result["stream"]
-                        else:
-                            # Remove internal fields and use the result directly
-                            stream_info = {k: v for k, v in stream_result.items() 
-                                         if k not in ["result", "msg"]}
-                            analytics_data["stream_info"] = stream_info
+                        try:
+                            # Handle different response formats from get_stream_id
+                            if "stream" in stream_result:
+                                analytics_data["stream_info"] = stream_result["stream"]
+                            else:
+                                # Remove internal fields and use the result directly
+                                stream_info = {
+                                    k: v
+                                    for k, v in stream_result.items()
+                                    if k not in ["result", "msg"]
+                                }
+                                analytics_data["stream_info"] = stream_info
+                        except KeyError as e:
+                            # Defensive guard for unexpected shapes
+                            logger.warning(
+                                "Missing expected key in stream_result",
+                                extra={
+                                    "missing_key": str(e),
+                                    "available_keys": list(stream_result.keys()),
+                                },
+                            )
+                            analytics_data["stream_info"] = {
+                                "error": "Unexpected stream info format",
+                                "available_keys": list(stream_result.keys()),
+                            }
+
+                        # If stream_name was not provided, try to populate from info
+                        if not analytics_data.get("stream_name"):
+                            name_guess = (
+                                analytics_data.get("stream_info", {}).get("name")
+                                if isinstance(analytics_data.get("stream_info"), dict)
+                                else None
+                            )
+                            if name_guess:
+                                analytics_data["stream_name"] = name_guess
 
                     # Message statistics (approximated via message search)
                     if include_message_stats:
                         try:
                             # Search for recent messages in the stream
-                            narrow = [
-                                {"operator": "stream", "operand": stream_name}
-                            ]
+                            # Prefer the resolved stream name; Zulip narrow expects names
+                            target_name = (
+                                analytics_data.get("stream_name") or stream_name or ""
+                            )
+                            narrow = [{"operator": "stream", "operand": target_name}]
                             messages_request = {
                                 "anchor": "newest",
                                 "num_before": 1000,  # Sample size
@@ -1172,6 +1208,15 @@ async def stream_analytics(
                             subs_result = client.get_subscribers(
                                 stream_id=target_stream_id
                             )
+                            logger.debug(
+                                "stream_analytics.get_subscribers",
+                                extra={
+                                    "stream_id": target_stream_id,
+                                    "shape": type(subs_result).__name__,
+                                    "keys": list(subs_result.keys()),
+                                    "sample": str(subs_result)[:160],
+                                },
+                            )
                             if subs_result.get("result") == "success":
                                 subscribers = subs_result.get("subscribers", [])
                                 if not isinstance(subscribers, list):
@@ -1199,6 +1244,18 @@ async def stream_analytics(
                         try:
                             topics_result = client.get_stream_topics(
                                 stream_id=target_stream_id
+                            )
+                            logger.debug(
+                                "stream_analytics.get_stream_topics",
+                                extra={
+                                    "stream_id": target_stream_id,
+                                    "keys": list(topics_result.keys()),
+                                    "count": (
+                                        len(topics_result.get("topics", []))
+                                        if isinstance(topics_result, dict)
+                                        else None
+                                    ),
+                                },
                             )
                             if topics_result.get("result") == "success":
                                 topics = topics_result.get("topics", [])
