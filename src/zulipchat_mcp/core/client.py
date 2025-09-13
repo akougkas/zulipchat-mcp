@@ -360,16 +360,23 @@ class ZulipClientWrapper:
         return self.client.get_stream_id(stream)
 
     def get_subscribers(self, stream_id: int) -> dict[str, Any]:
-        # Pass as keyword to avoid positional/keyword signature mismatches
+        """Get subscribers for a stream with fallback methods."""
         try:
-            return self.client.get_subscribers(stream_id=stream_id)
+            # Try positional argument first (zulip-python library expects this)
+            return self.client.get_subscribers(stream_id)
         except TypeError:
             try:
-                return self.client.get_subscribers({"stream_id": stream_id})
+                # Try keyword argument
+                return self.client.get_subscribers(stream_id=stream_id)
             except Exception:
-                return self.client.call_endpoint(
-                    f"streams/{stream_id}/members", method="GET", request={}
-                )
+                try:
+                    # Try dict format
+                    return self.client.get_subscribers({"stream_id": stream_id})
+                except Exception:
+                    # Fallback to direct API call
+                    return self.client.call_endpoint(
+                        f"streams/{stream_id}/members", method="GET", request={}
+                    )
 
     def mark_topic_as_read(self, stream_id: int, topic_name: str) -> dict[str, Any]:
         if hasattr(self.client, "mark_topic_as_read"):

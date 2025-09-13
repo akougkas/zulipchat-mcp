@@ -1109,14 +1109,21 @@ async def stream_analytics(
                     # Get basic stream info
                     stream_result = client.get_stream_id(target_stream_id)
                     if stream_result.get("result") == "success":
-                        analytics_data["stream_info"] = stream_result.get("stream", {})
+                        # Handle different response formats from get_stream_id
+                        if "stream" in stream_result:
+                            analytics_data["stream_info"] = stream_result["stream"]
+                        else:
+                            # Remove internal fields and use the result directly
+                            stream_info = {k: v for k, v in stream_result.items() 
+                                         if k not in ["result", "msg"]}
+                            analytics_data["stream_info"] = stream_info
 
                     # Message statistics (approximated via message search)
                     if include_message_stats:
                         try:
                             # Search for recent messages in the stream
                             narrow = [
-                                {"operator": "stream", "operand": str(target_stream_id)}
+                                {"operator": "stream", "operand": stream_name}
                             ]
                             messages_request = {
                                 "anchor": "newest",
@@ -1167,6 +1174,8 @@ async def stream_analytics(
                             )
                             if subs_result.get("result") == "success":
                                 subscribers = subs_result.get("subscribers", [])
+                                if not isinstance(subscribers, list):
+                                    subscribers = []
                                 analytics_data["user_activity"] = {
                                     "total_subscribers": len(subscribers),
                                     "subscriber_list": subscribers[
@@ -1178,8 +1187,11 @@ async def stream_analytics(
                                     "error": "Could not retrieve subscriber information"
                                 }
                         except Exception as e:
+                            import traceback
                             analytics_data["user_activity"] = {
-                                "error": f"Failed to get user activity: {str(e)}"
+                                "error": f"Failed to get user activity: {str(e)}",
+                                "error_type": type(e).__name__,
+                                "traceback": traceback.format_exc()[-500:]  # Last 500 chars
                             }
 
                     # Topic statistics
