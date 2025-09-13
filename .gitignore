@@ -204,9 +204,6 @@ config.json
 # Claude Code workspace files
 .claude/
 
-PLAN.md 
-
-bot.png
 
 # Development artifacts
 .dev-artifacts/

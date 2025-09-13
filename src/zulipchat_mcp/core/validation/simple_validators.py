@@ -35,7 +35,6 @@ class SimpleValidator:
         "users.manage_users": {"operation"},
         "search.advanced_search": {"query"},
         "files.upload_file": {"filename"},
-        "admin.admin_operations": {"operation"},
     }
 
     # Required parameters that must always be present
@@ -48,7 +47,6 @@ class SimpleValidator:
         "users.manage_users": {"operation"},
         "search.advanced_search": {"query"},
         "files.upload_file": {"filename"},
-        "admin.admin_operations": {"operation"},
     }
 
     def validate_params(

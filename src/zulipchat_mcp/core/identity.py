@@ -167,9 +167,6 @@ class IdentityManager:
         # File Management
         "files.upload_file": ["upload_files"],
         "files.manage_files": ["upload_files"],
-        # Administration
-        "admin.admin_operations": ["realm_settings"],
-        "admin.customize_organization": ["organization_customization"],
     }
 
     def __init__(self, config: ConfigManager):

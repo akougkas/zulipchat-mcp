@@ -490,7 +490,6 @@ class MigrationManager:
             ],
             "Agents": ["register_agent", "agent_message", "poll_agent_events"],
             "Search": ["search_messages", "get_daily_summary"],
-            "Administration": ["New admin tools with permission boundaries"],
         }
 
         for category, tools in categories.items():
@@ -548,11 +547,6 @@ class MigrationManager:
                 "description": "File management with upload optimization and security",
                 "functions": ["upload_file", "manage_files"],
             },
-            "admin_v25": {
-                "tools": 2,
-                "description": "Administrative operations with clear permission boundaries",
-                "functions": ["admin_operations", "customize_organization"],
-            },
         }
 
         # Calculate migration statistics
@@ -580,7 +574,6 @@ class MigrationManager:
                 "Stateless event streaming replacing legacy agents",
                 "Comprehensive error handling and logging",
                 "Backward compatibility preservation during transition",
-                "Admin tools with clear capability requirements",
             ],
             "deprecation_status": {
                 "deprecated_tools": len(

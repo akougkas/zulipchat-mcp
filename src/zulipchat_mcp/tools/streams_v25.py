@@ -1233,10 +1233,13 @@ async def stream_analytics(
                                 }
                         except Exception as e:
                             import traceback
+
                             analytics_data["user_activity"] = {
                                 "error": f"Failed to get user activity: {str(e)}",
                                 "error_type": type(e).__name__,
-                                "traceback": traceback.format_exc()[-500:]  # Last 500 chars
+                                "traceback": traceback.format_exc()[
+                                    -500:
+                                ],  # Last 500 chars
                             }
 
                     # Topic statistics

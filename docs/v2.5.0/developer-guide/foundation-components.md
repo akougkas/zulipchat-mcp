@@ -152,9 +152,6 @@ result = await identity_manager.execute_with_identity(
 # Check if current identity has admin privileges
 if identity_manager.is_admin():
     # Perform admin operations
-    await customize_organization(settings)
-else:
-    # Fallback to user operations
     await get_organization_info()
 ```
 

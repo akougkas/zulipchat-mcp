@@ -12,7 +12,7 @@ ZulipChat MCP v2.5.0 consolidates 24+ legacy tools into 7 organized categories w
 | **[Users](#users-category)** | 3 | User management & identity | User, Admin |
 | **[Search](#search-category)** | 2 | Advanced search & analytics | User, Bot, Admin |
 | **[Files](#files-category)** | 2 | File upload & management | User, Bot |
-| **[Admin](#admin-category)** | 2 | Administrative operations | Admin |
+
 
 **Total: 23 consolidated tools** replacing 24+ legacy functions with improved functionality and consistency.
 
@@ -458,68 +458,7 @@ await manage_files(
 )
 ```
 
-## Admin Category
 
-**Module**: `tools/admin_v25.py`  
-**Focus**: Organization administration and configuration  
-**Identity Required**: Admin only
-
-### Tools
-
-#### 1. `admin_operations()` - General Administrative Actions
-```python
-await admin_operations(
-    operation="users|streams|realm|export|import|settings",
-    
-    # Operation-specific parameters vary
-    target_id=123,
-    action="activate|deactivate|promote|demote",
-    
-    # Bulk operations
-    bulk_data=[...],
-    
-    # Options
-    send_email_notification=True,
-    acting_user_id=None  # For audit trails
-)
-```
-
-**Operations Supported:**
-- User management (activate, deactivate, promote, demote)
-- Stream administration
-- Realm settings management  
-- Data export/import
-- Bulk operations
-
-#### 2. `customize_organization()` - Organization Settings
-```python
-await customize_organization(
-    settings={
-        "organization_name": "My Company",
-        "description": "Company chat",
-        "allow_message_editing": True,
-        "message_retention_days": 365,
-        
-        # Authentication settings
-        "authentication_methods": {
-            "Email": True,
-            "LDAP": False,
-            "SAML": True
-        },
-        
-        # Appearance settings
-        "default_language": "en",
-        "notification_sound": "zulip"
-    },
-    
-    # Domain management
-    realm_domains=["company.com", "subsidiary.com"],
-    
-    # Options
-    validate_settings=True,
-    send_confirmation_email=True
-)
-```
 
 ## Cross-Category Integration
 
@@ -600,10 +539,7 @@ await message(
 - Need metadata extraction
 - Security validation required
 
-### Choose Admin When:
-- Organization-level changes
-- User administration
-- Bulk administrative operations
+
 
 ## Performance Considerations
 
@@ -615,14 +551,14 @@ await message(
 - **Users**: Long-term caching (10-30 minutes)
 - **Search**: Configurable caching (5-60 minutes)
 - **Files**: Metadata caching (15-30 minutes)
-- **Admin**: Short-term caching (2-5 minutes)
+
 
 ### Rate Limiting by Category
 
 Each category has optimized rate limits:
 - High-frequency: Events, Messaging
 - Medium-frequency: Search, Streams, Users
-- Low-frequency: Files, Admin
+- Low-frequency: Files
 
 ### Batch Operation Support
 
@@ -633,7 +569,7 @@ Categories supporting bulk operations:
 - ✅ **Users**: Bulk user operations
 - ❌ **Search**: Single query processing
 - ❌ **Files**: Individual file operations  
-- ✅ **Admin**: Bulk administrative actions
+
 
 ---
 

@@ -9,7 +9,9 @@ import pytest
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
-async def test_stream_analytics_populates_stream_name_and_handles_weird_stream_info(mock_managers) -> None:
+async def test_stream_analytics_populates_stream_name_and_handles_weird_stream_info(
+    mock_managers,
+) -> None:
     from zulipchat_mcp.tools.streams_v25 import stream_analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -53,7 +55,9 @@ async def test_stream_analytics_populates_stream_name_and_handles_weird_stream_i
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
-async def test_stream_analytics_handles_standard_stream_shape_and_subs_list(mock_managers) -> None:
+async def test_stream_analytics_handles_standard_stream_shape_and_subs_list(
+    mock_managers,
+) -> None:
     from zulipchat_mcp.tools.streams_v25 import stream_analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -78,7 +82,10 @@ async def test_stream_analytics_handles_standard_stream_shape_and_subs_list(mock
             return {"result": "success", "subscribers": [10, 11]}
 
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
-            return {"result": "success", "topics": [{"name": "t", "max_id": 5, "min_id": 1}]}
+            return {
+                "result": "success",
+                "topics": [{"name": "t", "max_id": 5, "min_id": 1}],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)

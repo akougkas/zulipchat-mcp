@@ -428,51 +428,69 @@ result = await edit_message(
 
 ### `bulk_operations()`
 
-Perform bulk operations on multiple messages.
+Perform bulk operations on multiple messages, now with intelligent batch processing for non-native bulk actions.
 
 #### Signature
 ```python
 async def bulk_operations(
     operation: Literal["mark_read", "mark_unread", "add_flag", "remove_flag", "add_reaction", "remove_reaction", "delete_messages"],
+    # Message Selection
+    stream: str | None = None,
+    topic: str | None = None,
+    sender: str | None = None,
     narrow: list[NarrowFilter | dict[str, Any]] | None = None,
     message_ids: list[int] | None = None,
+    # Operation-specific parameters
     flag: str | None = None,
     emoji_name: str | None = None,
     emoji_code: str | None = None,
     reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] | None = None,
+    # Batch processing parameters
+    progress_callback: Callable[[ProgressReport], None] | None = None,
 ) -> BulkResponse
 ```
 
 #### Parameters
 
 ##### Required Parameters
-- **`operation`** (Literal): Type of bulk operation
-  - `"mark_read"`: Mark messages as read
-  - `"mark_unread"`: Mark messages as unread
-  - `"add_flag"`: Add flag to messages
-  - `"remove_flag"`: Remove flag from messages
-  - `"add_reaction"`: Add emoji reaction
-  - `"remove_reaction"`: Remove emoji reaction
-  - `"delete_messages"`: Delete messages
+- **`operation`** (Literal): Type of bulk operation.
 
-##### Message Selection (one required)
-- **`narrow`** (list[NarrowFilter | dict] | None): Narrow filters to select messages
-- **`message_ids`** (list[int] | None): Explicit list of message IDs
+##### Message Selection (one method required)
+- **Simple Selection**:
+  - `stream` (str | None): Stream name.
+  - `topic` (str | None): Topic name.
+  - `sender` (str | None): Sender email.
+- **Advanced Selection**:
+  - `narrow` (list | None): Narrow filters to select messages.
+  - `message_ids` (list[int] | None): Explicit list of message IDs.
 
 ##### Operation-Specific Parameters
-- **`flag`** (str | None): Flag name for add_flag/remove_flag operations (e.g., "starred")
-- **`emoji_name`** (str | None): Emoji name for reaction operations (e.g., "thumbs_up")
-- **`emoji_code`** (str | None): Emoji code for custom emojis
-- **`reaction_type`** (Literal | None): Type of reaction (default: "unicode_emoji")
+- **`flag`** (str | None): Flag name for `add_flag`/`remove_flag` (e.g., "starred").
+- **`emoji_name`** (str | None): Emoji name for `add_reaction`/`remove_reaction`.
+- **`emoji_code`** (str | None): Emoji code for custom emojis.
+- **`reaction_type`** (Literal | None): Type of reaction (default: "unicode_emoji").
+
+##### Batch Processing
+- **`progress_callback`** (Callable | None): A function to receive `ProgressReport` objects during long-running batch operations (like reactions or deletions).
+
+#### New: Batch Processing and Progress Reporting
+For operations that are not natively supported in bulk by Zulip (`add_reaction`, `remove_reaction`, `delete_messages`), this tool now uses an intelligent `BatchProcessor`. This system automatically handles rate limiting, adaptive batch sizing, and retries.
+
+You can monitor the progress of these operations by providing a `progress_callback` function.
+
+**Example of a `progress_callback` function:**
+```python
+def my_progress_reporter(report):
+    print(f"Progress: {report.percent_complete:.1f}% complete. "
+          f"Rate: {report.current_rate:.1f} items/sec. "
+          f"ETA: {report.estimated_time_remaining}")
+```
 
 #### Usage Examples
 
 **Mark all messages in a stream as read**:
 ```python
-result = await bulk_operations(
-    "mark_read",
-    narrow=[{"operator": "stream", "operand": "general"}]
-)
+result = await bulk_operations("mark_read", stream="general")
 ```
 
 **Add star flag to specific messages**:
@@ -484,68 +502,49 @@ result = await bulk_operations(
 )
 ```
 
-**Mark messages from sender as unread**:
-```python
-result = await bulk_operations(
-    "mark_unread",
-    narrow=[{"operator": "sender", "operand": "user@example.com"}]
-)
-```
-
-**Add reactions to messages**:
+**Add reactions to many messages with progress reporting**:
 ```python
 result = await bulk_operations(
     "add_reaction",
-    message_ids=[123, 456],
-    emoji_name="thumbs_up"
+    narrow=[{"operator": "stream", "operand": "community"}],
+    emoji_name="rocket",
+    progress_callback=my_progress_reporter
 )
 ```
 
-**Remove reactions from messages in a stream**:
-```python
-result = await bulk_operations(
-    "remove_reaction",
-    narrow=[{"operator": "stream", "operand": "general"}],
-    emoji_name="confused",
-    reaction_type="unicode_emoji"
-)
-```
-
-**Delete messages matching criteria**:
+**Delete messages from a user**:
 ```python
 result = await bulk_operations(
     "delete_messages",
-    narrow=[{"operator": "sender", "operand": "spam@example.com"}]
+    sender="spammer@example.com"
 )
 ```
 
 #### Response Format
 
-**Successful operation**:
+**Successful Native Bulk Operation**:
 ```python
 {
     "status": "success",
     "message": "Successfully marked as read",
     "affected_count": 42,
     "operation": "mark_read",
-    "message_ids": [123, 456, 789],  # First 10 IDs for reference
-    "timestamp": "2024-01-15T10:30:00.000000"
+    "timestamp": "2025-09-13T10:30:00.000000"
 }
 ```
 
-**Reaction operations response**:
+**Batch-Processed Operation Response**:
 ```python
 {
-    "status": "success",
-    "message": "Successfully added reaction 'thumbs_up'",
-    "affected_count": 15,
-    "successful_reactions": [123, 456, 789],  # First 10 successful IDs
-    "failed_reactions": [
-        {"message_id": 999, "error": "Message not found"}
-    ],
+    "status": "completed", // or "partial", "failed"
+    "message": "Operation add_reaction completed.",
+    "affected_count": 95,
+    "successful_items": [101, 102, 103, ...], // First 10 successful IDs
+    "failed_items": [
+        {"item": 201, "error": "Message not found"}
+    ], // First 5 failed items
     "operation": "add_reaction",
-    "emoji_name": "thumbs_up",
-    "timestamp": "2024-01-15T10:30:00.000000"
+    "timestamp": "2025-09-13T10:30:00.000000"
 }
 ```
 
@@ -553,7 +552,7 @@ result = await bulk_operations(
 ```python
 {
     "status": "error",
-    "error": "Must provide either narrow filters or message_ids",
+    "error": "Must provide a message selection method.",
     "operation": "mark_read"
 }
 ```

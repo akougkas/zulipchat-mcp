@@ -23,10 +23,12 @@ Features:
 from __future__ import annotations
 
 import builtins as _builtins
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
 from ..config import ConfigManager
+from ..core.batch_processor import BatchProcessor, ProgressReport
 from ..core.error_handling import get_error_handler
 from ..core.identity import IdentityManager, IdentityType
 from ..core.security import validate_emoji
@@ -788,11 +790,15 @@ async def bulk_operations(
     reaction_type: (
         Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] | None
     ) = None,
+    # Progress callback (NEW)
+    progress_callback: Callable[[ProgressReport], None] | None = None,
 ) -> BulkResponse:
     """Bulk message operations with both simple and advanced selection methods.
 
     This enhanced tool enables bulk operations on multiple messages with
     simple parameter-based selection (ported from legacy) and advanced narrow filtering.
+    It now supports batch processing for non-native bulk operations like reactions
+    and deletions, with progress reporting.
 
     SIMPLE SELECTION (NEW - ported from legacy messaging_simple.py):
         Use stream, topic, sender parameters for common bulk operations
@@ -817,6 +823,7 @@ async def bulk_operations(
         emoji_name: Emoji name for reaction operations
         emoji_code: Emoji unicode code for reaction operations
         reaction_type: Type of emoji for reaction operations
+        progress_callback: Optional callback for progress updates on long operations.
 
     Returns:
         BulkResponse with status, affected count, and operation details
@@ -824,21 +831,15 @@ async def bulk_operations(
     Examples:
         # Simple selection (NEW - legacy-compatible)
         await bulk_operations("mark_read", stream="general")
-        await bulk_operations("mark_read", stream="general", topic="announcements")
         await bulk_operations("add_flag", sender="user@example.com", flag="starred")
 
         # Advanced selection with narrow filters (existing v2.5.0)
         await bulk_operations("mark_read", narrow=[{"operator": "stream", "operand": "general"}])
 
-        # Explicit message ID selection (existing v2.5.0)
-        await bulk_operations("add_flag", message_ids=[123, 456, 789], flag="starred")
-
-        # Reaction operations with simple selection (NEW)
-        await bulk_operations("add_reaction", stream="general", emoji_name="thumbs_up")
-        await bulk_operations("remove_reaction", topic="deployment", emoji_name="confused")
-
-        # Delete messages with advanced criteria (existing v2.5.0)
-        await bulk_operations("delete_messages", narrow=[{"operator": "sender", "operand": "spam@example.com"}])
+        # Reaction operations with batch processing and progress reporting
+        def my_progress_reporter(report):
+            print(f"Progress: {report.percent_complete:.2f}%")
+        await bulk_operations("add_reaction", stream="general", emoji_name="thumbs_up", progress_callback=my_progress_reporter)
     """
     with Timer(
         "zulip_mcp_tool_duration_seconds", {"tool": "messaging.bulk_operations"}
@@ -885,58 +886,64 @@ async def bulk_operations(
                 if message_ids:
                     # Explicit message ID selection (existing v2.5.0)
                     selection_narrow = None
+                    target_ids_provided = True
                 elif narrow:
                     # Advanced narrow selection (existing v2.5.0)
                     selection_narrow = _convert_narrow_to_api_format(narrow)
+                    target_ids_provided = False
                 else:
                     # Simple parameter selection (NEW - ported from legacy)
                     narrow_filters = build_basic_narrow(
                         stream=stream, topic=topic, sender=sender
                     )
                     selection_narrow = NarrowHelper.to_api_format(narrow_filters)
+                    target_ids_provided = False
 
                 # Execute with error handling
                 async def _execute_bulk_op(client, params):
-                    if operation in ["mark_read", "mark_unread"]:
-                        # Use update_message_flags for read/unread operations
-                        if selection_narrow:
-                            # Get messages matching narrow first
-                            search_request = {
-                                "anchor": "newest",
-                                "num_before": 1000,  # Reasonable limit for bulk ops
-                                "num_after": 0,
-                                "narrow": selection_narrow,
-                            }
-                            search_response = client.get_messages_raw(
-                                anchor=search_request["anchor"],
-                                num_before=search_request["num_before"],
-                                num_after=search_request["num_after"],
-                                narrow=search_request["narrow"],
-                            )
+                    target_ids = message_ids if target_ids_provided else []
 
-                            if search_response.get("result") != "success":
-                                return {
-                                    "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}",
-                                }
+                    # Fetch message IDs if a narrow is provided
+                    if not target_ids_provided:
+                        search_request = {
+                            "anchor": "newest",
+                            "num_before": 5000,  # Max limit for bulk ops
+                            "num_after": 0,
+                            "narrow": selection_narrow,
+                        }
+                        search_response = client.get_messages_raw(**search_request)
 
-                            target_ids = [
-                                msg["id"] for msg in search_response.get("messages", [])
-                            ]
-                        else:
-                            target_ids = message_ids
-
-                        if not target_ids:
+                        if search_response.get("result") != "success":
                             return {
-                                "status": "success",
-                                "message": "No messages matched the criteria",
-                                "affected_count": 0,
-                                "operation": operation,
+                                "status": "error",
+                                "error": f"Failed to find messages: {search_response.get('msg')}",
                             }
+                        target_ids = [
+                            msg["id"] for msg in search_response.get("messages", [])
+                        ]
 
-                        # Execute read/unread operation
-                        flag_name = "read"
-                        op = "add" if operation == "mark_read" else "remove"
+                    if not target_ids:
+                        return {
+                            "status": "success",
+                            "message": "No messages matched the criteria",
+                            "affected_count": 0,
+                            "operation": operation,
+                        }
+
+                    # Native bulk operations
+                    if operation in [
+                        "mark_read",
+                        "mark_unread",
+                        "add_flag",
+                        "remove_flag",
+                    ]:
+                        op_map = {
+                            "mark_read": ("add", "read"),
+                            "mark_unread": ("remove", "read"),
+                            "add_flag": ("add", flag),
+                            "remove_flag": ("remove", flag),
+                        }
+                        op, flag_name = op_map[operation]
 
                         result = client.update_message_flags(
                             messages=target_ids, op=op, flag=flag_name
@@ -948,9 +955,6 @@ async def bulk_operations(
                                 "message": f"Successfully {operation.replace('_', ' ')}",
                                 "affected_count": len(target_ids),
                                 "operation": operation,
-                                "message_ids": target_ids[
-                                    :10
-                                ],  # Return first 10 IDs for reference
                                 "timestamp": datetime.now().isoformat(),
                             }
                         else:
@@ -960,223 +964,53 @@ async def bulk_operations(
                                 "operation": operation,
                             }
 
-                    elif operation in ["add_flag", "remove_flag"]:
-                        # Handle flag operations
-                        if selection_narrow:
-                            # Get messages matching narrow first
-                            search_request = {
-                                "anchor": "newest",
-                                "num_before": 1000,  # Reasonable limit for bulk ops
-                                "num_after": 0,
-                                "narrow": selection_narrow,
-                            }
-                            search_response = client.get_messages_raw(
-                                anchor=search_request["anchor"],
-                                num_before=search_request["num_before"],
-                                num_after=search_request["num_after"],
-                                narrow=search_request["narrow"],
-                            )
+                    # Batch-processed operations
+                    elif operation in [
+                        "add_reaction",
+                        "remove_reaction",
+                        "delete_messages",
+                    ]:
+                        processor = BatchProcessor()
 
-                            if search_response.get("result") != "success":
-                                return {
-                                    "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}",
-                                }
+                        async def batch_op(batch_ids: list[int]):
+                            successes, failures = [], []
+                            for msg_id in batch_ids:
+                                try:
+                                    if operation == "add_reaction":
+                                        res = client.add_reaction(msg_id, emoji_name)
+                                    elif operation == "remove_reaction":
+                                        res = client.remove_reaction(msg_id, emoji_name)
+                                    else:  # delete_messages
+                                        res = client.delete_message(msg_id)
 
-                            target_ids = [
-                                msg["id"] for msg in search_response.get("messages", [])
-                            ]
-                        else:
-                            target_ids = message_ids
+                                    if res.get("result") == "success":
+                                        successes.append(msg_id)
+                                    else:
+                                        failures.append(
+                                            (
+                                                msg_id,
+                                                Exception(
+                                                    res.get("msg", "Unknown error")
+                                                ),
+                                            )
+                                        )
+                                except Exception as e:
+                                    failures.append((msg_id, e))
+                            return successes, failures
 
-                        if not target_ids:
-                            return {
-                                "status": "success",
-                                "message": "No messages matched the criteria",
-                                "affected_count": 0,
-                                "operation": operation,
-                                "flag": flag,
-                            }
-
-                        # Execute flag operation
-                        op = "add" if operation == "add_flag" else "remove"
-
-                        result = client.update_message_flags(
-                            messages=target_ids, op=op, flag=flag
+                        batch_result = await processor.process(
+                            target_ids, batch_op, progress_callback
                         )
 
-                        if result.get("result") == "success":
-                            return {
-                                "status": "success",
-                                "message": f"Successfully {operation.replace('_', ' ')} '{flag}'",
-                                "affected_count": len(target_ids),
-                                "operation": operation,
-                                "flag": flag,
-                                "message_ids": target_ids[
-                                    :10
-                                ],  # Return first 10 IDs for reference
-                                "timestamp": datetime.now().isoformat(),
-                            }
-                        else:
-                            return {
-                                "status": "error",
-                                "error": result.get("msg", f"Failed to {operation}"),
-                                "operation": operation,
-                                "flag": flag,
-                            }
-
-                    elif operation in ["add_reaction", "remove_reaction"]:
-                        # Handle reaction operations
-                        if selection_narrow:
-                            # Get messages matching narrow first
-                            search_request = {
-                                "anchor": "newest",
-                                "num_before": 1000,  # Reasonable limit for bulk ops
-                                "num_after": 0,
-                                "narrow": selection_narrow,
-                            }
-                            search_response = client.get_messages_raw(
-                                anchor=search_request["anchor"],
-                                num_before=search_request["num_before"],
-                                num_after=search_request["num_after"],
-                                narrow=search_request["narrow"],
-                            )
-
-                            if search_response.get("result") != "success":
-                                return {
-                                    "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}",
-                                }
-
-                            target_ids = [
-                                msg["id"] for msg in search_response.get("messages", [])
-                            ]
-                        else:
-                            target_ids = message_ids
-
-                        if not target_ids:
-                            return {
-                                "status": "success",
-                                "message": "No messages matched the criteria",
-                                "affected_count": 0,
-                                "operation": operation,
-                                "emoji_name": emoji_name,
-                            }
-
-                        # Execute reaction operation on each message
-                        successful_reactions = []
-                        failed_reactions = []
-
-                        for message_id in target_ids:
-                            try:
-                                if operation == "add_reaction":
-                                    result = client.add_reaction(message_id, emoji_name)
-                                else:  # remove_reaction
-                                    result = client.remove_reaction(
-                                        message_id, emoji_name
-                                    )
-
-                                if result.get("result") == "success":
-                                    successful_reactions.append(message_id)
-                                else:
-                                    failed_reactions.append(
-                                        {
-                                            "message_id": message_id,
-                                            "error": result.get("msg", "Unknown error"),
-                                        }
-                                    )
-                            except Exception as e:
-                                failed_reactions.append(
-                                    {"message_id": message_id, "error": str(e)}
-                                )
-
                         return {
-                            "status": (
-                                "success" if successful_reactions else "partial_success"
-                            ),
-                            "message": f"Successfully {operation.replace('_', ' ')} '{emoji_name}'",
-                            "affected_count": len(successful_reactions),
-                            "successful_reactions": successful_reactions[
-                                :10
-                            ],  # Return first 10 IDs
-                            "failed_reactions": failed_reactions[
-                                :5
-                            ],  # Return first 5 failures
-                            "operation": operation,
-                            "emoji_name": emoji_name,
-                            "timestamp": datetime.now().isoformat(),
-                        }
-
-                    elif operation == "delete_messages":
-                        # Handle message deletion
-                        if selection_narrow:
-                            # Get messages matching narrow first
-                            search_request = {
-                                "anchor": "newest",
-                                "num_before": 1000,  # Reasonable limit for bulk ops
-                                "num_after": 0,
-                                "narrow": selection_narrow,
-                            }
-                            search_response = client.get_messages_raw(
-                                anchor=search_request["anchor"],
-                                num_before=search_request["num_before"],
-                                num_after=search_request["num_after"],
-                                narrow=search_request["narrow"],
-                            )
-
-                            if search_response.get("result") != "success":
-                                return {
-                                    "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}",
-                                }
-
-                            target_ids = [
-                                msg["id"] for msg in search_response.get("messages", [])
-                            ]
-                        else:
-                            target_ids = message_ids
-
-                        if not target_ids:
-                            return {
-                                "status": "success",
-                                "message": "No messages matched the criteria",
-                                "affected_count": 0,
-                                "operation": operation,
-                            }
-
-                        # Execute deletion on each message
-                        successful_deletions = []
-                        failed_deletions = []
-
-                        for message_id in target_ids:
-                            try:
-                                result = client.delete_message(message_id)
-                                if result.get("result") == "success":
-                                    successful_deletions.append(message_id)
-                                else:
-                                    failed_deletions.append(
-                                        {
-                                            "message_id": message_id,
-                                            "error": result.get("msg", "Unknown error"),
-                                        }
-                                    )
-                            except Exception as e:
-                                failed_deletions.append(
-                                    {"message_id": message_id, "error": str(e)}
-                                )
-
-                        return {
-                            "status": (
-                                "success" if successful_deletions else "partial_success"
-                            ),
-                            "message": f"Successfully deleted {len(successful_deletions)} messages",
-                            "affected_count": len(successful_deletions),
-                            "successful_deletions": successful_deletions[
-                                :10
-                            ],  # Return first 10 IDs
-                            "failed_deletions": failed_deletions[
-                                :5
-                            ],  # Return first 5 failures
+                            "status": str(batch_result.status.value),
+                            "message": f"Operation {operation} completed.",
+                            "affected_count": batch_result.processed_items,
+                            "successful_items": batch_result.results[:10],
+                            "failed_items": [
+                                {"item": item, "error": str(exc)}
+                                for item, exc in batch_result.failed_items[:5]
+                            ],
                             "operation": operation,
                             "timestamp": datetime.now().isoformat(),
                         }

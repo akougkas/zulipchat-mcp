@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from zulipchat_mcp.utils.metrics import (
-    metrics,
+    Timer,
     get_metrics_text,
+    metrics,
     track_tool_call,
     track_tool_error,
-    Timer,
 )
 
 

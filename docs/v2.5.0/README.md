@@ -23,7 +23,7 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 | [Users](api-reference/users.md) | User management & identity | `manage_users()`, `switch_identity()` |
 | [Search](api-reference/search.md) | Advanced search & analytics | `advanced_search()`, `analytics()` |
 | [Files](api-reference/files.md) | File upload & management | `upload_file()`, `manage_files()` |
-| [Admin](api-reference/admin.md) | Administrative operations | `admin_operations()`, `customize_organization()` |
+
 
 ### Migration & Support
 - **[Migration Guide](migration-guide.md)** - Migrating from legacy tools to v2.5.0
@@ -76,7 +76,7 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 | **Users** | 3 tools | User management and identity switching |
 | **Search** | 2 tools | Advanced search with analytics |
 | **Files** | 2 tools | File upload and management |
-| **Admin** | 2 tools | Organization administration |
+
 
 **Total**: 23 consolidated tools replacing 24+ legacy functions
 

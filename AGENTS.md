@@ -26,12 +26,6 @@
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
-## Cleanup Plan (v2.5 follow-up)
-- tools.commands: replace legacy import of `tools.search` with a v2.5 adaptor (use `advanced_search`) or remove the command if unused; add a smoke test.
-- Scheduler surface: stop exporting non-existent names; either keep `services/scheduler.py` internal with corrected imports or defer public surface.
-- Metrics: consolidate on `utils.metrics`; either façade or remove top-level `metrics.py` and update tests accordingly.
-- Docs hygiene: move/remove `docs/v2.5.0/api-reference/streams.md.backup`.
-- Optional: move `.claude/` to `.archived/claude/` or document as dev tooling.
 
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).

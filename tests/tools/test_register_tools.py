@@ -17,6 +17,7 @@ class DummyMCP:
 
 def test_register_messaging_and_search_and_streams_and_users_tools():
     from zulipchat_mcp.tools.admin_v25 import register_admin_v25_tools
+
     from zulipchat_mcp.tools.events_v25 import register_events_v25_tools
     from zulipchat_mcp.tools.files_v25 import register_files_v25_tools
     from zulipchat_mcp.tools.messaging_v25 import register_messaging_v25_tools
