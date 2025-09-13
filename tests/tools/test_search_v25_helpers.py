@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from zulipchat_mcp.tools.search_v25 import _extract_search_highlights, TimeRange
+from zulipchat_mcp.tools.search_v25 import TimeRange, _extract_search_highlights
 
 
 def test_extract_search_highlights_basic() -> None:
@@ -35,4 +35,3 @@ def test_time_range_to_narrow_filters_full_range() -> None:
     ops = [f.operand for f in filters]
     assert any(op.startswith("after:") for op in ops)
     assert any(op.startswith("before:") for op in ops)
-

@@ -60,6 +60,7 @@ async def test_register_events_error_path(mock_managers) -> None:
         class Client:
             def register(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "error", "msg": "bad request"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -87,6 +88,7 @@ async def test_get_events_error_queue_invalid(mock_managers) -> None:
         class Client:
             def get_events(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "error", "msg": "Queue q1 is invalid"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -94,4 +96,3 @@ async def test_get_events_error_queue_invalid(mock_managers) -> None:
     res = await get_events(queue_id="q1", last_event_id=0, dont_block=True, timeout=1)
     assert res["status"] == "error"
     assert res["queue_still_valid"] is False
-

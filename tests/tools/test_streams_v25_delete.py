@@ -24,6 +24,7 @@ async def test_manage_streams_delete_success(mock_managers) -> None:
         class Client:
             def delete_stream(self, stream_id):  # type: ignore[no-redef]
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -32,4 +33,3 @@ async def test_manage_streams_delete_success(mock_managers) -> None:
     assert res["status"] == "success"
     assert res["operation"] == "delete"
     assert len(res["results"]) == 2
-

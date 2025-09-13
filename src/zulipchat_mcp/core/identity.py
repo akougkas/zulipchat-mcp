@@ -6,18 +6,16 @@ credentials with clear capability boundaries.
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Set
-
-from zulip import Client
+from typing import Any
 
 from ..config import ConfigManager
 from ..utils.logging import get_logger
-from .exceptions import AuthenticationError, PermissionError
 from .client import ZulipClientWrapper
+from .exceptions import AuthenticationError, PermissionError
 
 logger = get_logger(__name__)
 
@@ -50,15 +48,15 @@ class Identity:
     site: str = ""  # Default empty, will be set from config if not provided
     name: str = ""  # Use 'name' for compatibility with tests
     display_name: str = field(default="", init=False)  # Computed from name
-    capabilities: Set[str] = field(default_factory=set)
-    _client: Optional[ZulipClientWrapper] = field(default=None, init=False, repr=False)
-    _config_manager: Optional[ConfigManager] = field(default=None, init=False, repr=False)
+    capabilities: set[str] = field(default_factory=set)
+    _client: ZulipClientWrapper | None = field(default=None, init=False, repr=False)
+    _config_manager: ConfigManager | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
         """Initialize capabilities based on identity type."""
         # Set display_name from name for backward compatibility
         self.display_name = self.name or self.email.split("@")[0]
-        
+
         if self.type == IdentityType.USER:
             self.capabilities = {
                 "send_message",
@@ -101,22 +99,20 @@ class Identity:
             # Create a minimal config manager for this identity if not available
             if self._config_manager is None:
                 from ..config import ZulipConfig
+
                 temp_config = ZulipConfig(
-                    email=self.email,
-                    api_key=self.api_key,
-                    site=self.site
+                    email=self.email, api_key=self.api_key, site=self.site
                 )
                 # Create a temporary ConfigManager with this identity's config
                 temp_config_manager = ConfigManager()
                 temp_config_manager.config = temp_config
                 self._config_manager = temp_config_manager
-            
+
             # Determine if this should use bot identity based on the identity type
-            use_bot_identity = (self.type == IdentityType.BOT)
-            
+            use_bot_identity = self.type == IdentityType.BOT
+
             self._client = ZulipClientWrapper(
-                config_manager=self._config_manager,
-                use_bot_identity=use_bot_identity
+                config_manager=self._config_manager, use_bot_identity=use_bot_identity
             )
         return self._client
 
@@ -127,11 +123,11 @@ class Identity:
     def close(self):
         """Close the client connection."""
         self._client = None
-    
+
     def __str__(self) -> str:
         """String representation of identity."""
         return f"Identity(type={self.type.name}, email={self.email}, name={self.name})"
-    
+
     def __eq__(self, other) -> bool:
         """Equality comparison based on type, email, and name."""
         if not isinstance(other, Identity):
@@ -183,9 +179,9 @@ class IdentityManager:
             config: Configuration manager with credentials
         """
         self.config = config
-        self.identities: Dict[IdentityType, Optional[Identity]] = {}
-        self.current_identity: Optional[IdentityType] = None
-        self._temporary_identity: Optional[IdentityType] = None
+        self.identities: dict[IdentityType, Identity | None] = {}
+        self.current_identity: IdentityType | None = None
+        self._temporary_identity: IdentityType | None = None
         # Removed: _identity_stack - over-engineering with nested contexts
 
         # Initialize identities
@@ -195,23 +191,35 @@ class IdentityManager:
         """Initialize available identities from configuration."""
         # Handle both real ConfigManager and mock objects
         # Real ConfigManager has config.config.email, mocks have config.email
-        if hasattr(self.config, 'config'):
+        if hasattr(self.config, "config"):
             # Real ConfigManager
             email = self.config.config.email
             api_key = self.config.config.api_key
             site = self.config.config.site
-            bot_email = self.config.config.bot_email if self.config.has_bot_credentials() else None
-            bot_api_key = self.config.config.bot_api_key if self.config.has_bot_credentials() else None
-            bot_name = self.config.config.bot_name if hasattr(self.config.config, 'bot_name') else "Bot"
+            bot_email = (
+                self.config.config.bot_email
+                if self.config.has_bot_credentials()
+                else None
+            )
+            bot_api_key = (
+                self.config.config.bot_api_key
+                if self.config.has_bot_credentials()
+                else None
+            )
+            bot_name = (
+                self.config.config.bot_name
+                if hasattr(self.config.config, "bot_name")
+                else "Bot"
+            )
         else:
             # Mock ConfigManager (for tests)
             email = self.config.email
             api_key = self.config.api_key
             site = self.config.site
-            bot_email = getattr(self.config, 'bot_email', None)
-            bot_api_key = getattr(self.config, 'bot_api_key', None)
-            bot_name = getattr(self.config, 'bot_name', 'Bot')
-        
+            bot_email = getattr(self.config, "bot_email", None)
+            bot_api_key = getattr(self.config, "bot_api_key", None)
+            bot_name = getattr(self.config, "bot_name", "Bot")
+
         # User identity (always available)
         user_identity = Identity(
             type=IdentityType.USER,
@@ -226,7 +234,11 @@ class IdentityManager:
         self.current_identity = IdentityType.USER
 
         # Bot identity (optional) - only add if configured
-        has_bot = self.config.has_bot_credentials() if hasattr(self.config, 'has_bot_credentials') else False
+        has_bot = (
+            self.config.has_bot_credentials()
+            if hasattr(self.config, "has_bot_credentials")
+            else False
+        )
         if has_bot and bot_email and bot_api_key:
             bot_identity = Identity(
                 type=IdentityType.BOT,
@@ -235,10 +247,10 @@ class IdentityManager:
                 site=site,
                 name=bot_name,
             )
-            # Provide the config manager to bot identity  
+            # Provide the config manager to bot identity
             bot_identity._config_manager = self.config
             self.identities[IdentityType.BOT] = bot_identity
-        
+
         # Admin identity will be added by _check_admin_privileges if applicable
         self._check_admin_privileges()
 
@@ -247,7 +259,7 @@ class IdentityManager:
         try:
             user_identity = self.identities[IdentityType.USER]
             if user_identity:
-                # Try to get realm settings (admin-only endpoint)  
+                # Try to get realm settings (admin-only endpoint)
                 # Use a simpler admin-only call like get_users which should work
                 result = user_identity.client.client.get_users()
                 if result.get("result") == "success":
@@ -287,7 +299,7 @@ class IdentityManager:
 
     def switch_identity(
         self, identity_type: IdentityType, persist: bool = False, validate: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Switch to a different identity.
 
         Args:
@@ -316,7 +328,7 @@ class IdentityManager:
             except Exception as e:
                 raise AuthenticationError(
                     f"Failed to validate {identity_type.value} credentials: {e}"
-                )
+                ) from e
 
         if persist:
             self.current_identity = identity_type
@@ -335,7 +347,9 @@ class IdentityManager:
         }
 
     @asynccontextmanager
-    async def use_identity(self, identity_type: IdentityType) -> AsyncIterator[Identity]:
+    async def use_identity(
+        self, identity_type: IdentityType
+    ) -> AsyncIterator[Identity]:
         """Context manager for temporarily using a different identity.
 
         Args:
@@ -360,7 +374,9 @@ class IdentityManager:
             # Restore previous identity (simple restore)
             self._temporary_identity = previous_identity
 
-    def check_capability(self, tool: str, identity_type: Optional[IdentityType] = None) -> bool:
+    def check_capability(
+        self, tool: str, identity_type: IdentityType | None = None
+    ) -> bool:
         """Check if an identity has the capability to use a tool.
 
         Args:
@@ -393,7 +409,9 @@ class IdentityManager:
 
         return False
 
-    def select_best_identity(self, tool: str, preferred: Optional[IdentityType] = None) -> Identity:
+    def select_best_identity(
+        self, tool: str, preferred: IdentityType | None = None
+    ) -> Identity:
         """Select the best identity for a given tool.
 
         Args:
@@ -437,9 +455,9 @@ class IdentityManager:
     async def execute_with_identity(
         self,
         tool: str,
-        params: Dict[str, Any],
+        params: dict[str, Any],
         executor: Callable,
-        preferred_identity: Optional[IdentityType] = None,
+        preferred_identity: IdentityType | None = None,
     ) -> Any:
         """Execute a tool with the appropriate identity.
 
@@ -459,10 +477,12 @@ class IdentityManager:
 
         # Execute with the selected identity
         async with self.use_identity(identity.type):
-            logger.debug(f"Executing {tool} as {identity.type.value} ({identity.email})")
+            logger.debug(
+                f"Executing {tool} as {identity.type.value} ({identity.email})"
+            )
             return await executor(identity.client, params)
 
-    def get_available_identities(self) -> Dict[str, Any]:
+    def get_available_identities(self) -> dict[str, Any]:
         """Get information about all available identities.
 
         Returns:
@@ -470,7 +490,9 @@ class IdentityManager:
         """
         result = {
             "current": self.current_identity.value if self.current_identity else None,
-            "temporary": self._temporary_identity.value if self._temporary_identity else None,
+            "temporary": (
+                self._temporary_identity.value if self._temporary_identity else None
+            ),
             "available": {},
         }
 

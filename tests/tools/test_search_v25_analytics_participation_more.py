@@ -42,7 +42,12 @@ async def test_analytics_participation_chart_by_stream(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    out = await analytics(metric="participation", format="chart_data", group_by="stream", include_stats=True)
+    out = await analytics(
+        metric="participation",
+        format="chart_data",
+        group_by="stream",
+        include_stats=True,
+    )
     assert out["status"] == "success" and "chart_data" in out
 
 

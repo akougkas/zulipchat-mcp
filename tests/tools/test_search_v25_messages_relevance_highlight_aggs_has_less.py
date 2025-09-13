@@ -12,20 +12,32 @@ import pytest
 
 from zulipchat_mcp.tools.search_v25 import TimeRange, advanced_search
 
- 
+
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="rel-less")
-async def test_advanced_search_messages_relevance_has_less(_mock_key, mock_managers, make_msg, fake_client_class) -> None:
+async def test_advanced_search_messages_relevance_has_less(
+    _mock_key, mock_managers, make_msg, fake_client_class
+) -> None:
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
     mock_validator.suggest_mode.return_value = Mock()
     mock_validator.validate_tool_params.side_effect = lambda name, p, mode: p
 
     now_msgs = [
-        make_msg(1, 1, reactions=[{"emoji_name": ":tada:", "user_ids": [1]}], content="deploy"),
+        make_msg(
+            1,
+            1,
+            reactions=[{"emoji_name": ":tada:", "user_ids": [1]}],
+            content="deploy",
+        ),
         make_msg(2, 2, content="deploy"),
-        make_msg(3, 3, reactions=[{"emoji_name": ":thumbsup:", "user_ids": [1, 2]}], content="deploy"),
+        make_msg(
+            3,
+            3,
+            reactions=[{"emoji_name": ":thumbsup:", "user_ids": [1, 2]}],
+            content="deploy",
+        ),
     ]  # only 3 messages
 
     class Client(fake_client_class):

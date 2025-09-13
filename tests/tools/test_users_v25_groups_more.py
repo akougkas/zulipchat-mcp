@@ -34,13 +34,16 @@ async def test_manage_users_groups_success(mock_managers) -> None:
                         {"id": 2, "name": "other", "members": [7]},
                     ],
                 }
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     res = await manage_users(operation="groups")
     assert res["status"] == "success"
-    assert any(g["name"] == "team" for g in res["user_groups"])  # filtered includes current user
+    assert any(
+        g["name"] == "team" for g in res["user_groups"]
+    )  # filtered includes current user
 
 
 @pytest.mark.asyncio
@@ -71,7 +74,9 @@ async def test_manage_user_groups_update_delete_add_remove(mock_managers) -> Non
         return await func(ClientUpdate(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_update)
-    res_upd = await manage_user_groups(action="update", group_name="team", description="updated")
+    res_upd = await manage_user_groups(
+        action="update", group_name="team", description="updated"
+    )
     assert res_upd["status"] == "success"
     assert res_upd["action"] == "update"
 
@@ -110,7 +115,9 @@ async def test_manage_user_groups_update_delete_add_remove(mock_managers) -> Non
         return await func(ClientAdd(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_add)
-    res_add = await manage_user_groups(action="add_members", group_id=3, members=[10, 11])
+    res_add = await manage_user_groups(
+        action="add_members", group_id=3, members=[10, 11]
+    )
     assert res_add["status"] == "success"
     assert res_add["action"] == "add_members"
 
@@ -130,7 +137,8 @@ async def test_manage_user_groups_update_delete_add_remove(mock_managers) -> Non
         return await func(ClientRemove(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_remove)
-    res_rem = await manage_user_groups(action="remove_members", group_id=3, members=[10])
+    res_rem = await manage_user_groups(
+        action="remove_members", group_id=3, members=[10]
+    )
     assert res_rem["status"] == "success"
     assert res_rem["action"] == "remove_members"
-

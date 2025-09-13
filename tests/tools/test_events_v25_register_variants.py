@@ -24,9 +24,22 @@ async def test_register_events_all_public_and_presence(mock_managers) -> None:
                 assert kwargs.get("slim_presence") is True
                 assert kwargs.get("include_subscribers") is True
                 return {"result": "success", "queue_id": "qa", "last_event_id": 0}
-        return await func(Client(), {"event_types": ["stream"], "all_public_streams": True, "slim_presence": True, "include_subscribers": True})
+
+        return await func(
+            Client(),
+            {
+                "event_types": ["stream"],
+                "all_public_streams": True,
+                "slim_presence": True,
+                "include_subscribers": True,
+            },
+        )
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
-    res = await register_events(event_types=["stream"], all_public_streams=True, slim_presence=True, include_subscribers=True)
+    res = await register_events(
+        event_types=["stream"],
+        all_public_streams=True,
+        slim_presence=True,
+        include_subscribers=True,
+    )
     assert res["status"] == "success"
-

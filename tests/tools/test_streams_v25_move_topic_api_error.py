@@ -26,6 +26,7 @@ async def test_manage_topics_move_api_error(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    mv = await manage_topics(stream_id=1, operation="move", source_topic="a", target_topic="b")
+    mv = await manage_topics(
+        stream_id=1, operation="move", source_topic="a", target_topic="b"
+    )
     assert mv["status"] == "error" and mv["operation"] == "move"
-

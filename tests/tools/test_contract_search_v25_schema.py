@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from jsonschema import validate
 
-
 MESSAGES_SCHEMA = {
     "type": "object",
     "required": ["status", "query", "search_types", "results", "metadata"],
@@ -23,7 +22,13 @@ MESSAGES_SCHEMA = {
         "aggregations": {"type": "object"},
         "metadata": {
             "type": "object",
-            "required": ["total_results", "search_time", "sort_by", "limit", "from_cache"],
+            "required": [
+                "total_results",
+                "search_time",
+                "sort_by",
+                "limit",
+                "from_cache",
+            ],
             "properties": {
                 "total_results": {"type": "number"},
                 "search_time": {"type": "string"},
@@ -85,7 +90,9 @@ TOPICS_SCHEMA = {
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_advanced_search_messages_contract(mock_managers, make_msg, fake_client_class) -> None:
+async def test_advanced_search_messages_contract(
+    mock_managers, make_msg, fake_client_class
+) -> None:
     from zulipchat_mcp.tools.search_v25 import advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -108,13 +115,17 @@ async def test_advanced_search_messages_contract(mock_managers, make_msg, fake_c
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_)
 
-    out = await advanced_search(query="deploy", search_type=["messages"], limit=5, use_cache=False)
+    out = await advanced_search(
+        query="deploy", search_type=["messages"], limit=5, use_cache=False
+    )
     validate(out, MESSAGES_SCHEMA)
 
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_advanced_search_topics_contract(mock_managers, fake_client_class) -> None:
+async def test_advanced_search_topics_contract(
+    mock_managers, fake_client_class
+) -> None:
     from zulipchat_mcp.tools.search_v25 import advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -125,14 +136,19 @@ async def test_advanced_search_topics_contract(mock_managers, fake_client_class)
     class Client(fake_client_class):
         def get_streams(self, *a, **k):  # type: ignore[no-redef]
             return {"result": "success", "streams": [{"name": "g", "stream_id": 1}]}
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
-            return {"result": "success", "topics": [{"name": "deploy"}, {"name": "deployments"}]}
+            return {
+                "result": "success",
+                "topics": [{"name": "deploy"}, {"name": "deployments"}],
+            }
 
     async def exec_(tool, params, func, identity=None):
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_)
 
-    out = await advanced_search(query="deploy", search_type=["topics"], limit=10, use_cache=False)
+    out = await advanced_search(
+        query="deploy", search_type=["topics"], limit=10, use_cache=False
+    )
     validate(out, TOPICS_SCHEMA)
-

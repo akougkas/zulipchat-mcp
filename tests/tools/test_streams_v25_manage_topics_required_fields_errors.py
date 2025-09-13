@@ -21,6 +21,7 @@ async def test_manage_topics_required_fields_errors(mock_managers) -> None:
         # no client interaction needed; early validation path
         class EmptyClient:  # type: ignore[too-many-ancestors]
             pass
+
         return await func(EmptyClient(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_)
@@ -34,4 +35,3 @@ async def test_manage_topics_required_fields_errors(mock_managers) -> None:
     err_mark = await manage_topics(stream_id=1, operation="mark_read")
     assert err_mark["status"] == "error" and err_mark["operation"] == "mark_read"
     assert isinstance(err_mark.get("error", ""), str) and err_mark["error"]
-

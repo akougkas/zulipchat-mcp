@@ -19,7 +19,10 @@ async def test_manage_topics_list_and_truncate(mock_managers) -> None:
 
     class Client:
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
-            return {"result": "success", "topics": [{"name": f"t{i}"} for i in range(10)]}
+            return {
+                "result": "success",
+                "topics": [{"name": f"t{i}"} for i in range(10)],
+            }
 
     async def execute(tool, params, func, identity=None):
         # Pass through validated params unchanged; manage_topics already supplies max_results
@@ -44,12 +47,16 @@ async def test_manage_topics_move_mark_read_mute_unmute(mock_managers) -> None:
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": [{"id": 99}]}
+
         def update_message(self, payload):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def mark_topic_as_read(self, stream_id, topic_name):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def mute_topic(self, stream_id, topic):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def unmute_topic(self, stream_id, topic):  # type: ignore[no-redef]
             return {"result": "success"}
 
@@ -59,7 +66,9 @@ async def test_manage_topics_move_mark_read_mute_unmute(mock_managers) -> None:
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     # Move
-    mv = await manage_topics(stream_id=1, operation="move", source_topic="a", target_topic="b")
+    mv = await manage_topics(
+        stream_id=1, operation="move", source_topic="a", target_topic="b"
+    )
     assert mv["status"] == "success" and mv["operation"] == "move"
 
     # Mark read

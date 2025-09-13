@@ -17,7 +17,9 @@ class _ClientBase:
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers, make_msg) -> None:
+async def test_analytics_activity_detailed_and_sentiment_chart(
+    mock_managers, make_msg
+) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -41,17 +43,27 @@ async def test_analytics_activity_detailed_and_sentiment_chart(mock_managers, ma
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     # activity detailed with stats and group_by day
-    act = await analytics(metric="activity", group_by="day", format="detailed", include_stats=True)
-    assert act["status"] == "success" and any("Total messages analyzed" in x for x in act.get("detailed_insights", []))
+    act = await analytics(
+        metric="activity", group_by="day", format="detailed", include_stats=True
+    )
+    assert act["status"] == "success" and any(
+        "Total messages analyzed" in x for x in act.get("detailed_insights", [])
+    )
 
     # sentiment chart data with hour grouping
     sent = await analytics(metric="sentiment", group_by="hour", format="chart_data")
-    assert sent["status"] == "success" and "chart_data" in sent and isinstance(sent["chart_data"].get("series", []), list)
+    assert (
+        sent["status"] == "success"
+        and "chart_data" in sent
+        and isinstance(sent["chart_data"].get("series", []), list)
+    )
 
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_topics_and_participation_detailed(mock_managers, make_msg) -> None:
+async def test_analytics_topics_and_participation_detailed(
+    mock_managers, make_msg
+) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -60,9 +72,30 @@ async def test_analytics_topics_and_participation_detailed(mock_managers, make_m
     mock_validator.validate_tool_params.return_value = {}
 
     msgs = [
-        make_msg(5, minutes_ago=1, sender="Alice", stream="general", content="project meeting plan", subject="topic"),
-        make_msg(6, minutes_ago=2, sender="Bob", stream="dev", content="fix bug error logs", subject="topic"),
-        make_msg(7, minutes_ago=3, sender="Alice", stream="dev", content="release planning deploy", subject="topic"),
+        make_msg(
+            5,
+            minutes_ago=1,
+            sender="Alice",
+            stream="general",
+            content="project meeting plan",
+            subject="topic",
+        ),
+        make_msg(
+            6,
+            minutes_ago=2,
+            sender="Bob",
+            stream="dev",
+            content="fix bug error logs",
+            subject="topic",
+        ),
+        make_msg(
+            7,
+            minutes_ago=3,
+            sender="Alice",
+            stream="dev",
+            content="release planning deploy",
+            subject="topic",
+        ),
     ]
 
     class Client(_ClientBase):
@@ -76,11 +109,17 @@ async def test_analytics_topics_and_participation_detailed(mock_managers, make_m
 
     # topics detailed with group_by day (exercise detailed insights: top topic + top words)
     top = await analytics(metric="topics", group_by="day", format="detailed")
-    assert top["status"] == "success" and "topics" in top["data"] and isinstance(top.get("detailed_insights", []), list)
+    assert (
+        top["status"] == "success"
+        and "topics" in top["data"]
+        and isinstance(top.get("detailed_insights", []), list)
+    )
 
     # participation detailed with overall grouping (no group_by)
     part = await analytics(metric="participation", format="detailed")
-    assert part["status"] == "success" and any("Average message length" in x for x in part.get("detailed_insights", []))
+    assert part["status"] == "success" and any(
+        "Average message length" in x for x in part.get("detailed_insights", [])
+    )
 
 
 @pytest.mark.asyncio

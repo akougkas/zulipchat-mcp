@@ -64,12 +64,14 @@ async def test_manage_user_groups_validation_and_create(mock_managers) -> None:
         class Client:
             def create_user_group(self, request_data):  # type: ignore[no-redef]
                 return {"result": "success", "id": 99}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    ok = await manage_user_groups(action="create", group_name="team", description="desc", members=[1, 2])
+    ok = await manage_user_groups(
+        action="create", group_name="team", description="desc", members=[1, 2]
+    )
     assert ok["status"] == "success"
     assert ok["action"] == "create"
     assert ok["group_id"] == 99
-

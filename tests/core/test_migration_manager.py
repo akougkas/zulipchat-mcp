@@ -16,12 +16,16 @@ def test_migrate_tool_call_basic_and_removed() -> None:
     # Removed tool raises
     # Set a mapping temporarily to REMOVED to simulate
     mm.TOOL_MIGRATIONS["to_be_removed"] = mm.TOOL_MIGRATIONS["get_streams"].__class__(
-        old_name="to_be_removed", new_name="x", new_params={}, param_mapping={}, status=MigrationStatus.REMOVED
+        old_name="to_be_removed",
+        new_name="x",
+        new_params={},
+        param_mapping={},
+        status=MigrationStatus.REMOVED,
     )
     try:
         try:
             mm.migrate_tool_call("to_be_removed", {})
-            assert False, "Expected ValueError"
+            raise AssertionError("Expected ValueError")
         except ValueError:
             pass
     finally:
@@ -40,9 +44,11 @@ def test_migrate_tool_call_with_deprecation_warning() -> None:
 def test_special_migrations_get_messages_and_create_stream() -> None:
     mm = MigrationManager()
     # get_messages adds narrow
-    name, params = mm.migrate_tool_call("get_messages", {"stream_name": "general", "hours_back": 1})
+    name, params = mm.migrate_tool_call(
+        "get_messages", {"stream_name": "general", "hours_back": 1}
+    )
     assert name == "messaging.search_messages"
-    assert any(f["operator"] == "stream" for f in params["narrow"])  
+    assert any(f["operator"] == "stream" for f in params["narrow"])
 
     # create_stream wraps stream_name into list
     name2, params2 = mm.migrate_tool_call("create_stream", {"stream_name": "dev"})
@@ -66,4 +72,3 @@ def test_complete_v25_migration_summary() -> None:
     assert summary["status"] == "completed"
     assert summary["version"] == "2.5.0"
     assert "migration_stats" in summary
-

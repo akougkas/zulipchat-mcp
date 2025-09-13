@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -17,4 +17,3 @@ async def test_manage_users_identity_conflict_error(mock_managers) -> None:
 
     res = await manage_users("list", as_bot=True, as_admin=True)
     assert res["status"] == "error" and "cannot use both" in res["error"].lower()
-

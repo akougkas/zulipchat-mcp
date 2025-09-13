@@ -9,7 +9,9 @@ import pytest
 from zulipchat_mcp.config import ConfigManager
 
 
-def _set_env(email="user@example.com", api_key="apikeyapikey", site="https://zulip.example"):
+def _set_env(
+    email="user@example.com", api_key="apikeyapikey", site="https://zulip.example"
+):
     os.environ["ZULIP_EMAIL"] = email
     os.environ["ZULIP_API_KEY"] = api_key
     os.environ["ZULIP_SITE"] = site

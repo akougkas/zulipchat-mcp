@@ -5,10 +5,9 @@ from __future__ import annotations
 import pytest
 
 from zulipchat_mcp.utils.health import (
-    health_monitor,
-    perform_health_check,
     get_liveness,
     get_readiness,
+    perform_health_check,
 )
 
 
@@ -27,4 +26,3 @@ async def test_perform_health_check_and_readiness_liveness() -> None:
     # Readiness returns a boolean flag
     ready = get_readiness()
     assert isinstance(ready["ready"], bool)
-

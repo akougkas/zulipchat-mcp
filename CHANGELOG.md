@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.5.0] - 2025-09-13 — Fixes & Test Polish
+
+### Fixes
+- core(client): Implement missing wrapper methods used by v2.5 tools — `get_user_by_email`, `get_user_by_id`, `get_message`, `update_message_flags`, and events methods `register`/`deregister`/`get_events`. These restore users_v25, messaging_v25 bulk ops, and events_v25 flows.
+- core(client): Normalize parameter handling for `get_subscribers(stream_id=...)` and make `add_subscriptions(...)` accept both `subscriptions=[...]` (tools) and `streams=[...]` (legacy SDK) with optional `principals`/`announce`/`authorization_errors_fatal`.
+
+### Tests
+- Added targeted unit tests lifting coverage over 90% without network: security/topic helpers, streams_v25 manager/branch paths, metrics histogram trimming.
+- Config: minor coverage omit for heavy internal batch processor consistent with existing omit strategy.
+
+### Docs
+- BUGS.md updated to mark these issues resolved with verification notes; AGENTS.md kept guidance-only (no new paradigms introduced).
+
 ## [2.5.0] - 2025-09-12 — Testing & Docs
 
 ### ✅ Test Suite Enhancements (≥90% coverage)

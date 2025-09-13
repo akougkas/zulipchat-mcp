@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import re
 from collections import Counter, defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 from ..core.error_handling import get_error_handler
 from ..core.identity import IdentityManager, IdentityType
 from ..core.validation import (
@@ -30,7 +32,7 @@ from ..core.validation import (
 )
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
-from ..utils.narrow_helpers import NarrowHelper, build_basic_narrow
+from ..utils.narrow_helpers import NarrowHelper
 
 logger = get_logger(__name__)
 
@@ -38,10 +40,12 @@ logger = get_logger(__name__)
 SearchResults = dict[str, Any]
 AnalyticsResponse = dict[str, Any]
 
+
 # Data structures for search and analytics
 @dataclass
 class TimeRange:
     """Time range specification for searches and analytics."""
+
     days: int | None = None
     hours: int | None = None
     start: datetime | None = None
@@ -52,34 +56,39 @@ class TimeRange:
         filters = []
 
         if self.start:
-            filters.append(NarrowFilter(
-                operator="search",
-                operand=f"after:{self.start.isoformat()}"
-            ))
+            filters.append(
+                NarrowFilter(
+                    operator="search", operand=f"after:{self.start.isoformat()}"
+                )
+            )
         elif self.days:
             start_time = datetime.now() - timedelta(days=self.days)
-            filters.append(NarrowFilter(
-                operator="search",
-                operand=f"after:{start_time.isoformat()}"
-            ))
+            filters.append(
+                NarrowFilter(
+                    operator="search", operand=f"after:{start_time.isoformat()}"
+                )
+            )
         elif self.hours:
             start_time = datetime.now() - timedelta(hours=self.hours)
-            filters.append(NarrowFilter(
-                operator="search",
-                operand=f"after:{start_time.isoformat()}"
-            ))
+            filters.append(
+                NarrowFilter(
+                    operator="search", operand=f"after:{start_time.isoformat()}"
+                )
+            )
 
         if self.end:
-            filters.append(NarrowFilter(
-                operator="search",
-                operand=f"before:{self.end.isoformat()}"
-            ))
+            filters.append(
+                NarrowFilter(
+                    operator="search", operand=f"before:{self.end.isoformat()}"
+                )
+            )
 
         return filters
 
 
 class AggregationType:
     """Types of aggregations available for search results."""
+
     COUNT_BY_USER = "count_by_user"
     COUNT_BY_STREAM = "count_by_stream"
     COUNT_BY_TIME = "count_by_time"
@@ -113,13 +122,24 @@ def _get_managers() -> tuple[ConfigManager, IdentityManager, ParameterValidator]
     return _config_manager, _identity_manager, _parameter_validator
 
 
-def _generate_cache_key(query: str, search_type: list[str], narrow: list[NarrowFilter] | None, **kwargs) -> str:
+def _generate_cache_key(
+    query: str,
+    search_type: Sequence[str],
+    narrow: list[NarrowFilter] | None,
+    **kwargs: Any,
+) -> str:
     """Generate cache key for search results."""
     key_parts = [
         query,
         "|".join(sorted(search_type)),
-        str(hash(tuple((f.operator.value, str(f.operand), f.negated) for f in narrow or []))),
-        str(hash(tuple(sorted(kwargs.items()))))
+        str(
+            hash(
+                tuple(
+                    (f.operator.value, str(f.operand), f.negated) for f in narrow or []
+                )
+            )
+        ),
+        str(hash(tuple(sorted(kwargs.items())))),
     ]
     return "|".join(key_parts)
 
@@ -148,8 +168,29 @@ def _extract_search_highlights(content: str, query: str) -> list[str]:
 
 def _analyze_message_sentiment(content: str) -> dict[str, Any]:
     """Simple sentiment analysis of message content."""
-    positive_words = ["good", "great", "excellent", "awesome", "love", "like", "happy", "thanks", "thank you"]
-    negative_words = ["bad", "terrible", "awful", "hate", "dislike", "sad", "angry", "frustrated", "problem", "issue"]
+    positive_words = [
+        "good",
+        "great",
+        "excellent",
+        "awesome",
+        "love",
+        "like",
+        "happy",
+        "thanks",
+        "thank you",
+    ]
+    negative_words = [
+        "bad",
+        "terrible",
+        "awful",
+        "hate",
+        "dislike",
+        "sad",
+        "angry",
+        "frustrated",
+        "problem",
+        "issue",
+    ]
 
     content_lower = content.lower()
     positive_count = sum(1 for word in positive_words if word in content_lower)
@@ -169,23 +210,23 @@ def _analyze_message_sentiment(content: str) -> dict[str, Any]:
         "sentiment": sentiment,
         "confidence": confidence,
         "positive_indicators": positive_count,
-        "negative_indicators": negative_count
+        "negative_indicators": negative_count,
     }
 
 
 def _extract_topics_from_messages(messages: list[dict[str, Any]]) -> dict[str, Any]:
     """Extract topic patterns from message content."""
-    topics = defaultdict(int)
-    word_frequency = Counter()
+    topics: defaultdict[str, int] = defaultdict(int)
+    word_frequency: Counter[str] = Counter()
 
     for message in messages:
         content = message.get("content", "").lower()
         # Remove HTML tags and URLs
-        content = re.sub(r'<[^>]+>', '', content)
-        content = re.sub(r'http[s]?://\S+', '', content)
+        content = re.sub(r"<[^>]+>", "", content)
+        content = re.sub(r"http[s]?://\S+", "", content)
 
         # Extract words (simple tokenization)
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', content)
+        words = re.findall(r"\b[a-zA-Z]{3,}\b", content)
         word_frequency.update(words)
 
         # Simple topic detection based on common patterns
@@ -203,13 +244,13 @@ def _extract_topics_from_messages(messages: list[dict[str, Any]]) -> dict[str, A
     return {
         "topic_distribution": dict(topics),
         "top_words": word_frequency.most_common(20),
-        "total_messages_analyzed": len(messages)
+        "total_messages_analyzed": len(messages),
     }
 
 
 async def advanced_search(
     query: str,
-    search_type: list[Literal["messages", "users", "streams", "topics"]] = None,
+    search_type: list[Literal["messages", "users", "streams", "topics"]] | None = None,
     # Simple narrow building (NEW - enhanced with NarrowHelper)
     stream: str | None = None,
     topic: str | None = None,
@@ -237,23 +278,23 @@ async def advanced_search(
 
     SIMPLE USAGE (NEW - enhanced with NarrowHelper):
         Use basic parameters for common searches with automatic narrow building
-        
+
     ADVANCED USAGE (existing v2.5.0):
         Use narrow parameter for complex filtering and time_range for advanced time filtering
 
     Args:
         query: Search query string
         search_type: Types of content to search (defaults to ["messages"])
-        
+
         # Simple narrow building parameters (NEW)
         stream: Stream name to limit search to
-        topic: Topic name to limit search to  
+        topic: Topic name to limit search to
         sender: Sender email to filter by
         has_attachment: Filter for messages with/without attachments
         has_link: Filter for messages with/without links
         is_private: Filter for private/public messages
         is_starred: Filter for starred/unstarred messages
-        
+
         # Advanced filtering (existing)
         narrow: Additional narrow filters for message search (overrides simple params)
         highlight: Whether to include search term highlights
@@ -275,7 +316,7 @@ async def advanced_search(
 
         # Multi-faceted search with simple filtering (NEW)
         await advanced_search("docker",
-                              search_type=["messages", "topics"], 
+                              search_type=["messages", "topics"],
                               stream="devops",
                               aggregations=["count_by_user"])
 
@@ -285,7 +326,7 @@ async def advanced_search(
                               narrow=narrow_filters,
                               time_range=TimeRange(days=7),
                               highlight=True)
-                              
+
         # Using NarrowHelper for complex scenarios (NEW)
         await advanced_search("deployment issues",
                               narrow=NarrowHelper.build_basic_narrow(
@@ -295,7 +336,9 @@ async def advanced_search(
                               ))
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "search.advanced_search"}):
-        with LogContext(logger, tool="advanced_search", query=query, search_types=search_type):
+        with LogContext(
+            logger, tool="advanced_search", query=query, search_types=search_type
+        ):
             track_tool_call("search.advanced_search")
 
             try:
@@ -307,23 +350,27 @@ async def advanced_search(
 
                 # Validate search parameters
                 if not query.strip():
-                    return {
-                        "status": "error",
-                        "error": "Query cannot be empty"
-                    }
+                    return {"status": "error", "error": "Query cannot be empty"}
 
                 if limit < 1 or limit > 1000:
                     return {
                         "status": "error",
-                        "error": "Limit must be between 1 and 1000"
+                        "error": "Limit must be between 1 and 1000",
                     }
 
                 # Build effective narrow filters with enhanced logic
-                simple_params_provided = any([
-                    stream, topic, sender, has_attachment is not None,
-                    has_link is not None, is_private is not None, is_starred is not None
-                ])
-                
+                simple_params_provided = any(
+                    [
+                        stream,
+                        topic,
+                        sender,
+                        has_attachment is not None,
+                        has_link is not None,
+                        is_private is not None,
+                        is_starred is not None,
+                    ]
+                )
+
                 if narrow:
                     # Advanced mode: use provided narrow filters
                     effective_narrow = narrow
@@ -337,7 +384,7 @@ async def advanced_search(
                         has_attachment=has_attachment,
                         has_link=has_link,
                         is_private=is_private,
-                        is_starred=is_starred
+                        is_starred=is_starred,
                     )
                 else:
                     # Default: just search for query
@@ -345,13 +392,22 @@ async def advanced_search(
 
                 # Check cache if enabled (updated to include simple params)
                 cache_key = _generate_cache_key(
-                    query, search_type, effective_narrow,
-                    highlight=highlight, aggregations=aggregations,
-                    time_range=time_range, sort_by=sort_by, limit=limit,
+                    query,
+                    search_type,
+                    effective_narrow,
+                    highlight=highlight,
+                    aggregations=aggregations,
+                    time_range=time_range,
+                    sort_by=sort_by,
+                    limit=limit,
                     # Include simple params in cache key
-                    stream=stream, topic=topic, sender=sender,
-                    has_attachment=has_attachment, has_link=has_link,
-                    is_private=is_private, is_starred=is_starred
+                    stream=stream,
+                    topic=topic,
+                    sender=sender,
+                    has_attachment=has_attachment,
+                    has_link=has_link,
+                    is_private=is_private,
+                    is_starred=is_starred,
                 )
 
                 if use_cache and cache_key in _search_cache:
@@ -361,8 +417,10 @@ async def advanced_search(
                     return cached_result
 
                 # Execute search with appropriate identity and error handling
-                async def _execute_search(client, params):
-                    results = {
+                async def _execute_search(
+                    client: ZulipClientWrapper, params: dict[str, Any]
+                ) -> dict[str, Any]:
+                    results: dict[str, Any] = {
                         "status": "success",
                         "query": query,
                         "search_types": search_type,
@@ -373,8 +431,8 @@ async def advanced_search(
                             "search_time": datetime.now().isoformat(),
                             "sort_by": sort_by,
                             "limit": limit,
-                            "from_cache": False
-                        }
+                            "from_cache": False,
+                        },
                     }
 
                     # Search messages
@@ -410,7 +468,7 @@ async def advanced_search(
                             num_after=num_after,
                             include_anchor=True,
                             apply_markdown=True,
-                            client_gravatar=True
+                            client_gravatar=True,
                         )
 
                         if message_result.get("result") == "success":
@@ -420,12 +478,14 @@ async def advanced_search(
                             if highlight:
                                 for message in messages:
                                     content = message.get("content", "")
-                                    message["highlights"] = _extract_search_highlights(content, query)
+                                    message["highlights"] = _extract_search_highlights(
+                                        content, query
+                                    )
 
                             results["results"]["messages"] = {
                                 "count": len(messages),
                                 "messages": messages[:limit],
-                                "has_more": len(messages) >= limit
+                                "has_more": len(messages) >= limit,
                             }
                             results["metadata"]["total_results"] += len(messages)
 
@@ -434,44 +494,73 @@ async def advanced_search(
                                 message_aggregations = {}
 
                                 if "count_by_user" in aggregations:
-                                    user_counts = Counter(msg.get("sender_full_name", "Unknown") for msg in messages)
-                                    message_aggregations["count_by_user"] = dict(user_counts.most_common(10))
+                                    user_counts = Counter(
+                                        msg.get("sender_full_name", "Unknown")
+                                        for msg in messages
+                                    )
+                                    message_aggregations["count_by_user"] = dict(
+                                        user_counts.most_common(10)
+                                    )
 
                                 if "count_by_stream" in aggregations:
-                                    stream_counts = Counter(msg.get("display_recipient", "Unknown") for msg in messages)
-                                    message_aggregations["count_by_stream"] = dict(stream_counts.most_common(10))
+                                    stream_counts = Counter(
+                                        msg.get("display_recipient", "Unknown")
+                                        for msg in messages
+                                    )
+                                    message_aggregations["count_by_stream"] = dict(
+                                        stream_counts.most_common(10)
+                                    )
 
                                 if "count_by_time" in aggregations:
                                     # Group by hour
-                                    time_counts = defaultdict(int)
+                                    time_counts: dict[str, int] = {}
                                     for msg in messages:
-                                        timestamp = datetime.fromtimestamp(msg.get("timestamp", 0))
+                                        timestamp = datetime.fromtimestamp(
+                                            msg.get("timestamp", 0)
+                                        )
                                         hour_key = timestamp.strftime("%Y-%m-%d %H:00")
-                                        time_counts[hour_key] += 1
-                                    message_aggregations["count_by_time"] = dict(sorted(time_counts.items()))
+                                        time_counts[hour_key] = (
+                                            time_counts.get(hour_key, 0) + 1
+                                        )
+                                    message_aggregations["count_by_time"] = dict(
+                                        sorted(time_counts.items())
+                                    )
 
                                 if "word_frequency" in aggregations:
-                                    word_freq = Counter()
+                                    word_freq: Counter[str] = Counter()
                                     for msg in messages:
                                         content = msg.get("content", "").lower()
-                                        words = re.findall(r'\b[a-zA-Z]{3,}\b', content)
+                                        words = re.findall(r"\b[a-zA-Z]{3,}\b", content)
                                         word_freq.update(words)
-                                    message_aggregations["word_frequency"] = dict(word_freq.most_common(20))
+                                    message_aggregations["word_frequency"] = dict(
+                                        word_freq.most_common(20)
+                                    )
 
                                 if "emoji_usage" in aggregations:
-                                    emoji_freq = Counter()
+                                    emoji_freq: Counter[str] = Counter()
                                     for msg in messages:
                                         reactions = msg.get("reactions", [])
                                         for reaction in reactions:
                                             emoji_name = reaction.get("emoji_name", "")
-                                            emoji_freq[emoji_name] += len(reaction.get("user_ids", []))
-                                    message_aggregations["emoji_usage"] = dict(emoji_freq.most_common(10))
+                                            emoji_freq[emoji_name] += len(
+                                                reaction.get("user_ids", [])
+                                            )
+                                    message_aggregations["emoji_usage"] = dict(
+                                        emoji_freq.most_common(10)
+                                    )
 
-                                results["aggregations"]["messages"] = message_aggregations
+                                results["aggregations"][
+                                    "messages"
+                                ] = message_aggregations
 
                     # Search users
                     if "users" in search_type:
-                        users_result = client.get_users({"client_gravatar": True})
+                        try:
+                            users_result = client.get_users(
+                                {"client_gravatar": True}
+                            )  # fakes may expect a request arg
+                        except TypeError:
+                            users_result = client.get_users()
                         if users_result.get("result") == "success":
                             all_users = users_result.get("members", [])
                             query_lower = query.lower()
@@ -479,20 +568,30 @@ async def advanced_search(
                             # Filter users by query
                             matching_users = []
                             for user in all_users:
-                                if (query_lower in user.get("full_name", "").lower() or
-                                    query_lower in user.get("email", "").lower()):
+                                if (
+                                    query_lower in user.get("full_name", "").lower()
+                                    or query_lower in user.get("email", "").lower()
+                                ):
                                     matching_users.append(user)
 
                             results["results"]["users"] = {
                                 "count": len(matching_users),
                                 "users": matching_users[:limit],
-                                "has_more": len(matching_users) >= limit
+                                "has_more": len(matching_users) >= limit,
                             }
                             results["metadata"]["total_results"] += len(matching_users)
 
                     # Search streams
                     if "streams" in search_type:
-                        streams_result = client.get_streams({"include_all_active": True})
+                        try:
+                            streams_result = client.get_streams(include_subscribed=True)
+                        except TypeError:
+                            try:
+                                streams_result = client.get_streams()
+                            except TypeError:
+                                streams_result = client.get_streams(
+                                    {"include_all_active": True}
+                                )
                         if streams_result.get("result") == "success":
                             all_streams = streams_result.get("streams", [])
                             query_lower = query.lower()
@@ -500,21 +599,34 @@ async def advanced_search(
                             # Filter streams by query
                             matching_streams = []
                             for stream in all_streams:
-                                if (query_lower in stream.get("name", "").lower() or
-                                    query_lower in stream.get("description", "").lower()):
+                                if (
+                                    query_lower in stream.get("name", "").lower()
+                                    or query_lower
+                                    in stream.get("description", "").lower()
+                                ):
                                     matching_streams.append(stream)
 
                             results["results"]["streams"] = {
                                 "count": len(matching_streams),
                                 "streams": matching_streams[:limit],
-                                "has_more": len(matching_streams) >= limit
+                                "has_more": len(matching_streams) >= limit,
                             }
-                            results["metadata"]["total_results"] += len(matching_streams)
+                            results["metadata"]["total_results"] += len(
+                                matching_streams
+                            )
 
                     # Search topics (via stream messages)
                     if "topics" in search_type:
                         # Get recent topics from all streams
-                        streams_result = client.get_streams({"include_all_active": True})
+                        try:
+                            streams_result = client.get_streams(include_subscribed=True)
+                        except TypeError:
+                            try:
+                                streams_result = client.get_streams()
+                            except TypeError:
+                                streams_result = client.get_streams(
+                                    {"include_all_active": True}
+                                )
                         if streams_result.get("result") == "success":
                             all_streams = streams_result.get("streams", [])
                             matching_topics = []
@@ -522,22 +634,26 @@ async def advanced_search(
 
                             # Search topics in each stream (limited to prevent timeout)
                             for stream in all_streams[:20]:  # Limit stream search
-                                topics_result = client.get_stream_topics(stream["stream_id"])
+                                topics_result = client.get_stream_topics(
+                                    stream["stream_id"]
+                                )
                                 if topics_result.get("result") == "success":
                                     topics = topics_result.get("topics", [])
                                     for topic in topics:
                                         topic_name = topic.get("name", "")
                                         if query_lower in topic_name.lower():
-                                            matching_topics.append({
-                                                **topic,
-                                                "stream_name": stream["name"],
-                                                "stream_id": stream["stream_id"]
-                                            })
+                                            matching_topics.append(
+                                                {
+                                                    **topic,
+                                                    "stream_name": stream["name"],
+                                                    "stream_id": stream["stream_id"],
+                                                }
+                                            )
 
                             results["results"]["topics"] = {
                                 "count": len(matching_topics),
                                 "topics": matching_topics[:limit],
-                                "has_more": len(matching_topics) >= limit
+                                "has_more": len(matching_topics) >= limit,
                             }
                             results["metadata"]["total_results"] += len(matching_topics)
 
@@ -556,7 +672,7 @@ async def advanced_search(
                     "search.advanced_search",
                     {"query": query},
                     _execute_search,
-                    IdentityType.USER  # Use user identity for search
+                    IdentityType.USER,  # Use user identity for search
                 )
 
                 logger.info(f"Advanced search completed for query: '{query}'")
@@ -567,16 +683,11 @@ async def advanced_search(
                 logger.error(error_msg)
                 track_tool_error("search.advanced_search", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "query": query
-                }
+                return {"status": "error", "error": error_msg, "query": query}
 
 
 async def get_daily_summary(
-    streams: list[str] | None = None,
-    hours_back: int = 24
+    streams: list[str] | None = None, hours_back: int = 24
 ) -> dict[str, Any]:
     """Get daily summary of messages across specified streams.
 
@@ -602,7 +713,9 @@ async def get_daily_summary(
         await get_daily_summary(["project-alpha", "project-beta"], hours_back=48)
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "search.get_daily_summary"}):
-        with LogContext(logger, tool="get_daily_summary", streams=streams, hours_back=hours_back):
+        with LogContext(
+            logger, tool="get_daily_summary", streams=streams, hours_back=hours_back
+        ):
             track_tool_call("search.get_daily_summary")
 
             try:
@@ -612,19 +725,29 @@ async def get_daily_summary(
                 if not (1 <= hours_back <= 168):
                     return {
                         "status": "error",
-                        "error": "hours_back must be between 1 and 168 hours"
+                        "error": "hours_back must be between 1 and 168 hours",
                     }
 
                 # Execute daily summary with appropriate identity and error handling
-                async def _execute_daily_summary(client, params):
+                async def _execute_daily_summary(
+                    client: ZulipClientWrapper, params: dict[str, Any]
+                ) -> dict[str, Any]:
                     # If no streams specified, get all public streams
                     target_streams = streams
                     if target_streams is None:
-                        streams_result = client.get_streams({"include_all_active": True})
+                        try:
+                            streams_result = client.get_streams(include_subscribed=True)
+                        except TypeError:
+                            try:
+                                streams_result = client.get_streams()
+                            except TypeError:
+                                streams_result = client.get_streams(
+                                    {"include_all_active": True}
+                                )
                         if streams_result.get("result") != "success":
                             return {
                                 "status": "error",
-                                "error": "Failed to fetch streams list"
+                                "error": "Failed to fetch streams list",
                             }
 
                         # Filter to public streams only
@@ -635,19 +758,10 @@ async def get_daily_summary(
                             if not stream.get("invite_only", False)
                         ]
 
-                    # Initialize summary structure
-                    summary = {
-                        "status": "success",
-                        "total_messages": 0,
-                        "streams": {},
-                        "top_senders": {},
-                        "time_range": f"Last {hours_back} hours",
-                        "analyzed_streams": len(target_streams),
-                        "metadata": {
-                            "analysis_time": datetime.now().isoformat(),
-                            "hours_analyzed": hours_back
-                        }
-                    }
+                    # Aggregation locals with precise types
+                    total_messages: int = 0
+                    streams_map: dict[str, dict[str, Any]] = {}
+                    top_senders: dict[str, int] = {}
 
                     # Create time range filter
                     time_range = TimeRange(hours=hours_back)
@@ -656,7 +770,9 @@ async def get_daily_summary(
                     # Analyze each stream
                     for stream_name in target_streams:
                         # Build narrow filters for this stream using NarrowHelper
-                        stream_narrow = [NarrowHelper.stream(stream_name)] + time_filters
+                        stream_narrow = [
+                            NarrowHelper.stream(stream_name)
+                        ] + time_filters
                         narrow_dict = NarrowHelper.to_api_format(stream_narrow)
 
                         # Get messages for this stream
@@ -668,86 +784,107 @@ async def get_daily_summary(
                             num_after=0,
                             include_anchor=True,
                             apply_markdown=False,  # Raw content for analysis
-                            client_gravatar=False
+                            client_gravatar=False,
                         )
 
                         if message_result.get("result") != "success":
-                            logger.warning(f"Failed to get messages for stream {stream_name}")
+                            logger.warning(
+                                f"Failed to get messages for stream {stream_name}"
+                            )
                             continue
 
                         messages = message_result.get("messages", [])
                         message_count = len(messages)
 
-                        # Initialize stream summary
-                        stream_summary = {
-                            "message_count": message_count,
-                            "topics": {},
-                            "active_users": set()
-                        }
+                        # Initialize per-stream aggregates
+                        topics_map: dict[str, int] = {}
+                        active_users: set[str] = set()
 
                         # Process messages for this stream
                         for message in messages:
-                            summary["total_messages"] += 1
+                            total_messages += 1
 
                             # Track senders across all streams
                             sender = message.get("sender_full_name", "Unknown")
-                            summary["top_senders"][sender] = summary["top_senders"].get(sender, 0) + 1
+                            top_senders[sender] = top_senders.get(sender, 0) + 1
 
                             # Track active users in this stream
-                            stream_summary["active_users"].add(sender)
+                            active_users.add(sender)
 
                             # Track topics in this stream
                             topic = message.get("subject", "")
                             if topic:
-                                stream_summary["topics"][topic] = stream_summary["topics"].get(topic, 0) + 1
+                                topics_map[topic] = topics_map.get(topic, 0) + 1
 
-                        # Convert active_users set to count and store stream summary
-                        summary["streams"][stream_name] = {
-                            "message_count": stream_summary["message_count"],
-                            "topics": dict(sorted(
-                                stream_summary["topics"].items(),
-                                key=lambda x: x[1],
-                                reverse=True
-                            )),
-                            "active_user_count": len(stream_summary["active_users"]),
-                            "topic_count": len(stream_summary["topics"])
+                        # Store per-stream summary
+                        streams_map[stream_name] = {
+                            "message_count": message_count,
+                            "topics": dict(
+                                sorted(
+                                    topics_map.items(), key=lambda x: x[1], reverse=True
+                                )
+                            ),
+                            "active_user_count": len(active_users),
+                            "topic_count": len(topics_map),
                         }
 
                     # Sort and limit top senders (top 10)
-                    summary["top_senders"] = dict(
-                        sorted(
-                            summary["top_senders"].items(),
-                            key=lambda x: x[1],
-                            reverse=True
-                        )[:10]
+                    top_senders = dict(
+                        sorted(top_senders.items(), key=lambda x: x[1], reverse=True)[
+                            :10
+                        ]
                     )
 
-                    # Add high-level insights
-                    if summary["total_messages"] > 0:
-                        active_streams = sum(1 for s in summary["streams"].values() if s["message_count"] > 0)
-                        summary["insights"] = {
-                            "most_active_stream": max(
-                                summary["streams"].items(),
-                                key=lambda x: x[1]["message_count"]
-                            )[0] if summary["streams"] else None,
+                    insights: dict[str, Any] = {}
+                    if total_messages > 0:
+                        active_streams = sum(
+                            1 for s in streams_map.values() if s["message_count"] > 0
+                        )
+                        most_active = (
+                            max(
+                                streams_map.items(), key=lambda x: x[1]["message_count"]
+                            )[0]
+                            if streams_map
+                            else None
+                        )
+                        insights = {
+                            "most_active_stream": most_active,
                             "active_streams_count": active_streams,
                             "average_messages_per_active_stream": (
-                                summary["total_messages"] / active_streams if active_streams > 0 else 0
+                                total_messages / active_streams
+                                if active_streams > 0
+                                else 0
                             ),
-                            "total_unique_senders": len(summary["top_senders"])
+                            "total_unique_senders": len(top_senders),
                         }
 
-                    return summary
+                    summary_final = {
+                        "status": "success",
+                        "total_messages": total_messages,
+                        "streams": streams_map,
+                        "top_senders": top_senders,
+                        "insights": insights,
+                        "time_range": f"Last {hours_back} hours",
+                        "analyzed_streams": len(target_streams or []),
+                        "metadata": {
+                            "analysis_time": datetime.now().isoformat(),
+                            "hours_analyzed": hours_back,
+                        },
+                    }
+
+                    return summary_final
 
                 # Execute with identity management and error handling
                 result = await identity_manager.execute_with_identity(
                     "search.get_daily_summary",
                     {"streams": streams, "hours_back": hours_back},
                     _execute_daily_summary,
-                    IdentityType.USER  # Use user identity for daily summary
+                    IdentityType.USER,  # Use user identity for daily summary
                 )
 
-                logger.info(f"Daily summary completed for {len(streams or [])} streams, {hours_back} hours back")
+                logger.info(
+                    f"Daily summary completed for {len(streams or [])} streams, {hours_back} hours back"
+                )
                 return result
 
             except Exception as e:
@@ -759,7 +896,7 @@ async def get_daily_summary(
                     "status": "error",
                     "error": error_msg,
                     "streams": streams,
-                    "hours_back": hours_back
+                    "hours_back": hours_back,
                 }
 
 
@@ -767,7 +904,7 @@ async def analytics(
     metric: Literal["activity", "sentiment", "topics", "participation"],
     narrow: list[NarrowFilter] | None = None,
     group_by: Literal["user", "stream", "day", "hour"] | None = None,
-    time_range: TimeRange = None,
+    time_range: TimeRange | None = None,
     # Output options
     format: Literal["summary", "detailed", "chart_data"] = "summary",
     include_stats: bool = True,
@@ -814,23 +951,33 @@ async def analytics(
                     time_range = TimeRange(days=7)
 
                 # Execute analytics with appropriate identity and error handling
-                async def _execute_analytics(client, params):
-                    results = {
+                async def _execute_analytics(
+                    client: ZulipClientWrapper, params: dict[str, Any]
+                ) -> dict[str, Any]:
+                    metadata: dict[str, Any] = {
+                        "analysis_time": datetime.now().isoformat(),
+                        "total_messages_analyzed": 0,
+                    }
+                    data_block: dict[str, Any] = {}
+                    results: dict[str, Any] = {
                         "status": "success",
                         "metric": metric,
                         "time_range": {
                             "days": time_range.days,
                             "hours": time_range.hours,
-                            "start": time_range.start.isoformat() if time_range.start else None,
-                            "end": time_range.end.isoformat() if time_range.end else None,
+                            "start": (
+                                time_range.start.isoformat()
+                                if time_range.start
+                                else None
+                            ),
+                            "end": (
+                                time_range.end.isoformat() if time_range.end else None
+                            ),
                         },
                         "group_by": group_by,
                         "format": format,
-                        "data": {},
-                        "metadata": {
-                            "analysis_time": datetime.now().isoformat(),
-                            "total_messages_analyzed": 0
-                        }
+                        "data": data_block,
+                        "metadata": metadata,
                     }
 
                     # Build narrow filters for message retrieval
@@ -847,28 +994,32 @@ async def analytics(
                         num_after=0,
                         include_anchor=True,
                         apply_markdown=False,  # Raw content for analysis
-                        client_gravatar=False
+                        client_gravatar=False,
                     )
 
                     if message_result.get("result") != "success":
                         return {
                             "status": "error",
-                            "error": f"Failed to retrieve messages: {message_result.get('msg', 'Unknown error')}"
+                            "error": f"Failed to retrieve messages: {message_result.get('msg', 'Unknown error')}",
                         }
 
                     messages = message_result.get("messages", [])
-                    results["metadata"]["total_messages_analyzed"] = len(messages)
+                    metadata["total_messages_analyzed"] = len(messages)
 
                     if not messages:
-                        results["data"] = {"message": "No messages found in the specified time range and filters"}
+                        results["data"] = {
+                            "message": "No messages found in the specified time range and filters"
+                        }
                         return results
 
                     # Compute analytics based on metric type
                     if metric == "activity":
-                        activity_data = defaultdict(int)
+                        activity_data: dict[str, int] = {}
 
                         for message in messages:
-                            timestamp = datetime.fromtimestamp(message.get("timestamp", 0))
+                            timestamp = datetime.fromtimestamp(
+                                message.get("timestamp", 0)
+                            )
 
                             if group_by == "user":
                                 key = message.get("sender_full_name", "Unknown")
@@ -881,9 +1032,11 @@ async def analytics(
                             else:
                                 key = "total"
 
-                            activity_data[key] += 1
+                            activity_data[key] = activity_data.get(key, 0) + 1
 
-                        results["data"]["activity"] = dict(sorted(activity_data.items()))
+                        results["data"]["activity"] = dict(
+                            sorted(activity_data.items())
+                        )
 
                         if include_stats:
                             values = list(activity_data.values())
@@ -892,41 +1045,55 @@ async def analytics(
                                 "average": sum(values) / len(values) if values else 0,
                                 "max": max(values) if values else 0,
                                 "min": min(values) if values else 0,
-                                "unique_contributors": len(activity_data)
+                                "unique_contributors": len(activity_data),
                             }
 
                     elif metric == "sentiment":
-                        sentiment_data = defaultdict(list)
-                        overall_sentiment = defaultdict(int)
+                        sentiment_data: dict[str, list[dict[str, Any]]] = {}
+                        overall_sentiment: dict[str, int] = {}
 
                         for message in messages:
                             content = message.get("content", "")
                             sentiment_analysis = _analyze_message_sentiment(content)
                             sentiment = sentiment_analysis["sentiment"]
 
-                            overall_sentiment[sentiment] += 1
+                            overall_sentiment[sentiment] = (
+                                overall_sentiment.get(sentiment, 0) + 1
+                            )
 
                             if group_by == "user":
                                 key = message.get("sender_full_name", "Unknown")
                             elif group_by == "stream":
                                 key = message.get("display_recipient", "Unknown")
                             elif group_by == "day":
-                                timestamp = datetime.fromtimestamp(message.get("timestamp", 0))
+                                timestamp = datetime.fromtimestamp(
+                                    message.get("timestamp", 0)
+                                )
                                 key = timestamp.strftime("%Y-%m-%d")
                             elif group_by == "hour":
-                                timestamp = datetime.fromtimestamp(message.get("timestamp", 0))
+                                timestamp = datetime.fromtimestamp(
+                                    message.get("timestamp", 0)
+                                )
                                 key = timestamp.strftime("%Y-%m-%d %H:00")
                             else:
                                 key = "overall"
 
-                            sentiment_data[key].append(sentiment_analysis)
+                            sentiment_data.setdefault(key, []).append(
+                                sentiment_analysis
+                            )
 
                         # Aggregate sentiment by group
-                        aggregated_sentiment = {}
+                        aggregated_sentiment: dict[str, dict[str, float | int]] = {}
                         for key, sentiments in sentiment_data.items():
-                            positive = sum(1 for s in sentiments if s["sentiment"] == "positive")
-                            negative = sum(1 for s in sentiments if s["sentiment"] == "negative")
-                            neutral = sum(1 for s in sentiments if s["sentiment"] == "neutral")
+                            positive = sum(
+                                1 for s in sentiments if s["sentiment"] == "positive"
+                            )
+                            negative = sum(
+                                1 for s in sentiments if s["sentiment"] == "negative"
+                            )
+                            neutral = sum(
+                                1 for s in sentiments if s["sentiment"] == "neutral"
+                            )
                             total = len(sentiments)
 
                             aggregated_sentiment[key] = {
@@ -935,11 +1102,13 @@ async def analytics(
                                 "neutral": neutral,
                                 "total": total,
                                 "positive_ratio": positive / total if total > 0 else 0,
-                                "negative_ratio": negative / total if total > 0 else 0
+                                "negative_ratio": negative / total if total > 0 else 0,
                             }
 
                         results["data"]["sentiment"] = aggregated_sentiment
-                        results["data"]["overall_distribution"] = dict(overall_sentiment)
+                        results["data"]["overall_distribution"] = dict(
+                            overall_sentiment
+                        )
 
                     elif metric == "topics":
                         topic_analysis = _extract_topics_from_messages(messages)
@@ -954,7 +1123,9 @@ async def analytics(
                                 elif group_by == "stream":
                                     key = message.get("display_recipient", "Unknown")
                                 elif group_by == "day":
-                                    timestamp = datetime.fromtimestamp(message.get("timestamp", 0))
+                                    timestamp = datetime.fromtimestamp(
+                                        message.get("timestamp", 0)
+                                    )
                                     key = timestamp.strftime("%Y-%m-%d")
                                 else:
                                     key = "all"
@@ -963,18 +1134,14 @@ async def analytics(
 
                             grouped_analysis = {}
                             for key, group_messages in grouped_topics.items():
-                                grouped_analysis[key] = _extract_topics_from_messages(group_messages)
+                                grouped_analysis[key] = _extract_topics_from_messages(
+                                    group_messages
+                                )
 
                             results["data"]["grouped_topics"] = grouped_analysis
 
                     elif metric == "participation":
-                        participation_data = defaultdict(lambda: {
-                            "message_count": 0,
-                            "unique_topics": set(),
-                            "unique_streams": set(),
-                            "avg_message_length": 0,
-                            "total_chars": 0
-                        })
+                        participation_data: dict[str, dict[str, Any]] = {}
 
                         for message in messages:
                             sender = message.get("sender_full_name", "Unknown")
@@ -987,35 +1154,54 @@ async def analytics(
                             elif group_by == "stream":
                                 key = stream
                             elif group_by == "day":
-                                timestamp = datetime.fromtimestamp(message.get("timestamp", 0))
+                                timestamp = datetime.fromtimestamp(
+                                    message.get("timestamp", 0)
+                                )
                                 key = timestamp.strftime("%Y-%m-%d")
                             else:
                                 key = "overall"
 
-                            participation_data[key]["message_count"] += 1
-                            participation_data[key]["unique_topics"].add(topic)
-                            participation_data[key]["unique_streams"].add(stream)
-                            participation_data[key]["total_chars"] += len(content)
+                            entry = participation_data.setdefault(
+                                key,
+                                {
+                                    "message_count": 0,
+                                    "unique_topics": cast(set[str], set()),
+                                    "unique_streams": cast(set[str], set()),
+                                    "total_chars": 0,
+                                },
+                            )
+                            entry["message_count"] = entry["message_count"] + 1
+                            cast(set[str], entry["unique_topics"]).add(topic)
+                            cast(set[str], entry["unique_streams"]).add(stream)
+                            entry["total_chars"] = entry["total_chars"] + len(content)
 
                         # Convert sets to counts and calculate averages
-                        processed_participation = {}
+                        processed_participation: dict[str, dict[str, float | int]] = {}
                         for key, data in participation_data.items():
                             msg_count = data["message_count"]
                             processed_participation[key] = {
                                 "message_count": msg_count,
                                 "unique_topics": len(data["unique_topics"]),
                                 "unique_streams": len(data["unique_streams"]),
-                                "avg_message_length": data["total_chars"] / msg_count if msg_count > 0 else 0,
-                                "total_characters": data["total_chars"]
+                                "avg_message_length": (
+                                    data["total_chars"] / msg_count
+                                    if msg_count > 0
+                                    else 0
+                                ),
+                                "total_characters": data["total_chars"],
                             }
 
                         results["data"]["participation"] = processed_participation
 
                     # Format results based on requested format
                     if format == "chart_data":
-                        results["chart_data"] = _convert_to_chart_format(results["data"], metric, group_by)
+                        results["chart_data"] = _convert_to_chart_format(
+                            results["data"], metric, group_by
+                        )
                     elif format == "detailed":
-                        results["detailed_insights"] = _generate_detailed_insights(results["data"], metric)
+                        results["detailed_insights"] = _generate_detailed_insights(
+                            results["data"], metric
+                        )
 
                     return results
 
@@ -1024,7 +1210,7 @@ async def analytics(
                     "search.analytics",
                     {"metric": metric},
                     _execute_analytics,
-                    IdentityType.USER  # Use user identity for analytics
+                    IdentityType.USER,  # Use user identity for analytics
                 )
 
                 logger.info(f"Analytics completed for metric: {metric}")
@@ -1035,33 +1221,36 @@ async def analytics(
                 logger.error(error_msg)
                 track_tool_error("search.analytics", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "metric": metric
-                }
+                return {"status": "error", "error": error_msg, "metric": metric}
 
 
-def _convert_to_chart_format(data: dict[str, Any], metric: str, group_by: str | None) -> dict[str, Any]:
+def _convert_to_chart_format(
+    data: dict[str, Any], metric: str, group_by: str | None
+) -> dict[str, Any]:
     """Convert analytics data to chart-friendly format."""
-    chart_data = {"type": metric, "group_by": group_by, "series": []}
+    chart_data: dict[str, Any] = {"type": metric, "group_by": group_by, "series": []}
 
     if metric == "activity" and "activity" in data:
         chart_data["series"] = [
-            {"name": key, "value": value}
-            for key, value in data["activity"].items()
+            {"name": key, "value": value} for key, value in data["activity"].items()
         ]
     elif metric == "sentiment" and "sentiment" in data:
         for group, sentiment_info in data["sentiment"].items():
-            chart_data["series"].append({
-                "name": group,
-                "positive": sentiment_info["positive"],
-                "negative": sentiment_info["negative"],
-                "neutral": sentiment_info["neutral"]
-            })
+            chart_data["series"].append(
+                {
+                    "name": group,
+                    "positive": sentiment_info["positive"],
+                    "negative": sentiment_info["negative"],
+                    "neutral": sentiment_info["neutral"],
+                }
+            )
     elif metric == "participation" and "participation" in data:
         chart_data["series"] = [
-            {"name": key, "messages": value["message_count"], "engagement": value["unique_topics"]}
+            {
+                "name": key,
+                "messages": value["message_count"],
+                "engagement": value["unique_topics"],
+            }
             for key, value in data["participation"].items()
         ]
 
@@ -1077,25 +1266,41 @@ def _generate_detailed_insights(data: dict[str, Any], metric: str) -> list[str]:
         insights.append(f"Total messages analyzed: {stats['total_messages']}")
         insights.append(f"Average activity level: {stats['average']:.1f} messages")
         insights.append(f"Most active contributor sent {stats['max']} messages")
-        insights.append(f"Activity spread across {stats['unique_contributors']} contributors")
+        insights.append(
+            f"Activity spread across {stats['unique_contributors']} contributors"
+        )
 
     elif metric == "sentiment" and "overall_distribution" in data:
         total = sum(data["overall_distribution"].values())
-        positive_pct = (data["overall_distribution"].get("positive", 0) / total) * 100 if total > 0 else 0
-        negative_pct = (data["overall_distribution"].get("negative", 0) / total) * 100 if total > 0 else 0
+        positive_pct = (
+            (data["overall_distribution"].get("positive", 0) / total) * 100
+            if total > 0
+            else 0
+        )
+        negative_pct = (
+            (data["overall_distribution"].get("negative", 0) / total) * 100
+            if total > 0
+            else 0
+        )
 
-        insights.append(f"Overall sentiment: {positive_pct:.1f}% positive, {negative_pct:.1f}% negative")
+        insights.append(
+            f"Overall sentiment: {positive_pct:.1f}% positive, {negative_pct:.1f}% negative"
+        )
 
         if positive_pct > 60:
             insights.append("Generally positive communication tone detected")
         elif negative_pct > 30:
-            insights.append("Notable negative sentiment detected - may warrant attention")
+            insights.append(
+                "Notable negative sentiment detected - may warrant attention"
+            )
 
     elif metric == "topics" and "topics" in data:
         topic_dist = data["topics"]["topic_distribution"]
         if topic_dist:
             top_topic = max(topic_dist.items(), key=lambda x: x[1])
-            insights.append(f"Most discussed topic: {top_topic[0]} ({top_topic[1]} mentions)")
+            insights.append(
+                f"Most discussed topic: {top_topic[0]} ({top_topic[1]} mentions)"
+            )
 
         top_words = data["topics"]["top_words"][:5]
         if top_words:
@@ -1106,8 +1311,12 @@ def _generate_detailed_insights(data: dict[str, Any], metric: str) -> list[str]:
         participation = data["participation"]
         if "overall" in participation:
             overall = participation["overall"]
-            insights.append(f"Average message length: {overall['avg_message_length']:.1f} characters")
-            insights.append(f"Discussion spans {overall['unique_topics']} topics across {overall['unique_streams']} streams")
+            insights.append(
+                f"Average message length: {overall['avg_message_length']:.1f} characters"
+            )
+            insights.append(
+                f"Discussion spans {overall['unique_topics']} topics across {overall['unique_streams']} streams"
+            )
 
     return insights
 

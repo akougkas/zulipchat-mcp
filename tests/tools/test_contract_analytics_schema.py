@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from jsonschema import validate
 
-
 ANALYTICS_SCHEMA = {
     "type": "object",
     "required": ["status", "metric", "time_range", "data"],
@@ -36,7 +35,9 @@ ANALYTICS_SCHEMA = {
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_contract_activity_chart(mock_managers, make_msg, fake_client_class) -> None:
+async def test_analytics_contract_activity_chart(
+    mock_managers, make_msg, fake_client_class
+) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()

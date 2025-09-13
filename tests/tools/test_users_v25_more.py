@@ -28,7 +28,10 @@ async def test_manage_users_get_by_id_success(mock_managers) -> None:
     async def execute(tool, params, func, identity=None):
         class Client:
             def get_user_by_id(self, uid, include_custom_profile_fields=False):  # type: ignore[no-redef]
-                return {"result": "success", "user": {"user_id": uid, "full_name": "Jane"}}
+                return {
+                    "result": "success",
+                    "user": {"user_id": uid, "full_name": "Jane"},
+                }
 
         return await func(Client(), params)
 
@@ -64,7 +67,9 @@ async def test_manage_users_get_by_email_success(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await manage_users(operation="get", email="user@example.com", include_custom_profile_fields=True)
+    res = await manage_users(
+        operation="get", email="user@example.com", include_custom_profile_fields=True
+    )
     assert res["status"] == "success"
     assert res["user"]["email"] == "user@example.com"
 
@@ -98,7 +103,9 @@ async def test_manage_users_update_resolves_email_to_id(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await manage_users(operation="update", email="user@example.com", full_name="New Name")
+    res = await manage_users(
+        operation="update", email="user@example.com", full_name="New Name"
+    )
     assert res["status"] == "success"
     assert res["operation"] == "update"
     assert res["user_id"] == 7
@@ -150,11 +157,15 @@ async def test_manage_users_avatar_and_profile_fields_errors(mock_managers) -> N
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
     mock_validator.suggest_mode.return_value = Mock()
-    mock_validator.validate_tool_params.return_value = {"operation": "avatar", "avatar_file": None}
+    mock_validator.validate_tool_params.return_value = {
+        "operation": "avatar",
+        "avatar_file": None,
+    }
 
     async def execute(tool, params, func, identity=None):
         class Client:
             pass
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)

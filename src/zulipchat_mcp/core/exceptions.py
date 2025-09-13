@@ -117,7 +117,7 @@ def create_error_response(
     Returns:
         Standardized error response dictionary
     """
-    response = {
+    response: dict[str, Any] = {
         "status": "error",
         "operation": operation,
         "error": str(error),
@@ -142,7 +142,7 @@ def create_error_response(
 # Export all exception classes
 __all__ = [
     "ZulipMCPError",
-    "ConfigurationError", 
+    "ConfigurationError",
     "ConnectionError",
     "ValidationError",
     "RateLimitError",

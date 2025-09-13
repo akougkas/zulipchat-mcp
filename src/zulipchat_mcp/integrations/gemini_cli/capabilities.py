@@ -6,14 +6,14 @@ This is a skeleton implementation that will be enhanced later.
 from typing import Any
 
 # Placeholder capabilities
-CAPABILITIES = {
+CAPABILITIES: dict[str, dict[str, Any]] = {
     "placeholder": {
         "enabled": False,
         "description": "Placeholder capability for future implementation",
     }
 }
 
-DEFAULT_CONFIG = {"agent_type": "gemini-cli", "implemented": False}
+DEFAULT_CONFIG: dict[str, Any] = {"agent_type": "gemini-cli", "implemented": False}
 
 
 def get_capabilities() -> dict[str, Any]:
@@ -33,4 +33,5 @@ def get_workflow_commands() -> list[str]:
 
 def is_capability_enabled(capability: str) -> bool:
     """Check if capability is enabled."""
-    return CAPABILITIES.get(capability, {}).get("enabled", False)
+    enabled = CAPABILITIES.get(capability, {}).get("enabled", False)
+    return bool(enabled)

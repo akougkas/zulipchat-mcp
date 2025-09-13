@@ -10,7 +10,7 @@ from .users_v25 import register_users_v25_tools
 
 __all__ = [
     "register_messaging_v25_tools",
-    "register_streams_v25_tools", 
+    "register_streams_v25_tools",
     "register_events_v25_tools",
     "register_users_v25_tools",
     "register_search_v25_tools",

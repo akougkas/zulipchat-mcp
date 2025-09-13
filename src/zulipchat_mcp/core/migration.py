@@ -7,10 +7,11 @@ migrating to the new consolidated architecture.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from ..utils.logging import get_logger
 
@@ -32,12 +33,12 @@ class ToolMigration:
 
     old_name: str
     new_name: str
-    new_params: Dict[str, Any]  # Default parameters for new tool
-    param_mapping: Dict[str, str]  # Map old param names to new
+    new_params: dict[str, Any]  # Default parameters for new tool
+    param_mapping: dict[str, str]  # Map old param names to new
     status: MigrationStatus
-    deprecated_since: Optional[str] = None  # Version when deprecated
-    removal_version: Optional[str] = None  # Version when will be removed
-    migration_notes: Optional[str] = None
+    deprecated_since: str | None = None  # Version when deprecated
+    removal_version: str | None = None  # Version when will be removed
+    migration_notes: str | None = None
 
 
 class MigrationManager:
@@ -212,13 +213,13 @@ class MigrationManager:
 
     def __init__(self):
         """Initialize migration manager."""
-        self.deprecation_warnings: Set[str] = set()
-        self.migration_stats: Dict[str, int] = {}
-        self.disabled_tools: Set[str] = set()
+        self.deprecation_warnings: set[str] = set()
+        self.migration_stats: dict[str, int] = {}
+        self.disabled_tools: set[str] = set()
 
     def migrate_tool_call(
-        self, tool_name: str, params: Dict[str, Any]
-    ) -> Tuple[str, Dict[str, Any]]:
+        self, tool_name: str, params: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]]:
         """Migrate a tool call to the new format.
 
         Args:
@@ -260,8 +261,8 @@ class MigrationManager:
         return migration.new_name, new_params
 
     def _migrate_params(
-        self, params: Dict[str, Any], mapping: Dict[str, str]
-    ) -> Dict[str, Any]:
+        self, params: dict[str, Any], mapping: dict[str, str]
+    ) -> dict[str, Any]:
         """Migrate parameters based on mapping.
 
         Args:
@@ -287,8 +288,8 @@ class MigrationManager:
         return migrated
 
     def _handle_special_migrations(
-        self, old_tool: str, old_params: Dict[str, Any], new_params: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, old_tool: str, old_params: dict[str, Any], new_params: dict[str, Any]
+    ) -> dict[str, Any]:
         """Handle special migration cases that need custom logic.
 
         Args:
@@ -303,7 +304,9 @@ class MigrationManager:
         if old_tool == "get_messages":
             narrow = []
             if "stream_name" in old_params:
-                narrow.append({"operator": "stream", "operand": old_params["stream_name"]})
+                narrow.append(
+                    {"operator": "stream", "operand": old_params["stream_name"]}
+                )
             if "hours_back" in old_params:
                 from datetime import datetime, timedelta
 
@@ -361,7 +364,7 @@ class MigrationManager:
         key = f"{old_tool}->{new_tool}"
         self.migration_stats[key] = self.migration_stats.get(key, 0) + 1
 
-    def get_migration_status(self) -> Dict[str, Any]:
+    def get_migration_status(self) -> dict[str, Any]:
         """Get migration status and statistics.
 
         Returns:
@@ -408,9 +411,7 @@ class MigrationManager:
         """
         return tool_name in self.disabled_tools
 
-    def create_compatibility_wrapper(
-        self, new_tool_func: Callable
-    ) -> Callable:
+    def create_compatibility_wrapper(self, new_tool_func: Callable) -> Callable:
         """Create a wrapper that provides backward compatibility.
 
         Args:
@@ -420,7 +421,7 @@ class MigrationManager:
             Wrapped function with compatibility layer
         """
 
-        async def wrapper(tool_name: str, params: Dict[str, Any]) -> Any:
+        async def wrapper(tool_name: str, params: dict[str, Any]) -> Any:
             # Check if disabled
             if self.is_tool_disabled(tool_name):
                 raise ValueError(
@@ -435,7 +436,7 @@ class MigrationManager:
 
         return wrapper
 
-    def get_migration_guide(self, tool_name: Optional[str] = None) -> str:
+    def get_migration_guide(self, tool_name: str | None = None) -> str:
         """Get migration guide for tools.
 
         Args:
@@ -475,8 +476,18 @@ class MigrationManager:
         guide += "## Tool Consolidation\n\n"
 
         categories = {
-            "Messaging": ["send_message", "get_messages", "edit_message", "add_reaction"],
-            "Streams": ["get_streams", "create_stream", "rename_stream", "archive_stream"],
+            "Messaging": [
+                "send_message",
+                "get_messages",
+                "edit_message",
+                "add_reaction",
+            ],
+            "Streams": [
+                "get_streams",
+                "create_stream",
+                "rename_stream",
+                "archive_stream",
+            ],
             "Agents": ["register_agent", "agent_message", "poll_agent_events"],
             "Search": ["search_messages", "get_daily_summary"],
             "Administration": ["New admin tools with permission boundaries"],
@@ -492,12 +503,12 @@ class MigrationManager:
 
         return guide
 
-    def complete_v25_migration(self) -> Dict[str, Any]:
+    def complete_v25_migration(self) -> dict[str, Any]:
         """Complete the v2.5.0 architecture consolidation.
-        
+
         This method provides a final summary of the v2.5.0 migration
         from 24+ tools to 7 consolidated categories.
-        
+
         Returns:
             Migration completion summary
         """
@@ -505,45 +516,50 @@ class MigrationManager:
             "messaging_v25": {
                 "tools": 3,
                 "description": "Message operations with identity-aware capabilities",
-                "functions": ["message", "search_messages", "edit_message", "bulk_operations"]
+                "functions": [
+                    "message",
+                    "search_messages",
+                    "edit_message",
+                    "bulk_operations",
+                ],
             },
             "streams_v25": {
-                "tools": 2, 
+                "tools": 2,
                 "description": "Stream and topic management with enhanced permissions",
-                "functions": ["manage_streams", "manage_topics"]
+                "functions": ["manage_streams", "manage_topics"],
             },
             "events_v25": {
                 "tools": 3,
-                "description": "Real-time event streaming replacing legacy agent system", 
-                "functions": ["register_events", "get_events", "listen_events"]
+                "description": "Real-time event streaming replacing legacy agent system",
+                "functions": ["register_events", "get_events", "listen_events"],
             },
             "users_v25": {
                 "tools": 3,
                 "description": "Identity management with multi-credential support",
-                "functions": ["manage_users", "switch_identity", "manage_user_groups"]
+                "functions": ["manage_users", "switch_identity", "manage_user_groups"],
             },
             "search_v25": {
                 "tools": 2,
                 "description": "Advanced search with analytics and performance optimization",
-                "functions": ["advanced_search", "analytics"]
+                "functions": ["advanced_search", "analytics"],
             },
             "files_v25": {
-                "tools": 2, 
+                "tools": 2,
                 "description": "File management with upload optimization and security",
-                "functions": ["upload_file", "manage_files"]
+                "functions": ["upload_file", "manage_files"],
             },
             "admin_v25": {
                 "tools": 2,
                 "description": "Administrative operations with clear permission boundaries",
-                "functions": ["admin_operations", "customize_organization"]
-            }
+                "functions": ["admin_operations", "customize_organization"],
+            },
         }
-        
+
         # Calculate migration statistics
         total_new_tools = sum(cat["tools"] for cat in v25_categories.values())
         total_functions = sum(len(cat["functions"]) for cat in v25_categories.values())
         migrated_legacy_tools = len(self.TOOL_MIGRATIONS)
-        
+
         completion_summary = {
             "status": "completed",
             "version": "2.5.0",
@@ -564,20 +580,26 @@ class MigrationManager:
                 "Stateless event streaming replacing legacy agents",
                 "Comprehensive error handling and logging",
                 "Backward compatibility preservation during transition",
-                "Admin tools with clear capability requirements"
+                "Admin tools with clear capability requirements",
             ],
             "deprecation_status": {
-                "deprecated_tools": len([
-                    m for m in self.TOOL_MIGRATIONS.values() 
-                    if m.status == MigrationStatus.DEPRECATED
-                ]),
-                "active_tools": len([
-                    m for m in self.TOOL_MIGRATIONS.values()
-                    if m.status == MigrationStatus.ACTIVE
-                ]),
-                "removal_timeline": "3.0.0"
-            }
+                "deprecated_tools": len(
+                    [
+                        m
+                        for m in self.TOOL_MIGRATIONS.values()
+                        if m.status == MigrationStatus.DEPRECATED
+                    ]
+                ),
+                "active_tools": len(
+                    [
+                        m
+                        for m in self.TOOL_MIGRATIONS.values()
+                        if m.status == MigrationStatus.ACTIVE
+                    ]
+                ),
+                "removal_timeline": "3.0.0",
+            },
         }
-        
+
         logger.info("v2.5.0 architecture consolidation completed successfully")
         return completion_summary

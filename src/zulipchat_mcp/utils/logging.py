@@ -113,8 +113,8 @@ class LogContext:
 def log_function_call(
     logger: Any,
     func_name: str,
-    args: tuple | None = None,
-    kwargs: dict | None = None,
+    args: tuple[Any, ...] | None = None,
+    kwargs: dict[str, Any] | None = None,
     result: Any = None,
     error: Exception | None = None,
 ) -> None:

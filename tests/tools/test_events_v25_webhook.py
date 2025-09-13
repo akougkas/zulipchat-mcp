@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import types
+import sys
 
 import pytest
 
 from zulipchat_mcp.tools import events_v25 as ev
-import sys
 
 
 class _Resp:

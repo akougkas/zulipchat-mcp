@@ -33,13 +33,18 @@ async def test_manage_users_list_and_presence_and_groups(mock_managers) -> None:
     class Client:
         def get_users(self):  # type: ignore[no-redef]
             return {"result": "success", "members": [{"id": 1}, {"id": 2}]}
+
         def update_presence(self, status, ping_only, new_user_input):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def get_user_groups(self):  # type: ignore[no-redef]
-            return {"result": "success", "user_groups": [
-                {"id": 10, "members": [1]},
-                {"id": 11, "members": [2]},
-            ]}
+            return {
+                "result": "success",
+                "user_groups": [
+                    {"id": 10, "members": [1]},
+                    {"id": 11, "members": [2]},
+                ],
+            }
 
     async def execute(tool, params, func, identity=None):
         # Provide get_current_identity() during execution
@@ -50,14 +55,21 @@ async def test_manage_users_list_and_presence_and_groups(mock_managers) -> None:
 
     # list
     res_list = await manage_users("list")
-    assert res_list["status"] == "success" and res_list["count"] == 2 and res_list["identity_used"] == "user"
+    assert (
+        res_list["status"] == "success"
+        and res_list["count"] == 2
+        and res_list["identity_used"] == "user"
+    )
 
     # presence
     res_presence = await manage_users("presence", status="active")
-    assert res_presence["status"] == "success" and res_presence["new_status"] == "active"
+    assert (
+        res_presence["status"] == "success" and res_presence["new_status"] == "active"
+    )
 
     # groups
     res_groups = await manage_users("groups")
     assert res_groups["status"] == "success"
-    assert any(g["id"] == 10 for g in res_groups["user_groups"])  # filtered to include current user id 1
-
+    assert any(
+        g["id"] == 10 for g in res_groups["user_groups"]
+    )  # filtered to include current user id 1

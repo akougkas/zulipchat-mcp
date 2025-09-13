@@ -22,11 +22,11 @@ Features:
 
 from __future__ import annotations
 
+import builtins as _builtins
 from datetime import datetime
 from typing import Any, Literal
 
 from ..config import ConfigManager
-import builtins as _builtins
 from ..core.error_handling import get_error_handler
 from ..core.identity import IdentityManager, IdentityType
 from ..core.security import validate_emoji
@@ -80,7 +80,9 @@ def _truncate_content(content: str) -> str:
     return content
 
 
-def _convert_narrow_to_api_format(narrow: list[NarrowFilter | dict[str, Any]]) -> list[dict[str, Any]]:
+def _convert_narrow_to_api_format(
+    narrow: list[NarrowFilter | dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Convert narrow filters to Zulip API format."""
     result = []
     for item in narrow:
@@ -145,7 +147,9 @@ async def message(
         await message("draft", "private", "user@example.com", "Draft message")
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.message"}):
-        with LogContext(logger, tool="message", operation=operation, type=type, to=str(to)):
+        with LogContext(
+            logger, tool="message", operation=operation, type=type, to=str(to)
+        ):
             track_tool_call("messaging.message")
 
             try:
@@ -169,22 +173,26 @@ async def message(
 
                 # Remove None values to determine validation mode
                 filtered_params = {k: v for k, v in params.items() if v is not None}
-                suggested_mode = validator.suggest_mode("messaging.message", filtered_params)
-                validated_params = validator.validate_tool_params("messaging.message", params, suggested_mode)
+                suggested_mode = validator.suggest_mode(
+                    "messaging.message", filtered_params
+                )
+                validated_params = validator.validate_tool_params(
+                    "messaging.message", params, suggested_mode
+                )
 
                 # Operation-specific validation
                 if operation == "schedule" and not schedule_at:
                     return {
                         "status": "error",
                         "error": "schedule_at is required for scheduled messages",
-                        "operation": operation
+                        "operation": operation,
                     }
 
                 if type == "stream" and not topic:
                     return {
                         "status": "error",
                         "error": "Topic is required for stream messages",
-                        "operation": operation
+                        "operation": operation,
                     }
 
                 # Content sanitization and truncation
@@ -207,7 +215,9 @@ async def message(
                             recipients = to if isinstance(to, list) else [to]
                         else:
                             recipients = to
-                        result = client.send_message(type, recipients, safe_content, topic)
+                        result = client.send_message(
+                            type, recipients, safe_content, topic
+                        )
 
                         if result.get("result") == "success":
                             track_message_sent(type)
@@ -221,7 +231,7 @@ async def message(
                             return {
                                 "status": "error",
                                 "error": result.get("msg", "Unknown error"),
-                                "operation": "send"
+                                "operation": "send",
                             }
 
                     elif operation == "schedule":
@@ -230,7 +240,7 @@ async def message(
                             return {
                                 "status": "error",
                                 "error": "schedule_at is required for scheduled messages",
-                                "operation": "schedule"
+                                "operation": "schedule",
                             }
 
                         # Create scheduled message instance
@@ -240,24 +250,29 @@ async def message(
                             scheduled_time=schedule_at,
                             message_type=type,
                             recipients=recipients,
-                            topic=topic
+                            topic=topic,
                         )
 
                         # Use the scheduler service with current config
                         try:
                             # Create ZulipConfig for scheduler from the current identity
                             # The client wrapper should be a ZulipClientWrapper with config access
-                            if hasattr(client, 'config_manager'):
+                            if hasattr(client, "config_manager"):
                                 # Get the client config that was used to create this client
-                                client_config = client.config_manager.get_zulip_client_config(
-                                    use_bot=getattr(client, 'use_bot_identity', False)
+                                client_config = (
+                                    client.config_manager.get_zulip_client_config(
+                                        use_bot=getattr(
+                                            client, "use_bot_identity", False
+                                        )
+                                    )
                                 )
                                 # Create ZulipConfig from client config
                                 from ..config import ZulipConfig
+
                                 scheduler_config = ZulipConfig(
                                     email=client_config["email"],
                                     api_key=client_config["api_key"],
-                                    site=client_config["site"]
+                                    site=client_config["site"],
                                 )
                             else:
                                 # Fallback: create config from current global config manager
@@ -265,10 +280,11 @@ async def message(
                                     use_bot=preferred_identity == IdentityType.BOT
                                 )
                                 from ..config import ZulipConfig
+
                                 scheduler_config = ZulipConfig(
                                     email=fallback_client_config["email"],
                                     api_key=fallback_client_config["api_key"],
-                                    site=fallback_client_config["site"]
+                                    site=fallback_client_config["site"],
                                 )
 
                             # Create scheduler and schedule the message
@@ -280,7 +296,9 @@ async def message(
                                 return {
                                     "status": "success",
                                     "operation": "schedule",
-                                    "scheduled_message_id": result.get("scheduled_message_id"),
+                                    "scheduled_message_id": result.get(
+                                        "scheduled_message_id"
+                                    ),
                                     "scheduled_at": schedule_at.isoformat(),
                                     "message": "Message scheduled successfully",
                                     "timestamp": datetime.now().isoformat(),
@@ -288,8 +306,10 @@ async def message(
                             else:
                                 return {
                                     "status": "error",
-                                    "error": result.get("msg", "Failed to schedule message"),
-                                    "operation": "schedule"
+                                    "error": result.get(
+                                        "msg", "Failed to schedule message"
+                                    ),
+                                    "operation": "schedule",
                                 }
 
                         except Exception as e:
@@ -297,7 +317,7 @@ async def message(
                             return {
                                 "status": "error",
                                 "error": f"Failed to schedule message: {str(e)}",
-                                "operation": "schedule"
+                                "operation": "schedule",
                             }
 
                     elif operation == "draft":
@@ -313,7 +333,7 @@ async def message(
                             "content": safe_content,
                             "topic": topic,
                             "created_at": datetime.now().isoformat(),
-                            "last_modified": datetime.now().isoformat()
+                            "last_modified": datetime.now().isoformat(),
                         }
 
                         return {
@@ -322,14 +342,14 @@ async def message(
                             "draft_id": draft_id,
                             "draft_data": draft_data,
                             "message": "Draft message created",
-                            "note": "Draft stored locally - use draft_data to recreate message when ready to send"
+                            "note": "Draft stored locally - use draft_data to recreate message when ready to send",
                         }
 
                 result = await identity_manager.execute_with_identity(
                     "messaging.message",
                     validated_params,
                     _execute_message,
-                    preferred_identity
+                    preferred_identity,
                 )
 
                 return result
@@ -340,7 +360,7 @@ async def message(
                 return {
                     "status": "error",
                     "error": f"Failed to {operation} message: {str(e)}",
-                    "operation": operation
+                    "operation": operation,
                 }
 
 
@@ -381,7 +401,7 @@ async def search_messages(
     SIMPLE USAGE (NEW - ported from legacy messaging_simple.py):
         Use basic parameters for common searches:
         - stream, topic, sender, text for content filtering
-        - has_attachment, has_link, is_private for content type filtering  
+        - has_attachment, has_link, is_private for content type filtering
         - last_hours, last_days, after_time for time-based filtering
 
     ADVANCED USAGE (existing v2.5.0):
@@ -403,7 +423,7 @@ async def search_messages(
         last_days: Search in messages from last N days
         after_time: Search in messages after specific time
         before_time: Search in messages before specific time
-        
+
         # Advanced narrow filtering
         narrow: List of narrow filters for complex filtering (overrides simple params)
         anchor: Starting point - message ID, "newest", "oldest", or "first_unread"
@@ -422,10 +442,10 @@ async def search_messages(
         await search_messages(stream="general", topic="deployment")
         await search_messages(text="bug fix", last_days=7)
         await search_messages(sender="alice@example.com", has_attachment=True)
-        
+
         # Enhanced simple searches (NEW - beyond legacy)
         await search_messages(
-            stream="development", 
+            stream="development",
             text="docker",
             has_link=True,
             last_hours=24
@@ -444,7 +464,9 @@ async def search_messages(
         )
         await search_messages(narrow=narrow_filters)
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.search_messages"}):
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "messaging.search_messages"}
+    ):
         with LogContext(logger, tool="search_messages", anchor=str(anchor)):
             track_tool_call("messaging.search_messages")
 
@@ -465,26 +487,27 @@ async def search_messages(
 
                 # Remove None values and determine validation mode
                 filtered_params = {k: v for k, v in params.items() if v is not None}
-                suggested_mode = validator.suggest_mode("messaging.search_messages", filtered_params)
-                validated_params = validator.validate_tool_params("messaging.search_messages", params, suggested_mode)
+                suggested_mode = validator.suggest_mode(
+                    "messaging.search_messages", filtered_params
+                )
+                validated_params = validator.validate_tool_params(
+                    "messaging.search_messages", params, suggested_mode
+                )
 
                 # Additional validation
                 if isinstance(anchor, int) and anchor <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid message ID for anchor"
-                    }
+                    return {"status": "error", "error": "Invalid message ID for anchor"}
 
                 if num_before < 0 or num_after < 0:
                     return {
                         "status": "error",
-                        "error": "num_before and num_after must be non-negative"
+                        "error": "num_before and num_after must be non-negative",
                     }
 
                 if num_before + num_after > 5000:
                     return {
                         "status": "error",
-                        "error": "Too many messages requested (max 5000)"
+                        "error": "Too many messages requested (max 5000)",
                     }
 
                 # Build narrow filters - NEW enhanced logic
@@ -493,13 +516,25 @@ async def search_messages(
                     api_narrow = _convert_narrow_to_api_format(narrow)
                 else:
                     # Simple mode: build from basic parameters (NEW - ported from legacy)
-                    simple_params_provided = any([
-                        stream, topic, sender, text, has_attachment is not None,
-                        has_link is not None, has_image is not None, is_private is not None,
-                        is_starred is not None, is_mentioned is not None, last_hours is not None,
-                        last_days is not None, after_time is not None, before_time is not None
-                    ])
-                    
+                    simple_params_provided = any(
+                        [
+                            stream,
+                            topic,
+                            sender,
+                            text,
+                            has_attachment is not None,
+                            has_link is not None,
+                            has_image is not None,
+                            is_private is not None,
+                            is_starred is not None,
+                            is_mentioned is not None,
+                            last_hours is not None,
+                            last_days is not None,
+                            after_time is not None,
+                            before_time is not None,
+                        ]
+                    )
+
                     if simple_params_provided:
                         # Use enhanced NarrowHelper to build filters
                         narrow_filters = NarrowHelper.build_basic_narrow(
@@ -516,7 +551,7 @@ async def search_messages(
                             last_hours=last_hours,
                             last_days=last_days,
                             after_time=after_time,
-                            before_time=before_time
+                            before_time=before_time,
                         )
                         api_narrow = NarrowHelper.to_api_format(narrow_filters)
                     else:
@@ -543,7 +578,7 @@ async def search_messages(
                         narrow=request["narrow"],
                         include_anchor=request["include_anchor"],
                         client_gravatar=request["client_gravatar"],
-                        apply_markdown=request["apply_markdown"]
+                        apply_markdown=request["apply_markdown"],
                     )
 
                     # Quick validation
@@ -584,9 +619,7 @@ async def search_messages(
                     }
 
                 result = await identity_manager.execute_with_identity(
-                    "messaging.search_messages",
-                    validated_params,
-                    _execute_search
+                    "messaging.search_messages", validated_params, _execute_search
                 )
 
                 return result
@@ -596,7 +629,7 @@ async def search_messages(
                 logger.error(f"Error in search_messages tool: {e}")
                 return {
                     "status": "error",
-                    "error": f"Failed to search messages: {str(e)}"
+                    "error": f"Failed to search messages: {str(e)}",
                 }
 
 
@@ -657,28 +690,22 @@ async def edit_message(
 
                 # Basic parameter validation
                 if message_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid message ID"
-                    }
+                    return {"status": "error", "error": "Invalid message ID"}
 
                 if not content and not topic and not stream_id:
                     return {
                         "status": "error",
-                        "error": "Must provide content, topic, or stream_id to edit"
+                        "error": "Must provide content, topic, or stream_id to edit",
                     }
 
                 if content and stream_id:
                     return {
                         "status": "error",
-                        "error": "Cannot update content and move stream simultaneously"
+                        "error": "Cannot update content and move stream simultaneously",
                     }
 
                 if propagate_mode not in ["change_one", "change_later", "change_all"]:
-                    return {
-                        "status": "error",
-                        "error": "Invalid propagate_mode"
-                    }
+                    return {"status": "error", "error": "Invalid propagate_mode"}
 
                 # Content sanitization
                 safe_content = _truncate_content(content) if content else None
@@ -721,9 +748,7 @@ async def edit_message(
                     }
 
                 result = await identity_manager.execute_with_identity(
-                    "messaging.edit_message",
-                    params,
-                    _execute_edit
+                    "messaging.edit_message", params, _execute_edit
                 )
 
                 return result
@@ -739,7 +764,15 @@ async def edit_message(
 
 
 async def bulk_operations(
-    operation: Literal["mark_read", "mark_unread", "add_flag", "remove_flag", "add_reaction", "remove_reaction", "delete_messages"],
+    operation: Literal[
+        "mark_read",
+        "mark_unread",
+        "add_flag",
+        "remove_flag",
+        "add_reaction",
+        "remove_reaction",
+        "delete_messages",
+    ],
     # Simple selection (NEW - ported from legacy messaging_simple.py)
     stream: str | None = None,
     topic: str | None = None,
@@ -752,7 +785,9 @@ async def bulk_operations(
     # Reaction operations
     emoji_name: str | None = None,
     emoji_code: str | None = None,
-    reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] | None = None,
+    reaction_type: (
+        Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] | None
+    ) = None,
 ) -> BulkResponse:
     """Bulk message operations with both simple and advanced selection methods.
 
@@ -767,16 +802,16 @@ async def bulk_operations(
 
     Args:
         operation: Type of bulk operation to perform
-        
+
         # Simple selection parameters (NEW)
         stream: Stream name to select messages from
         topic: Topic name to select messages from
         sender: Sender email to select messages from
-        
+
         # Advanced selection parameters (existing)
         narrow: Narrow filters to select messages (overrides simple params)
         message_ids: Explicit list of message IDs (overrides filters)
-        
+
         # Operation-specific parameters
         flag: Flag name for add_flag/remove_flag operations
         emoji_name: Emoji name for reaction operations
@@ -805,7 +840,9 @@ async def bulk_operations(
         # Delete messages with advanced criteria (existing v2.5.0)
         await bulk_operations("delete_messages", narrow=[{"operator": "sender", "operand": "spam@example.com"}])
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.bulk_operations"}):
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "messaging.bulk_operations"}
+    ):
         with LogContext(logger, tool="bulk_operations", operation=operation):
             track_tool_call("messaging.bulk_operations")
 
@@ -814,36 +851,34 @@ async def bulk_operations(
 
                 # Enhanced parameter validation with simple selection support
                 simple_params_provided = any([stream, topic, sender])
-                
+
                 # Count selection methods
-                selection_methods = sum([
-                    bool(narrow),
-                    bool(message_ids),
-                    simple_params_provided
-                ])
-                
+                selection_methods = sum(
+                    [bool(narrow), bool(message_ids), simple_params_provided]
+                )
+
                 if selection_methods == 0:
                     return {
                         "status": "error",
-                        "error": "Must provide message selection: use stream/topic/sender, narrow filters, or message_ids"
+                        "error": "Must provide message selection: use stream/topic/sender, narrow filters, or message_ids",
                     }
 
                 if selection_methods > 1:
                     return {
                         "status": "error",
-                        "error": "Cannot specify multiple selection methods: choose one of simple params, narrow, or message_ids"
+                        "error": "Cannot specify multiple selection methods: choose one of simple params, narrow, or message_ids",
                     }
 
                 if operation in ["add_flag", "remove_flag"] and not flag:
                     return {
                         "status": "error",
-                        "error": f"Flag parameter is required for {operation}"
+                        "error": f"Flag parameter is required for {operation}",
                     }
 
                 if operation in ["add_reaction", "remove_reaction"] and not emoji_name:
                     return {
                         "status": "error",
-                        "error": f"emoji_name parameter is required for {operation}"
+                        "error": f"emoji_name parameter is required for {operation}",
                     }
 
                 # Build selection method with enhanced logic (NEW - ported from legacy)
@@ -856,9 +891,7 @@ async def bulk_operations(
                 else:
                     # Simple parameter selection (NEW - ported from legacy)
                     narrow_filters = build_basic_narrow(
-                        stream=stream,
-                        topic=topic,
-                        sender=sender
+                        stream=stream, topic=topic, sender=sender
                     )
                     selection_narrow = NarrowHelper.to_api_format(narrow_filters)
 
@@ -878,16 +911,18 @@ async def bulk_operations(
                                 anchor=search_request["anchor"],
                                 num_before=search_request["num_before"],
                                 num_after=search_request["num_after"],
-                                narrow=search_request["narrow"]
+                                narrow=search_request["narrow"],
                             )
 
                             if search_response.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}"
+                                    "error": f"Failed to find messages: {search_response.get('msg')}",
                                 }
 
-                            target_ids = [msg["id"] for msg in search_response.get("messages", [])]
+                            target_ids = [
+                                msg["id"] for msg in search_response.get("messages", [])
+                            ]
                         else:
                             target_ids = message_ids
 
@@ -896,7 +931,7 @@ async def bulk_operations(
                                 "status": "success",
                                 "message": "No messages matched the criteria",
                                 "affected_count": 0,
-                                "operation": operation
+                                "operation": operation,
                             }
 
                         # Execute read/unread operation
@@ -904,9 +939,7 @@ async def bulk_operations(
                         op = "add" if operation == "mark_read" else "remove"
 
                         result = client.update_message_flags(
-                            messages=target_ids,
-                            op=op,
-                            flag=flag_name
+                            messages=target_ids, op=op, flag=flag_name
                         )
 
                         if result.get("result") == "success":
@@ -915,14 +948,16 @@ async def bulk_operations(
                                 "message": f"Successfully {operation.replace('_', ' ')}",
                                 "affected_count": len(target_ids),
                                 "operation": operation,
-                                "message_ids": target_ids[:10],  # Return first 10 IDs for reference
+                                "message_ids": target_ids[
+                                    :10
+                                ],  # Return first 10 IDs for reference
                                 "timestamp": datetime.now().isoformat(),
                             }
                         else:
                             return {
                                 "status": "error",
                                 "error": result.get("msg", f"Failed to {operation}"),
-                                "operation": operation
+                                "operation": operation,
                             }
 
                     elif operation in ["add_flag", "remove_flag"]:
@@ -939,16 +974,18 @@ async def bulk_operations(
                                 anchor=search_request["anchor"],
                                 num_before=search_request["num_before"],
                                 num_after=search_request["num_after"],
-                                narrow=search_request["narrow"]
+                                narrow=search_request["narrow"],
                             )
 
                             if search_response.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}"
+                                    "error": f"Failed to find messages: {search_response.get('msg')}",
                                 }
 
-                            target_ids = [msg["id"] for msg in search_response.get("messages", [])]
+                            target_ids = [
+                                msg["id"] for msg in search_response.get("messages", [])
+                            ]
                         else:
                             target_ids = message_ids
 
@@ -958,16 +995,14 @@ async def bulk_operations(
                                 "message": "No messages matched the criteria",
                                 "affected_count": 0,
                                 "operation": operation,
-                                "flag": flag
+                                "flag": flag,
                             }
 
                         # Execute flag operation
                         op = "add" if operation == "add_flag" else "remove"
 
                         result = client.update_message_flags(
-                            messages=target_ids,
-                            op=op,
-                            flag=flag
+                            messages=target_ids, op=op, flag=flag
                         )
 
                         if result.get("result") == "success":
@@ -977,7 +1012,9 @@ async def bulk_operations(
                                 "affected_count": len(target_ids),
                                 "operation": operation,
                                 "flag": flag,
-                                "message_ids": target_ids[:10],  # Return first 10 IDs for reference
+                                "message_ids": target_ids[
+                                    :10
+                                ],  # Return first 10 IDs for reference
                                 "timestamp": datetime.now().isoformat(),
                             }
                         else:
@@ -985,7 +1022,7 @@ async def bulk_operations(
                                 "status": "error",
                                 "error": result.get("msg", f"Failed to {operation}"),
                                 "operation": operation,
-                                "flag": flag
+                                "flag": flag,
                             }
 
                     elif operation in ["add_reaction", "remove_reaction"]:
@@ -1002,16 +1039,18 @@ async def bulk_operations(
                                 anchor=search_request["anchor"],
                                 num_before=search_request["num_before"],
                                 num_after=search_request["num_after"],
-                                narrow=search_request["narrow"]
+                                narrow=search_request["narrow"],
                             )
 
                             if search_response.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}"
+                                    "error": f"Failed to find messages: {search_response.get('msg')}",
                                 }
 
-                            target_ids = [msg["id"] for msg in search_response.get("messages", [])]
+                            target_ids = [
+                                msg["id"] for msg in search_response.get("messages", [])
+                            ]
                         else:
                             target_ids = message_ids
 
@@ -1021,39 +1060,48 @@ async def bulk_operations(
                                 "message": "No messages matched the criteria",
                                 "affected_count": 0,
                                 "operation": operation,
-                                "emoji_name": emoji_name
+                                "emoji_name": emoji_name,
                             }
 
                         # Execute reaction operation on each message
                         successful_reactions = []
                         failed_reactions = []
-                        
+
                         for message_id in target_ids:
                             try:
                                 if operation == "add_reaction":
                                     result = client.add_reaction(message_id, emoji_name)
                                 else:  # remove_reaction
-                                    result = client.remove_reaction(message_id, emoji_name)
+                                    result = client.remove_reaction(
+                                        message_id, emoji_name
+                                    )
 
                                 if result.get("result") == "success":
                                     successful_reactions.append(message_id)
                                 else:
-                                    failed_reactions.append({
-                                        "message_id": message_id,
-                                        "error": result.get("msg", "Unknown error")
-                                    })
+                                    failed_reactions.append(
+                                        {
+                                            "message_id": message_id,
+                                            "error": result.get("msg", "Unknown error"),
+                                        }
+                                    )
                             except Exception as e:
-                                failed_reactions.append({
-                                    "message_id": message_id,
-                                    "error": str(e)
-                                })
+                                failed_reactions.append(
+                                    {"message_id": message_id, "error": str(e)}
+                                )
 
                         return {
-                            "status": "success" if successful_reactions else "partial_success",
+                            "status": (
+                                "success" if successful_reactions else "partial_success"
+                            ),
                             "message": f"Successfully {operation.replace('_', ' ')} '{emoji_name}'",
                             "affected_count": len(successful_reactions),
-                            "successful_reactions": successful_reactions[:10],  # Return first 10 IDs
-                            "failed_reactions": failed_reactions[:5],  # Return first 5 failures
+                            "successful_reactions": successful_reactions[
+                                :10
+                            ],  # Return first 10 IDs
+                            "failed_reactions": failed_reactions[
+                                :5
+                            ],  # Return first 5 failures
                             "operation": operation,
                             "emoji_name": emoji_name,
                             "timestamp": datetime.now().isoformat(),
@@ -1073,16 +1121,18 @@ async def bulk_operations(
                                 anchor=search_request["anchor"],
                                 num_before=search_request["num_before"],
                                 num_after=search_request["num_after"],
-                                narrow=search_request["narrow"]
+                                narrow=search_request["narrow"],
                             )
 
                             if search_response.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": f"Failed to find messages: {search_response.get('msg')}"
+                                    "error": f"Failed to find messages: {search_response.get('msg')}",
                                 }
 
-                            target_ids = [msg["id"] for msg in search_response.get("messages", [])]
+                            target_ids = [
+                                msg["id"] for msg in search_response.get("messages", [])
+                            ]
                         else:
                             target_ids = message_ids
 
@@ -1091,35 +1141,42 @@ async def bulk_operations(
                                 "status": "success",
                                 "message": "No messages matched the criteria",
                                 "affected_count": 0,
-                                "operation": operation
+                                "operation": operation,
                             }
 
                         # Execute deletion on each message
                         successful_deletions = []
                         failed_deletions = []
-                        
+
                         for message_id in target_ids:
                             try:
                                 result = client.delete_message(message_id)
                                 if result.get("result") == "success":
                                     successful_deletions.append(message_id)
                                 else:
-                                    failed_deletions.append({
-                                        "message_id": message_id,
-                                        "error": result.get("msg", "Unknown error")
-                                    })
+                                    failed_deletions.append(
+                                        {
+                                            "message_id": message_id,
+                                            "error": result.get("msg", "Unknown error"),
+                                        }
+                                    )
                             except Exception as e:
-                                failed_deletions.append({
-                                    "message_id": message_id,
-                                    "error": str(e)
-                                })
+                                failed_deletions.append(
+                                    {"message_id": message_id, "error": str(e)}
+                                )
 
                         return {
-                            "status": "success" if successful_deletions else "partial_success",
+                            "status": (
+                                "success" if successful_deletions else "partial_success"
+                            ),
                             "message": f"Successfully deleted {len(successful_deletions)} messages",
                             "affected_count": len(successful_deletions),
-                            "successful_deletions": successful_deletions[:10],  # Return first 10 IDs
-                            "failed_deletions": failed_deletions[:5],  # Return first 5 failures
+                            "successful_deletions": successful_deletions[
+                                :10
+                            ],  # Return first 10 IDs
+                            "failed_deletions": failed_deletions[
+                                :5
+                            ],  # Return first 5 failures
                             "operation": operation,
                             "timestamp": datetime.now().isoformat(),
                         }
@@ -1127,13 +1184,18 @@ async def bulk_operations(
                     else:
                         return {
                             "status": "error",
-                            "error": f"Unsupported operation: {operation}"
+                            "error": f"Unsupported operation: {operation}",
                         }
 
                 result = await identity_manager.execute_with_identity(
                     "messaging.bulk_operations",
-                    {"operation": operation, "narrow": selection_narrow, "message_ids": message_ids, "flag": flag},
-                    _execute_bulk_op
+                    {
+                        "operation": operation,
+                        "narrow": selection_narrow,
+                        "message_ids": message_ids,
+                        "flag": flag,
+                    },
+                    _execute_bulk_op,
                 )
 
                 return result
@@ -1144,7 +1206,7 @@ async def bulk_operations(
                 return {
                     "status": "error",
                     "error": f"Failed to perform bulk operation: {str(e)}",
-                    "operation": operation
+                    "operation": operation,
                 }
 
 
@@ -1175,7 +1237,9 @@ async def message_history(
         # Get only edit history
         await message_history(12345, include_content_history=False, include_edit_history=True)
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.message_history"}):
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "messaging.message_history"}
+    ):
         with LogContext(logger, tool="message_history", message_id=message_id):
             track_tool_call("messaging.message_history")
 
@@ -1184,10 +1248,7 @@ async def message_history(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid message ID"
-                    }
+                    return {"status": "error", "error": "Invalid message ID"}
 
                 # Execute with error handling
                 async def _execute_history(client, params):
@@ -1196,18 +1257,20 @@ async def message_history(
                     if message_result.get("result") != "success":
                         return {
                             "status": "error",
-                            "error": f"Message not found: {message_result.get('msg', 'Unknown error')}"
+                            "error": f"Message not found: {message_result.get('msg', 'Unknown error')}",
                         }
 
                     message = message_result.get("message", {})
-                    
+
                     history_data = {
                         "status": "success",
                         "message_id": message_id,
                         "original_timestamp": message.get("timestamp"),
                         "sender": message.get("sender_full_name"),
                         "sender_email": message.get("sender_email"),
-                        "current_content": _truncate_content(message.get("content", "")),
+                        "current_content": _truncate_content(
+                            message.get("content", "")
+                        ),
                         "stream_id": message.get("stream_id"),
                         "topic": message.get("subject"),
                     }
@@ -1216,12 +1279,14 @@ async def message_history(
                     if include_edit_history:
                         edit_history = []
                         if message.get("last_edit_timestamp"):
-                            edit_history.append({
-                                "timestamp": message.get("last_edit_timestamp"),
-                                "edit_type": "content_or_topic_change",
-                                "note": "Message was edited (specific changes not available via API)"
-                            })
-                        
+                            edit_history.append(
+                                {
+                                    "timestamp": message.get("last_edit_timestamp"),
+                                    "edit_type": "content_or_topic_change",
+                                    "note": "Message was edited (specific changes not available via API)",
+                                }
+                            )
+
                         history_data["edit_history"] = edit_history
                         history_data["total_edits"] = len(edit_history)
 
@@ -1229,8 +1294,10 @@ async def message_history(
                     if include_content_history:
                         history_data["content_history"] = {
                             "note": "Full content history not available via Zulip API",
-                            "current_version": _truncate_content(message.get("content", "")),
-                            "has_been_edited": bool(message.get("last_edit_timestamp"))
+                            "current_version": _truncate_content(
+                                message.get("content", "")
+                            ),
+                            "has_been_edited": bool(message.get("last_edit_timestamp")),
                         }
 
                     # Include reaction history if requested
@@ -1238,9 +1305,13 @@ async def message_history(
                         reactions = message.get("reactions", [])
                         history_data["reaction_history"] = {
                             "current_reactions": reactions,
-                            "total_reactions": sum(len(r.get("user_id", [])) for r in reactions),
-                            "reaction_types": list(set(r.get("emoji_name") for r in reactions)),
-                            "note": "Detailed reaction history not available via API"
+                            "total_reactions": sum(
+                                len(r.get("user_id", [])) for r in reactions
+                            ),
+                            "reaction_types": list(
+                                {r.get("emoji_name") for r in reactions}
+                            ),
+                            "note": "Detailed reaction history not available via API",
                         }
 
                     return history_data
@@ -1248,7 +1319,7 @@ async def message_history(
                 result = await identity_manager.execute_with_identity(
                     "messaging.message_history",
                     {"message_id": message_id},
-                    _execute_history
+                    _execute_history,
                 )
 
                 return result
@@ -1259,7 +1330,7 @@ async def message_history(
                 return {
                     "status": "error",
                     "error": f"Failed to get message history: {str(e)}",
-                    "message_id": message_id
+                    "message_id": message_id,
                 }
 
 
@@ -1301,8 +1372,12 @@ async def cross_post_message(
             custom_prefix="FYI from #general:"
         )
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.cross_post_message"}):
-        with LogContext(logger, tool="cross_post_message", message_id=source_message_id):
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "messaging.cross_post_message"}
+    ):
+        with LogContext(
+            logger, tool="cross_post_message", message_id=source_message_id
+        ):
             track_tool_call("messaging.cross_post_message")
 
             try:
@@ -1310,15 +1385,12 @@ async def cross_post_message(
 
                 # Parameter validation
                 if source_message_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid source message ID"
-                    }
+                    return {"status": "error", "error": "Invalid source message ID"}
 
                 if not target_streams:
                     return {
                         "status": "error",
-                        "error": "At least one target stream is required"
+                        "error": "At least one target stream is required",
                     }
 
                 # Execute with error handling
@@ -1328,26 +1400,28 @@ async def cross_post_message(
                     if message_result.get("result") != "success":
                         return {
                             "status": "error",
-                            "error": f"Source message not found: {message_result.get('msg', 'Unknown error')}"
+                            "error": f"Source message not found: {message_result.get('msg', 'Unknown error')}",
                         }
 
                     source_message = message_result.get("message", {})
                     original_content = source_message.get("content", "")
-                    original_topic = target_topic or source_message.get("subject", "Cross-post")
+                    original_topic = target_topic or source_message.get(
+                        "subject", "Cross-post"
+                    )
                     original_stream = source_message.get("display_recipient", "unknown")
-                    
+
                     # Prepare cross-post content
                     prefix = custom_prefix or f"Cross-posted from #{original_stream}:"
-                    
+
                     cross_post_content = f"{prefix}\n\n{original_content}"
-                    
+
                     if add_reference:
                         # Add reference link (simplified)
                         reference_link = f"\n\n_Original message: #{original_stream} > {source_message.get('subject', 'topic')}_"
                         cross_post_content += reference_link
 
                     # Cross-post to each target stream
-                    results = []
+                    # Collect results per-target if needed for debugging; not used in response
                     successful_posts = []
                     failed_posts = []
 
@@ -1357,28 +1431,36 @@ async def cross_post_message(
                                 "stream",
                                 stream_name,
                                 _truncate_content(cross_post_content),
-                                original_topic
+                                original_topic,
                             )
 
                             if post_result.get("result") == "success":
-                                successful_posts.append({
-                                    "stream": stream_name,
-                                    "topic": original_topic,
-                                    "message_id": post_result.get("id"),
-                                    "status": "success"
-                                })
+                                successful_posts.append(
+                                    {
+                                        "stream": stream_name,
+                                        "topic": original_topic,
+                                        "message_id": post_result.get("id"),
+                                        "status": "success",
+                                    }
+                                )
                             else:
-                                failed_posts.append({
-                                    "stream": stream_name,
-                                    "error": post_result.get("msg", "Unknown error"),
-                                    "status": "error"
-                                })
+                                failed_posts.append(
+                                    {
+                                        "stream": stream_name,
+                                        "error": post_result.get(
+                                            "msg", "Unknown error"
+                                        ),
+                                        "status": "error",
+                                    }
+                                )
                         except Exception as e:
-                            failed_posts.append({
-                                "stream": stream_name,
-                                "error": str(e),
-                                "status": "error"
-                            })
+                            failed_posts.append(
+                                {
+                                    "stream": stream_name,
+                                    "error": str(e),
+                                    "status": "error",
+                                }
+                            )
 
                     return {
                         "status": "success" if successful_posts else "error",
@@ -1394,7 +1476,7 @@ async def cross_post_message(
                 result = await identity_manager.execute_with_identity(
                     "messaging.cross_post_message",
                     {"source_message_id": source_message_id},
-                    _execute_cross_post
+                    _execute_cross_post,
                 )
 
                 return result
@@ -1405,7 +1487,7 @@ async def cross_post_message(
                 return {
                     "status": "error",
                     "error": f"Failed to cross-post message: {str(e)}",
-                    "source_message_id": source_message_id
+                    "source_message_id": source_message_id,
                 }
 
 
@@ -1413,7 +1495,9 @@ async def add_reaction(
     message_id: int,
     emoji_name: str,
     emoji_code: str | None = None,
-    reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] = "unicode_emoji",
+    reaction_type: Literal[
+        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Add emoji reaction to a message.
 
@@ -1440,7 +1524,9 @@ async def add_reaction(
         await add_reaction(12345, "heart", emoji_code="2764")
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.add_reaction"}):
-        with LogContext(logger, tool="add_reaction", message_id=message_id, emoji=emoji_name):
+        with LogContext(
+            logger, tool="add_reaction", message_id=message_id, emoji=emoji_name
+        ):
             track_tool_call("messaging.add_reaction")
 
             try:
@@ -1448,21 +1534,19 @@ async def add_reaction(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid message ID"
-                    }
+                    return {"status": "error", "error": "Invalid message ID"}
 
                 if not validate_emoji(emoji_name):
-                    return {
-                        "status": "error",
-                        "error": "Invalid emoji name"
-                    }
+                    return {"status": "error", "error": "Invalid emoji name"}
 
-                if reaction_type not in ["unicode_emoji", "realm_emoji", "zulip_extra_emoji"]:
+                if reaction_type not in [
+                    "unicode_emoji",
+                    "realm_emoji",
+                    "zulip_extra_emoji",
+                ]:
                     return {
                         "status": "error",
-                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji"
+                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji",
                     }
 
                 # Execute with identity management and error handling
@@ -1490,7 +1574,7 @@ async def add_reaction(
                 result = await identity_manager.execute_with_identity(
                     "messaging.add_reaction",
                     {"message_id": message_id, "emoji_name": emoji_name},
-                    _execute_add_reaction
+                    _execute_add_reaction,
                 )
 
                 return result
@@ -1510,7 +1594,9 @@ async def remove_reaction(
     message_id: int,
     emoji_name: str,
     emoji_code: str | None = None,
-    reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] = "unicode_emoji",
+    reaction_type: Literal[
+        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Remove emoji reaction from a message.
 
@@ -1536,8 +1622,12 @@ async def remove_reaction(
         # Remove with specific emoji code
         await remove_reaction(12345, "heart", emoji_code="2764")
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "messaging.remove_reaction"}):
-        with LogContext(logger, tool="remove_reaction", message_id=message_id, emoji=emoji_name):
+    with Timer(
+        "zulip_mcp_tool_duration_seconds", {"tool": "messaging.remove_reaction"}
+    ):
+        with LogContext(
+            logger, tool="remove_reaction", message_id=message_id, emoji=emoji_name
+        ):
             track_tool_call("messaging.remove_reaction")
 
             try:
@@ -1545,21 +1635,19 @@ async def remove_reaction(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid message ID"
-                    }
+                    return {"status": "error", "error": "Invalid message ID"}
 
                 if not validate_emoji(emoji_name):
-                    return {
-                        "status": "error",
-                        "error": "Invalid emoji name"
-                    }
+                    return {"status": "error", "error": "Invalid emoji name"}
 
-                if reaction_type not in ["unicode_emoji", "realm_emoji", "zulip_extra_emoji"]:
+                if reaction_type not in [
+                    "unicode_emoji",
+                    "realm_emoji",
+                    "zulip_extra_emoji",
+                ]:
                     return {
                         "status": "error",
-                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji"
+                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji",
                     }
 
                 # Execute with identity management and error handling
@@ -1587,13 +1675,15 @@ async def remove_reaction(
                 result = await identity_manager.execute_with_identity(
                     "messaging.remove_reaction",
                     {"message_id": message_id, "emoji_name": emoji_name},
-                    _execute_remove_reaction
+                    _execute_remove_reaction,
                 )
 
                 return result
 
             except Exception as e:
-                track_tool_error("messaging.remove_reaction", _builtins.type(e).__name__)
+                track_tool_error(
+                    "messaging.remove_reaction", _builtins.type(e).__name__
+                )
                 logger.error(f"Error in remove_reaction tool: {e}")
                 return {
                     "status": "error",
@@ -1659,13 +1749,18 @@ def register_messaging_v25_tools(mcp: Any) -> None:
 # Legacy compatibility functions for migration
 def get_legacy_send_message():
     """Get legacy send_message function for migration compatibility."""
-    async def legacy_send_message(message_type: str, to: str, content: str, topic: str = None):
+
+    async def legacy_send_message(
+        message_type: str, to: str, content: str, topic: str = None
+    ):
         return await message("send", message_type, to, content, topic=topic)
+
     return legacy_send_message
 
 
 def get_legacy_get_messages():
     """Get legacy get_messages function for migration compatibility."""
+
     async def legacy_get_messages(
         anchor="newest",
         num_before=0,
@@ -1684,11 +1779,13 @@ def get_legacy_get_messages():
             client_gravatar=client_gravatar,
             apply_markdown=apply_markdown,
         )
+
     return legacy_get_messages
 
 
 def get_legacy_edit_message():
     """Get legacy edit_message function for migration compatibility."""
+
     async def legacy_edit_message(
         message_id: int,
         content: str = None,
@@ -1707,4 +1804,5 @@ def get_legacy_edit_message():
             send_notification_to_old_thread=send_notification_to_old_thread,
             send_notification_to_new_thread=send_notification_to_new_thread,
         )
+
     return legacy_edit_message

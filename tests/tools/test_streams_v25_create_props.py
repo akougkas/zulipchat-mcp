@@ -35,6 +35,7 @@ async def test_manage_streams_create_with_properties_and_options(mock_managers) 
                 assert kwargs.get("announce") is True
                 assert kwargs.get("authorization_errors_fatal") is True
                 return {"result": "success", "subscribed": {"general": [1]}}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -52,4 +53,3 @@ async def test_manage_streams_create_with_properties_and_options(mock_managers) 
     )
     assert res["status"] == "success"
     assert "subscribed" in res
-

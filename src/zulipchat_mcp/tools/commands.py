@@ -1,6 +1,12 @@
-"""Command chain tools for workflow automation."""
+"""Command chain tools for workflow automation.
 
-from typing import Any, Dict
+Cleanup (v2.5):
+- Replace legacy search import with a thin adaptor to `search_v25.advanced_search`.
+  This keeps command chains working while aligning with the v2.5 tool surface.
+"""
+
+import asyncio
+from typing import Any
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
@@ -22,7 +28,12 @@ from ..core.commands.workflows import ChainBuilder
 class WaitForResponseCommand(Command):
     """Wait for user response command."""
 
-    def __init__(self, name: str = "wait_for_response", request_id_key: str = "request_id", **kwargs: Any):
+    def __init__(
+        self,
+        name: str = "wait_for_response",
+        request_id_key: str = "request_id",
+        **kwargs: Any,
+    ):
         super().__init__(name, "Wait for user response", **kwargs)
         self.request_id_key = request_id_key
 
@@ -40,17 +51,43 @@ class WaitForResponseCommand(Command):
 class SearchMessagesCommand(Command):
     """Search messages command."""
 
-    def __init__(self, name: str = "search_messages", query_key: str = "search_query", **kwargs: Any):
+    def __init__(
+        self,
+        name: str = "search_messages",
+        query_key: str = "search_query",
+        **kwargs: Any,
+    ):
         super().__init__(name, "Search messages", **kwargs)
         self.query_key = query_key
 
     def execute(self, context, client: ZulipClientWrapper):  # type: ignore[override]
-        from ..tools.search import search_messages
+        """Execute search via v2.5 advanced_search adaptor.
+
+        Returns a legacy-shaped dict with a top-level "messages" list
+        for backward compatibility with prior command chains.
+        """
+        from .search_v25 import advanced_search  # v2.5 tool
 
         query = context.get(self.query_key)
         if not query:
             raise ValueError("search_query required in context")
-        result = search_messages(query)
+
+        async def _run() -> dict:
+            res = await advanced_search(query, search_type=["messages"], limit=100)
+            # Map v2.5 shape -> legacy shape expected by chains/tests
+            msgs = res.get("results", {}).get("messages", {}).get("messages", [])
+            return {"status": res.get("status", "success"), "messages": msgs}
+
+        # Prefer asyncio.run, fallback to a dedicated loop if already inside one
+        try:
+            result = asyncio.run(_run())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                result = loop.run_until_complete(_run())
+            finally:
+                loop.close()
+
         context.set("search_results", result.get("messages", []))
         return result
 
@@ -58,7 +95,12 @@ class SearchMessagesCommand(Command):
 class ConditionalActionCommand(Command):
     """Conditional execution based on a simple Python expression evaluated against context data."""
 
-    def __init__(self, condition: str, true_command: Command, false_command: Command | None = None):
+    def __init__(
+        self,
+        condition: str,
+        true_command: Command,
+        false_command: Command | None = None,
+    ):
         super().__init__("conditional_action", "Conditional action")
         self.condition = condition
         self.true_command = true_command
@@ -67,9 +109,11 @@ class ConditionalActionCommand(Command):
     def execute(self, context, client: ZulipClientWrapper):  # type: ignore[override]
         # Evaluate condition against context data with no builtins
         try:
-            condition_met = bool(eval(self.condition, {"__builtins__": {}}, {"context": context.data}))
+            condition_met = bool(
+                eval(self.condition, {"__builtins__": {}}, {"context": context.data})
+            )
         except Exception as e:
-            raise ValueError(f"Invalid condition expression: {e}")
+            raise ValueError(f"Invalid condition expression: {e}") from e
 
         if condition_met:
             return self.true_command.execute(context, client)
@@ -78,7 +122,7 @@ class ConditionalActionCommand(Command):
         return {"status": "skipped"}
 
 
-def build_command(cmd_dict: Dict[str, Any]) -> Command:
+def build_command(cmd_dict: dict[str, Any]) -> Command:
     """Helper to build command from dict description."""
     if not cmd_dict or "type" not in cmd_dict:
         raise ValueError("Invalid command specification")
@@ -93,8 +137,14 @@ def build_command(cmd_dict: Dict[str, Any]) -> Command:
         return SearchMessagesCommand(**params)
     if ctype == "conditional_action":
         true_cmd = build_command(params.get("true_action", {}))
-        false_cmd = build_command(params.get("false_action", {})) if params.get("false_action") else None
-        return ConditionalActionCommand(params.get("condition", "False"), true_cmd, false_cmd)
+        false_cmd = (
+            build_command(params.get("false_action", {}))
+            if params.get("false_action")
+            else None
+        )
+        return ConditionalActionCommand(
+            params.get("condition", "False"), true_cmd, false_cmd
+        )
 
     raise ValueError(f"Unknown command type: {ctype}")
 
@@ -130,7 +180,7 @@ def register_command_tools(mcp: Any) -> None:
 __all__ = [
     # Base classes
     "Command",
-    "CommandChain", 
+    "CommandChain",
     "ExecutionContext",
     "Condition",
     # Enums
@@ -138,7 +188,7 @@ __all__ = [
     "ConditionOperator",
     # Command implementations
     "SendMessageCommand",
-    "GetMessagesCommand", 
+    "GetMessagesCommand",
     "AddReactionCommand",
     "ProcessDataCommand",
     "WaitForResponseCommand",

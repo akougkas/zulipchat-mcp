@@ -135,7 +135,9 @@ def validate_message_type(message_type: str) -> bool:
     return message_type in ["stream", "private"]
 
 
-def rate_limit_decorator(max_calls: int = 100, window: int = 60) -> Callable:
+def rate_limit_decorator(
+    max_calls: int = 100, window: int = 60
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator for applying rate limiting to functions.
 
     Args:
@@ -147,7 +149,7 @@ def rate_limit_decorator(max_calls: int = 100, window: int = 60) -> Callable:
     """
     limiter = RateLimiter(max_calls, window)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Try to extract client identifier from context

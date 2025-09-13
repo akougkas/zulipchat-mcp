@@ -20,9 +20,16 @@ async def test_advanced_search_users_streams(_mock_key, mock_managers) -> None:
 
     class Client:
         def get_users(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "members": [{"full_name": "Alice", "email": "a@x"}]}
+            return {
+                "result": "success",
+                "members": [{"full_name": "Alice", "email": "a@x"}],
+            }
+
         def get_streams(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"name": "general", "description": "d", "stream_id": 1}]}
+            return {
+                "result": "success",
+                "streams": [{"name": "general", "description": "d", "stream_id": 1}],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -37,4 +44,3 @@ async def test_advanced_search_users_streams(_mock_key, mock_managers) -> None:
     assert out["status"] == "success"
     assert out["results"]["users"]["count"] == 1
     assert out["results"]["streams"]["count"] == 1
-

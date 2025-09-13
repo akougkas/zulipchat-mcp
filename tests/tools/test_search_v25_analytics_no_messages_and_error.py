@@ -20,6 +20,7 @@ async def test_analytics_no_messages(mock_managers) -> None:
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": []}
+
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
             return self.get_messages(kwargs)
 
@@ -29,7 +30,9 @@ async def test_analytics_no_messages(mock_managers) -> None:
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     res = await analytics(metric="activity")
-    assert res["status"] == "success" and "No messages found" in res["data"].get("message", "")
+    assert res["status"] == "success" and "No messages found" in res["data"].get(
+        "message", ""
+    )
 
 
 @pytest.mark.asyncio
@@ -49,4 +52,3 @@ async def test_analytics_outer_exception(mock_managers) -> None:
 
     out = await analytics(metric="activity")
     assert out["status"] == "error" and "Failed to execute analytics" in out["error"]
-

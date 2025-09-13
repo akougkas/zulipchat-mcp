@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
-def _msg(ts_offset: int, sender="Alice", stream="general", content="Hello", subject="topic"):
+def _msg(
+    ts_offset: int, sender="Alice", stream="general", content="Hello", subject="topic"
+):
     return {
         "id": 1,
         "sender_full_name": sender,
@@ -31,13 +33,24 @@ async def test_analytics_sentiment_detailed_by_user(mock_managers) -> None:
 
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
-            return {"result": "success", "messages": [
-                _msg(5, sender="Alice", content="I love this great feature!"),
-                _msg(10, sender="Bob", content="This is a bad problem"),
-                _msg(15, sender="Alice", content="Thanks! awesome work"),
-            ]}
+            return {
+                "result": "success",
+                "messages": [
+                    _msg(5, sender="Alice", content="I love this great feature!"),
+                    _msg(10, sender="Bob", content="This is a bad problem"),
+                    _msg(15, sender="Alice", content="Thanks! awesome work"),
+                ],
+            }
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -62,13 +75,28 @@ async def test_analytics_topics_group_by_stream(mock_managers) -> None:
 
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
-            return {"result": "success", "messages": [
-                _msg(5, stream="general", content="Project deadline and meeting notes"),
-                _msg(6, stream="dev", content="Fix bug and error logs"),
-                _msg(7, stream="dev", content="Release planning and deploy"),
-            ]}
+            return {
+                "result": "success",
+                "messages": [
+                    _msg(
+                        5,
+                        stream="general",
+                        content="Project deadline and meeting notes",
+                    ),
+                    _msg(6, stream="dev", content="Fix bug and error logs"),
+                    _msg(7, stream="dev", content="Release planning and deploy"),
+                ],
+            }
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -93,12 +121,35 @@ async def test_analytics_participation_chart_overall(mock_managers) -> None:
 
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
-            return {"result": "success", "messages": [
-                _msg(5, sender="Alice", content="Hello world", subject="t1", stream="general"),
-                _msg(6, sender="Bob", content="Another message here", subject="t2", stream="dev"),
-            ]}
+            return {
+                "result": "success",
+                "messages": [
+                    _msg(
+                        5,
+                        sender="Alice",
+                        content="Hello world",
+                        subject="t1",
+                        stream="general",
+                    ),
+                    _msg(
+                        6,
+                        sender="Bob",
+                        content="Another message here",
+                        subject="t2",
+                        stream="dev",
+                    ),
+                ],
+            }
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)

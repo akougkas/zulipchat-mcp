@@ -7,9 +7,9 @@ import asyncio
 from zulipchat_mcp.utils.health import (
     HealthCheck,
     HealthMonitor,
-    perform_health_check,
     get_liveness,
     get_readiness,
+    perform_health_check,
 )
 
 
@@ -39,10 +39,9 @@ def test_health_monitor_add_remove_and_readiness() -> None:
 
 def test_perform_health_check_and_liveness() -> None:
     # Smoke: functions return dicts
-    l = get_liveness()
-    assert l["status"] == "alive"
+    live = get_liveness()
+    assert live["status"] == "alive"
     r = get_readiness()
     assert "ready" in r
     full = asyncio.get_event_loop().run_until_complete(perform_health_check())
     assert full["status"] in ("healthy", "degraded", "unhealthy")
-

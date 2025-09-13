@@ -23,7 +23,7 @@ def _msg(id: int, sender: str, stream: str, ts: int, content: str, reactions=Non
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="aggs")
 async def test_advanced_search_full_aggregations(_mock_key, mock_managers) -> None:
-    from zulipchat_mcp.tools.search_v25 import advanced_search, NarrowFilter
+    from zulipchat_mcp.tools.search_v25 import NarrowFilter, advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
@@ -32,9 +32,23 @@ async def test_advanced_search_full_aggregations(_mock_key, mock_managers) -> No
 
     now = int(datetime.now().timestamp())
     msgs = [
-        _msg(1, "Alice", "general", now - 60, "Deploy release v1", reactions=[{"emoji_name": ":tada:", "user_ids": [1,2]}]),
+        _msg(
+            1,
+            "Alice",
+            "general",
+            now - 60,
+            "Deploy release v1",
+            reactions=[{"emoji_name": ":tada:", "user_ids": [1, 2]}],
+        ),
         _msg(2, "Bob", "dev", now - 120, "Fix bug and error"),
-        _msg(3, "Alice", "general", now - 200, "Investigate logs and error", reactions=[{"emoji_name": ":bug:", "user_ids": [2]}]),
+        _msg(
+            3,
+            "Alice",
+            "general",
+            now - 200,
+            "Investigate logs and error",
+            reactions=[{"emoji_name": ":bug:", "user_ids": [2]}],
+        ),
         _msg(4, "Charlie", "ops", now - 10, "Deploy script ready"),
     ]
 
@@ -51,7 +65,13 @@ async def test_advanced_search_full_aggregations(_mock_key, mock_managers) -> No
         query="deploy",
         search_type=["messages"],
         narrow=[NarrowFilter("stream", "general")],
-        aggregations=["count_by_user", "count_by_stream", "count_by_time", "word_frequency", "emoji_usage"],
+        aggregations=[
+            "count_by_user",
+            "count_by_stream",
+            "count_by_time",
+            "word_frequency",
+            "emoji_usage",
+        ],
         sort_by="relevance",
         limit=3,
         highlight=False,
@@ -59,5 +79,10 @@ async def test_advanced_search_full_aggregations(_mock_key, mock_managers) -> No
     )
     assert out["status"] == "success"
     aggs = out["aggregations"]["messages"]
-    assert set(["count_by_user", "count_by_stream", "count_by_time", "word_frequency", "emoji_usage"]).issubset(set(aggs.keys()))
-
+    assert {
+        "count_by_user",
+        "count_by_stream",
+        "count_by_time",
+        "word_frequency",
+        "emoji_usage",
+    }.issubset(set(aggs.keys()))

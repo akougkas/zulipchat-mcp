@@ -20,14 +20,20 @@ async def test_advanced_search_topics_zero_results(_mock_key, mock_managers) -> 
 
     class Client:
         def get_streams(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [
-                {"stream_id": 1, "name": "general"},
-                {"stream_id": 2, "name": "dev"},
-            ]}
+            return {
+                "result": "success",
+                "streams": [
+                    {"stream_id": 1, "name": "general"},
+                    {"stream_id": 2, "name": "dev"},
+                ],
+            }
 
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
             # Topics that don't match query 'deploy'
-            return {"result": "success", "topics": [{"name": "random"}, {"name": "chatter"}]}
+            return {
+                "result": "success",
+                "topics": [{"name": "random"}, {"name": "chatter"}],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -43,4 +49,3 @@ async def test_advanced_search_topics_zero_results(_mock_key, mock_managers) -> 
     assert out["status"] == "success"
     res = out["results"]["topics"]
     assert res["count"] == 0 and res["has_more"] is False and res["topics"] == []
-

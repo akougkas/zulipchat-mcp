@@ -20,10 +20,13 @@ async def test_get_stream_info_topics_and_subscribers_error(mock_managers) -> No
     class Client:
         def get_stream_id(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "stream": {"stream_id": 1, "name": "general"}}
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
             return {"result": "error", "msg": "topics failed"}
+
         def get_subscribers(self, stream_id):  # type: ignore[no-redef]
             return {"result": "error", "msg": "subs failed"}
+
         def get_subscriptions(self):  # type: ignore[no-redef]
             return {"result": "error", "msg": "subs list failed"}
 
@@ -32,9 +35,13 @@ async def test_get_stream_info_topics_and_subscribers_error(mock_managers) -> No
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    out = await get_stream_info(stream_id=1, include_topics=True, include_subscribers=True, include_settings=True)
+    out = await get_stream_info(
+        stream_id=1,
+        include_topics=True,
+        include_subscribers=True,
+        include_settings=True,
+    )
     assert out["status"] == "success"
     assert out.get("topics_error") == "topics failed"
     assert out.get("subscribers_error") == "subs failed"
     assert "subscription_settings" not in out  # because get_subscriptions failed
-

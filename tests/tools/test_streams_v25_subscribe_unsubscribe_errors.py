@@ -20,6 +20,7 @@ async def test_manage_streams_subscribe_unsubscribe_errors(mock_managers) -> Non
     class Client:
         def add_subscriptions(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "error", "msg": "bad add"}
+
         def remove_subscriptions(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "error", "msg": "bad remove"}
 
@@ -28,9 +29,10 @@ async def test_manage_streams_subscribe_unsubscribe_errors(mock_managers) -> Non
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    sub = await manage_streams("subscribe", stream_names=["x"], authorization_errors_fatal=False)
+    sub = await manage_streams(
+        "subscribe", stream_names=["x"], authorization_errors_fatal=False
+    )
     assert sub["status"] == "error" and "subscribe" in sub.get("operation", "subscribe")
 
     unsub = await manage_streams("unsubscribe", stream_names=["x"])
     assert unsub["status"] == "error" and unsub["operation"] == "unsubscribe"
-

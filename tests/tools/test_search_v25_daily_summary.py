@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -10,7 +9,9 @@ import pytest
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_get_daily_summary_two_streams(mock_managers, make_msg, fake_client_class) -> None:
+async def test_get_daily_summary_two_streams(
+    mock_managers, make_msg, fake_client_class
+) -> None:
     from zulipchat_mcp.tools.search_v25 import get_daily_summary
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -18,13 +19,33 @@ async def test_get_daily_summary_two_streams(mock_managers, make_msg, fake_clien
     mock_validator.suggest_mode.return_value = Mock()
     mock_validator.validate_tool_params.side_effect = lambda name, p, mode: p
 
-    now = int(datetime.now().timestamp())
     msgs_a = [
-        make_msg(1, minutes_ago=2, stream="general", subject="t1", sender="Alice", content="project meeting"),
-        make_msg(2, minutes_ago=1, stream="general", subject="t1", sender="Bob", content="bug fix"),
+        make_msg(
+            1,
+            minutes_ago=2,
+            stream="general",
+            subject="t1",
+            sender="Alice",
+            content="project meeting",
+        ),
+        make_msg(
+            2,
+            minutes_ago=1,
+            stream="general",
+            subject="t1",
+            sender="Bob",
+            content="bug fix",
+        ),
     ]
     msgs_b = [
-        make_msg(3, minutes_ago=1, stream="dev", subject="deploy", sender="Alice", content="release deploy"),
+        make_msg(
+            3,
+            minutes_ago=1,
+            stream="dev",
+            subject="deploy",
+            sender="Alice",
+            content="release deploy",
+        ),
     ]
 
     class Client(fake_client_class):

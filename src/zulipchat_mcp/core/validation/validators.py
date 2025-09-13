@@ -23,7 +23,10 @@ class ParameterValidator:
         self.tool_schemas: dict[str, ToolSchema] = get_all_schemas()
 
     def validate_tool_params(
-        self, tool: str, params: dict[str, Any], mode: ValidationMode = ValidationMode.BASIC
+        self,
+        tool: str,
+        params: dict[str, Any],
+        mode: ValidationMode = ValidationMode.BASIC,
     ) -> dict[str, Any]:
         """Validate and filter parameters based on usage mode.
 
@@ -59,7 +62,9 @@ class ParameterValidator:
         elif mode == ValidationMode.ADVANCED:
             allowed_params = schema.basic_params | schema.advanced_params
         elif mode == ValidationMode.EXPERT:
-            allowed_params = schema.basic_params | schema.advanced_params | schema.expert_params
+            allowed_params = (
+                schema.basic_params | schema.advanced_params | schema.expert_params
+            )
 
         # Check for required parameters
         for param_schema in schema.parameters:
@@ -142,16 +147,18 @@ class ParameterValidator:
                     try:
                         value = float(value)
                     except ValueError:
-                        raise ValueError(f"Expected number, got {type(value).__name__}") from None
+                        raise ValueError(
+                            f"Expected number, got {type(value).__name__}"
+                        ) from None
                 else:
                     raise ValueError(f"Expected number, got {type(value).__name__}")
         elif schema.type == "bool":
             if not isinstance(value, bool):
                 # Try to convert from string
                 if isinstance(value, str):
-                    if value.lower() in ('true', '1', 'yes', 'on'):
+                    if value.lower() in ("true", "1", "yes", "on"):
                         value = True
-                    elif value.lower() in ('false', '0', 'no', 'off'):
+                    elif value.lower() in ("false", "0", "no", "off"):
                         value = False
                     else:
                         raise ValueError(f"Invalid boolean value: {value}")
@@ -165,7 +172,7 @@ class ParameterValidator:
             if not isinstance(value, (bytes, bytearray)):
                 # Try to encode string as UTF-8
                 if isinstance(value, str):
-                    value = value.encode('utf-8')
+                    value = value.encode("utf-8")
                 else:
                     raise ValueError(f"Expected bytes, got {type(value).__name__}")
         elif schema.type == "datetime" and not isinstance(value, datetime):
@@ -173,23 +180,26 @@ class ParameterValidator:
             if isinstance(value, str):
                 try:
                     # Support ISO format and common patterns
-                    if 'T' in value or '+' in value or 'Z' in value:
-                        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                    if "T" in value or "+" in value or "Z" in value:
+                        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
                     else:
                         # Try common formats
                         try:
                             from dateutil import parser
+
                             value = parser.parse(value)
                         except ImportError:
                             # Fall back to basic parsing
-                            raise ValueError(f"Invalid datetime format: {value}") from None
+                            raise ValueError(
+                                f"Invalid datetime format: {value}"
+                            ) from None
                 except ValueError:
                     raise ValueError(f"Invalid datetime format: {value}") from None
             else:
                 raise ValueError(f"Expected datetime, got {type(value).__name__}")
-        elif '|' in schema.type:
+        elif "|" in schema.type:
             # Handle union types like "str|list" or "str|int"
-            allowed_types = schema.type.split('|')
+            allowed_types = schema.type.split("|")
             type_matched = False
             for allowed_type in allowed_types:
                 allowed_type = allowed_type.strip()
@@ -198,7 +208,7 @@ class ParameterValidator:
                     temp_schema = ParameterSchema(
                         name=schema.name,
                         type=allowed_type,
-                        description=schema.description
+                        description=schema.description,
                     )
                     self._validate_param_value(temp_schema, value)
                     type_matched = True
@@ -206,7 +216,9 @@ class ParameterValidator:
                 except ValueError:
                     continue
             if not type_matched:
-                raise ValueError(f"Expected one of {allowed_types}, got {type(value).__name__}")
+                raise ValueError(
+                    f"Expected one of {allowed_types}, got {type(value).__name__}"
+                )
 
         # Choice validation
         if schema.choices and value not in schema.choices:
@@ -241,7 +253,9 @@ class ParameterValidator:
             error_list = "\n  - ".join(errors)
             return f"Parameter validation failed for {tool}:\n  - {error_list}"
 
-    def get_tool_help(self, tool: str, mode: ValidationMode = ValidationMode.BASIC) -> dict[str, Any]:
+    def get_tool_help(
+        self, tool: str, mode: ValidationMode = ValidationMode.BASIC
+    ) -> dict[str, Any]:
         """Get help information for a tool's parameters.
 
         Args:
@@ -257,7 +271,9 @@ class ParameterValidator:
 
         # Determine which parameters to show
         if mode == ValidationMode.BASIC:
-            params_to_show = [p for p in schema.parameters if p.name in schema.basic_params]
+            params_to_show = [
+                p for p in schema.parameters if p.name in schema.basic_params
+            ]
         elif mode == ValidationMode.ADVANCED:
             params_to_show = [
                 p
@@ -282,9 +298,7 @@ class ParameterValidator:
                     "level": (
                         "basic"
                         if p.basic_param
-                        else "advanced"
-                        if p.advanced_param
-                        else "expert"
+                        else "advanced" if p.advanced_param else "expert"
                     ),
                 }
                 for p in params_to_show
@@ -347,9 +361,13 @@ class ParameterValidator:
                 elif isinstance(filter_data, dict):
                     validated_filters.append(NarrowFilter.from_dict(filter_data))
                 else:
-                    raise ValidationError(f"Invalid narrow filter type: {type(filter_data).__name__}")
+                    raise ValidationError(
+                        f"Invalid narrow filter type: {type(filter_data).__name__}"
+                    )
             except Exception as e:
-                raise ValidationError(f"Invalid narrow filter at index {i}: {e}") from None
+                raise ValidationError(
+                    f"Invalid narrow filter at index {i}: {e}"
+                ) from None
 
         return validated_filters
 
@@ -367,9 +385,7 @@ class ParameterValidator:
         if not schema:
             return None
 
-        param_schema = next(
-            (p for p in schema.parameters if p.name == parameter), None
-        )
+        param_schema = next((p for p in schema.parameters if p.name == parameter), None)
         if not param_schema:
             return None
 
@@ -384,9 +400,9 @@ class ParameterValidator:
             "max_value": param_schema.max_value,
             "pattern": param_schema.pattern,
             "level": (
-                "basic" if param_schema.basic_param
-                else "advanced" if param_schema.advanced_param
-                else "expert"
+                "basic"
+                if param_schema.basic_param
+                else "advanced" if param_schema.advanced_param else "expert"
             ),
         }
 
@@ -408,37 +424,37 @@ class ParameterValidator:
         validated = {}
 
         # Handle different time range formats
-        if 'days' in time_range:
-            days = time_range['days']
+        if "days" in time_range:
+            days = time_range["days"]
             if not isinstance(days, int) or days <= 0:
                 raise ValidationError("Days must be a positive integer")
-            validated['days'] = days
+            validated["days"] = days
 
-        if 'start' in time_range:
-            start = time_range['start']
+        if "start" in time_range:
+            start = time_range["start"]
             if isinstance(start, str):
                 try:
-                    start = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                    start = datetime.fromisoformat(start.replace("Z", "+00:00"))
                 except ValueError:
                     raise ValidationError(f"Invalid start datetime: {start}") from None
             elif not isinstance(start, datetime):
                 raise ValidationError("Start time must be datetime or ISO string")
-            validated['start'] = start
+            validated["start"] = start
 
-        if 'end' in time_range:
-            end = time_range['end']
+        if "end" in time_range:
+            end = time_range["end"]
             if isinstance(end, str):
                 try:
-                    end = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                    end = datetime.fromisoformat(end.replace("Z", "+00:00"))
                 except ValueError:
                     raise ValidationError(f"Invalid end datetime: {end}") from None
             elif not isinstance(end, datetime):
                 raise ValidationError("End time must be datetime or ISO string")
-            validated['end'] = end
+            validated["end"] = end
 
         # Validate that start is before end
-        if 'start' in validated and 'end' in validated:
-            if validated['start'] >= validated['end']:
+        if "start" in validated and "end" in validated:
+            if validated["start"] >= validated["end"]:
                 raise ValidationError("Start time must be before end time")
 
         return validated

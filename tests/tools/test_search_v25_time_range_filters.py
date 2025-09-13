@@ -11,7 +11,9 @@ import pytest
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="tr")
-async def test_time_range_builds_search_filters(_key, mock_managers, fake_client_class) -> None:
+async def test_time_range_builds_search_filters(
+    _key, mock_managers, fake_client_class
+) -> None:
     from zulipchat_mcp.tools.search_v25 import TimeRange, advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -35,7 +37,9 @@ async def test_time_range_builds_search_filters(_key, mock_managers, fake_client
     start = datetime.now() - timedelta(days=2)
     end = datetime.now() - timedelta(days=1)
     tr = TimeRange(start=start, end=end)
-    await advanced_search(query="x", search_type=["messages"], time_range=tr, use_cache=False)
+    await advanced_search(
+        query="x", search_type=["messages"], time_range=tr, use_cache=False
+    )
 
     assert captured_narrow is not None
     operands = [d.get("operand", "") for d in captured_narrow]

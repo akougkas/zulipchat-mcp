@@ -20,19 +20,49 @@ async def test_advanced_search_multi_types(_mock_key, mock_managers) -> None:
 
     class Client:
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "messages": [
-                {"id": 1, "content": "deploy to prod", "sender_full_name": "Alice", "display_recipient": "general", "subject": "t"},
-                {"id": 2, "content": "fix error before deploy", "sender_full_name": "Bob", "display_recipient": "dev", "subject": "bugs"},
-            ]}
+            return {
+                "result": "success",
+                "messages": [
+                    {
+                        "id": 1,
+                        "content": "deploy to prod",
+                        "sender_full_name": "Alice",
+                        "display_recipient": "general",
+                        "subject": "t",
+                    },
+                    {
+                        "id": 2,
+                        "content": "fix error before deploy",
+                        "sender_full_name": "Bob",
+                        "display_recipient": "dev",
+                        "subject": "bugs",
+                    },
+                ],
+            }
+
         def get_users(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "members": [{"full_name": "Alice", "email": "a@x"}, {"full_name": "Bob", "email": "b@x"}]}
+            return {
+                "result": "success",
+                "members": [
+                    {"full_name": "Alice", "email": "a@x"},
+                    {"full_name": "Bob", "email": "b@x"},
+                ],
+            }
+
         def get_streams(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [
-                {"name": "general", "description": "general chat", "stream_id": 1},
-                {"name": "dev", "description": "dev chat", "stream_id": 2},
-            ]}
+            return {
+                "result": "success",
+                "streams": [
+                    {"name": "general", "description": "general chat", "stream_id": 1},
+                    {"name": "dev", "description": "dev chat", "stream_id": 2},
+                ],
+            }
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
-            return {"result": "success", "topics": [{"name": "deploy"}, {"name": "random"}]}
+            return {
+                "result": "success",
+                "topics": [{"name": "deploy"}, {"name": "random"}],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -48,6 +78,10 @@ async def test_advanced_search_multi_types(_mock_key, mock_managers) -> None:
         use_cache=False,
     )
     assert out["status"] == "success"
-    assert "messages" in out["results"] and "users" in out["results"] and "streams" in out["results"] and "topics" in out["results"]
+    assert (
+        "messages" in out["results"]
+        and "users" in out["results"]
+        and "streams" in out["results"]
+        and "topics" in out["results"]
+    )
     assert out["results"]["topics"]["count"] >= 1
-

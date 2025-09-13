@@ -34,7 +34,9 @@ async def test_get_daily_summary_error_continue(mock_managers) -> None:
     class Client:
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
             narrow = kwargs.get("narrow", [])
-            operand = next((d.get("operand") for d in narrow if d.get("operator") == "stream"), "")
+            operand = next(
+                (d.get("operand") for d in narrow if d.get("operator") == "stream"), ""
+            )
             if operand == "bad":
                 return {"result": "error", "msg": "fail"}
             if operand == "empty":
@@ -54,4 +56,3 @@ async def test_get_daily_summary_error_continue(mock_managers) -> None:
     # Single active stream insights
     assert out["insights"]["active_streams_count"] == 1
     assert out["insights"]["average_messages_per_active_stream"] == len(msgs_ok)
-

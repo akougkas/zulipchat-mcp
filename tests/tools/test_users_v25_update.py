@@ -30,6 +30,7 @@ async def test_manage_users_update_by_email(mock_managers) -> None:
     class Client:
         def get_user_by_email(self, email, include_custom_profile_fields=False):  # type: ignore[no-redef]
             return {"result": "success", "user": {"user_id": 5}}
+
         def update_user(self, user_id, **update_data):  # type: ignore[no-redef]
             assert user_id == 5 and "full_name" in update_data
             return {"result": "success"}
@@ -41,5 +42,8 @@ async def test_manage_users_update_by_email(mock_managers) -> None:
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     res = await manage_users("update", email="x@example.com", full_name="New Name")
-    assert res["status"] == "success" and res["user_id"] == 5 and "full_name" in res["updated_fields"]
-
+    assert (
+        res["status"] == "success"
+        and res["user_id"] == 5
+        and "full_name" in res["updated_fields"]
+    )

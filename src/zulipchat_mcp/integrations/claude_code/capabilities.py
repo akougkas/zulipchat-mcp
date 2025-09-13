@@ -7,7 +7,7 @@ without leaking brand specifics into the core system.
 from typing import Any
 
 # Claude Code specific capabilities
-CAPABILITIES = {
+CAPABILITIES: dict[str, dict[str, Any]] = {
     "status_line_indicator": {
         "enabled": True,
         "description": "Show Zulip activity in Claude Code status line",
@@ -31,7 +31,7 @@ CAPABILITIES = {
 }
 
 # Default configuration for Claude Code
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "agent_type": "claude-code",
     "default_stream": "Agents-Channel",
     "status_update_interval": 30,
@@ -65,7 +65,10 @@ def get_workflow_commands() -> list[str]:
         List of workflow command names
     """
     if CAPABILITIES["workflow_commands"]["enabled"]:
-        return CAPABILITIES["workflow_commands"]["workflows"]
+        workflows: list[str] = list(
+            CAPABILITIES["workflow_commands"].get("workflows", [])
+        )
+        return workflows
     return []
 
 
@@ -78,4 +81,5 @@ def is_capability_enabled(capability: str) -> bool:
     Returns:
         True if capability is enabled, False otherwise
     """
-    return CAPABILITIES.get(capability, {}).get("enabled", False)
+    enabled = CAPABILITIES.get(capability, {}).get("enabled", False)
+    return bool(enabled)

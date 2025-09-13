@@ -44,23 +44,23 @@ class ParameterSchema:
         description: str = "",
         default: Any = None,
         validation_modes: set[ValidationMode] | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize parameter schema.
-        
+
         Supports multiple call patterns:
         1. ParameterSchema(name="...", param_type=..., ...)  # keyword args
         2. ParameterSchema("name", str, True, ...)  # positional args
         """
         # Detect if called with keyword arguments based on the first parameter name
-        if isinstance(name_or_arg1, str) and 'param_type' in kwargs:
+        if isinstance(name_or_arg1, str) and "param_type" in kwargs:
             # Keyword argument mode
             self.name = name_or_arg1
-            self.param_type = kwargs.pop('param_type', str)
-            self.required = kwargs.pop('required', False)
-            self.description = kwargs.pop('description', "")
-            self.default = kwargs.pop('default', None)
-            self.validation_modes = kwargs.pop('validation_modes', set())
+            self.param_type = kwargs.pop("param_type", str)
+            self.required = kwargs.pop("required", False)
+            self.description = kwargs.pop("description", "")
+            self.default = kwargs.pop("default", None)
+            self.validation_modes = kwargs.pop("validation_modes", set())
         elif param_type_or_arg2 is not None or required_or_arg3 is not None:
             # Positional argument mode
             self.name = name_or_arg1 or ""
@@ -71,14 +71,25 @@ class ParameterSchema:
             self.validation_modes = validation_modes or set()
         else:
             # Keyword-only mode (when called with name= keyword)
-            self.name = kwargs.get('name', name_or_arg1 or "")
-            self.param_type = kwargs.get('param_type', param_type_or_arg2 or str)
-            self.required = kwargs.get('required', required_or_arg3 if required_or_arg3 is not None else False)
-            self.description = kwargs.get('description', description)
-            self.default = kwargs.get('default', default)
-            self.validation_modes = kwargs.get('validation_modes', validation_modes or set())
+            self.name = kwargs.get("name", name_or_arg1 or "")
+            self.param_type = kwargs.get("param_type", param_type_or_arg2 or str)
+            self.required = kwargs.get(
+                "required", required_or_arg3 if required_or_arg3 is not None else False
+            )
+            self.description = kwargs.get("description", description)
+            self.default = kwargs.get("default", default)
+            self.validation_modes = kwargs.get(
+                "validation_modes", validation_modes or set()
+            )
             # Remove handled kwargs
-            for key in ['name', 'param_type', 'required', 'description', 'default', 'validation_modes']:
+            for key in [
+                "name",
+                "param_type",
+                "required",
+                "description",
+                "default",
+                "validation_modes",
+            ]:
                 kwargs.pop(key, None)
 
         # Initialize optional attributes with defaults
@@ -90,7 +101,7 @@ class ParameterSchema:
         # Handle any additional kwargs
         for key, value in kwargs.items():
             # Handle 'type' keyword argument by mapping it to param_type
-            if key == 'type':
+            if key == "type":
                 self.param_type = value
             else:
                 setattr(self, key, value)
@@ -117,8 +128,12 @@ class ToolSchemaBase(BaseModel):
         """Categorize parameters into basic, advanced, and expert after initialization."""
         for param in self.parameters:
             # If no level is explicitly set, default to basic
-            if hasattr(param, 'basic_param'):
-                if not param.basic_param and not param.advanced_param and not param.expert_param:
+            if hasattr(param, "basic_param"):
+                if (
+                    not param.basic_param
+                    and not param.advanced_param
+                    and not param.expert_param
+                ):
                     param.basic_param = True
 
                 if param.basic_param:
@@ -137,10 +152,10 @@ class ToolSchema:
         name_or_arg1: str | None = None,
         description_or_arg2: str | None = None,
         parameters_or_arg3: list[Any] | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize tool schema.
-        
+
         Supports multiple call patterns:
         1. ToolSchema(name="...", description="...", parameters=[...])  # keyword args
         2. ToolSchema("name", "description", [...])  # positional args
@@ -153,9 +168,9 @@ class ToolSchema:
             self.parameters = parameters_or_arg3 or []
         else:
             # Keyword mode
-            self.name = kwargs.get('name', name_or_arg1 or "")
-            self.description = kwargs.get('description', "")
-            self.parameters = kwargs.get('parameters', [])
+            self.name = kwargs.get("name", name_or_arg1 or "")
+            self.description = kwargs.get("description", "")
+            self.parameters = kwargs.get("parameters", [])
 
         # Initialize parameter sets
         self.basic_params = set()
@@ -165,7 +180,7 @@ class ToolSchema:
         # Categorize parameters
         for param in self.parameters:
             # Handle both validation_modes and individual level flags
-            if hasattr(param, 'validation_modes') and param.validation_modes:
+            if hasattr(param, "validation_modes") and param.validation_modes:
                 modes = param.validation_modes
                 if ValidationMode.BASIC in modes:
                     self.basic_params.add(param.name)
@@ -175,9 +190,9 @@ class ToolSchema:
                     self.expert_params.add(param.name)
             else:
                 # Use individual level flags
-                if getattr(param, 'basic_param', False):
+                if getattr(param, "basic_param", False):
                     self.basic_params.add(param.name)
-                if getattr(param, 'advanced_param', False):
+                if getattr(param, "advanced_param", False):
                     self.advanced_params.add(param.name)
-                if getattr(param, 'expert_param', False):
+                if getattr(param, "expert_param", False):
                     self.expert_params.add(param.name)

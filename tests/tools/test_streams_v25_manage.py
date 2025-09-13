@@ -19,17 +19,36 @@ async def test_manage_streams_subscribe_unsubscribe_list(mock_managers) -> None:
 
     class Client:
         def get_streams(self, include_subscribed=True):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"name": "general"}, {"name": "dev"}]}
+            return {
+                "result": "success",
+                "streams": [{"name": "general"}, {"name": "dev"}],
+            }
+
         def get_stream_id(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "stream": {"name": f"s{stream_id}"}}
+
         def add_subscriptions(self, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "subscribed": {"general": [1]}, "already_subscribed": {}, "unauthorized": []}
+            return {
+                "result": "success",
+                "subscribed": {"general": [1]},
+                "already_subscribed": {},
+                "unauthorized": [],
+            }
+
         def remove_subscriptions(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "success", "removed": ["general"], "not_removed": []}
+
         def create_streams(self, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "subscribed": {"new": [1]}, "already_subscribed": {}, "unauthorized": []}
+            return {
+                "result": "success",
+                "subscribed": {"new": [1]},
+                "already_subscribed": {},
+                "unauthorized": [],
+            }
+
         def update_stream(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def delete_stream(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success"}
 
@@ -39,7 +58,12 @@ async def test_manage_streams_subscribe_unsubscribe_list(mock_managers) -> None:
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     # subscribe by name
-    sub = await manage_streams("subscribe", stream_names=["general"], principals=["u@e"], authorization_errors_fatal=False)
+    sub = await manage_streams(
+        "subscribe",
+        stream_names=["general"],
+        principals=["u@e"],
+        authorization_errors_fatal=False,
+    )
     assert sub["status"] == "success" and sub["operation"] == "subscribe"
 
     # unsubscribe by id (uses get_stream_id to resolve names)
@@ -47,7 +71,9 @@ async def test_manage_streams_subscribe_unsubscribe_list(mock_managers) -> None:
     assert unsub.get("operation") == "unsubscribe"
 
     # update
-    upd = await manage_streams("update", stream_ids=[1, 2], properties={"is_web_public": True})
+    upd = await manage_streams(
+        "update", stream_ids=[1, 2], properties={"is_web_public": True}
+    )
     assert upd["status"] == "success" and upd["operation"] == "update"
 
     # delete
@@ -55,5 +81,7 @@ async def test_manage_streams_subscribe_unsubscribe_list(mock_managers) -> None:
     assert dele["status"] == "success" and dele["operation"] == "delete"
 
     # create
-    cre = await manage_streams("create", stream_names=["new"], properties={"description": "d"})
+    cre = await manage_streams(
+        "create", stream_names=["new"], properties={"description": "d"}
+    )
     assert cre["status"] == "success" and cre["operation"] == "create"

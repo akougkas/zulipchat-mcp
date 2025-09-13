@@ -8,7 +8,7 @@ from typing import Any
 
 from ..config import ConfigManager
 from ..core.cache import message_cache
-from ..metrics import metrics
+from ..utils.metrics import metrics
 
 __all__ = [
     "HealthStatus",

@@ -264,6 +264,12 @@ class SendMessageCommand(Command):
             logger.error(f"Send message command failed: {e}")
             raise
 
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for send message (not supported)."""
+        return None
+
 
 class GetMessagesCommand(Command):
     """Command to retrieve messages from Zulip."""
@@ -295,23 +301,35 @@ class GetMessagesCommand(Command):
             limit = context.get(self.limit_key, 50)
 
             if stream_name:
-                messages = client.get_messages_from_stream(
-                    stream_name, topic=topic, hours_back=hours_back
-                )[:limit]
+                raw = client.get_messages_from_stream(
+                    stream_name, topic=topic, hours_back=hours_back, limit=limit
+                )
+                raw_messages = raw.get("messages", []) if isinstance(raw, dict) else []
             else:
-                messages = client.get_messages(num_before=limit)
+                typed = client.get_messages(num_before=limit)
+                raw_messages = [
+                    {
+                        "id": m.id,
+                        "sender_full_name": m.sender_full_name,
+                        "content": m.content,
+                        "timestamp": m.timestamp,
+                        "display_recipient": m.stream_name,
+                        "subject": m.subject,
+                    }
+                    for m in typed
+                ]
 
             # Convert to dict format and store in context
             message_dicts = [
                 {
-                    "id": msg.id,
-                    "sender": msg.sender_full_name,
-                    "content": msg.content,
-                    "timestamp": msg.timestamp,
-                    "stream": msg.stream_name,
-                    "topic": msg.subject,
+                    "id": msg.get("id"),
+                    "sender": msg.get("sender_full_name"),
+                    "content": msg.get("content"),
+                    "timestamp": msg.get("timestamp"),
+                    "stream": msg.get("display_recipient", ""),
+                    "topic": msg.get("subject", ""),
                 }
-                for msg in messages
+                for msg in raw_messages
             ]
 
             context.set("messages", message_dicts)
@@ -322,6 +340,12 @@ class GetMessagesCommand(Command):
         except Exception as e:
             logger.error(f"Get messages command failed: {e}")
             raise
+
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for read-only command."""
+        return None
 
 
 class AddReactionCommand(Command):
@@ -424,6 +448,12 @@ class ProcessDataCommand(Command):
         except Exception as e:
             logger.error(f"Process data command failed: {e}")
             raise
+
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for data processing commands."""
+        return None
 
 
 class CommandChain:

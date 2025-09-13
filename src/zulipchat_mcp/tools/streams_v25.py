@@ -15,10 +15,11 @@ Features:
 
 from __future__ import annotations
 
-from typing import Any, Literal
 from datetime import datetime
+from typing import Any, Literal
 
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 from ..core.error_handling import get_error_handler
 from ..core.identity import IdentityManager
 from ..core.validation import ParameterValidator
@@ -56,7 +57,9 @@ def _get_managers() -> tuple[ConfigManager, IdentityManager, ParameterValidator]
 
 
 async def manage_streams(
-    operation: Literal["list", "create", "update", "delete", "subscribe", "unsubscribe"],
+    operation: Literal[
+        "list", "create", "update", "delete", "subscribe", "unsubscribe"
+    ],
     stream_ids: list[int] | None = None,  # Bulk operations
     stream_names: list[str] | None = None,
     properties: dict[str, Any] | None = None,  # Stream properties for create/update
@@ -126,7 +129,9 @@ async def manage_streams(
                 }
 
                 # Use appropriate validation mode based on parameters
-                validation_mode = validator.suggest_mode("streams.manage_streams", params)
+                validation_mode = validator.suggest_mode(
+                    "streams.manage_streams", params
+                )
                 validated_params = validator.validate_tool_params(
                     "streams.manage_streams", params, validation_mode
                 )
@@ -135,7 +140,7 @@ async def manage_streams(
                 result = await identity_manager.execute_with_identity(
                     "streams.manage_streams",
                     validated_params,
-                    _execute_stream_operation
+                    _execute_stream_operation,
                 )
 
                 track_tool_call("manage_streams")
@@ -151,7 +156,9 @@ async def manage_streams(
                 }
 
 
-async def _execute_stream_operation(client, params: dict[str, Any]) -> StreamResponse:
+async def _execute_stream_operation(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Execute stream operation with Zulip client."""
     operation = params["operation"]
 
@@ -181,7 +188,26 @@ async def _execute_stream_operation(client, params: dict[str, Any]) -> StreamRes
         }
 
 
-async def _list_streams(client, params: dict[str, Any]) -> StreamResponse:
+def _resolve_stream_id(client: ZulipClientWrapper, ident: int | str) -> int | None:
+    """Resolve a stream identifier which may be an id (int) or name (str)."""
+    if isinstance(ident, int):
+        return ident
+    try:
+        res = client.get_stream_id(ident)
+        if res.get("result") == "success":
+            # Zulip returns either {"stream_id": id} or {"stream": {"stream_id": id}}
+            if "stream_id" in res:
+                return int(res["stream_id"])  # type: ignore[arg-type]
+            stream_obj = res.get("stream", {})
+            return int(stream_obj.get("stream_id")) if stream_obj else None
+    except Exception:
+        return None
+    return None
+
+
+async def _list_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """List streams based on filters."""
     request_params = {}
 
@@ -194,8 +220,8 @@ async def _list_streams(client, params: dict[str, Any]) -> StreamResponse:
 
     # Use ZulipClientWrapper get_streams with automatic caching
     result = client.get_streams(
-        include_subscribed=request_params.get("include_subscribed", True),
-        force_fresh=False  # Enable caching for better performance
+        include_subscribed=bool(request_params.get("include_subscribed", True)),
+        force_fresh=False,
     )
 
     if result.get("result") == "success":
@@ -213,7 +239,9 @@ async def _list_streams(client, params: dict[str, Any]) -> StreamResponse:
         }
 
 
-async def _create_streams(client, params: dict[str, Any]) -> StreamResponse:
+async def _create_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Create new streams."""
     if not params.get("stream_names"):
         return {
@@ -240,7 +268,9 @@ async def _create_streams(client, params: dict[str, Any]) -> StreamResponse:
     if params.get("principals"):
         request_params["principals"] = params["principals"]
     if params.get("history_public_to_subscribers") is not None:
-        request_params["history_public_to_subscribers"] = params["history_public_to_subscribers"]
+        request_params["history_public_to_subscribers"] = params[
+            "history_public_to_subscribers"
+        ]
     if params.get("stream_post_policy") is not None:
         request_params["stream_post_policy"] = params["stream_post_policy"]
     if params.get("message_retention_days") is not None:
@@ -264,7 +294,9 @@ async def _create_streams(client, params: dict[str, Any]) -> StreamResponse:
         }
 
 
-async def _update_streams(client, params: dict[str, Any]) -> StreamResponse:
+async def _update_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Update existing streams."""
     if not (params.get("stream_ids") or params.get("stream_names")):
         return {
@@ -281,28 +313,40 @@ async def _update_streams(client, params: dict[str, Any]) -> StreamResponse:
         }
 
     results = []
-    stream_identifiers = params.get("stream_ids") or params.get("stream_names")
+    stream_identifiers = params.get("stream_ids") or params.get("stream_names") or []
 
-    for stream_id in stream_identifiers:
+    # Normalize to numeric stream ids
+    normalized_ids: list[int] = []
+    for ident in stream_identifiers:
+        sid = _resolve_stream_id(client, ident)
+        if sid is not None:
+            normalized_ids.append(sid)
+
+    for stream_id in normalized_ids:
         for property_name, value in params["properties"].items():
             try:
                 result = client.update_stream(
-                    stream_id=stream_id,
-                    **{property_name: value}
+                    stream_id=stream_id, **{property_name: value}
                 )
-                results.append({
-                    "stream_id": stream_id,
-                    "property": property_name,
-                    "status": "success" if result.get("result") == "success" else "error",
-                    "message": result.get("msg", ""),
-                })
+                results.append(
+                    {
+                        "stream_id": stream_id,
+                        "property": property_name,
+                        "status": (
+                            "success" if result.get("result") == "success" else "error"
+                        ),
+                        "message": result.get("msg", ""),
+                    }
+                )
             except Exception as e:
-                results.append({
-                    "stream_id": stream_id,
-                    "property": property_name,
-                    "status": "error",
-                    "message": str(e),
-                })
+                results.append(
+                    {
+                        "stream_id": stream_id,
+                        "property": property_name,
+                        "status": "error",
+                        "message": str(e),
+                    }
+                )
 
     return {
         "status": "success",
@@ -311,7 +355,9 @@ async def _update_streams(client, params: dict[str, Any]) -> StreamResponse:
     }
 
 
-async def _delete_streams(client, params: dict[str, Any]) -> StreamResponse:
+async def _delete_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Delete streams."""
     if not (params.get("stream_ids") or params.get("stream_names")):
         return {
@@ -321,22 +367,34 @@ async def _delete_streams(client, params: dict[str, Any]) -> StreamResponse:
         }
 
     results = []
-    stream_identifiers = params.get("stream_ids") or params.get("stream_names")
+    stream_identifiers = params.get("stream_ids") or params.get("stream_names") or []
 
-    for stream_id in stream_identifiers:
+    normalized_ids: list[int] = []
+    for ident in stream_identifiers:
+        sid = _resolve_stream_id(client, ident)
+        if sid is not None:
+            normalized_ids.append(sid)
+
+    for stream_id in normalized_ids:
         try:
             result = client.delete_stream(stream_id)
-            results.append({
-                "stream_id": stream_id,
-                "status": "success" if result.get("result") == "success" else "error",
-                "message": result.get("msg", ""),
-            })
+            results.append(
+                {
+                    "stream_id": stream_id,
+                    "status": (
+                        "success" if result.get("result") == "success" else "error"
+                    ),
+                    "message": result.get("msg", ""),
+                }
+            )
         except Exception as e:
-            results.append({
-                "stream_id": stream_id,
-                "status": "error",
-                "message": str(e),
-            })
+            results.append(
+                {
+                    "stream_id": stream_id,
+                    "status": "error",
+                    "message": str(e),
+                }
+            )
 
     return {
         "status": "success",
@@ -345,7 +403,9 @@ async def _delete_streams(client, params: dict[str, Any]) -> StreamResponse:
     }
 
 
-async def _subscribe_streams(client, params: dict[str, Any]) -> StreamResponse:
+async def _subscribe_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Subscribe to streams."""
     if not (params.get("stream_ids") or params.get("stream_names")):
         return {
@@ -363,7 +423,9 @@ async def _subscribe_streams(client, params: dict[str, Any]) -> StreamResponse:
         for stream_id in params["stream_ids"]:
             stream_info = client.get_stream_id(stream_id)
             if stream_info.get("result") == "success":
-                subscriptions.append({"name": stream_info.get("stream", {}).get("name", str(stream_id))})
+                subscriptions.append(
+                    {"name": stream_info.get("stream", {}).get("name", str(stream_id))}
+                )
 
     request_params = {
         "subscriptions": subscriptions,
@@ -391,7 +453,9 @@ async def _subscribe_streams(client, params: dict[str, Any]) -> StreamResponse:
         }
 
 
-async def _unsubscribe_streams(client, params: dict[str, Any]) -> StreamResponse:
+async def _unsubscribe_streams(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> StreamResponse:
     """Unsubscribe from streams."""
     if not (params.get("stream_ids") or params.get("stream_names")):
         return {
@@ -406,7 +470,9 @@ async def _unsubscribe_streams(client, params: dict[str, Any]) -> StreamResponse
         for stream_id in params["stream_ids"]:
             stream_info = client.get_stream_id(stream_id)
             if stream_info.get("result") == "success":
-                stream_names.append(stream_info.get("stream", {}).get("name", str(stream_id)))
+                stream_names.append(
+                    stream_info.get("stream", {}).get("name", str(stream_id))
+                )
 
     request_params = {"subscriptions": stream_names}
     if params.get("principals"):
@@ -466,7 +532,9 @@ async def manage_topics(
         ZulipMCPError: If Zulip API call fails
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "manage_topics"}):
-        with LogContext(logger, tool="manage_topics", operation=operation, stream_id=stream_id):
+        with LogContext(
+            logger, tool="manage_topics", operation=operation, stream_id=stream_id
+        ):
             try:
                 config, identity_manager, validator = _get_managers()
 
@@ -485,7 +553,9 @@ async def manage_topics(
                 }
 
                 # Use appropriate validation mode
-                validation_mode = validator.suggest_mode("streams.manage_topics", params)
+                validation_mode = validator.suggest_mode(
+                    "streams.manage_topics", params
+                )
                 validated_params = validator.validate_tool_params(
                     "streams.manage_topics", params, validation_mode
                 )
@@ -511,7 +581,9 @@ async def manage_topics(
                 }
 
 
-async def _execute_topic_operation(client, params: dict[str, Any]) -> TopicResponse:
+async def _execute_topic_operation(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Execute topic operation with Zulip client."""
     operation = params["operation"]
 
@@ -541,11 +613,11 @@ async def _execute_topic_operation(client, params: dict[str, Any]) -> TopicRespo
         }
 
 
-async def _list_topics(client, params: dict[str, Any]) -> TopicResponse:
+async def _list_topics(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """List topics in a stream."""
-    result = client.get_stream_topics(
-        stream_id=params["stream_id"]
-    )
+    result = client.get_stream_topics(stream_id=params["stream_id"])
 
     if result.get("result") == "success":
         topics = result.get("topics", [])
@@ -572,7 +644,9 @@ async def _list_topics(client, params: dict[str, Any]) -> TopicResponse:
         }
 
 
-async def _move_topic(client, params: dict[str, Any]) -> TopicResponse:
+async def _move_topic(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Move topic to different name or stream."""
     if not params.get("source_topic"):
         return {
@@ -586,8 +660,12 @@ async def _move_topic(client, params: dict[str, Any]) -> TopicResponse:
         "stream_id": params["stream_id"],
         "topic": params["source_topic"],
         "propagate_mode": params.get("propagate_mode", "change_all"),
-        "send_notification_to_old_thread": params.get("send_notification_to_old_thread", True),
-        "send_notification_to_new_thread": params.get("send_notification_to_new_thread", True),
+        "send_notification_to_old_thread": params.get(
+            "send_notification_to_old_thread", True
+        ),
+        "send_notification_to_new_thread": params.get(
+            "send_notification_to_new_thread", True
+        ),
     }
 
     # Determine move type
@@ -604,14 +682,18 @@ async def _move_topic(client, params: dict[str, Any]) -> TopicResponse:
         {"operator": "topic", "operand": params["source_topic"]},
     ]
 
-    messages_result = client.get_messages({
-        "anchor": "newest",
-        "num_before": 1,
-        "num_after": 0,
-        "narrow": narrow,
-    })
+    try:
+        messages_result = client.get_messages_raw(
+            anchor="newest", num_before=1, num_after=0, narrow=narrow
+        )
+    except Exception:
+        messages_result = client.get_messages(
+            {"anchor": "newest", "num_before": 1, "num_after": 0, "narrow": narrow}
+        )
 
-    if messages_result.get("result") != "success" or not messages_result.get("messages"):
+    if messages_result.get("result") != "success" or not messages_result.get(
+        "messages"
+    ):
         return {
             "status": "error",
             "error": "No messages found in topic to move",
@@ -623,10 +705,7 @@ async def _move_topic(client, params: dict[str, Any]) -> TopicResponse:
     message_id = messages_result["messages"][0]["id"]
 
     # Perform the move
-    result = client.update_message({
-        "message_id": message_id,
-        **move_params
-    })
+    result = client.update_message({"message_id": message_id, **move_params})
 
     if result.get("result") == "success":
         return {
@@ -648,7 +727,9 @@ async def _move_topic(client, params: dict[str, Any]) -> TopicResponse:
         }
 
 
-async def _delete_topic(client, params: dict[str, Any]) -> TopicResponse:
+async def _delete_topic(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Delete a topic (admin only)."""
     if not params.get("source_topic"):
         return {
@@ -658,8 +739,7 @@ async def _delete_topic(client, params: dict[str, Any]) -> TopicResponse:
         }
 
     result = client.delete_topic(
-        stream_id=params["stream_id"],
-        topic_name=params["source_topic"]
+        stream_id=params["stream_id"], topic_name=params["source_topic"]
     )
 
     if result.get("result") == "success":
@@ -679,7 +759,9 @@ async def _delete_topic(client, params: dict[str, Any]) -> TopicResponse:
         }
 
 
-async def _mark_topic_read(client, params: dict[str, Any]) -> TopicResponse:
+async def _mark_topic_read(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Mark all messages in topic as read."""
     if not params.get("source_topic"):
         return {
@@ -689,8 +771,7 @@ async def _mark_topic_read(client, params: dict[str, Any]) -> TopicResponse:
         }
 
     result = client.mark_topic_as_read(
-        stream_id=params["stream_id"],
-        topic_name=params["source_topic"]
+        stream_id=params["stream_id"], topic_name=params["source_topic"]
     )
 
     if result.get("result") == "success":
@@ -710,7 +791,9 @@ async def _mark_topic_read(client, params: dict[str, Any]) -> TopicResponse:
         }
 
 
-async def _mute_topic(client, params: dict[str, Any]) -> TopicResponse:
+async def _mute_topic(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Mute a topic."""
     if not params.get("source_topic"):
         return {
@@ -719,10 +802,14 @@ async def _mute_topic(client, params: dict[str, Any]) -> TopicResponse:
             "operation": "mute",
         }
 
-    result = client.mute_topic(
-        stream_id=params["stream_id"],
-        topic=params["source_topic"]
-    )
+    try:
+        result = client.mute_topic(
+            stream_id=params["stream_id"], topic=params["source_topic"]
+        )
+    except TypeError:
+        result = client.mute_topic(
+            stream_id=params["stream_id"], topic_name=params["source_topic"]
+        )
 
     if result.get("result") == "success":
         return {
@@ -741,7 +828,9 @@ async def _mute_topic(client, params: dict[str, Any]) -> TopicResponse:
         }
 
 
-async def _unmute_topic(client, params: dict[str, Any]) -> TopicResponse:
+async def _unmute_topic(
+    client: ZulipClientWrapper, params: dict[str, Any]
+) -> TopicResponse:
     """Unmute a topic."""
     if not params.get("source_topic"):
         return {
@@ -750,10 +839,14 @@ async def _unmute_topic(client, params: dict[str, Any]) -> TopicResponse:
             "operation": "unmute",
         }
 
-    result = client.unmute_topic(
-        stream_id=params["stream_id"],
-        topic=params["source_topic"]
-    )
+    try:
+        result = client.unmute_topic(
+            stream_id=params["stream_id"], topic=params["source_topic"]
+        )
+    except TypeError:
+        result = client.unmute_topic(
+            stream_id=params["stream_id"], topic_name=params["source_topic"]
+        )
 
     if result.get("result") == "success":
         return {
@@ -802,7 +895,9 @@ async def get_stream_info(
         ZulipMCPError: If Zulip API call fails
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "get_stream_info"}):
-        with LogContext(logger, tool="get_stream_info", stream_id=stream_id, stream_name=stream_name):
+        with LogContext(
+            logger, tool="get_stream_info", stream_id=stream_id, stream_name=stream_name
+        ):
             try:
                 config, identity_manager, validator = _get_managers()
 
@@ -818,7 +913,9 @@ async def get_stream_info(
                 }
 
                 # Use appropriate validation mode
-                validation_mode = validator.suggest_mode("streams.get_stream_info", params)
+                validation_mode = validator.suggest_mode(
+                    "streams.get_stream_info", params
+                )
                 validated_params = validator.validate_tool_params(
                     "streams.get_stream_info", params, validation_mode
                 )
@@ -844,7 +941,9 @@ async def get_stream_info(
                 }
 
 
-async def _execute_get_stream_info(client, params: dict[str, Any]) -> StreamInfoResponse:
+async def _execute_get_stream_info(
+    client, params: dict[str, Any]
+) -> StreamInfoResponse:
     """Get comprehensive stream information."""
     try:
         stream_info = {}
@@ -861,7 +960,7 @@ async def _execute_get_stream_info(client, params: dict[str, Any]) -> StreamInfo
                     "error": result.get("msg", "Stream not found"),
                 }
         elif params.get("stream_name"):
-            # Use ZulipClientWrapper get_streams with automatic caching  
+            # Use ZulipClientWrapper get_streams with automatic caching
             result = client.get_streams(include_subscribed=True, force_fresh=False)
             if result.get("result") == "success":
                 for stream in result.get("streams", []):
@@ -896,7 +995,9 @@ async def _execute_get_stream_info(client, params: dict[str, Any]) -> StreamInfo
             if topics_result.get("result") == "success":
                 response["topics"] = topics_result.get("topics", [])
             else:
-                response["topics_error"] = topics_result.get("msg", "Failed to get topics")
+                response["topics_error"] = topics_result.get(
+                    "msg", "Failed to get topics"
+                )
 
         # Include subscribers if requested
         if params.get("include_subscribers"):
@@ -904,7 +1005,9 @@ async def _execute_get_stream_info(client, params: dict[str, Any]) -> StreamInfo
             if subs_result.get("result") == "success":
                 response["subscribers"] = subs_result.get("subscribers", [])
             else:
-                response["subscribers_error"] = subs_result.get("msg", "Failed to get subscribers")
+                response["subscribers_error"] = subs_result.get(
+                    "msg", "Failed to get subscribers"
+                )
 
         # Include settings if requested
         if params.get("include_settings"):
@@ -957,7 +1060,12 @@ async def stream_analytics(
         await stream_analytics(stream_name="general", include_user_activity=True)
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "streams.analytics"}):
-        with LogContext(logger, tool="stream_analytics", stream_id=stream_id, stream_name=stream_name):
+        with LogContext(
+            logger,
+            tool="stream_analytics",
+            stream_id=stream_id,
+            stream_name=stream_name,
+        ):
             try:
                 config, identity_manager, validator = _get_managers()
 
@@ -965,25 +1073,29 @@ async def stream_analytics(
                 if not stream_id and not stream_name:
                     return {
                         "status": "error",
-                        "error": "Either stream_id or stream_name is required"
+                        "error": "Either stream_id or stream_name is required",
                     }
 
                 # Execute analytics with appropriate identity
-                async def _execute_analytics(client, params):
+                async def _execute_analytics(
+                    client: ZulipClientWrapper, params: dict[str, Any]
+                ) -> dict[str, Any]:
                     # Resolve stream_id if only name provided
                     target_stream_id = stream_id
                     if not target_stream_id and stream_name:
-                        streams_result = client.get_streams(include_subscribed=True, include_public=True)
+                        streams_result = client.get_streams(
+                            include_subscribed=True, include_public=True
+                        )
                         if streams_result.get("result") == "success":
                             for stream in streams_result.get("streams", []):
                                 if stream.get("name") == stream_name:
                                     target_stream_id = stream.get("stream_id")
                                     break
-                        
+
                         if not target_stream_id:
                             return {
                                 "status": "error",
-                                "error": f"Stream '{stream_name}' not found"
+                                "error": f"Stream '{stream_name}' not found",
                             }
 
                     analytics_data = {
@@ -1003,29 +1115,40 @@ async def stream_analytics(
                     if include_message_stats:
                         try:
                             # Search for recent messages in the stream
-                            narrow = [{"operator": "stream", "operand": str(target_stream_id)}]
+                            narrow = [
+                                {"operator": "stream", "operand": str(target_stream_id)}
+                            ]
                             messages_request = {
                                 "anchor": "newest",
                                 "num_before": 1000,  # Sample size
                                 "num_after": 0,
                                 "narrow": narrow,
                             }
-                            messages_result = client.get_messages(messages_request)
+                            try:
+                                messages_result = client.get_messages_raw(
+                                    **messages_request
+                                )
+                            except Exception:
+                                messages_result = client.get_messages(messages_request)
 
                             if messages_result.get("result") == "success":
                                 messages = messages_result.get("messages", [])
-                                
+
                                 # Calculate basic statistics
                                 analytics_data["message_stats"] = {
                                     "recent_message_count": len(messages),
                                     "sample_size": min(1000, len(messages)),
-                                    "note": "Statistics based on recent message sample"
+                                    "note": "Statistics based on recent message sample",
                                 }
-                                
+
                                 # Calculate average message length if messages available
                                 if messages:
-                                    avg_length = sum(len(msg.get("content", "")) for msg in messages) / len(messages)
-                                    analytics_data["message_stats"]["average_message_length"] = round(avg_length, 2)
+                                    avg_length = sum(
+                                        len(msg.get("content", "")) for msg in messages
+                                    ) / len(messages)
+                                    analytics_data["message_stats"][
+                                        "average_message_length"
+                                    ] = round(avg_length, 2)
                             else:
                                 analytics_data["message_stats"] = {
                                     "error": "Could not retrieve message statistics"
@@ -1039,12 +1162,16 @@ async def stream_analytics(
                     if include_user_activity:
                         try:
                             # Get subscribers
-                            subs_result = client.get_subscribers(stream_id=target_stream_id)
+                            subs_result = client.get_subscribers(
+                                stream_id=target_stream_id
+                            )
                             if subs_result.get("result") == "success":
                                 subscribers = subs_result.get("subscribers", [])
                                 analytics_data["user_activity"] = {
                                     "total_subscribers": len(subscribers),
-                                    "subscriber_list": subscribers[:20],  # First 20 subscribers
+                                    "subscriber_list": subscribers[
+                                        :20
+                                    ],  # First 20 subscribers
                                 }
                             else:
                                 analytics_data["user_activity"] = {
@@ -1058,17 +1185,24 @@ async def stream_analytics(
                     # Topic statistics
                     if include_topic_stats:
                         try:
-                            topics_result = client.get_stream_topics(stream_id=target_stream_id)
+                            topics_result = client.get_stream_topics(
+                                stream_id=target_stream_id
+                            )
                             if topics_result.get("result") == "success":
                                 topics = topics_result.get("topics", [])
                                 analytics_data["topic_stats"] = {
                                     "total_topics": len(topics),
-                                    "recent_topics": topics[:10],  # Most recent 10 topics
+                                    "recent_topics": topics[
+                                        :10
+                                    ],  # Most recent 10 topics
                                     "most_active_topics": sorted(
-                                        topics, 
-                                        key=lambda t: t.get("max_id", 0) - t.get("min_id", 0), 
-                                        reverse=True
-                                    )[:5]  # Top 5 by activity approximation
+                                        topics,
+                                        key=lambda t: t.get("max_id", 0)
+                                        - t.get("min_id", 0),
+                                        reverse=True,
+                                    )[
+                                        :5
+                                    ],  # Top 5 by activity approximation
                                 }
                             else:
                                 analytics_data["topic_stats"] = {
@@ -1085,7 +1219,7 @@ async def stream_analytics(
                 result = await identity_manager.execute_with_identity(
                     "streams.analytics",
                     {"stream_id": stream_id, "stream_name": stream_name},
-                    _execute_analytics
+                    _execute_analytics,
                 )
 
                 track_tool_call("streams.analytics")
@@ -1135,7 +1269,7 @@ async def manage_stream_settings(
 
         # Update notification settings
         await manage_stream_settings(
-            123, "notifications", 
+            123, "notifications",
             notification_settings={"push_notifications": True, "email_notifications": False}
         )
 
@@ -1143,19 +1277,23 @@ async def manage_stream_settings(
         await manage_stream_settings(123, "update", color="#ff6600", pin_to_top=True)
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "streams.settings"}):
-        with LogContext(logger, tool="manage_stream_settings", stream_id=stream_id, operation=operation):
+        with LogContext(
+            logger,
+            tool="manage_stream_settings",
+            stream_id=stream_id,
+            operation=operation,
+        ):
             try:
                 config, identity_manager, validator = _get_managers()
 
                 # Validate parameters
                 if stream_id <= 0:
-                    return {
-                        "status": "error",
-                        "error": "Invalid stream ID"
-                    }
+                    return {"status": "error", "error": "Invalid stream ID"}
 
                 # Execute settings management
-                async def _execute_settings(client, params):
+                async def _execute_settings(
+                    client: ZulipClientWrapper, params: dict[str, Any]
+                ) -> dict[str, Any]:
                     if operation == "get":
                         # Get current settings
                         subscription_result = client.get_subscriptions()
@@ -1169,15 +1307,15 @@ async def manage_stream_settings(
                                         "current_settings": sub,
                                         "timestamp": datetime.now().isoformat(),
                                     }
-                            
+
                             return {
                                 "status": "error",
-                                "error": "Stream subscription not found"
+                                "error": "Stream subscription not found",
                             }
                         else:
                             return {
                                 "status": "error",
-                                "error": f"Failed to get subscriptions: {subscription_result.get('msg')}"
+                                "error": f"Failed to get subscriptions: {subscription_result.get('msg')}",
                             }
 
                     elif operation == "update":
@@ -1189,10 +1327,7 @@ async def manage_stream_settings(
                             updates["pin_to_top"] = pin_to_top
 
                         if not updates:
-                            return {
-                                "status": "error",
-                                "error": "No updates specified"
-                            }
+                            return {"status": "error", "error": "No updates specified"}
 
                         # Update subscription settings
                         update_result = client.update_subscription_settings(
@@ -1210,7 +1345,7 @@ async def manage_stream_settings(
                         else:
                             return {
                                 "status": "error",
-                                "error": f"Failed to update settings: {update_result.get('msg')}"
+                                "error": f"Failed to update settings: {update_result.get('msg')}",
                             }
 
                     elif operation == "notifications":
@@ -1218,19 +1353,23 @@ async def manage_stream_settings(
                         if not notification_settings:
                             return {
                                 "status": "error",
-                                "error": "notification_settings parameter is required"
+                                "error": "notification_settings parameter is required",
                             }
 
                         # Map notification settings to Zulip format
                         zulip_settings = []
                         for setting, value in notification_settings.items():
-                            zulip_settings.append({
-                                "stream_id": stream_id,
-                                "property": setting,
-                                "value": value
-                            })
+                            zulip_settings.append(
+                                {
+                                    "stream_id": stream_id,
+                                    "property": setting,
+                                    "value": value,
+                                }
+                            )
 
-                        update_result = client.update_subscription_settings(zulip_settings)
+                        update_result = client.update_subscription_settings(
+                            zulip_settings
+                        )
 
                         if update_result.get("result") == "success":
                             return {
@@ -1243,7 +1382,7 @@ async def manage_stream_settings(
                         else:
                             return {
                                 "status": "error",
-                                "error": f"Failed to update notifications: {update_result.get('msg')}"
+                                "error": f"Failed to update notifications: {update_result.get('msg')}",
                             }
 
                     elif operation == "permissions":
@@ -1251,13 +1390,12 @@ async def manage_stream_settings(
                         if not permission_updates:
                             return {
                                 "status": "error",
-                                "error": "permission_updates parameter is required"
+                                "error": "permission_updates parameter is required",
                             }
 
                         # This operation typically requires admin privileges
                         update_result = client.update_stream(
-                            stream_id=stream_id,
-                            **permission_updates
+                            stream_id=stream_id, **permission_updates
                         )
 
                         if update_result.get("result") == "success":
@@ -1271,19 +1409,17 @@ async def manage_stream_settings(
                         else:
                             return {
                                 "status": "error",
-                                "error": f"Failed to update permissions: {update_result.get('msg')}"
+                                "error": f"Failed to update permissions: {update_result.get('msg')}",
                             }
 
                     else:
                         return {
                             "status": "error",
-                            "error": f"Unknown operation: {operation}"
+                            "error": f"Unknown operation: {operation}",
                         }
 
                 result = await identity_manager.execute_with_identity(
-                    "streams.settings",
-                    {"operation": operation},
-                    _execute_settings
+                    "streams.settings", {"operation": operation}, _execute_settings
                 )
 
                 track_tool_call("streams.settings")
@@ -1309,6 +1445,9 @@ def register_streams_v25_tools(mcp: Any) -> None:
     mcp.tool(description="Manage streams with bulk operations support")(manage_streams)
     mcp.tool(description="Bulk topic operations within streams")(manage_topics)
     mcp.tool(description="Get comprehensive stream information")(get_stream_info)
-    mcp.tool(description="Get comprehensive stream statistics and analytics")(stream_analytics)
-    mcp.tool(description="Manage stream notification settings and permissions")(manage_stream_settings)
-
+    mcp.tool(description="Get comprehensive stream statistics and analytics")(
+        stream_analytics
+    )
+    mcp.tool(description="Manage stream notification settings and permissions")(
+        manage_stream_settings
+    )

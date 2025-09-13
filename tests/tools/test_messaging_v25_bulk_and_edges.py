@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -34,7 +33,12 @@ async def test_bulk_add_remove_flag_success_and_conflict_error(mock_managers) ->
     assert ok["affected_count"] == 2
 
     # conflict: both narrow and message_ids
-    err = await bulk_operations(operation="remove_flag", narrow=[{"operator": "stream", "operand": "general"}], message_ids=[1], flag="starred")
+    err = await bulk_operations(
+        operation="remove_flag",
+        narrow=[{"operator": "stream", "operand": "general"}],
+        message_ids=[1],
+        flag="starred",
+    )
     assert err["status"] == "error"
 
 
@@ -51,8 +55,10 @@ async def test_bulk_add_remove_reaction_and_delete_success(mock_managers) -> Non
     class Client:
         def add_reaction(self, message_id, emoji_name):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def remove_reaction(self, message_id, emoji_name):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def delete_message(self, message_id):  # type: ignore[no-redef]
             return {"result": "success"}
 
@@ -61,10 +67,14 @@ async def test_bulk_add_remove_reaction_and_delete_success(mock_managers) -> Non
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    ok1 = await bulk_operations(operation="add_reaction", message_ids=[10, 11], emoji_name="thumbs_up")
+    ok1 = await bulk_operations(
+        operation="add_reaction", message_ids=[10, 11], emoji_name="thumbs_up"
+    )
     assert ok1["status"].startswith("success")
 
-    ok2 = await bulk_operations(operation="remove_reaction", message_ids=[10], emoji_name="thumbs_up")
+    ok2 = await bulk_operations(
+        operation="remove_reaction", message_ids=[10], emoji_name="thumbs_up"
+    )
     assert ok2["status"].startswith("success")
 
     ok3 = await bulk_operations(operation="delete_messages", message_ids=[10, 11])
@@ -84,13 +94,28 @@ async def test_bulk_narrow_paths_mark_read_flag_reaction_delete(mock_managers) -
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": [{"id": 1}, {"id": 2}]}
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
+
         def update_message_flags(self, messages, op, flag):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def add_reaction(self, message_id, emoji_name):  # type: ignore[no-redef]
             # simulate one success and one failure
-            return {"result": "success"} if message_id == 1 else {"result": "error", "msg": "nope"}
+            return (
+                {"result": "success"}
+                if message_id == 1
+                else {"result": "error", "msg": "nope"}
+            )
+
         def delete_message(self, message_id):  # type: ignore[no-redef]
             return {"result": "success" if message_id == 1 else "error"}
 
@@ -99,16 +124,29 @@ async def test_bulk_narrow_paths_mark_read_flag_reaction_delete(mock_managers) -
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    ok_read = await bulk_operations(operation="mark_read", narrow=[{"operator": "stream", "operand": "general"}])
+    ok_read = await bulk_operations(
+        operation="mark_read", narrow=[{"operator": "stream", "operand": "general"}]
+    )
     assert ok_read["status"] == "success"
 
-    ok_flag = await bulk_operations(operation="add_flag", narrow=[{"operator": "stream", "operand": "general"}], flag="starred")
+    ok_flag = await bulk_operations(
+        operation="add_flag",
+        narrow=[{"operator": "stream", "operand": "general"}],
+        flag="starred",
+    )
     assert ok_flag["status"] == "success"
 
-    ok_react = await bulk_operations(operation="add_reaction", narrow=[{"operator": "stream", "operand": "general"}], emoji_name="thumbs_up")
+    ok_react = await bulk_operations(
+        operation="add_reaction",
+        narrow=[{"operator": "stream", "operand": "general"}],
+        emoji_name="thumbs_up",
+    )
     assert ok_react["status"] in ("success", "partial_success")
 
-    ok_del = await bulk_operations(operation="delete_messages", narrow=[{"operator": "stream", "operand": "general"}])
+    ok_del = await bulk_operations(
+        operation="delete_messages",
+        narrow=[{"operator": "stream", "operand": "general"}],
+    )
     assert ok_del["status"] in ("success", "partial_success")
 
 
@@ -131,7 +169,9 @@ async def test_bulk_remove_flag_error_branch(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await bulk_operations(operation="remove_flag", message_ids=[1], flag="starred")
+    res = await bulk_operations(
+        operation="remove_flag", message_ids=[1], flag="starred"
+    )
     assert res["status"] == "error"
 
 
@@ -148,14 +188,26 @@ async def test_bulk_add_reaction_no_messages_narrow(mock_managers) -> None:
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": []}
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
-    res = await bulk_operations(operation="add_reaction", narrow=[{"operator": "stream", "operand": "general"}], emoji_name="thumbs_up")
+    res = await bulk_operations(
+        operation="add_reaction",
+        narrow=[{"operator": "stream", "operand": "general"}],
+        emoji_name="thumbs_up",
+    )
     assert res["status"] == "success"
     assert res["affected_count"] == 0
 
@@ -183,7 +235,9 @@ async def test_cross_post_message_error_branches(mock_managers) -> None:
         class Client:
             def get_message(self, message_id):  # type: ignore[no-redef]
                 return {"result": "error", "msg": "not found"}
+
         return await func(Client(), params)
+
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_nf)
     res_nf = await cross_post_message(1, ["dev"])
     assert res_nf["status"] == "error"
@@ -192,10 +246,20 @@ async def test_cross_post_message_error_branches(mock_managers) -> None:
     async def exec_fail(tool, params, func, identity=None):
         class Client:
             def get_message(self, message_id):  # type: ignore[no-redef]
-                return {"result": "success", "message": {"content": "hi", "subject": "t", "display_recipient": "general"}}
+                return {
+                    "result": "success",
+                    "message": {
+                        "content": "hi",
+                        "subject": "t",
+                        "display_recipient": "general",
+                    },
+                }
+
             def send_message(self, payload):  # type: ignore[no-redef]
                 return {"result": "error", "msg": "denied"}
+
         return await func(Client(), params)
+
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_fail)
     res_fail = await cross_post_message(1, ["dev"])
     assert res_fail["status"] == "error"
@@ -203,7 +267,9 @@ async def test_cross_post_message_error_branches(mock_managers) -> None:
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.messaging_v25._get_managers")
-async def test_message_send_private_and_schedule_error_and_truncate(mock_managers) -> None:
+async def test_message_send_private_and_schedule_error_and_truncate(
+    mock_managers,
+) -> None:
     from zulipchat_mcp.tools.messaging_v25 import message
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -237,7 +303,7 @@ async def test_message_send_private_and_schedule_error_and_truncate(mock_manager
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.messaging_v25._get_managers")
 async def test_search_messages_guards_and_history_errors(mock_managers) -> None:
-    from zulipchat_mcp.tools.messaging_v25 import search_messages, message_history
+    from zulipchat_mcp.tools.messaging_v25 import message_history, search_messages
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
@@ -253,7 +319,9 @@ async def test_search_messages_guards_and_history_errors(mock_managers) -> None:
         class Client:
             def get_message(self, message_id):  # type: ignore[no-redef]
                 return {"result": "error", "msg": "not found"}
+
         return await func(Client(), params)
+
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_hist)
     res_nf = await message_history(1)
     assert res_nf["status"] == "error"

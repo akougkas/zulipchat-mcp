@@ -8,7 +8,13 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
-def _mkmsg(i: int, minutes_ago: int, content: str = "docker deploy", sender: str = "U", stream: str = "dev"):
+def _mkmsg(
+    i: int,
+    minutes_ago: int,
+    content: str = "docker deploy",
+    sender: str = "U",
+    stream: str = "dev",
+):
     return {
         "id": i,
         "sender_full_name": sender,
@@ -21,8 +27,10 @@ def _mkmsg(i: int, minutes_ago: int, content: str = "docker deploy", sender: str
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="rel")
-async def test_advanced_search_relevance_with_time_range(_mock_key, mock_managers) -> None:
-    from zulipchat_mcp.tools.search_v25 import advanced_search, TimeRange
+async def test_advanced_search_relevance_with_time_range(
+    _mock_key, mock_managers
+) -> None:
+    from zulipchat_mcp.tools.search_v25 import TimeRange, advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
@@ -53,4 +61,3 @@ async def test_advanced_search_relevance_with_time_range(_mock_key, mock_manager
     res = out["results"]["messages"]
     assert res["count"] >= 5 and res["has_more"] is True
     assert out["metadata"]["limit"] == 5 and out["metadata"]["sort_by"] == "relevance"
-

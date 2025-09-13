@@ -27,6 +27,7 @@ async def test_get_events_basic(mock_managers) -> None:
         class Client:
             def get_events(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "events": []}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -35,4 +36,3 @@ async def test_get_events_basic(mock_managers) -> None:
     assert res["status"] == "success"
     assert res["queue_id"] == "q1"
     assert res["event_count"] == 0
-

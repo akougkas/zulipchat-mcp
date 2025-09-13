@@ -21,6 +21,7 @@ async def test_advanced_search_topics_has_less(_mock_key, mock_managers) -> None
     class Client:
         def get_streams(self, *args, **kwargs):  # type: ignore[no-redef]
             return {"result": "success", "streams": [{"stream_id": 1, "name": "s1"}]}
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "topics": [{"name": "deploy"}]}
 
@@ -37,4 +38,3 @@ async def test_advanced_search_topics_has_less(_mock_key, mock_managers) -> None
     )
     assert out["status"] == "success"
     assert out["results"]["topics"]["has_more"] is False
-

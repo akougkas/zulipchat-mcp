@@ -26,6 +26,7 @@ async def test_manage_users_list_basic(mock_managers) -> None:
         class Client:
             def get_users(self, request=None):  # type: ignore[no-redef]
                 return {"result": "success", "members": [{"full_name": "John"}]}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -45,4 +46,3 @@ async def test_manage_users_mutually_exclusive_identity_error(mock_managers) -> 
     res = await manage_users(operation="list", as_bot=True, as_admin=True)
     assert res["status"] == "error"
     assert "Cannot use both" in res["error"]
-

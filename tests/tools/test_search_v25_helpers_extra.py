@@ -14,4 +14,3 @@ def test_extract_search_highlights_basic() -> None:
 
 def test_extract_search_highlights_empty_query() -> None:
     assert _extract_search_highlights("content", " ") == []
-

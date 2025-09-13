@@ -7,9 +7,7 @@ incoming messages and update pending user input requests.
 from __future__ import annotations
 
 import asyncio
-import re
-from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from ..core.client import ZulipClientWrapper
 from ..utils.database_manager import DatabaseManager
@@ -21,7 +19,12 @@ logger = get_logger(__name__)
 class MessageListener:
     """Listens to Zulip event stream and processes responses."""
 
-    def __init__(self, client: ZulipClientWrapper, db: DatabaseManager, stream_name: str = "Agents-Channel"):
+    def __init__(
+        self,
+        client: ZulipClientWrapper,
+        db: DatabaseManager,
+        stream_name: str = "Agents-Channel",
+    ):
         self.client = client
         self.db = db
         self.running = False
@@ -48,7 +51,7 @@ class MessageListener:
         """Stop listener loop."""
         self.running = False
 
-    async def _get_events(self) -> List[Dict[str, Any]]:
+    async def _get_events(self) -> list[dict[str, Any]]:
         """Fetch events from Zulip using a shared event queue.
 
         Registers a queue on first use (messages only) narrowed to the
@@ -65,7 +68,9 @@ class MessageListener:
                 "dont_block": False,
                 "timeout": 30,
             }
-            resp = self.client.client.call_endpoint("events", method="GET", request=params)
+            resp = self.client.client.call_endpoint(
+                "events", method="GET", request=params
+            )
             if resp.get("result") != "success":
                 code = resp.get("code") or resp.get("msg")
                 logger.warning(f"get_events returned error: {code}")
@@ -104,13 +109,17 @@ class MessageListener:
                     {"operator": "stream", "operand": self.stream_name},
                 ],
             }
-            resp = self.client.client.call_endpoint("register", method="POST", request=request)
+            resp = self.client.client.call_endpoint(
+                "register", method="POST", request=request
+            )
             if resp.get("result") == "success":
                 self._queue_id = resp.get("queue_id")
                 last_event_id = resp.get("last_event_id")
                 # Zulip can return last_event_id as int or str
                 try:
-                    self._last_event_id = int(last_event_id) if last_event_id is not None else None
+                    self._last_event_id = (
+                        int(last_event_id) if last_event_id is not None else None
+                    )
                 except Exception:
                     self._last_event_id = None
                 logger.info("Registered Zulip event queue for MessageListener")

@@ -20,10 +20,17 @@ async def test_advanced_search_topics_has_more(_mock_key, mock_managers) -> None
 
     class Client:
         def get_streams(self, *args, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"stream_id": i, "name": f"s{i}"} for i in range(1, 4)]}
+            return {
+                "result": "success",
+                "streams": [{"stream_id": i, "name": f"s{i}"} for i in range(1, 4)],
+            }
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
             # Return many topics across streams
-            return {"result": "success", "topics": [{"name": f"deploy{i}"} for i in range(1, 8)]}
+            return {
+                "result": "success",
+                "topics": [{"name": f"deploy{i}"} for i in range(1, 8)],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
@@ -38,4 +45,3 @@ async def test_advanced_search_topics_has_more(_mock_key, mock_managers) -> None
     )
     assert out["status"] == "success"
     assert out["results"]["topics"]["has_more"] is True
-

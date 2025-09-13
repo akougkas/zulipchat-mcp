@@ -9,20 +9,24 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from enum import Enum
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
+from typing import TypeVar
 
 from ..utils.logging import get_logger
 from .exceptions import (
     AuthenticationError,
-    ConnectionError as ZulipConnectionError,
-    PermissionError as ZulipPermissionError,
     RateLimitError,
     ValidationError,
     ZulipMCPError,
+)
+from .exceptions import (
+    ConnectionError as ZulipConnectionError,
+)
+from .exceptions import (
+    PermissionError as ZulipPermissionError,
 )
 
 logger = get_logger(__name__)
@@ -49,13 +53,23 @@ class RetryConfig:
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL
     backoff_factor: float = 2.0
     jitter: bool = True
-    retryable_errors: List[type] = field(
-        default_factory=lambda: [ConnectionError, ZulipConnectionError, RateLimitError, TimeoutError]
+    retryable_errors: list[type] = field(
+        default_factory=lambda: [
+            ConnectionError,
+            ZulipConnectionError,
+            RateLimitError,
+            TimeoutError,
+        ]
     )
-    non_retryable_errors: List[type] = field(
-        default_factory=lambda: [AuthenticationError, ValidationError, PermissionError, ZulipPermissionError]
+    non_retryable_errors: list[type] = field(
+        default_factory=lambda: [
+            AuthenticationError,
+            ValidationError,
+            PermissionError,
+            ZulipPermissionError,
+        ]
     )
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.max_attempts < 1:
@@ -76,7 +90,7 @@ class RateLimitConfig:
     time_window: float = 60.0  # Time window in seconds
     burst_limit: int = 10  # Burst capacity
     enforce: bool = True  # Whether to enforce rate limiting
-    
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.max_requests <= 0:
@@ -119,9 +133,7 @@ class RateLimiter:
             # Refill tokens based on elapsed time
             now = time.monotonic()
             elapsed = now - self.last_refill
-            self.tokens = min(
-                self.max_tokens, self.tokens + elapsed * self.refill_rate
-            )
+            self.tokens = min(self.max_tokens, self.tokens + elapsed * self.refill_rate)
             self.last_refill = now
 
             # Check if we have enough tokens
@@ -155,8 +167,8 @@ class ErrorHandler:
 
     def __init__(
         self,
-        retry_config: Optional[RetryConfig] = None,
-        rate_limit_config: Optional[RateLimitConfig] = None,
+        retry_config: RetryConfig | None = None,
+        rate_limit_config: RateLimitConfig | None = None,
     ):
         """Initialize error handler.
 
@@ -184,10 +196,10 @@ class ErrorHandler:
         elif config.strategy == RetryStrategy.LINEAR:
             delay = config.initial_delay * (attempt + 1)
         elif config.strategy == RetryStrategy.EXPONENTIAL:
-            delay = config.initial_delay * (config.backoff_factor ** attempt)
+            delay = config.initial_delay * (config.backoff_factor**attempt)
         elif config.strategy == RetryStrategy.JITTERED:
             # Exponential with jitter
-            base_delay = config.initial_delay * (config.backoff_factor ** attempt)
+            base_delay = config.initial_delay * (config.backoff_factor**attempt)
             delay = base_delay + random.uniform(0, base_delay * 0.1)
         else:
             delay = config.initial_delay
@@ -235,7 +247,7 @@ class ErrorHandler:
         self,
         func: Callable[..., T],
         *args,
-        operation_name: Optional[str] = None,
+        operation_name: str | None = None,
         **kwargs,
     ) -> T:
         """Execute a function with automatic retry on failure.
@@ -253,7 +265,7 @@ class ErrorHandler:
             Exception: If all retry attempts fail
         """
         operation_name = operation_name or func.__name__
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for attempt in range(self.retry_config.max_attempts):
             try:
@@ -272,9 +284,7 @@ class ErrorHandler:
 
                 # Check if retryable
                 if not self.is_retryable(e):
-                    logger.error(
-                        f"Non-retryable error in {operation_name}: {e}"
-                    )
+                    logger.error(f"Non-retryable error in {operation_name}: {e}")
                     raise
 
                 # Check if we have more attempts
@@ -301,7 +311,7 @@ class ErrorHandler:
     # Removed error statistics and circuit breaker methods - over-engineering
 
     def create_safe_executor(
-        self, func: Callable[..., T], operation_name: Optional[str] = None
+        self, func: Callable[..., T], operation_name: str | None = None
     ) -> Callable[..., T]:
         """Create a wrapped version of a function with error handling.
 
@@ -340,7 +350,7 @@ class ErrorHandler:
 
 
 # Global error handler instance
-_error_handler: Optional[ErrorHandler] = None
+_error_handler: ErrorHandler | None = None
 
 
 def get_error_handler() -> ErrorHandler:
@@ -357,7 +367,7 @@ def get_error_handler() -> ErrorHandler:
 
 def with_retry(
     max_attempts: int = 3,
-    operation_name: Optional[str] = None,
+    operation_name: str | None = None,
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL,
 ):
     """Decorator to add retry logic to a function.
@@ -402,7 +412,7 @@ def with_rate_limit(
         max_requests = int(calls_per_second)
         time_window = 1.0
         burst_limit = max(1, int(calls_per_second / 10))  # 10% burst capacity
-            
+
         handler = ErrorHandler(
             rate_limit_config=RateLimitConfig(
                 max_requests=max_requests,

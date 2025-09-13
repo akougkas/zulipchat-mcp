@@ -57,4 +57,3 @@ async def test_analytics_basic(mock_managers) -> None:
     res = await analytics(metric="activity")
     assert res["status"] == "success"
     assert res["metric"] == "activity"
-

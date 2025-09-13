@@ -17,9 +17,9 @@ logger = get_logger(__name__)
 class ValidationMode(Enum):
     """Validation modes for progressive disclosure."""
 
-    BASIC = "basic"      # Essential parameters only
+    BASIC = "basic"  # Essential parameters only
     ADVANCED = "advanced"  # All parameters available
-    EXPERT = "expert"    # Expert mode with minimal validation
+    EXPERT = "expert"  # Expert mode with minimal validation
 
 
 class SimpleValidator:
@@ -55,18 +55,18 @@ class SimpleValidator:
         self,
         tool: str,
         params: dict[str, Any],
-        mode: ValidationMode = ValidationMode.BASIC
+        mode: ValidationMode = ValidationMode.BASIC,
     ) -> dict[str, Any]:
         """Validate tool parameters with progressive disclosure.
-        
+
         Args:
             tool: Tool name to validate
             params: Parameters to validate
             mode: Validation mode
-            
+
         Returns:
             Validated and filtered parameters
-            
+
         Raises:
             ValueError: If required parameters are missing
         """
@@ -83,16 +83,18 @@ class SimpleValidator:
         # Advanced mode: full validation
         return self._validate_required_only(tool, params)
 
-    def _validate_required_only(self, tool: str, params: dict[str, Any]) -> dict[str, Any]:
+    def _validate_required_only(
+        self, tool: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
         """Basic validation - just check required parameters.
-        
+
         Args:
             tool: Tool name
             params: Parameters to validate
-            
+
         Returns:
             Validated parameters
-            
+
         Raises:
             ValueError: If required parameters are missing
         """
@@ -104,13 +106,15 @@ class SimpleValidator:
 
         return params
 
-    def get_parameter_help(self, tool: str, mode: ValidationMode = ValidationMode.BASIC) -> dict[str, Any]:
+    def get_parameter_help(
+        self, tool: str, mode: ValidationMode = ValidationMode.BASIC
+    ) -> dict[str, Any]:
         """Get help information for tool parameters.
-        
+
         Args:
             tool: Tool name
             mode: What level of help to provide
-            
+
         Returns:
             Parameter help information
         """
@@ -170,16 +174,16 @@ class NarrowHelper:
         stream: str | None = None,
         topic: str | None = None,
         sender: str | None = None,
-        text: str | None = None
+        text: str | None = None,
     ) -> list[dict[str, str]]:
         """Build a basic narrow filter from common parameters.
-        
+
         Args:
             stream: Stream name
             topic: Topic name
             sender: Sender email
             text: Text to search for
-            
+
         Returns:
             List of narrow filters
         """
@@ -210,17 +214,15 @@ def get_validator() -> SimpleValidator:
 
 
 def validate_tool_params(
-    tool: str,
-    params: dict[str, Any],
-    mode: ValidationMode = ValidationMode.BASIC
+    tool: str, params: dict[str, Any], mode: ValidationMode = ValidationMode.BASIC
 ) -> dict[str, Any]:
     """Convenience function for parameter validation.
-    
+
     Args:
         tool: Tool name
         params: Parameters to validate
         mode: Validation mode
-        
+
     Returns:
         Validated parameters
     """

@@ -15,11 +15,11 @@ Notes:
 
 from __future__ import annotations
 
-import os
 import asyncio
+import os
+
 import pytest
 from dotenv import load_dotenv
-
 
 # Load .env if present
 load_dotenv()
@@ -27,12 +27,17 @@ load_dotenv()
 
 def _have_creds() -> bool:
     return bool(
-        os.getenv("ZULIP_EMAIL") and os.getenv("ZULIP_API_KEY") and os.getenv("ZULIP_SITE")
+        os.getenv("ZULIP_EMAIL")
+        and os.getenv("ZULIP_API_KEY")
+        and os.getenv("ZULIP_SITE")
     )
 
 
 require_real = pytest.mark.skipif(
-    not (_have_creds() and os.getenv("RUN_REAL_ZULIP_TESTS", "0") in {"1", "true", "True"}),
+    not (
+        _have_creds()
+        and os.getenv("RUN_REAL_ZULIP_TESTS", "0") in {"1", "true", "True"}
+    ),
     reason="Real Zulip credentials not provided or RUN_REAL_ZULIP_TESTS not enabled",
 )
 
@@ -81,10 +86,11 @@ def test_manage_streams_list_via_tool() -> None:
     from zulipchat_mcp.tools.streams_v25 import manage_streams
 
     async def _run():
-        res = await manage_streams(operation="list", include_public=True, include_subscribed=True)
+        res = await manage_streams(
+            operation="list", include_public=True, include_subscribed=True
+        )
         assert res.get("status") == "success"
         assert res.get("operation") == "list"
         assert isinstance(res.get("streams"), list)
 
     asyncio.run(_run())
-

@@ -30,16 +30,25 @@ async def test_listen_events_with_webhook_and_filter(mock_send, mock_managers) -
         class Client:
             def register(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "queue_id": "q1", "last_event_id": 0}
+
             def get_events(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "events": [{"id": 1, "type": "message"}]}
+
             def deregister(self, queue_id):  # type: ignore[no-redef]
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
     mock_send.return_value = AsyncMock()
 
-    res = await listen_events(event_types=["message"], duration=0.01, poll_interval=0, callback_url="http://example", filters={"type": "message"})
+    res = await listen_events(
+        event_types=["message"],
+        duration=0.01,
+        poll_interval=0,
+        callback_url="http://example",
+        filters={"type": "message"},
+    )
     assert res["status"] == "success"
     assert res["total_events"] >= 1
 
@@ -64,13 +73,21 @@ async def test_listen_events_filter_mismatch_no_webhook(mock_managers) -> None:
         class Client:
             def register(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "queue_id": "q2", "last_event_id": 0}
+
             def get_events(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "events": [{"id": 1, "type": "message"}]}
+
             def deregister(self, queue_id):  # type: ignore[no-redef]
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
-    res = await listen_events(event_types=["message"], duration=0.01, poll_interval=0, filters={"type": "typing"})
+    res = await listen_events(
+        event_types=["message"],
+        duration=0.01,
+        poll_interval=0,
+        filters={"type": "typing"},
+    )
     assert res["status"] == "success"
     assert res["total_events"] == 0

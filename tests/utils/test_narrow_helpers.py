@@ -66,4 +66,3 @@ def test_build_basic_narrow_and_helpers() -> None:
     # Simple narrow returns API dicts
     simple = simple_narrow(stream="dev", text="deploy")
     assert isinstance(simple, list) and all("operator" in d for d in simple)
-

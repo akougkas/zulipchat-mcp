@@ -19,12 +19,16 @@ async def test_manage_topics_missing_source_topic_errors(mock_managers) -> None:
     async def execute(tool, params, func, identity=None):
         class Client:
             pass
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
     for op in ("move", "mute", "unmute", "mark_read", "delete"):
-        mock_validator.validate_tool_params.return_value = {"stream_id": 1, "operation": op}
+        mock_validator.validate_tool_params.return_value = {
+            "stream_id": 1,
+            "operation": op,
+        }
         res = await manage_topics(stream_id=1, operation=op)
         assert res["status"] == "error"
         assert "source_topic" in res["error"]
@@ -40,9 +44,14 @@ async def test_manage_streams_missing_args_errors(mock_managers) -> None:
     mock_validator.suggest_mode.return_value = Mock()
 
     # update without ids/names
-    mock_validator.validate_tool_params.return_value = {"operation": "update", "properties": {"name": "x"}}
+    mock_validator.validate_tool_params.return_value = {
+        "operation": "update",
+        "properties": {"name": "x"},
+    }
+
     async def execute(tool, params, func, identity=None):
         return await func(Mock(), params)
+
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
     res_upd = await manage_streams(operation="update", properties={"name": "x"})
     assert res_upd["status"] == "error"

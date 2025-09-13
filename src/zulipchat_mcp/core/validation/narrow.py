@@ -44,11 +44,11 @@ class NarrowFilter(BaseModel):
         else:
             # Handle keyword arguments
             if operator is not None:
-                data['operator'] = operator
+                data["operator"] = operator
             if operand is not None:
-                data['operand'] = operand
+                data["operand"] = operand
             if negated:
-                data['negated'] = negated
+                data["negated"] = negated
             super().__init__(**data)
 
     @field_validator("operand")
@@ -57,7 +57,11 @@ class NarrowFilter(BaseModel):
         operator = info.data.get("operator")
         if operator == NarrowOperator.ID and not isinstance(v, int):
             raise ValueError("ID operator requires integer operand")
-        if operator in [NarrowOperator.STREAM, NarrowOperator.TOPIC, NarrowOperator.SENDER] and not isinstance(v, str):
+        if operator in [
+            NarrowOperator.STREAM,
+            NarrowOperator.TOPIC,
+            NarrowOperator.SENDER,
+        ] and not isinstance(v, str):
             raise ValueError(f"{operator} operator requires string operand")
         return v
 
@@ -74,13 +78,15 @@ class NarrowFilter(BaseModel):
         try:
             operator = NarrowOperator(data["operator"])
         except (KeyError, ValueError):
-            raise ValidationError(f"Invalid narrow operator: {data.get('operator', 'missing')}") from None
+            raise ValidationError(
+                f"Invalid narrow operator: {data.get('operator', 'missing')}"
+            ) from None
 
         try:
             return cls(
                 operator=operator,
                 operand=data["operand"],
-                negated=data.get("negated", False)
+                negated=data.get("negated", False),
             )
         except (KeyError, ValueError) as e:
             raise ValidationError(f"Invalid narrow filter data: {e}") from None
@@ -131,7 +137,9 @@ class NarrowBuilder:
     def has(self, attribute: str, negated: bool = False) -> NarrowBuilder:
         """Add 'has' filter (e.g., 'attachment', 'link', 'image')."""
         self.filters.append(
-            NarrowFilter(operator=NarrowOperator.HAS, operand=attribute, negated=negated)
+            NarrowFilter(
+                operator=NarrowOperator.HAS, operand=attribute, negated=negated
+            )
         )
         return self
 
@@ -149,7 +157,9 @@ class NarrowBuilder:
         )
         return self
 
-    def time_range(self, after: datetime, before: datetime | None = None) -> NarrowBuilder:
+    def time_range(
+        self, after: datetime, before: datetime | None = None
+    ) -> NarrowBuilder:
         """Add time-based filters."""
         self.filters.append(
             NarrowFilter(

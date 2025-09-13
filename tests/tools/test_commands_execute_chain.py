@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-
 from unittest.mock import patch
-
-import pytest
 
 
 class DummyChain:
@@ -52,7 +49,15 @@ class _DummyConditional:
 def test_execute_chain_smoke(*_patches) -> None:
     from zulipchat_mcp.tools.commands import execute_chain
 
-    cmds = [{"type": "conditional_action", "params": {"condition": "False", "true_action": {"type": "search_messages"}}}]
+    cmds = [
+        {
+            "type": "conditional_action",
+            "params": {
+                "condition": "False",
+                "true_action": {"type": "search_messages"},
+            },
+        }
+    ]
     out = execute_chain(cmds)
     assert out["status"] == "success"
     # Our DummyChain records class names of built commands (patched)

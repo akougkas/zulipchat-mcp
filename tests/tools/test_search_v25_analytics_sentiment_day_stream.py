@@ -9,7 +9,9 @@ import pytest
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
-async def test_analytics_sentiment_group_by_day_and_stream(mock_managers, make_msg) -> None:
+async def test_analytics_sentiment_group_by_day_and_stream(
+    mock_managers, make_msg
+) -> None:
     from zulipchat_mcp.tools.search_v25 import analytics
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -26,6 +28,7 @@ async def test_analytics_sentiment_group_by_day_and_stream(mock_managers, make_m
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": msgs}
+
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
             return self.get_messages(kwargs)
 

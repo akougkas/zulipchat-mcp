@@ -23,4 +23,3 @@ async def test_switch_identity_exception_path(mock_managers) -> None:
     res = await switch_identity(identity="admin", validate=True)
     assert res["status"] == "error"
     assert "Failed to switch to" in res["error"]
-

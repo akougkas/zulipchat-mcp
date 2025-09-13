@@ -7,7 +7,8 @@ class TestMigrationManager:
     def test_migrate_send_message(self) -> None:
         mm = MigrationManager()
         new_tool, params = mm.migrate_tool_call(
-            "send_message", {"message_type": "stream", "stream": "general", "subject": "hello"}
+            "send_message",
+            {"message_type": "stream", "stream": "general", "subject": "hello"},
         )
         assert new_tool == "messaging.message"
         # parameter mapping is shallow; original keys preserved when unmapped
@@ -22,4 +23,3 @@ class TestMigrationManager:
         assert new_tool == "streams.manage_streams"
         assert params["operation"] == "list"
         assert params["include_public"] is True
-

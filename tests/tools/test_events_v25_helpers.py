@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from zulipchat_mcp.core.validation import NarrowFilter
-from zulipchat_mcp.tools.events_v25 import _convert_narrow_to_api_format, _event_matches_filters
+from zulipchat_mcp.tools.events_v25 import (
+    _convert_narrow_to_api_format,
+    _event_matches_filters,
+)
 
 
 def test_convert_narrow_to_api_format_mixed() -> None:
@@ -31,4 +34,3 @@ def test_event_matches_filters_various() -> None:
     # Nested dict
     assert _event_matches_filters(event, {"user": {"id": 5}}) is True
     assert _event_matches_filters(event, {"user": {"role": "member"}}) is False
-

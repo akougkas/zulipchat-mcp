@@ -26,7 +26,10 @@ async def test_stream_analytics_success_by_name(mock_managers) -> None:
 
     class Client:
         def get_streams(self, include_subscribed=True, include_public=True):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"name": "general", "stream_id": 10}]}
+            return {
+                "result": "success",
+                "streams": [{"name": "general", "stream_id": 10}],
+            }
 
         def get_stream_id(self, stream_id):  # type: ignore[no-redef]
             assert stream_id == 10
@@ -62,4 +65,3 @@ async def test_stream_analytics_success_by_name(mock_managers) -> None:
     assert res["status"] == "success"
     assert res["stream_id"] == 10
     assert "message_stats" in res and "user_activity" in res and "topic_stats" in res
-

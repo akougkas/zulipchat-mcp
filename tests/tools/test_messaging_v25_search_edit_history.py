@@ -36,15 +36,25 @@ async def test_search_messages_basic_success(mock_managers) -> None:
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
             return {"result": "success", "messages": [_msg(1), _msg(2)]}
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await search_messages(narrow=[{"operator": "stream", "operand": "general"}], num_before=2, num_after=0)
+    res = await search_messages(
+        narrow=[{"operator": "stream", "operand": "general"}], num_before=2, num_after=0
+    )
     assert res["status"] == "success"
     assert res["count"] == 2
 
@@ -108,4 +118,6 @@ async def test_message_history_success(mock_managers) -> None:
     res = await message_history(5, include_reaction_history=True)
     assert res["status"] == "success"
     assert res["message_id"] == 5
-    assert "edit_history" in res and "content_history" in res and "reaction_history" in res
+    assert (
+        "edit_history" in res and "content_history" in res and "reaction_history" in res
+    )

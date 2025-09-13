@@ -14,7 +14,7 @@ import pytest
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
 async def test_manage_streams_list_basic(mock_managers) -> None:
     from zulipchat_mcp.tools.streams_v25 import manage_streams
-    
+
     mock_config = Mock()
     mock_identity = Mock()
     mock_validator = Mock()
@@ -33,12 +33,14 @@ async def test_manage_streams_list_basic(mock_managers) -> None:
         class Client:
             def get_streams(self, **kwargs):
                 return {"result": "success", "streams": [{"name": "general"}]}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await manage_streams(operation="list", include_public=True, include_subscribed=True)
+    res = await manage_streams(
+        operation="list", include_public=True, include_subscribed=True
+    )
     assert res["status"] == "success"
     assert res["operation"] == "list"
     assert isinstance(res["streams"], list)
-

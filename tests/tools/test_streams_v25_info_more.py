@@ -19,19 +19,32 @@ async def test_get_stream_info_by_name_success(mock_managers) -> None:
 
     class Client:
         def get_streams(self, include_subscribed=True, force_fresh=False):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"name": "general", "stream_id": 1}]}
+            return {
+                "result": "success",
+                "streams": [{"name": "general", "stream_id": 1}],
+            }
+
         def get_stream_topics(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "topics": [{"name": "t"}]}
+
         def get_subscribers(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "subscribers": [1]}
+
         def get_subscriptions(self):  # type: ignore[no-redef]
-            return {"result": "success", "subscriptions": [{"stream_id": 1, "pin_to_top": True}]}
+            return {
+                "result": "success",
+                "subscriptions": [{"stream_id": 1, "pin_to_top": True}],
+            }
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await get_stream_info(stream_name="general", include_topics=True, include_subscribers=True, include_settings=True)
+    res = await get_stream_info(
+        stream_name="general",
+        include_topics=True,
+        include_subscribers=True,
+        include_settings=True,
+    )
     assert res["status"] == "success" and res["stream"]["name"] == "general"
-

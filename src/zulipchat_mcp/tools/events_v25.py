@@ -20,7 +20,6 @@ Features:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from typing import Any, Literal
 
 from ..config import ConfigManager
@@ -39,11 +38,29 @@ Event = dict[str, Any]
 
 # Event type definitions
 EventType = Literal[
-    "message", "subscription", "realm_user", "realm_emoji", "realm_filters",
-    "realm_domains", "realm_bot", "stream", "default_streams", "default_stream_groups",
-    "user_group", "user_status", "reaction", "presence", "typing", "heartbeat",
-    "realm_linkifiers", "realm_playbooks", "alert_words", "custom_profile_fields",
-    "muted_topics", "muted_users", "user_settings"
+    "message",
+    "subscription",
+    "realm_user",
+    "realm_emoji",
+    "realm_filters",
+    "realm_domains",
+    "realm_bot",
+    "stream",
+    "default_streams",
+    "default_stream_groups",
+    "user_group",
+    "user_status",
+    "reaction",
+    "presence",
+    "typing",
+    "heartbeat",
+    "realm_linkifiers",
+    "realm_playbooks",
+    "alert_words",
+    "custom_profile_fields",
+    "muted_topics",
+    "muted_users",
+    "user_settings",
 ]
 
 # Global instances
@@ -72,7 +89,9 @@ def _get_managers() -> tuple[ConfigManager, IdentityManager, ParameterValidator]
     return _config_manager, _identity_manager, _parameter_validator
 
 
-def _convert_narrow_to_api_format(narrow: list[NarrowFilter | dict[str, Any]]) -> list[dict[str, Any]]:
+def _convert_narrow_to_api_format(
+    narrow: list[NarrowFilter | dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Convert narrow filters to Zulip API format."""
     result = []
     for item in narrow:
@@ -141,7 +160,9 @@ async def register_events(
                 }
 
                 # Use appropriate validation mode
-                validation_mode = validator.suggest_mode("events.register_events", params)
+                validation_mode = validator.suggest_mode(
+                    "events.register_events", params
+                )
                 validated_params = validator.validate_tool_params(
                     "events.register_events", params, validation_mode
                 )
@@ -166,7 +187,7 @@ async def register_events(
                 }
 
 
-async def _execute_register_events(client, params: dict[str, Any]) -> EventQueue:
+async def _execute_register_events(client: Any, params: dict[str, Any]) -> EventQueue:
     """Execute event registration with Zulip client."""
     try:
         # Prepare registration parameters
@@ -191,9 +212,7 @@ async def _execute_register_events(client, params: dict[str, Any]) -> EventQueue
             register_params["client_capabilities"] = params["client_capabilities"]
 
         # Register for events
-        result = client.register(
-            **register_params
-        )
+        result = client.register(**register_params)
 
         if result.get("result") == "success":
             queue_id = result.get("queue_id")
@@ -219,7 +238,8 @@ async def _execute_register_events(client, params: dict[str, Any]) -> EventQueue
                 "max_message_id": result.get("max_message_id"),
                 "realm_user": result.get("realm_user", {}),
                 "initial_state": {
-                    key: value for key, value in result.items()
+                    key: value
+                    for key, value in result.items()
                     if key not in ["result", "msg", "queue_id", "last_event_id"]
                 },
             }
@@ -238,7 +258,7 @@ async def _execute_register_events(client, params: dict[str, Any]) -> EventQueue
         }
 
 
-async def _schedule_queue_cleanup(queue_id: str):
+async def _schedule_queue_cleanup(queue_id: str) -> None:
     """Schedule automatic cleanup of event queue."""
     try:
         queue_info = _active_queues.get(queue_id)
@@ -334,7 +354,7 @@ async def get_events(
                 }
 
 
-async def _execute_get_events(client, params: dict[str, Any]) -> EventBatch:
+async def _execute_get_events(client: Any, params: dict[str, Any]) -> EventBatch:
     """Execute get events with Zulip client."""
     try:
         # Prepare get events parameters
@@ -369,13 +389,17 @@ async def _execute_get_events(client, params: dict[str, Any]) -> EventBatch:
                 "events": events,
                 "event_count": len(events),
                 "found_newest": result.get("found_newest", False),
-                "last_event_id": events[-1]["id"] if events else params["last_event_id"],
+                "last_event_id": (
+                    events[-1]["id"] if events else params["last_event_id"]
+                ),
                 "queue_still_valid": True,  # Assume valid if we got events
             }
         else:
             # Check if queue is invalid
             error_msg = result.get("msg", "")
-            queue_invalid = "queue" in error_msg.lower() and ("invalid" in error_msg.lower() or "expired" in error_msg.lower())
+            queue_invalid = "queue" in error_msg.lower() and (
+                "invalid" in error_msg.lower() or "expired" in error_msg.lower()
+            )
 
             return {
                 "status": "error",
@@ -387,7 +411,9 @@ async def _execute_get_events(client, params: dict[str, Any]) -> EventBatch:
     except Exception as e:
         # Check if it's a queue-related error
         error_str = str(e).lower()
-        queue_invalid = "queue" in error_str and ("invalid" in error_str or "expired" in error_str)
+        queue_invalid = "queue" in error_str and (
+            "invalid" in error_str or "expired" in error_str
+        )
 
         return {
             "status": "error",
@@ -429,7 +455,9 @@ async def listen_events(
         ZulipMCPError: If Zulip API call fails
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "listen_events"}):
-        with LogContext(logger, tool="listen_events", event_types=event_types, duration=duration):
+        with LogContext(
+            logger, tool="listen_events", event_types=event_types, duration=duration
+        ):
             try:
                 config, identity_manager, validator = _get_managers()
 
@@ -451,7 +479,7 @@ async def listen_events(
                     "events.listen_events", params, validation_mode
                 )
 
-                # Execute with appropriate identity  
+                # Execute with appropriate identity
                 result = await identity_manager.execute_with_identity(
                     "events.listen_events",
                     validated_params,
@@ -471,7 +499,7 @@ async def listen_events(
                 }
 
 
-async def _execute_listen_events(client, params: dict[str, Any]) -> dict[str, Any]:
+async def _execute_listen_events(client: Any, params: dict[str, Any]) -> dict[str, Any]:
     """Execute event listening with Zulip client."""
     try:
         # Register for events first
@@ -488,7 +516,7 @@ async def _execute_listen_events(client, params: dict[str, Any]) -> dict[str, An
         max_events_total = params.get("max_events_per_poll", 100)
 
         logger.info(f"Started listening for events on queue {queue_id} for {duration}s")
-        
+
         collected_events = []
         webhook_sent_count = 0
 
@@ -517,7 +545,9 @@ async def _execute_listen_events(client, params: dict[str, Any]) -> dict[str, An
                         if _event_matches_filters(event, params.get("filters")):
                             # Send to webhook if configured
                             if params.get("callback_url"):
-                                asyncio.create_task(_send_webhook(params["callback_url"], event))
+                                asyncio.create_task(
+                                    _send_webhook(params["callback_url"], event)
+                                )
                                 webhook_sent_count += 1
 
                             collected_events.append(event)
@@ -542,7 +572,7 @@ async def _execute_listen_events(client, params: dict[str, Any]) -> dict[str, An
                 else:
                     # Other error, log it and continue
                     logger.warning(f"Event polling error: {events_result}")
-                    
+
                 # Wait before next poll (if we didn't get many events)
                 if len(events) < max_events_total:
                     await asyncio.sleep(poll_interval)
@@ -575,7 +605,9 @@ async def _execute_listen_events(client, params: dict[str, Any]) -> dict[str, An
         }
 
 
-def _event_matches_filters(event: dict[str, Any], filters: dict[str, Any] | None) -> bool:
+def _event_matches_filters(
+    event: dict[str, Any], filters: dict[str, Any] | None
+) -> bool:
     """Check if an event matches the specified filters."""
     if not filters:
         return True
@@ -605,20 +637,22 @@ def _event_matches_filters(event: dict[str, Any], filters: dict[str, Any] | None
     return True
 
 
-async def _send_webhook(callback_url: str, event: dict[str, Any]):
+async def _send_webhook(callback_url: str, event: dict[str, Any]) -> None:
     """Send event to webhook URL."""
     try:
-        import aiohttp
+        import aiohttp  # type: ignore[import-not-found]
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 callback_url,
                 json=event,
                 headers={"Content-Type": "application/json"},
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=5),
             ) as response:
                 if response.status >= 400:
-                    logger.warning(f"Webhook returned status {response.status} for URL: {callback_url}")
+                    logger.warning(
+                        f"Webhook returned status {response.status} for URL: {callback_url}"
+                    )
                 else:
                     logger.debug(f"Successfully sent event to webhook: {callback_url}")
 
@@ -626,7 +660,7 @@ async def _send_webhook(callback_url: str, event: dict[str, Any]):
         logger.error(f"Failed to send webhook to {callback_url}: {e}")
 
 
-def cleanup_expired_queues():
+def cleanup_expired_queues() -> None:
     """Clean up expired event queues."""
     current_time = asyncio.get_event_loop().time()
     expired_queues = []
@@ -650,7 +684,8 @@ def get_active_queues() -> dict[str, dict[str, Any]]:
             "created_at": queue_info["created_at"],
             "lifespan": queue_info["lifespan"],
             "age_seconds": current_time - queue_info["created_at"],
-            "expires_in_seconds": queue_info["lifespan"] - (current_time - queue_info["created_at"]),
+            "expires_in_seconds": queue_info["lifespan"]
+            - (current_time - queue_info["created_at"]),
         }
 
     return result
@@ -662,7 +697,8 @@ def register_events_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    mcp.tool(description="Register for real-time events without persistence")(register_events)
+    mcp.tool(description="Register for real-time events without persistence")(
+        register_events
+    )
     mcp.tool(description="Poll events from queue (stateless)")(get_events)
     mcp.tool(description="Simple event listener with callback support")(listen_events)
-

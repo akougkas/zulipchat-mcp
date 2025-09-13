@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
 async def test_manage_streams_list_and_update_errors(mock_managers) -> None:
-    from zulipchat_mcp.tools.streams_v25 import manage_streams, get_stream_info
+    from zulipchat_mcp.tools.streams_v25 import get_stream_info, manage_streams
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
@@ -19,7 +19,11 @@ async def test_manage_streams_list_and_update_errors(mock_managers) -> None:
 
     class Client:
         def get_streams(self, **kwargs):  # type: ignore[no-redef]
-            return {"result": "success", "streams": [{"name": "general", "stream_id": 1}]}
+            return {
+                "result": "success",
+                "streams": [{"name": "general", "stream_id": 1}],
+            }
+
         # Provide shape used by manage_streams(list) path (dict param signature)
         def get_streams_raw(self, request):  # not used; keep for completeness
             return self.get_streams(**request)
@@ -40,7 +44,9 @@ async def test_manage_streams_list_and_update_errors(mock_managers) -> None:
     assert err2["status"] == "error" and "properties" in err2["error"]
 
     # subscribe error (no ids/names)
-    from zulipchat_mcp.tools.streams_v25 import _subscribe_streams
     # Exercise get_stream_info error for missing identifiers
     info_err = await get_stream_info()
-    assert info_err["status"] == "error" and "Either stream_id or stream_name" in info_err["error"]
+    assert (
+        info_err["status"] == "error"
+        and "Either stream_id or stream_name" in info_err["error"]
+    )

@@ -33,4 +33,3 @@ async def test_manage_streams_delete_mixed(mock_managers) -> None:
     res = await manage_streams("delete", stream_ids=[1, 2, 3])
     assert res["status"] == "success" and res["operation"] == "delete"
     assert len(res["results"]) == 3
-

@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 
 from zulipchat_mcp.tools.messaging_v25 import (
-    get_legacy_send_message,
-    get_legacy_get_messages,
     get_legacy_edit_message,
+    get_legacy_get_messages,
+    get_legacy_send_message,
 )
 
 
@@ -20,4 +20,3 @@ def test_legacy_wrapper_coroutines_exist() -> None:
     loop.run_until_complete(send("stream", "general", "hi", topic="t"))
     loop.run_until_complete(get())
     loop.run_until_complete(edit(1, content="x"))
-

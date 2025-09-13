@@ -31,9 +31,7 @@ AGENT_REGISTRY = {
 }
 
 
-def install_agent(
-    agent: str, scope: str = "user", directory: str | None = None
-) -> int:
+def install_agent(agent: str, scope: str = "user", directory: str | None = None) -> int:
     """Install agent integration.
 
     Args:

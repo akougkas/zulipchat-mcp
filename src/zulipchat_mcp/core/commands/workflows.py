@@ -8,6 +8,7 @@ This module implements workflow patterns inspired by effective agent design:
 Reference: Building effective agents (https://www.anthropic.com/engineering/building-effective-agents)
 """
 
+from typing import Any
 
 from .engine import (
     AddReactionCommand,
@@ -61,8 +62,8 @@ class ChainBuilder:
         )
 
         # Copy params to individual keys
-        def extract_params(params):
-            return params  # ProcessDataCommand will handle the extraction
+        def extract_params(params: dict[str, Any]) -> dict[str, Any]:
+            return params
 
         chain.add_command(
             ProcessDataCommand(
@@ -145,13 +146,15 @@ class ChainBuilder:
         # Process each stream
         for i, stream_name in enumerate(stream_names):
             # Set stream parameters
+            def _set_params(
+                _: Any, stream_name: str = stream_name, hours: int = hours_back
+            ) -> dict[str, Any]:
+                return {"stream_name": stream_name, "hours_back": hours}
+
             chain.add_command(
                 ProcessDataCommand(
                     name=f"set_stream_{i}_params",
-                    processor=lambda _, stream_name=stream_name, hours_back=hours_back: {
-                        "stream_name": stream_name,
-                        "hours_back": hours_back,
-                    },
+                    processor=_set_params,
                     input_key="dummy",
                     output_key=f"stream_{i}_params",
                 )
@@ -190,7 +193,7 @@ class ChainBuilder:
             )
 
         # Generate digest
-        def create_digest(context_data):
+        def create_digest(context_data: dict[str, Any]) -> str:
             digest_lines = [f"# Daily Digest - Last {hours_back} hours\n"]
             total_messages = 0
 
@@ -202,7 +205,7 @@ class ChainBuilder:
 
                 if messages:
                     # Show recent message senders
-                    senders = {}
+                    senders: dict[str, int] = {}
                     for msg in messages:
                         sender = msg["sender"]
                         senders[sender] = senders.get(sender, 0) + 1

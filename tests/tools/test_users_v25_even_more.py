@@ -25,6 +25,7 @@ async def test_manage_users_avatar_upload_success(mock_managers) -> None:
             def upload_avatar(self, avatar_file):  # type: ignore[no-redef]
                 assert avatar_file == b"bytes"
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -52,12 +53,14 @@ async def test_manage_users_profile_fields_update_success(mock_managers) -> None
             def update_profile_fields(self, data):  # type: ignore[no-redef]
                 assert data == {"department": "Eng"}
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await manage_users(operation="profile_fields", profile_field_data={"department": "Eng"})
+    res = await manage_users(
+        operation="profile_fields", profile_field_data={"department": "Eng"}
+    )
     assert res["status"] == "success"
     assert res["operation"] == "profile_fields"
     assert "updated_fields" in res
-

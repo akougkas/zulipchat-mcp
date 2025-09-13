@@ -4,20 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+from collections.abc import Callable, Generator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, AsyncGenerator, Callable, Generator
-from unittest.mock import AsyncMock, MagicMock, Mock
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-import pytest_asyncio
 from zulip import Client
 
 from zulipchat_mcp.config import ConfigManager
 from zulipchat_mcp.core import (
     ErrorHandler,
     IdentityManager,
-    IdentityType,
     MigrationManager,
     ParameterValidator,
     RetryConfig,
@@ -65,7 +64,7 @@ def mock_config() -> ConfigManager:
 def mock_zulip_client() -> Mock:
     """Mock Zulip client with common API responses."""
     client = Mock(spec=Client)
-    
+
     # Default successful responses
     client.send_message.return_value = {"result": "success", "id": 12345}
     client.get_messages.return_value = {
@@ -109,7 +108,7 @@ def mock_zulip_client() -> Mock:
             }
         ],
     }
-    
+
     return client
 
 
@@ -117,7 +116,7 @@ def mock_zulip_client() -> Mock:
 def mock_async_zulip_client() -> AsyncMock:
     """Mock async Zulip client."""
     client = AsyncMock()
-    
+
     # Default successful responses
     client.send_message.return_value = {"result": "success", "id": 12345}
     client.get_messages_raw.return_value = {
@@ -144,7 +143,7 @@ def mock_async_zulip_client() -> AsyncMock:
     }
     client.edit_message.return_value = {"result": "success"}
     client.update_message_flags.return_value = {"result": "success"}
-    
+
     return client
 
 
@@ -302,24 +301,24 @@ def benchmark_config():
     """Configuration for benchmark tests."""
     return {
         "max_duration_ms": 100,  # Max 100ms for most operations
-        "max_memory_mb": 50,     # Max 50MB memory usage
-        "samples": 10,           # Number of benchmark samples
+        "max_memory_mb": 50,  # Max 50MB memory usage
+        "samples": 10,  # Number of benchmark samples
     }
 
 
 class MockRateLimiter:
     """Mock rate limiter for testing."""
-    
+
     def __init__(self):
         self.calls = 0
         self.should_limit = False
-    
+
     async def __aenter__(self):
         self.calls += 1
         if self.should_limit:
             raise Exception("Rate limited")
         return self
-    
+
     async def __aexit__(self, *args):
         pass
 
@@ -332,7 +331,7 @@ def mock_rate_limiter():
 
 class TestDataFactory:
     """Factory for creating test data."""
-    
+
     @staticmethod
     def create_message(
         id: int = 12345,
@@ -355,7 +354,7 @@ class TestDataFactory:
             "reactions": [],
             "flags": [],
         }
-    
+
     @staticmethod
     def create_narrow_filter(operator: str, operand: str) -> dict[str, str]:
         """Create a narrow filter."""
@@ -371,16 +370,16 @@ def test_data_factory():
 # Performance testing utilities
 class PerformanceMonitor:
     """Monitor performance metrics during tests."""
-    
+
     def __init__(self):
         self.start_time = None
         self.memory_usage = []
         self.call_counts = {}
-    
+
     def start(self):
         """Start monitoring."""
         self.start_time = datetime.now()
-    
+
     def stop(self):
         """Stop monitoring and return metrics."""
         if self.start_time:
@@ -391,7 +390,7 @@ class PerformanceMonitor:
                 "peak_memory_mb": max(self.memory_usage) if self.memory_usage else 0,
             }
         return {}
-    
+
     def record_call(self, func_name: str):
         """Record a function call."""
         self.call_counts[func_name] = self.call_counts.get(func_name, 0) + 1

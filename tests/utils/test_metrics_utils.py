@@ -5,16 +5,16 @@ from __future__ import annotations
 import time
 
 from zulipchat_mcp.utils.metrics import (
-    metrics,
     Timer,
-    track_tool_call,
-    track_tool_error,
+    get_metrics_text,
+    metrics,
+    set_active_connections,
     track_cache_hit,
     track_cache_miss,
-    track_message_sent,
     track_message_received,
-    set_active_connections,
-    get_metrics_text,
+    track_message_sent,
+    track_tool_call,
+    track_tool_error,
 )
 
 
@@ -44,4 +44,3 @@ def test_metrics_counters_and_gauges_and_timer() -> None:
     assert "zulip_mcp_tool_errors_total{error_type=ValueError,tool=demo.tool}" in text
     assert "zulip_mcp_tool_duration_seconds" in text
     assert "zulip_mcp_active_connections" in text
-

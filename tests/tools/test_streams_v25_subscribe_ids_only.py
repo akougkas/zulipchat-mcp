@@ -20,8 +20,10 @@ async def test_subscribe_unsubscribe_by_ids(mock_managers) -> None:
         class Client:
             def get_stream_id(self, stream_id):  # type: ignore[no-redef]
                 return {"result": "success", "stream": {"name": "general"}}
+
             def add_subscriptions(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "subscribed": {"1": [1]}}
+
         return await func(Client(), params)
 
     mock_validator.validate_tool_params.return_value = {
@@ -36,8 +38,10 @@ async def test_subscribe_unsubscribe_by_ids(mock_managers) -> None:
         class Client:
             def get_stream_id(self, stream_id):  # type: ignore[no-redef]
                 return {"result": "success", "stream": {"name": "general"}}
+
             def remove_subscriptions(self, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success", "removed": [1], "not_removed": []}
+
         return await func(Client(), params)
 
     mock_validator.validate_tool_params.return_value = {

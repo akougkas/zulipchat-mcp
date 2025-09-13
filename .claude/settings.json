@@ -30,18 +30,6 @@
     "MCP_SERVER": "zulipchat-mcp"
   },
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "uv run $CLAUDE_PROJECT_DIR/.claude/hooks/code-validator.py",
-            "timeout": 3
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "hooks": [

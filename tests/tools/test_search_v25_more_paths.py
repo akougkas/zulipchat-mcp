@@ -11,7 +11,7 @@ import pytest
 @patch("zulipchat_mcp.tools.search_v25._get_managers")
 @patch("zulipchat_mcp.tools.search_v25._generate_cache_key", return_value="k")
 async def test_advanced_search_oldest_and_highlights(_mock_key, mock_managers) -> None:
-    from zulipchat_mcp.tools.search_v25 import advanced_search, NarrowFilter, TimeRange
+    from zulipchat_mcp.tools.search_v25 import NarrowFilter, TimeRange, advanced_search
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
     mock_managers.return_value = (mock_config, mock_identity, mock_validator)
@@ -21,8 +21,20 @@ async def test_advanced_search_oldest_and_highlights(_mock_key, mock_managers) -
     class Client:
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
             msgs = [
-                {"id": 1, "content": "hello docker", "sender_full_name": "Alice", "display_recipient": "dev", "subject": "t"},
-                {"id": 2, "content": "docker release", "sender_full_name": "Bob", "display_recipient": "dev", "subject": "t"},
+                {
+                    "id": 1,
+                    "content": "hello docker",
+                    "sender_full_name": "Alice",
+                    "display_recipient": "dev",
+                    "subject": "t",
+                },
+                {
+                    "id": 2,
+                    "content": "docker release",
+                    "sender_full_name": "Bob",
+                    "display_recipient": "dev",
+                    "subject": "t",
+                },
             ]
             return {"result": "success", "messages": msgs}
 

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from zulipchat_mcp.utils.logging import (
+    LogContext,
+    get_logger,
+    log_api_request,
+    log_function_call,
     setup_basic_logging,
     setup_structured_logging,
-    get_logger,
-    LogContext,
-    log_function_call,
-    log_api_request,
 )
 
 

@@ -29,8 +29,11 @@ async def test_manage_streams_update_multiple_properties(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    out = await manage_streams("update", stream_ids=[1, 2], properties={"is_web_public": True, "stream_post_policy": 1})
+    out = await manage_streams(
+        "update",
+        stream_ids=[1, 2],
+        properties={"is_web_public": True, "stream_post_policy": 1},
+    )
     assert out["status"] == "success" and out["operation"] == "update"
     # Ensure loop executed twice per stream (two properties)
     assert len(calls) == 4
-

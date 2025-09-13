@@ -25,6 +25,7 @@ async def test_register_events_basic(mock_managers) -> None:
         class Client:
             def register(self, **kwargs):
                 return {"result": "success", "queue_id": "q1", "last_event_id": 0}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
@@ -32,4 +33,3 @@ async def test_register_events_basic(mock_managers) -> None:
     res = await register_events(event_types=["message"], all_public_streams=False)
     assert res["status"] == "success"
     assert res["queue_id"] == "q1"
-

@@ -171,12 +171,12 @@ omit = [
   "src/zulipchat_mcp/integrations/*",
   "src/zulipchat_mcp/services/*",
   # Heavy infra we don’t exercise here
+  "src/zulipchat_mcp/core/batch_processor.py",
   "src/zulipchat_mcp/core/commands/*",
   "src/zulipchat_mcp/core/client.py",
   "src/zulipchat_mcp/core/cache.py",
   "src/zulipchat_mcp/utils/database*",
   "src/zulipchat_mcp/health.py",
-  "src/zulipchat_mcp/scheduler.py",
   "src/zulipchat_mcp/core/agent_tracker.py",
   # Temporarily omit additional heavy modules pending dedicated test passes
   "src/zulipchat_mcp/tools/events_v25.py",

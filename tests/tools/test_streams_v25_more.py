@@ -21,6 +21,7 @@ async def test_manage_streams_create_missing_names(mock_managers) -> None:
     async def execute(tool, params, func, identity=None):
         class Client:
             pass
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)

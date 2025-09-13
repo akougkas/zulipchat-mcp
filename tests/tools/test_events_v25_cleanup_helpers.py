@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from zulipchat_mcp.tools import events_v25 as ev
 import pytest
+
+from zulipchat_mcp.tools import events_v25 as ev
 
 
 @pytest.mark.asyncio

@@ -29,7 +29,11 @@ async def test_activity_chart_hour_group(mock_managers) -> None:
     mock_validator.suggest_mode.return_value = Mock()
     mock_validator.validate_tool_params.side_effect = lambda name, p, mode: p
 
-    msgs = [_msg(5, "general", "Alice"), _msg(65, "dev", "Bob"), _msg(125, "general", "Alice")]
+    msgs = [
+        _msg(5, "general", "Alice"),
+        _msg(65, "dev", "Bob"),
+        _msg(125, "general", "Alice"),
+    ]
 
     class Client:
         def get_messages_raw(self, **kwargs):  # type: ignore[no-redef]
@@ -40,6 +44,11 @@ async def test_activity_chart_hour_group(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    out = await analytics(metric="activity", group_by="hour", format="chart_data", include_stats=True)
-    assert out["status"] == "success" and "chart_data" in out and "statistics" in out["data"]
-
+    out = await analytics(
+        metric="activity", group_by="hour", format="chart_data", include_stats=True
+    )
+    assert (
+        out["status"] == "success"
+        and "chart_data" in out
+        and "statistics" in out["data"]
+    )

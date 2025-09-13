@@ -12,7 +12,11 @@ import pytest
 
 from zulipchat_mcp.tools.commands import (
     ConditionalActionCommand as _BaseConditional,
+)
+from zulipchat_mcp.tools.commands import (
     WaitForResponseCommand as _BaseWait,
+)
+from zulipchat_mcp.tools.commands import (
     build_command,
     list_command_types,
 )
@@ -20,7 +24,12 @@ from zulipchat_mcp.tools.commands import (
 
 def test_list_command_types_contains_expected() -> None:
     kinds = set(list_command_types())
-    assert {"send_message", "wait_for_response", "search_messages", "conditional_action"} <= kinds
+    assert {
+        "send_message",
+        "wait_for_response",
+        "search_messages",
+        "conditional_action",
+    } <= kinds
 
 
 def test_build_command_errors() -> None:

@@ -1,5 +1,6 @@
 """Zulip API client wrapper for MCP integration."""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -13,6 +14,7 @@ from .cache import cache_decorator, stream_cache, user_cache
 @dataclass
 class ZulipMessage:
     """Represents a Zulip message."""
+
     id: int
     sender_full_name: str
     sender_email: str
@@ -26,15 +28,17 @@ class ZulipMessage:
 @dataclass
 class ZulipStream:
     """Represents a Zulip stream."""
+
     id: int
     name: str
     description: str
     invite_only: bool = False
 
 
-@dataclass  
+@dataclass
 class ZulipUser:
     """Represents a Zulip user."""
+
     id: int
     full_name: str
     email: str
@@ -121,6 +125,46 @@ class ZulipClientWrapper:
 
         return self.client.get_messages(request)
 
+    def get_messages(
+        self,
+        anchor: str = "newest",
+        num_before: int = 50,
+        num_after: int = 0,
+        narrow: list[dict[str, str]] | None = None,
+    ) -> list[ZulipMessage]:
+        """Convenience method returning typed ZulipMessage objects.
+
+        This wraps get_messages_raw and maps results to ZulipMessage dataclass
+        instances for internal tooling that expects object-style access.
+        """
+        raw = self.get_messages_raw(
+            anchor=anchor,
+            num_before=num_before,
+            num_after=num_after,
+            narrow=narrow,
+            include_anchor=True,
+            client_gravatar=True,
+            apply_markdown=True,
+        )
+        messages: list[ZulipMessage] = []
+        for m in raw.get("messages", []):
+            try:
+                messages.append(
+                    ZulipMessage(
+                        id=int(m.get("id", 0)),
+                        sender_full_name=m.get("sender_full_name", ""),
+                        sender_email=m.get("sender_email", ""),
+                        timestamp=int(m.get("timestamp", 0)),
+                        content=m.get("content", ""),
+                        type=m.get("type", "stream"),
+                        stream_name=m.get("display_recipient", ""),
+                        subject=m.get("subject", ""),
+                    )
+                )
+            except Exception:
+                continue
+        return messages
+
     @cache_decorator(ttl=300, key_prefix="messages_")
     def get_messages_from_stream(
         self,
@@ -174,17 +218,27 @@ class ZulipClientWrapper:
             )
 
     def get_streams(
-        self, include_subscribed: bool = True, force_fresh: bool = False
+        self,
+        include_subscribed: bool = True,
+        force_fresh: bool = False,
+        include_public: bool | None = None,
+        include_all_active: bool | None = None,
     ) -> dict[str, Any]:
         """Get list of streams."""
-        if not force_fresh:
+        if not force_fresh and include_public is None and include_all_active is None:
             # Check cache first
             cached_streams = stream_cache.get_streams()
             if cached_streams is not None:
                 return {"result": "success", "streams": cached_streams}
 
         # Fetch from API
-        response = self.client.get_streams(include_subscribed=include_subscribed)
+        kwargs: dict[str, Any] = {"include_subscribed": include_subscribed}
+        if include_public is not None:
+            kwargs["include_public"] = include_public
+        if include_all_active is not None:
+            kwargs["include_all_active"] = include_all_active
+
+        response = self.client.get_streams(**kwargs)
         if response["result"] == "success":
             stream_cache.set_streams(response["streams"])
         return response
@@ -202,6 +256,10 @@ class ZulipClientWrapper:
             user_cache.set_users(response["members"])
         return response
 
+    def get_stream_topics(self, stream_id: int) -> dict[str, Any]:
+        """Get recent topics for a stream."""
+        return self.client.get_stream_topics(stream_id)
+
     def add_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:
         """Add reaction to a message."""
         return self.client.add_reaction(
@@ -213,6 +271,147 @@ class ZulipClientWrapper:
         return self.client.remove_reaction(
             {"message_id": message_id, "emoji_name": emoji_name}
         )
+
+    # Additional endpoints used by v2.5 tools
+    def update_message(self, request: dict[str, Any]) -> dict[str, Any]:
+        return self.client.update_message(request)
+
+    def get_subscriptions(self) -> dict[str, Any]:
+        return self.client.get_subscriptions()
+
+    def update_subscription_settings(
+        self, subscriptions: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        if hasattr(self.client, "update_subscription_settings"):
+            return self.client.update_subscription_settings(subscriptions=subscriptions)
+        return self.client.call_endpoint(
+            "users/me/subscriptions/properties",
+            method="PATCH",
+            request={"subscription_data": subscriptions},
+        )
+
+    def add_subscriptions(
+        self,
+        subscriptions: list[dict[str, Any]] | None = None,
+        *,
+        streams: list[dict[str, Any]] | None = None,
+        principals: list[str] | None = None,
+        announce: bool | None = None,
+        authorization_errors_fatal: bool | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Subscribe to streams or create-and-subscribe.
+
+        Supports both "subscriptions=[...]" (preferred by tools) and
+        "streams=[...]" (used by older client SDKs).
+        """
+        subs = subscriptions or streams or []
+        payload: dict[str, Any] = {"subscriptions": subs}
+        if principals is not None:
+            payload["principals"] = principals
+        if announce is not None:
+            payload["announce"] = announce
+        if authorization_errors_fatal is not None:
+            payload["authorization_errors_fatal"] = authorization_errors_fatal
+        payload.update({k: v for k, v in kwargs.items() if v is not None})
+
+        if hasattr(self.client, "add_subscriptions"):
+            # Try both calling conventions used by zulip-python
+            try:
+                return self.client.add_subscriptions(
+                    streams=subs,
+                    **{k: v for k, v in payload.items() if k != "subscriptions"},
+                )
+            except TypeError:
+                return self.client.add_subscriptions(payload)
+        return self.client.call_endpoint(
+            "users/me/subscriptions", method="POST", request=payload
+        )
+
+    def remove_subscriptions(self, subscriptions: Iterable[str]) -> dict[str, Any]:
+        if hasattr(self.client, "remove_subscriptions"):
+            return self.client.remove_subscriptions(subscriptions=list(subscriptions))
+        return self.client.call_endpoint(
+            "users/me/subscriptions",
+            method="DELETE",
+            request={"subscriptions": list(subscriptions)},
+        )
+
+    def update_stream(self, stream_id: int, **updates: Any) -> dict[str, Any]:
+        if hasattr(self.client, "update_stream"):
+            return self.client.update_stream(stream_id=stream_id, **updates)
+        return self.client.call_endpoint(
+            f"streams/{stream_id}", method="PATCH", request=updates
+        )
+
+    def delete_stream(self, stream_id: int) -> dict[str, Any]:
+        if hasattr(self.client, "delete_stream"):
+            return self.client.delete_stream(stream_id)
+        return self.client.call_endpoint(
+            f"streams/{stream_id}", method="DELETE", request={}
+        )
+
+    def get_stream_id(self, stream: int | str) -> dict[str, Any]:
+        if isinstance(stream, int):
+            try:
+                return self.client.call_endpoint(f"streams/{stream}")
+            except Exception:
+                return {"result": "error", "msg": "Failed to fetch stream info"}
+        return self.client.get_stream_id(stream)
+
+    def get_subscribers(self, stream_id: int) -> dict[str, Any]:
+        # Pass as keyword to avoid positional/keyword signature mismatches
+        try:
+            return self.client.get_subscribers(stream_id=stream_id)
+        except TypeError:
+            try:
+                return self.client.get_subscribers({"stream_id": stream_id})
+            except Exception:
+                return self.client.call_endpoint(
+                    f"streams/{stream_id}/members", method="GET", request={}
+                )
+
+    def mark_topic_as_read(self, stream_id: int, topic_name: str) -> dict[str, Any]:
+        if hasattr(self.client, "mark_topic_as_read"):
+            return self.client.mark_topic_as_read(
+                stream_id=stream_id, topic_name=topic_name
+            )
+        return self.client.call_endpoint(
+            "mark_topic_as_read",
+            method="POST",
+            request={"stream_id": stream_id, "topic_name": topic_name},
+        )
+
+    def mute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
+        if hasattr(self.client, "mute_topic"):
+            return self.client.mute_topic(stream_id=stream_id, topic=topic_name)
+        return self.client.call_endpoint(
+            "users/me/muted_topics",
+            method="PATCH",
+            request={"op": "add", "stream_id": stream_id, "topic": topic_name},
+        )
+
+    def unmute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
+        if hasattr(self.client, "unmute_topic"):
+            return self.client.unmute_topic(stream_id=stream_id, topic=topic_name)
+        return self.client.call_endpoint(
+            "users/me/muted_topics",
+            method="PATCH",
+            request={"op": "remove", "stream_id": stream_id, "topic": topic_name},
+        )
+
+    def delete_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
+        if hasattr(self.client, "delete_topic"):
+            return self.client.delete_topic(stream_id=stream_id, topic_name=topic_name)
+        # Fallback; Zulip may use POST for delete_topic
+        try:
+            return self.client.call_endpoint(
+                f"streams/{stream_id}/delete_topic",
+                method="POST",
+                request={"topic_name": topic_name},
+            )
+        except Exception:
+            return {"result": "error", "msg": "Failed to delete topic"}
 
     def edit_message(
         self,
@@ -237,6 +436,150 @@ class ZulipClientWrapper:
         request["send_notification_to_new_thread"] = send_notification_to_new_thread
 
         return self.client.update_message(request)
+
+    # -------------------------
+    # Missing wrapper methods (v2.5 blockers)
+    # -------------------------
+
+    def get_user_by_email(
+        self, email: str, include_custom_profile_fields: bool = False
+    ) -> dict[str, Any]:
+        """Fetch a single user by email."""
+        if hasattr(self.client, "get_user_by_email"):
+            try:
+                return self.client.get_user_by_email(
+                    email, include_custom_profile_fields=include_custom_profile_fields
+                )
+            except TypeError:
+                return self.client.get_user_by_email(
+                    {
+                        "email": email,
+                        "include_custom_profile_fields": include_custom_profile_fields,
+                    }
+                )
+        return self.client.call_endpoint(
+            f"users/{email}",
+            method="GET",
+            request={"include_custom_profile_fields": include_custom_profile_fields},
+        )
+
+    def get_user_by_id(
+        self, user_id: int, include_custom_profile_fields: bool = False
+    ) -> dict[str, Any]:
+        """Fetch a single user by numeric ID."""
+        if hasattr(self.client, "get_user_by_id"):
+            try:
+                return self.client.get_user_by_id(
+                    user_id, include_custom_profile_fields=include_custom_profile_fields
+                )
+            except TypeError:
+                return self.client.get_user_by_id(
+                    {
+                        "user_id": user_id,
+                        "include_custom_profile_fields": include_custom_profile_fields,
+                    }
+                )
+        return self.client.call_endpoint(
+            f"users/{user_id}",
+            method="GET",
+            request={"include_custom_profile_fields": include_custom_profile_fields},
+        )
+
+    def get_message(self, message_id: int) -> dict[str, Any]:
+        """Fetch a single message by ID."""
+        if hasattr(self.client, "get_message"):
+            try:
+                return self.client.get_message(message_id=message_id)
+            except TypeError:
+                return self.client.get_message({"message_id": message_id})
+        return self.client.call_endpoint(
+            f"messages/{message_id}", method="GET", request={}
+        )
+
+    def update_message_flags(
+        self, messages: list[int], op: str, flag: str
+    ) -> dict[str, Any]:
+        """Add/remove a flag on a list of messages."""
+        payload = {"messages": messages, "op": op, "flag": flag}
+        if hasattr(self.client, "update_message_flags"):
+            try:
+                return self.client.update_message_flags(payload)
+            except TypeError:
+                try:
+                    return self.client.update_message_flags(
+                        messages=messages, op=op, flag=flag
+                    )
+                except Exception:
+                    pass
+        return self.client.call_endpoint(
+            "messages/flags", method="POST", request=payload
+        )
+
+    def register(self, **kwargs: Any) -> dict[str, Any]:
+        """Register an event queue (events API)."""
+        if hasattr(self.client, "register"):
+            try:
+                return self.client.register(**kwargs)
+            except TypeError:
+                return self.client.register(kwargs)
+        return self.client.call_endpoint("register", method="POST", request=kwargs)
+
+    def deregister(self, queue_id: str) -> dict[str, Any]:
+        """Delete an event queue by ID."""
+        if hasattr(self.client, "deregister"):
+            try:
+                return self.client.deregister(queue_id)
+            except TypeError:
+                return self.client.deregister({"queue_id": queue_id})
+        return self.client.call_endpoint(
+            "events", method="DELETE", request={"queue_id": queue_id}
+        )
+
+    def get_events(self, **kwargs: Any) -> dict[str, Any]:
+        """Poll events from a queue (long-poll capable)."""
+        if hasattr(self.client, "get_events"):
+            try:
+                return self.client.get_events(**kwargs)
+            except TypeError:
+                return self.client.get_events(kwargs)
+        return self.client.call_endpoint("events", method="GET", request=kwargs)
+
+    # Convenience methods referenced by users_v25
+    def update_user(self, user_id: int, **updates: Any) -> dict[str, Any]:
+        if hasattr(self.client, "update_user"):
+            try:
+                return self.client.update_user(user_id, **updates)
+            except TypeError:
+                return self.client.update_user({"user_id": user_id, **updates})
+        return self.client.call_endpoint(
+            f"users/{user_id}", method="PATCH", request=updates
+        )
+
+    def update_presence(
+        self, status: str, ping_only: bool = False, new_user_input: bool = True
+    ) -> dict[str, Any]:
+        if hasattr(self.client, "update_presence"):
+            try:
+                return self.client.update_presence(
+                    status, ping_only=ping_only, new_user_input=new_user_input
+                )
+            except TypeError:
+                return self.client.update_presence(
+                    {
+                        "status": status,
+                        "ping_only": ping_only,
+                        "new_user_input": new_user_input,
+                    }
+                )
+        return self.client.call_endpoint(
+            "users/me/presence",
+            method="POST",
+            request={
+                "status": status,
+                "ping_only": ping_only,
+                "new_user_input": new_user_input,
+            },
+        )
 
     def get_daily_summary(
         self, streams: list[str] | None = None, hours_back: int = 24
@@ -305,7 +648,7 @@ class ZulipClientWrapper:
 # Export list for compatibility wrapper
 __all__ = [
     "ZulipClientWrapper",
-    "ZulipMessage", 
+    "ZulipMessage",
     "ZulipStream",
     "ZulipUser",
 ]

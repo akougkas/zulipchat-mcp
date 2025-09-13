@@ -28,4 +28,3 @@ async def test_manage_streams_update_exception(mock_managers) -> None:
 
     res = await manage_streams("update", stream_ids=[9], properties={"color": "#fff"})
     assert res["status"] == "success" and res["results"][0]["status"] == "error"
-

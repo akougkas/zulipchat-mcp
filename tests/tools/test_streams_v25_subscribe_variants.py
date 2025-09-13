@@ -9,7 +9,9 @@ import pytest
 
 @pytest.mark.asyncio
 @patch("zulipchat_mcp.tools.streams_v25._get_managers")
-async def test_manage_streams_subscribe_ids_and_unsubscribe_names(mock_managers) -> None:
+async def test_manage_streams_subscribe_ids_and_unsubscribe_names(
+    mock_managers,
+) -> None:
     from zulipchat_mcp.tools.streams_v25 import manage_streams
 
     mock_config, mock_identity, mock_validator = Mock(), Mock(), Mock()
@@ -20,8 +22,10 @@ async def test_manage_streams_subscribe_ids_and_unsubscribe_names(mock_managers)
     class Client:
         def get_stream_id(self, stream_id):  # type: ignore[no-redef]
             return {"result": "success", "stream": {"name": f"s{stream_id}"}}
+
         def add_subscriptions(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "success", "subscribed": {"s1": [1]}}
+
         def remove_subscriptions(self, **kwargs):  # type: ignore[no-redef]
             return {"result": "success", "removed": ["dev"], "not_removed": []}
 
@@ -35,4 +39,3 @@ async def test_manage_streams_subscribe_ids_and_unsubscribe_names(mock_managers)
 
     unsub = await manage_streams("unsubscribe", stream_names=["dev"])
     assert unsub["status"] == "success" and unsub["operation"] == "unsubscribe"
-

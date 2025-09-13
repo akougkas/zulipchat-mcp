@@ -19,11 +19,12 @@ from __future__ import annotations
 import hashlib
 import mimetypes
 import os
+
 # Callable import removed for MCP compatibility
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ..config import ConfigManager
 from ..core.error_handling import get_error_handler
@@ -38,16 +39,18 @@ logger = get_logger(__name__)
 FileResponse = dict[str, Any]
 FileListResponse = dict[str, Any]
 
+
 # File filter specifications
 @dataclass
 class FileFilters:
     """File filtering options."""
+
     file_type: str | None = None  # MIME type filter
-    size_min: int | None = None   # Minimum file size in bytes
-    size_max: int | None = None   # Maximum file size in bytes
+    size_min: int | None = None  # Minimum file size in bytes
+    size_max: int | None = None  # Maximum file size in bytes
     uploaded_after: datetime | None = None
     uploaded_before: datetime | None = None
-    uploader: str | None = None   # Filter by uploader email
+    uploader: str | None = None  # Filter by uploader email
     filename_pattern: str | None = None  # Regex pattern for filename
 
 
@@ -60,12 +63,38 @@ _error_handler = get_error_handler()
 # File upload constants
 MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB default limit
 ALLOWED_EXTENSIONS = {
-    '.txt', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-    '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp',
-    '.mp4', '.avi', '.mov', '.webm',
-    '.zip', '.tar', '.gz', '.rar',
-    '.json', '.xml', '.csv', '.yaml', '.yml',
-    '.py', '.js', '.html', '.css', '.md'
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".svg",
+    ".webp",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".webm",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".rar",
+    ".json",
+    ".xml",
+    ".csv",
+    ".yaml",
+    ".yml",
+    ".py",
+    ".js",
+    ".html",
+    ".css",
+    ".md",
 }
 
 
@@ -96,29 +125,33 @@ def _detect_mime_type(filename: str, content: bytes | None = None) -> str:
     # Fallback detection from content if available
     if content:
         # Basic magic number detection
-        if content.startswith(b'\x89PNG'):
-            return 'image/png'
-        elif content.startswith(b'\xff\xd8\xff'):
-            return 'image/jpeg'
-        elif content.startswith(b'GIF87a') or content.startswith(b'GIF89a'):
-            return 'image/gif'
-        elif content.startswith(b'%PDF'):
-            return 'application/pdf'
-        elif content.startswith(b'PK'):
-            return 'application/zip'
+        if content.startswith(b"\x89PNG"):
+            return "image/png"
+        elif content.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        elif content.startswith(b"GIF87a") or content.startswith(b"GIF89a"):
+            return "image/gif"
+        elif content.startswith(b"%PDF"):
+            return "application/pdf"
+        elif content.startswith(b"PK"):
+            return "application/zip"
 
     # Default fallback
-    return 'application/octet-stream'
+    return "application/octet-stream"
 
 
-def _validate_file(filename: str, content: bytes | None = None, file_path: str | None = None) -> dict[str, Any]:
+def _validate_file(
+    filename: str, content: bytes | None = None, file_path: str | None = None
+) -> dict[str, Any]:
     """Validate file for upload."""
-    validation_result = {"valid": True, "errors": [], "warnings": []}
+    validation_result: dict[str, Any] = {"valid": True, "errors": [], "warnings": []}
 
     # Check file extension
     file_ext = Path(filename).suffix.lower()
     if file_ext and file_ext not in ALLOWED_EXTENSIONS:
-        validation_result["warnings"].append(f"File extension {file_ext} may not be supported")
+        cast(list[str], validation_result["warnings"]).append(
+            f"File extension {file_ext} may not be supported"
+        )
 
     # Check file size
     size = 0
@@ -129,21 +162,25 @@ def _validate_file(filename: str, content: bytes | None = None, file_path: str |
 
     if size > MAX_FILE_SIZE:
         validation_result["valid"] = False
-        validation_result["errors"].append(f"File size {size} bytes exceeds maximum limit of {MAX_FILE_SIZE} bytes")
+        cast(list[str], validation_result["errors"]).append(
+            f"File size {size} bytes exceeds maximum limit of {MAX_FILE_SIZE} bytes"
+        )
 
     if size == 0:
         validation_result["valid"] = False
-        validation_result["errors"].append("File is empty")
+        cast(list[str], validation_result["errors"]).append("File is empty")
 
     # Check filename
     if not filename or filename.strip() == "":
         validation_result["valid"] = False
-        validation_result["errors"].append("Filename cannot be empty")
+        cast(list[str], validation_result["errors"]).append("Filename cannot be empty")
 
     # Check for potentially dangerous filenames
-    dangerous_patterns = ['..', '/', '\\', '<', '>', '|', ':', '*', '?', '"']
+    dangerous_patterns = ["..", "/", "\\", "<", ">", "|", ":", "*", "?", '"']
     if any(pattern in filename for pattern in dangerous_patterns):
-        validation_result["warnings"].append("Filename contains potentially unsafe characters")
+        cast(list[str], validation_result["warnings"]).append(
+            "Filename contains potentially unsafe characters"
+        )
 
     return validation_result
 
@@ -161,7 +198,7 @@ class UploadProgressTracker:
         self.uploaded_size = 0
         self.start_time = datetime.now()
 
-    def update(self, chunk_size: int):
+    def update(self, chunk_size: int) -> None:
         """Update progress with new chunk."""
         self.uploaded_size += chunk_size
         # Progress tracking without callback for MCP compatibility
@@ -176,7 +213,7 @@ async def upload_file(
     topic: str | None = None,
     message: str | None = None,  # Accompanying message
     # Advanced options
-    chunk_size: int = 1024*1024,  # Streaming uploads
+    chunk_size: int = 1024 * 1024,  # Streaming uploads
     mime_type: str | None = None,
 ) -> FileResponse:
     """Upload files with progress tracking.
@@ -191,7 +228,7 @@ async def upload_file(
         stream: Stream name to auto-share the file to
         topic: Topic for stream sharing
         message: Optional message to accompany the file share
-        chunk_size: Size of chunks for streaming uploads  
+        chunk_size: Size of chunks for streaming uploads
         mime_type: MIME type override (auto-detected if not provided)
 
     Returns:
@@ -203,7 +240,7 @@ async def upload_file(
 
         # Upload with auto-sharing
         await upload_file(
-            file_path="/path/to/image.png", 
+            file_path="/path/to/image.png",
             filename="screenshot.png",
             stream="general",
             topic="Screenshots",
@@ -213,7 +250,7 @@ async def upload_file(
         # Upload from memory with progress tracking
         def track_progress(info):
             print(f"Upload: {info['progress_percent']:.1f}%")
-        
+
         await upload_file(
             file_content=file_bytes,
             filename="data.json"
@@ -230,13 +267,13 @@ async def upload_file(
                 if not file_path and not file_content:
                     return {
                         "status": "error",
-                        "error": "Either file_path or file_content must be provided"
+                        "error": "Either file_path or file_content must be provided",
                     }
 
                 if file_path and file_content:
                     return {
                         "status": "error",
-                        "error": "Cannot specify both file_path and file_content"
+                        "error": "Cannot specify both file_path and file_content",
                     }
 
                 if not filename:
@@ -245,7 +282,7 @@ async def upload_file(
                     else:
                         return {
                             "status": "error",
-                            "error": "filename is required when using file_content"
+                            "error": "filename is required when using file_content",
                         }
 
                 # Load file content if path provided
@@ -253,16 +290,16 @@ async def upload_file(
                     if not os.path.exists(file_path):
                         return {
                             "status": "error",
-                            "error": f"File not found: {file_path}"
+                            "error": f"File not found: {file_path}",
                         }
 
                     try:
-                        with open(file_path, 'rb') as f:
+                        with open(file_path, "rb") as f:
                             file_content = f.read()
                     except Exception as e:
                         return {
                             "status": "error",
-                            "error": f"Failed to read file: {str(e)}"
+                            "error": f"Failed to read file: {str(e)}",
                         }
 
                 # Validate file
@@ -271,7 +308,7 @@ async def upload_file(
                     return {
                         "status": "error",
                         "error": "File validation failed",
-                        "validation_errors": validation["errors"]
+                        "validation_errors": validation["errors"],
                     }
 
                 # Detect MIME type if not provided
@@ -279,6 +316,11 @@ async def upload_file(
                     mime_type = _detect_mime_type(filename, file_content)
 
                 # Calculate file metadata
+                if file_content is None:
+                    return {
+                        "status": "error",
+                        "error": "file_content is required after validation",
+                    }
                 file_size = len(file_content)
                 file_hash = _calculate_file_hash(file_content)
 
@@ -286,29 +328,32 @@ async def upload_file(
                 progress_tracker = UploadProgressTracker(file_size)
 
                 # Execute upload with appropriate identity and error handling
-                async def _execute_upload(client, params):
+                async def _execute_upload(
+                    client: Any, params: dict[str, Any]
+                ) -> dict[str, Any]:
                     # Simulate chunked upload for progress tracking
-                    chunks = [file_content[i:i+chunk_size] for i in range(0, len(file_content), chunk_size)]
+                    chunks = [
+                        file_content[i : i + chunk_size]
+                        for i in range(0, len(file_content), chunk_size)
+                    ]
                     for chunk in chunks:
                         progress_tracker.update(len(chunk))
                         # Small delay to simulate upload time
                         import asyncio
+
                         await asyncio.sleep(0.01)
 
                     # Upload file to Zulip
                     try:
                         result = client.upload_file(file_content, filename)
                     except Exception as e:
-                        return {
-                            "status": "error",
-                            "error": f"Upload failed: {str(e)}"
-                        }
+                        return {"status": "error", "error": f"Upload failed: {str(e)}"}
 
                     if result.get("result") != "success":
                         return {
                             "status": "error",
                             "error": result.get("msg", "Upload failed"),
-                            "code": result.get("code")
+                            "code": result.get("code"),
                         }
 
                     # Extract file URL and ID from response
@@ -326,38 +371,44 @@ async def upload_file(
                         "mime_type": mime_type,
                         "file_hash": file_hash,
                         "upload_time": datetime.now().isoformat(),
-                        "warnings": validation.get("warnings", [])
+                        "warnings": validation.get("warnings", []),
                     }
 
                     # Auto-share to stream if requested
                     if stream:
                         try:
                             share_message = message or f"Uploaded file: {filename}"
-                            share_content = f"{share_message}\n\n[{filename}]({file_url})"
+                            share_content = (
+                                f"{share_message}\n\n[{filename}]({file_url})"
+                            )
 
-                            share_result = client.send_message({
-                                "type": "stream",
-                                "to": stream,
-                                "topic": topic or "File Uploads",
-                                "content": share_content
-                            })
+                            share_result = client.send_message(
+                                {
+                                    "type": "stream",
+                                    "to": stream,
+                                    "topic": topic or "File Uploads",
+                                    "content": share_content,
+                                }
+                            )
 
                             if share_result.get("result") == "success":
                                 upload_response["shared_to_stream"] = {
                                     "stream": stream,
                                     "topic": topic or "File Uploads",
                                     "message_id": share_result.get("id"),
-                                    "status": "success"
+                                    "status": "success",
                                 }
                             else:
                                 upload_response["shared_to_stream"] = {
                                     "status": "error",
-                                    "error": share_result.get("msg", "Failed to share to stream")
+                                    "error": share_result.get(
+                                        "msg", "Failed to share to stream"
+                                    ),
                                 }
                         except Exception as e:
                             upload_response["shared_to_stream"] = {
                                 "status": "error",
-                                "error": f"Failed to share to stream: {str(e)}"
+                                "error": f"Failed to share to stream: {str(e)}",
                             }
 
                     return upload_response
@@ -367,7 +418,7 @@ async def upload_file(
                     "files.upload_file",
                     {"filename": filename},
                     _execute_upload,
-                    IdentityType.USER  # Use user identity for uploads
+                    IdentityType.USER,  # Use user identity for uploads
                 )
 
                 logger.info(f"File upload completed: {filename}")
@@ -378,15 +429,19 @@ async def upload_file(
                 logger.error(error_msg)
                 track_tool_error("files.upload_file", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "filename": filename
-                }
+                return {"status": "error", "error": error_msg, "filename": filename}
 
 
 async def manage_files(
-    operation: Literal["list", "get", "delete", "share", "download", "generate_thumbnail", "get_permissions"],
+    operation: Literal[
+        "list",
+        "get",
+        "delete",
+        "share",
+        "download",
+        "generate_thumbnail",
+        "get_permissions",
+    ],
     file_id: str | None = None,
     filters: FileFilters | None = None,
     # Download options
@@ -423,7 +478,7 @@ async def manage_files(
         await manage_files("get", file_id="12345")
 
         # Share file to stream
-        await manage_files("share", file_id="12345", 
+        await manage_files("share", file_id="12345",
                           share_in_stream="general", share_in_topic="Resources")
 
         # Download file locally
@@ -439,7 +494,9 @@ async def manage_files(
         await manage_files("get_permissions", file_id="12345")
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "files.manage_files"}):
-        with LogContext(logger, tool="manage_files", operation=operation, file_id=file_id):
+        with LogContext(
+            logger, tool="manage_files", operation=operation, file_id=file_id
+        ):
             track_tool_call("files.manage_files")
 
             try:
@@ -449,23 +506,25 @@ async def manage_files(
                 if operation in ["get", "delete", "share", "download"] and not file_id:
                     return {
                         "status": "error",
-                        "error": f"file_id is required for {operation} operation"
+                        "error": f"file_id is required for {operation} operation",
                     }
 
                 if operation == "download" and not download_path:
                     return {
                         "status": "error",
-                        "error": "download_path is required for download operation"
+                        "error": "download_path is required for download operation",
                     }
 
                 if operation == "share" and not share_in_stream:
                     return {
                         "status": "error",
-                        "error": "share_in_stream is required for share operation"
+                        "error": "share_in_stream is required for share operation",
                     }
 
                 # Execute file management with appropriate identity and error handling
-                async def _execute_file_management(client, params):
+                async def _execute_file_management(
+                    client: Any, params: dict[str, Any]
+                ) -> dict[str, Any]:
                     if operation == "list":
                         # Note: Zulip doesn't have a direct file listing API
                         # We'll need to work with message attachments or implement custom tracking
@@ -474,7 +533,7 @@ async def manage_files(
                             "operation": "list",
                             "message": "File listing through Zulip API is limited. Consider implementing custom file tracking.",
                             "files": [],
-                            "note": "This operation requires custom implementation or message parsing for complete functionality"
+                            "note": "This operation requires custom implementation or message parsing for complete functionality",
                         }
 
                     elif operation == "get":
@@ -484,7 +543,7 @@ async def manage_files(
                             "operation": "get",
                             "file_id": file_id,
                             "message": "Direct file metadata retrieval through Zulip API is limited",
-                            "note": "File information is typically embedded in message context"
+                            "note": "File information is typically embedded in message context",
                         }
 
                     elif operation == "delete":
@@ -495,7 +554,7 @@ async def manage_files(
                             "operation": "delete",
                             "file_id": file_id,
                             "message": "Direct file deletion through Zulip API is not available",
-                            "note": "Files are typically removed by deleting the containing message"
+                            "note": "Files are typically removed by deleting the containing message",
                         }
 
                     elif operation == "share":
@@ -508,12 +567,14 @@ async def manage_files(
                             share_message = f"Shared file: {file_id}"
                             share_content = f"{share_message}\n\nFile: {file_url}"
 
-                            result = client.send_message({
-                                "type": "stream",
-                                "to": share_in_stream,
-                                "topic": share_in_topic or "Shared Files",
-                                "content": share_content
-                            })
+                            result = client.send_message(
+                                {
+                                    "type": "stream",
+                                    "to": share_in_stream,
+                                    "topic": share_in_topic or "Shared Files",
+                                    "content": share_content,
+                                }
+                            )
 
                             if result.get("result") == "success":
                                 return {
@@ -523,20 +584,20 @@ async def manage_files(
                                     "shared_to": {
                                         "stream": share_in_stream,
                                         "topic": share_in_topic or "Shared Files",
-                                        "message_id": result.get("id")
-                                    }
+                                        "message_id": result.get("id"),
+                                    },
                                 }
                             else:
                                 return {
                                     "status": "error",
                                     "error": result.get("msg", "Failed to share file"),
-                                    "operation": "share"
+                                    "operation": "share",
                                 }
                         except Exception as e:
                             return {
                                 "status": "error",
                                 "error": f"Failed to share file: {str(e)}",
-                                "operation": "share"
+                                "operation": "share",
                             }
 
                     elif operation == "download":
@@ -550,13 +611,13 @@ async def manage_files(
                                 "file_id": file_id,
                                 "download_path": download_path,
                                 "message": "Direct file download requires the full file URL",
-                                "note": "Use the file URL from upload response or message context for downloading"
+                                "note": "Use the file URL from upload response or message context for downloading",
                             }
                         except Exception as e:
                             return {
                                 "status": "error",
                                 "error": f"Download failed: {str(e)}",
-                                "operation": "download"
+                                "operation": "download",
                             }
 
                     elif operation == "generate_thumbnail":
@@ -567,13 +628,13 @@ async def manage_files(
                                 "operation": "generate_thumbnail",
                                 "file_id": file_id,
                                 "message": "Thumbnail generation not directly supported by Zulip API",
-                                "note": "Thumbnails are typically generated automatically for supported image formats"
+                                "note": "Thumbnails are typically generated automatically for supported image formats",
                             }
                         except Exception as e:
                             return {
                                 "status": "error",
                                 "error": f"Thumbnail generation failed: {str(e)}",
-                                "operation": "generate_thumbnail"
+                                "operation": "generate_thumbnail",
                             }
 
                     elif operation == "get_permissions":
@@ -588,19 +649,19 @@ async def manage_files(
                                 "permissions_info": {
                                     "access_model": "stream_based",
                                     "visibility": "follows_message_visibility",
-                                    "sharing": "available_to_stream_members"
-                                }
+                                    "sharing": "available_to_stream_members",
+                                },
                             }
                         except Exception as e:
                             return {
                                 "status": "error",
                                 "error": f"Permission check failed: {str(e)}",
-                                "operation": "get_permissions"
+                                "operation": "get_permissions",
                             }
 
                     return {
                         "status": "error",
-                        "error": f"Unknown operation: {operation}"
+                        "error": f"Unknown operation: {operation}",
                     }
 
                 # Execute with identity management and error handling
@@ -608,7 +669,7 @@ async def manage_files(
                     "files.manage_files",
                     {"operation": operation},
                     _execute_file_management,
-                    IdentityType.USER  # Use user identity for file management
+                    IdentityType.USER,  # Use user identity for file management
                 )
 
                 logger.info(f"File management operation {operation} completed")
@@ -619,11 +680,7 @@ async def manage_files(
                 logger.error(error_msg)
                 track_tool_error("files.manage_files", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "operation": operation
-                }
+                return {"status": "error", "error": error_msg, "operation": operation}
 
 
 def register_files_v25_tools(mcp: Any) -> None:

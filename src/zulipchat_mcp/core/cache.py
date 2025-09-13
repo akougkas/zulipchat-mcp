@@ -2,9 +2,11 @@
 
 import hashlib
 import time
-from collections.abc import Callable
+from collections.abc import Callable as TypingCallable
 from functools import lru_cache, wraps
-from typing import Any
+from typing import Any, TypeVar, cast
+
+F = TypeVar("F", bound=TypingCallable[..., Any])
 
 
 class MessageCache:
@@ -121,7 +123,7 @@ class UserCache:
         self.cache.set(f"user_{email}", info)
 
 
-def cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
+def cache_decorator(ttl: int = 300, key_prefix: str = "") -> TypingCallable[[F], F]:
     """Decorator for caching function results.
 
     Args:
@@ -133,7 +135,7 @@ def cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
     """
     cache = MessageCache(ttl)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
@@ -149,12 +151,14 @@ def cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
             cache.set(cache_key, result)
             return result
 
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 
 
-def async_cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
+def async_cache_decorator(
+    ttl: int = 300, key_prefix: str = ""
+) -> TypingCallable[[F], F]:
     """Decorator for caching async function results.
 
     Args:
@@ -166,7 +170,7 @@ def async_cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
     """
     cache = MessageCache(ttl)
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: F) -> F:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
@@ -182,7 +186,7 @@ def async_cache_decorator(ttl: int = 300, key_prefix: str = "") -> Callable:
             cache.set(cache_key, result)
             return result
 
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 

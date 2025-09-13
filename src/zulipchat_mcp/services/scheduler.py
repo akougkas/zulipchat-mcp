@@ -8,7 +8,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
-from ..config import ZulipConfig
+from ..config import ConfigManager, ZulipConfig
+from ..core.client import ZulipClientWrapper
 
 
 class ScheduledMessage(BaseModel):
@@ -90,10 +91,7 @@ class MessageScheduler:
             "type": message.message_type,
         }
 
-        # Get client for lookups
-        from .client import ZulipClientWrapper
-        from .config import ConfigManager
-
+        # Get client for lookups (user identity)
         client_wrapper = ZulipClientWrapper(ConfigManager())
 
         # Set recipients based on message type
@@ -103,9 +101,15 @@ class MessageScheduler:
                 if isinstance(message.recipients, str)
                 else message.recipients[0]
             )
-            streams = client_wrapper.get_streams()
+            streams_resp = client_wrapper.get_streams()
+            streams = (
+                streams_resp.get("streams", [])
+                if streams_resp.get("result") == "success"
+                else []
+            )
             stream_id = next(
-                (s.stream_id for s in streams if s.name == stream_name), None
+                (s.get("stream_id") for s in streams if s.get("name") == stream_name),
+                None,
             )
 
             if not stream_id:
@@ -120,13 +124,20 @@ class MessageScheduler:
                 if isinstance(message.recipients, list)
                 else [message.recipients]
             )
-            all_users = client_wrapper.get_users()
+            users_resp = client_wrapper.get_users()
 
-            user_ids = []
+            user_ids: list[int] = []
+            members = (
+                users_resp.get("members", [])
+                if users_resp.get("result") == "success"
+                else []
+            )
             for email in recipient_emails:
-                user_id = next((u.user_id for u in all_users if u.email == email), None)
-                if user_id:
-                    user_ids.append(user_id)
+                user_id = next(
+                    (u.get("user_id") for u in members if u.get("email") == email), None
+                )
+                if user_id is not None:
+                    user_ids.append(int(user_id))
 
             if not user_ids:
                 raise ValueError("No valid user IDs found for the given emails.")

@@ -6,11 +6,9 @@ and organization customization capabilities.
 
 from __future__ import annotations
 
-import asyncio
 import base64
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 
@@ -23,23 +21,25 @@ logger = get_logger(__name__)
 
 async def admin_operations(
     identity_manager: IdentityManager,
-    operation: Literal["settings", "users", "streams", "export", "import", "branding", "profile_fields"],
-    realm_id: Optional[int] = None,
+    operation: Literal[
+        "settings", "users", "streams", "export", "import", "branding", "profile_fields"
+    ],
+    realm_id: int | None = None,
     # Settings management
-    settings: Optional[Dict[str, Any]] = None,
+    settings: dict[str, Any] | None = None,
     # User administration
-    deactivate_users: Optional[List[int]] = None,
-    role_changes: Optional[Dict[int, str]] = None,
+    deactivate_users: list[int] | None = None,
+    role_changes: dict[int, str] | None = None,
     # Export/Import
-    export_type: Optional[Literal["public", "full", "subset"]] = None,
-    export_params: Optional[Dict] = None,
-    import_data: Optional[Dict] = None,
+    export_type: Literal["public", "full", "subset"] | None = None,
+    export_params: dict | None = None,
+    import_data: dict | None = None,
     # Organization branding
-    logo_file: Optional[bytes] = None,
-    icon_file: Optional[bytes] = None,
+    logo_file: bytes | None = None,
+    icon_file: bytes | None = None,
     # Custom profile fields management
-    profile_field_config: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    profile_field_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Server and realm administration (requires admin privileges).
 
     Provides comprehensive administrative operations including settings management,
@@ -77,8 +77,10 @@ async def admin_operations(
             raise PermissionError("Admin operations require admin privileges")
 
         # Use admin identity
-        identity = identity_manager.select_best_identity("admin.admin_operations", IdentityType.ADMIN)
-        client = identity.client
+        identity = identity_manager.select_best_identity(
+            "admin.admin_operations", IdentityType.ADMIN
+        )
+        client = cast(Any, identity.client)
 
         result = {
             "status": "success",
@@ -104,7 +106,8 @@ async def admin_operations(
                 realm_result = client.get_realm()
                 if realm_result.get("result") == "success":
                     result["current_settings"] = {
-                        k: v for k, v in realm_result.items() 
+                        k: v
+                        for k, v in realm_result.items()
                         if k not in ["result", "msg"]
                     }
                     result["results"] = "Retrieved current realm settings"
@@ -117,7 +120,7 @@ async def admin_operations(
         elif operation == "users":
             # User administration
             changes_made = []
-            
+
             # Deactivate users
             if deactivate_users:
                 for user_id in deactivate_users:
@@ -125,8 +128,10 @@ async def admin_operations(
                     if deactivate_result.get("result") == "success":
                         changes_made.append(f"Deactivated user {user_id}")
                     else:
-                        changes_made.append(f"Failed to deactivate user {user_id}: {deactivate_result.get('msg')}")
-            
+                        changes_made.append(
+                            f"Failed to deactivate user {user_id}: {deactivate_result.get('msg')}"
+                        )
+
             # Change user roles
             if role_changes:
                 for user_id, new_role in role_changes.items():
@@ -138,35 +143,51 @@ async def admin_operations(
                         "member": 400,
                         "guest": 600,
                     }
-                    
+
                     role_value = role_mapping.get(new_role.lower())
                     if role_value is None:
-                        changes_made.append(f"Invalid role '{new_role}' for user {user_id}")
+                        changes_made.append(
+                            f"Invalid role '{new_role}' for user {user_id}"
+                        )
                         continue
-                    
-                    role_result = client.update_user_by_id(user_id, {"role": role_value})
+
+                    role_result = client.update_user_by_id(
+                        user_id, {"role": role_value}
+                    )
                     if role_result.get("result") == "success":
-                        changes_made.append(f"Changed user {user_id} role to {new_role}")
+                        changes_made.append(
+                            f"Changed user {user_id} role to {new_role}"
+                        )
                     else:
-                        changes_made.append(f"Failed to change role for user {user_id}: {role_result.get('msg')}")
-            
+                        changes_made.append(
+                            f"Failed to change role for user {user_id}: {role_result.get('msg')}"
+                        )
+
             result["user_changes"] = changes_made
-            result["results"] = f"Processed user administration: {len(changes_made)} changes"
+            result["results"] = (
+                f"Processed user administration: {len(changes_made)} changes"
+            )
 
         elif operation == "streams":
             # Stream administration
             streams_result = client.get_streams(include_all_active=True)
             if streams_result.get("result") == "success":
                 streams = streams_result["streams"]
-                
+
                 # Get stream statistics
                 stats = {
                     "total_streams": len(streams),
-                    "public_streams": len([s for s in streams if not s.get("invite_only", False)]),
-                    "private_streams": len([s for s in streams if s.get("invite_only", False)]),
-                    "web_public_streams": len([s for s in streams if s.get("is_web_public", False)]),
+                    "public_streams": len(
+                        [s for s in streams if not s.get("invite_only", False)]
+                    ),
+                    "private_streams": len(
+                        [s for s in streams if s.get("invite_only", False)]
+                    ),
+                    "web_public_streams": len(
+                        [s for s in streams if s.get("is_web_public", False)]
+                    ),
                 }
-                
+
                 result["stream_stats"] = stats
                 result["streams"] = streams
                 result["results"] = f"Retrieved {len(streams)} streams with statistics"
@@ -180,7 +201,7 @@ async def admin_operations(
             # Data export
             if not export_type:
                 export_type = "public"
-            
+
             export_result = client.start_export(export_type, export_params or {})
             if export_result.get("result") == "success":
                 export_id = export_result.get("id")
@@ -188,7 +209,7 @@ async def admin_operations(
                 result["export_type"] = export_type
                 result["export_params"] = export_params or {}
                 result["results"] = f"Started {export_type} export with ID {export_id}"
-                
+
                 # Try to get export status
                 try:
                     status_result = client.get_export_status(export_id)
@@ -209,7 +230,7 @@ async def admin_operations(
                     "status": "error",
                     "error": "Import operation requires import_data parameter",
                 }
-            
+
             # For now, this is a placeholder - actual import would need file handling
             result["import_summary"] = {
                 "data_received": len(str(import_data)),
@@ -221,32 +242,38 @@ async def admin_operations(
         elif operation == "branding":
             # Organization branding management
             branding_updates = []
-            
+
             if logo_file:
                 try:
                     logo_result = client.upload_realm_logo(logo_file)
                     if logo_result.get("result") == "success":
                         branding_updates.append("logo updated successfully")
                     else:
-                        branding_updates.append(f"logo update failed: {logo_result.get('msg')}")
+                        branding_updates.append(
+                            f"logo update failed: {logo_result.get('msg')}"
+                        )
                 except Exception as e:
                     branding_updates.append(f"logo update error: {str(e)}")
-            
+
             if icon_file:
                 try:
                     icon_result = client.upload_realm_icon(icon_file)
                     if icon_result.get("result") == "success":
                         branding_updates.append("icon updated successfully")
                     else:
-                        branding_updates.append(f"icon update failed: {icon_result.get('msg')}")
+                        branding_updates.append(
+                            f"icon update failed: {icon_result.get('msg')}"
+                        )
                 except Exception as e:
                     branding_updates.append(f"icon update error: {str(e)}")
-            
+
             if not branding_updates:
                 branding_updates.append("no branding updates specified")
-            
+
             result["branding_updates"] = branding_updates
-            result["results"] = f"Processed branding updates: {len(branding_updates)} operations"
+            result["results"] = (
+                f"Processed branding updates: {len(branding_updates)} operations"
+            )
 
         elif operation == "profile_fields":
             # Custom profile fields administration
@@ -266,8 +293,12 @@ async def admin_operations(
                 # List existing custom profile fields
                 fields_result = client.get_custom_profile_fields()
                 if fields_result.get("result") == "success":
-                    result["custom_profile_fields"] = fields_result.get("custom_fields", [])
-                    result["results"] = f"Retrieved {len(result['custom_profile_fields'])} custom profile fields"
+                    result["custom_profile_fields"] = fields_result.get(
+                        "custom_fields", []
+                    )
+                    result["results"] = (
+                        f"Retrieved {len(result['custom_profile_fields'])} custom profile fields"
+                    )
                 else:
                     return {
                         "status": "error",
@@ -301,20 +332,20 @@ async def customize_organization(
     identity_manager: IdentityManager,
     operation: Literal["emoji", "linkifiers", "playgrounds", "filters"],
     # Custom emoji
-    emoji_name: Optional[str] = None,
-    emoji_file: Optional[bytes] = None,
+    emoji_name: str | None = None,
+    emoji_file: bytes | None = None,
     # Linkifiers
-    pattern: Optional[str] = None,
-    url_format: Optional[str] = None,
+    pattern: str | None = None,
+    url_format: str | None = None,
     # Code playgrounds
-    playground_name: Optional[str] = None,
-    url_prefix: Optional[str] = None,
-    language: Optional[str] = None,
+    playground_name: str | None = None,
+    url_prefix: str | None = None,
+    language: str | None = None,
     # Filter operations
-    filter_id: Optional[int] = None,
-    filter_action: Optional[Literal["add", "remove", "update"]] = None,
-    filter_pattern: Optional[str] = None,
-) -> Dict[str, Any]:
+    filter_id: int | None = None,
+    filter_action: Literal["add", "remove", "update"] | None = None,
+    filter_pattern: str | None = None,
+) -> dict[str, Any]:
     """Organization customization (requires admin privileges).
 
     Provides tools for customizing organization appearance and functionality
@@ -352,10 +383,14 @@ async def customize_organization(
     try:
         # Check admin permissions
         if not identity_manager.check_capability("admin.customize_organization"):
-            raise PermissionError("Organization customization requires admin privileges")
+            raise PermissionError(
+                "Organization customization requires admin privileges"
+            )
 
         # Use admin identity
-        identity = identity_manager.select_best_identity("admin.customize_organization", IdentityType.ADMIN)
+        identity = identity_manager.select_best_identity(
+            "admin.customize_organization", IdentityType.ADMIN
+        )
         client = identity.client
 
         result = {
@@ -370,16 +405,18 @@ async def customize_organization(
                 # Add custom emoji
                 try:
                     # Convert bytes to base64 for upload
-                    emoji_data = base64.b64encode(emoji_file).decode('utf-8')
+                    emoji_data = base64.b64encode(emoji_file).decode("utf-8")
                     upload_result = client.upload_custom_emoji(emoji_name, emoji_data)
-                    
+
                     if upload_result.get("result") == "success":
                         result["emoji_info"] = {
                             "name": emoji_name,
                             "size": len(emoji_file),
                             "upload_status": "success",
                         }
-                        result["results"] = f"Successfully uploaded custom emoji '{emoji_name}'"
+                        result["results"] = (
+                            f"Successfully uploaded custom emoji '{emoji_name}'"
+                        )
                     else:
                         return {
                             "status": "error",
@@ -424,7 +461,9 @@ async def customize_organization(
                         "url_format": url_format,
                         "id": linkifier_result.get("id"),
                     }
-                    result["results"] = f"Successfully added linkifier with pattern '{pattern}'"
+                    result["results"] = (
+                        f"Successfully added linkifier with pattern '{pattern}'"
+                    )
                 else:
                     return {
                         "status": "error",
@@ -462,7 +501,7 @@ async def customize_organization(
                     "url_prefix": url_prefix,
                     "pygments_language": language or "text",
                 }
-                
+
                 playground_result = client.add_code_playground(**playground_data)
                 if playground_result.get("result") == "success":
                     result["playground_info"] = {
@@ -471,7 +510,9 @@ async def customize_organization(
                         "language": language or "text",
                         "id": playground_result.get("id"),
                     }
-                    result["results"] = f"Successfully added code playground '{playground_name}'"
+                    result["results"] = (
+                        f"Successfully added code playground '{playground_name}'"
+                    )
                 else:
                     return {
                         "status": "error",
@@ -512,7 +553,7 @@ async def customize_organization(
                     "status": "queued",
                 }
                 result["results"] = f"Queued message filter pattern: {filter_pattern}"
-            
+
             elif filter_action == "remove" and filter_id:
                 # Remove message filter
                 result["filter_info"] = {
@@ -521,7 +562,7 @@ async def customize_organization(
                     "status": "queued",
                 }
                 result["results"] = f"Queued removal of filter ID: {filter_id}"
-            
+
             else:
                 # List current filters - placeholder for now
                 result["filter_info"] = {
@@ -529,7 +570,9 @@ async def customize_organization(
                     "filters": [],
                     "note": "Message filtering is organization-specific and may require custom implementation",
                 }
-                result["results"] = "Filter management is available but requires organization-specific configuration"
+                result["results"] = (
+                    "Filter management is available but requires organization-specific configuration"
+                )
 
         else:
             return {
@@ -565,15 +608,23 @@ def register_admin_v25_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def admin_operations_tool(
-        operation: Literal["settings", "users", "streams", "export", "import", "branding", "profile_fields"],
-        realm_id: Optional[int] = None,
-        settings: Optional[Dict[str, Any]] = None,
-        deactivate_users: Optional[List[int]] = None,
-        role_changes: Optional[Dict[int, str]] = None,
-        export_type: Optional[Literal["public", "full", "subset"]] = None,
-        export_params: Optional[Dict] = None,
-        import_data: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        operation: Literal[
+            "settings",
+            "users",
+            "streams",
+            "export",
+            "import",
+            "branding",
+            "profile_fields",
+        ],
+        realm_id: int | None = None,
+        settings: dict[str, Any] | None = None,
+        deactivate_users: list[int] | None = None,
+        role_changes: dict[int, str] | None = None,
+        export_type: Literal["public", "full", "subset"] | None = None,
+        export_params: dict | None = None,
+        import_data: dict | None = None,
+    ) -> dict[str, Any]:
         """Server and realm administration (requires admin privileges).
 
         Comprehensive administrative operations including settings management,
@@ -594,17 +645,17 @@ def register_admin_v25_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def customize_organization_tool(
         operation: Literal["emoji", "linkifiers", "playgrounds", "filters"],
-        emoji_name: Optional[str] = None,
-        emoji_file: Optional[bytes] = None,
-        pattern: Optional[str] = None,
-        url_format: Optional[str] = None,
-        playground_name: Optional[str] = None,
-        url_prefix: Optional[str] = None,
-        language: Optional[str] = None,
-        filter_id: Optional[int] = None,
-        filter_action: Optional[Literal["add", "remove", "update"]] = None,
-        filter_pattern: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        emoji_name: str | None = None,
+        emoji_file: bytes | None = None,
+        pattern: str | None = None,
+        url_format: str | None = None,
+        playground_name: str | None = None,
+        url_prefix: str | None = None,
+        language: str | None = None,
+        filter_id: int | None = None,
+        filter_action: Literal["add", "remove", "update"] | None = None,
+        filter_pattern: str | None = None,
+    ) -> dict[str, Any]:
         """Organization customization (requires admin privileges).
 
         Tools for customizing organization appearance and functionality
@@ -625,4 +676,6 @@ def register_admin_v25_tools(mcp: FastMCP) -> None:
             filter_pattern=filter_pattern,
         )
 
-    logger.info("Registered v2.5.0 admin tools: admin_operations, customize_organization")
+    logger.info(
+        "Registered v2.5.0 admin tools: admin_operations, customize_organization"
+    )

@@ -28,4 +28,3 @@ async def test_manage_streams_list_error(mock_managers) -> None:
 
     res = await manage_streams("list")
     assert res["status"] == "error" and res["operation"] == "list"
-

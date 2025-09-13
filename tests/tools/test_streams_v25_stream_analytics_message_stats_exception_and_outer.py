@@ -20,8 +20,10 @@ async def test_stream_analytics_message_stats_exception(mock_managers) -> None:
     class Client:
         def get_streams(self, include_subscribed=True, include_public=True):  # type: ignore[no-redef]
             return {"result": "success", "streams": [{"name": "x", "stream_id": 3}]}
+
         def get_stream_id(self, sid):  # type: ignore[no-redef]
             return {"result": "success", "stream": {"stream_id": sid, "name": "x"}}
+
         def get_messages(self, request):  # type: ignore[no-redef]
             raise RuntimeError("boom-messages")
 
@@ -30,8 +32,17 @@ async def test_stream_analytics_message_stats_exception(mock_managers) -> None:
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    out = await stream_analytics(stream_name="x", include_message_stats=True, include_user_activity=False, include_topic_stats=False)
-    assert out["status"] == "success" and "message_stats" in out and "error" in out["message_stats"]
+    out = await stream_analytics(
+        stream_name="x",
+        include_message_stats=True,
+        include_user_activity=False,
+        include_topic_stats=False,
+    )
+    assert (
+        out["status"] == "success"
+        and "message_stats" in out
+        and "error" in out["message_stats"]
+    )
 
 
 @pytest.mark.asyncio
@@ -51,4 +62,3 @@ async def test_stream_analytics_outer_exception(mock_managers) -> None:
 
     err = await stream_analytics(stream_name="x")
     assert err["status"] == "error" and "outer" in err["error"]
-

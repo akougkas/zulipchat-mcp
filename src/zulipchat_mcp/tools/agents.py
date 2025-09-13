@@ -1,11 +1,10 @@
 """Agent communication tools for ZulipChat MCP."""
 
-import os
 import json
+import os
 import time
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from ..config import ConfigManager
@@ -14,7 +13,7 @@ from ..core.client import ZulipClientWrapper
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
-from ..utils.topics import topic_input, project_from_path
+from ..utils.topics import project_from_path, topic_input
 
 logger = get_logger(__name__)
 
@@ -77,7 +76,11 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
             # Check if Agents-Channel stream exists
             client = _get_client_bot()
             response = client.get_streams()
-            streams = response.get("streams", []) if response.get("result") == "success" else []
+            streams = (
+                response.get("streams", [])
+                if response.get("result") == "success"
+                else []
+            )
             stream_exists = any(s.get("name") == "Agents-Channel" for s in streams)
 
             result = {
@@ -107,9 +110,16 @@ def agent_message(
             track_tool_call("agent_message")
             try:
                 afk_state = DatabaseManager().get_afk_state() or {}
-                dev_override = os.getenv("ZULIP_DEV_NOTIFY", "0") in ("1", "true", "True")
+                dev_override = os.getenv("ZULIP_DEV_NOTIFY", "0") in (
+                    "1",
+                    "true",
+                    "True",
+                )
                 if not afk_state.get("is_afk") and not dev_override:
-                    return {"status": "skipped", "reason": "AFK disabled; notifications gated"}
+                    return {
+                        "status": "skipped",
+                        "reason": "AFK disabled; notifications gated",
+                    }
                 msg_info = _tracker.format_agent_message(
                     content, agent_type, require_response
                 )
@@ -185,7 +195,12 @@ def send_agent_status(
         try:
             db = DatabaseManager()
             status_id = str(uuid.uuid4())
-            db.create_agent_status(status_id=status_id, agent_type=agent_type, status=status, message=message)
+            db.create_agent_status(
+                status_id=status_id,
+                agent_type=agent_type,
+                status=status,
+                message=message,
+            )
             return {"status": "success", "status_id": status_id}
         except Exception as e:
             track_tool_error("send_agent_status", type(e).__name__)
@@ -205,7 +220,10 @@ def request_user_input(
             afk_state = DatabaseManager().get_afk_state() or {}
             dev_override = os.getenv("ZULIP_DEV_NOTIFY", "0") in ("1", "true", "True")
             if not afk_state.get("is_afk") and not dev_override:
-                return {"status": "skipped", "reason": "AFK disabled; input request gated"}
+                return {
+                    "status": "skipped",
+                    "reason": "AFK disabled; input request gated",
+                }
             db = DatabaseManager()
 
             # Get agent instance and metadata to determine routing
@@ -246,9 +264,13 @@ def request_user_input(
             client = _get_client_bot()
 
             # Route based on available metadata
-            user_email = agent_metadata.get("user_email") or (agent_instance.get("user_email") if agent_instance else None)
+            user_email = agent_metadata.get("user_email") or (
+                agent_instance.get("user_email") if agent_instance else None
+            )
             stream_name = agent_metadata.get("stream_name")
-            project_name = agent_metadata.get("project_name") or project_from_path(agent_instance.get("project_dir") if agent_instance else None)
+            project_name = agent_metadata.get("project_name") or project_from_path(
+                agent_instance.get("project_dir") if agent_instance else None
+            )
 
             if user_email:
                 result = client.send_message(
@@ -396,13 +418,19 @@ def list_instances() -> dict[str, Any]:
             return {"status": "error", "error": str(e)}
 
 
-def enable_afk_mode(hours: int = 8, reason: str = "Away from computer") -> dict[str, Any]:
+def enable_afk_mode(
+    hours: int = 8, reason: str = "Away from computer"
+) -> dict[str, Any]:
     """Enable AFK mode for automatic notifications when away."""
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "enable_afk_mode"}):
         track_tool_call("enable_afk_mode")
         try:
             DatabaseManager().set_afk_state(enabled=True, reason=reason, hours=hours)
-            return {"status": "success", "message": f"AFK mode enabled for {hours} hours", "reason": reason}
+            return {
+                "status": "success",
+                "message": f"AFK mode enabled for {hours} hours",
+                "reason": reason,
+            }
         except Exception as e:
             track_tool_error("enable_afk_mode", type(e).__name__)
             return {"status": "error", "error": str(e)}
@@ -414,7 +442,10 @@ def disable_afk_mode() -> dict[str, Any]:
         track_tool_call("disable_afk_mode")
         try:
             DatabaseManager().set_afk_state(enabled=False, reason="", hours=0)
-            return {"status": "success", "message": "AFK mode disabled - normal operation"}
+            return {
+                "status": "success",
+                "message": "AFK mode disabled - normal operation",
+            }
         except Exception as e:
             track_tool_error("disable_afk_mode", type(e).__name__)
             return {"status": "error", "error": str(e)}
@@ -437,7 +468,9 @@ def get_afk_status() -> dict[str, Any]:
             return {"status": "error", "error": str(e)}
 
 
-def poll_agent_events(limit: int = 50, topic_prefix: str | None = "Agents/Chat/") -> dict[str, Any]:
+def poll_agent_events(
+    limit: int = 50, topic_prefix: str | None = "Agents/Chat/"
+) -> dict[str, Any]:
     """Poll unacknowledged chat events from Zulip.
 
     This allows an agent to receive user replies when AFK is enabled.

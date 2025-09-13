@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 
-def _msg(ts_offset: int, sender="Alice", stream="general", content="Hello", subject="topic"):
+def _msg(
+    ts_offset: int, sender="Alice", stream="general", content="Hello", subject="topic"
+):
     return {
         "id": 1,
         "sender_full_name": sender,
@@ -31,20 +33,33 @@ async def test_analytics_activity_chart_data(mock_managers) -> None:
 
     class Client:
         def get_messages(self, request):  # type: ignore[no-redef]
-            return {"result": "success", "messages": [
-                _msg(10, sender="Alice", stream="general"),
-                _msg(20, sender="Bob", stream="dev"),
-                _msg(30, sender="Alice", stream="general"),
-            ]}
+            return {
+                "result": "success",
+                "messages": [
+                    _msg(10, sender="Alice", stream="general"),
+                    _msg(20, sender="Bob", stream="dev"),
+                    _msg(30, sender="Alice", stream="general"),
+                ],
+            }
+
         def get_messages_raw(self, anchor="newest", num_before=100, num_after=0, narrow=None, include_anchor=True, client_gravatar=True, apply_markdown=True):  # type: ignore[no-redef]
-            return self.get_messages({"anchor": anchor, "num_before": num_before, "num_after": num_after, "narrow": narrow or []})
+            return self.get_messages(
+                {
+                    "anchor": anchor,
+                    "num_before": num_before,
+                    "num_after": num_after,
+                    "narrow": narrow or [],
+                }
+            )
 
     async def execute(tool, params, func, identity=None):
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await analytics(metric="activity", group_by="hour", format="chart_data", include_stats=True)
+    res = await analytics(
+        metric="activity", group_by="hour", format="chart_data", include_stats=True
+    )
     assert res["status"] == "success"
     assert "activity" in res["data"]
     assert "statistics" in res["data"]

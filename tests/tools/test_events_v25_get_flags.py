@@ -24,11 +24,28 @@ async def test_get_events_longpoll_with_flags(mock_managers) -> None:
                 assert kwargs.get("apply_markdown") is True
                 assert kwargs.get("client_gravatar") is True
                 return {"result": "success", "events": [{"id": 7}]}
-        return await func(Client(), {"queue_id": "q1", "last_event_id": 5, "dont_block": False, "timeout": 2, "apply_markdown": True, "client_gravatar": True})
+
+        return await func(
+            Client(),
+            {
+                "queue_id": "q1",
+                "last_event_id": 5,
+                "dont_block": False,
+                "timeout": 2,
+                "apply_markdown": True,
+                "client_gravatar": True,
+            },
+        )
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await get_events(queue_id="q1", last_event_id=5, dont_block=False, timeout=2, apply_markdown=True, client_gravatar=True)
+    res = await get_events(
+        queue_id="q1",
+        last_event_id=5,
+        dont_block=False,
+        timeout=2,
+        apply_markdown=True,
+        client_gravatar=True,
+    )
     assert res["status"] == "success"
     assert res["last_event_id"] == 7
-

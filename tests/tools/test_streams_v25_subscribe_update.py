@@ -25,11 +25,16 @@ async def test_manage_streams_update_multiple_properties(mock_managers) -> None:
         class Client:
             def update_stream(self, stream_id, **kwargs):  # type: ignore[no-redef]
                 return {"result": "success"}
+
         return await func(Client(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=execute)
 
-    res = await manage_streams(operation="update", stream_ids=[10], properties={"description": "New desc", "invite_only": True})
+    res = await manage_streams(
+        operation="update",
+        stream_ids=[10],
+        properties={"description": "New desc", "invite_only": True},
+    )
     assert res["status"] == "success"
     assert res["operation"] == "update"
     # Two results, one per property
@@ -60,7 +65,9 @@ async def test_manage_streams_subscribe_and_unsubscribe_by_names(mock_managers) 
         return await func(SubClient(), params)
 
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_sub)
-    sub_res = await manage_streams(operation="subscribe", stream_names=["general", "dev"])
+    sub_res = await manage_streams(
+        operation="subscribe", stream_names=["general", "dev"]
+    )
     assert sub_res["status"] == "success"
     assert "subscribed" in sub_res
 
@@ -81,4 +88,3 @@ async def test_manage_streams_subscribe_and_unsubscribe_by_names(mock_managers) 
     unsub_res = await manage_streams(operation="unsubscribe", stream_names=["general"])
     assert unsub_res["status"] == "success"
     assert unsub_res["removed"] == ["general"]
-

@@ -33,4 +33,3 @@ async def test_manage_topics_delete_success_and_error(mock_managers) -> None:
 
     err = await manage_topics(stream_id=1, operation="delete", source_topic="bad")
     assert err["status"] == "error" and err["operation"] == "delete"
-

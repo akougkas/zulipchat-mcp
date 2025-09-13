@@ -18,9 +18,14 @@ async def test_manage_stream_settings_all_ops(mock_managers) -> None:
 
     class Client:
         def get_subscriptions(self):  # type: ignore[no-redef]
-            return {"result": "success", "subscriptions": [{"stream_id": 1, "color": "#ccc"}]}
+            return {
+                "result": "success",
+                "subscriptions": [{"stream_id": 1, "color": "#ccc"}],
+            }
+
         def update_subscription_settings(self, updates):  # type: ignore[no-redef]
             return {"result": "success"}
+
         def update_stream(self, stream_id, **permission_updates):  # type: ignore[no-redef]
             return {"result": "success"}
 
@@ -39,11 +44,15 @@ async def test_manage_stream_settings_all_ops(mock_managers) -> None:
     assert u["status"] == "success" and u["operation"] == "update"
 
     # notifications
-    n = await manage_stream_settings(1, "notifications", notification_settings={"desktop_notifications": True})
+    n = await manage_stream_settings(
+        1, "notifications", notification_settings={"desktop_notifications": True}
+    )
     assert n["status"] == "success" and n["operation"] == "notifications"
 
     # permissions
-    p = await manage_stream_settings(1, "permissions", permission_updates={"is_public": True})
+    p = await manage_stream_settings(
+        1, "permissions", permission_updates={"is_public": True}
+    )
     assert p["status"] == "success" and p["operation"] == "permissions"
 
     # invalid id
@@ -56,7 +65,9 @@ async def test_manage_stream_settings_all_ops(mock_managers) -> None:
 
     # error branch: notifications without settings
     err_notif = await manage_stream_settings(1, "notifications")
-    assert err_notif["status"] == "error" and "notification_settings" in err_notif["error"]
+    assert (
+        err_notif["status"] == "error" and "notification_settings" in err_notif["error"]
+    )
 
     # error branch: permissions without updates
     err_perm = await manage_stream_settings(1, "permissions")
@@ -66,8 +77,10 @@ async def test_manage_stream_settings_all_ops(mock_managers) -> None:
     class ErrClient:
         def get_subscriptions(self):  # type: ignore[no-redef]
             return {"result": "error", "msg": "no subs"}
+
         def update_subscription_settings(self, updates):  # type: ignore[no-redef]
             return {"result": "error", "msg": "bad update"}
+
         def update_stream(self, stream_id, **permission_updates):  # type: ignore[no-redef]
             return {"result": "error", "msg": "bad perms"}
 
@@ -77,7 +90,11 @@ async def test_manage_stream_settings_all_ops(mock_managers) -> None:
     mock_identity.execute_with_identity = AsyncMock(side_effect=exec_err)
     bad_get = await manage_stream_settings(1, "get")
     assert bad_get["status"] == "error"
-    bad_notif = await manage_stream_settings(1, "notifications", notification_settings={"desktop_notifications": True})
+    bad_notif = await manage_stream_settings(
+        1, "notifications", notification_settings={"desktop_notifications": True}
+    )
     assert bad_notif["status"] == "error"
-    bad_perm = await manage_stream_settings(1, "permissions", permission_updates={"is_web_public": True})
+    bad_perm = await manage_stream_settings(
+        1, "permissions", permission_updates={"is_web_public": True}
+    )
     assert bad_perm["status"] == "error"

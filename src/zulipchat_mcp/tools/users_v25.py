@@ -2,7 +2,7 @@
 
 This module implements the 3 identity-aware user tools according to PLAN-REFACTOR.md:
 1. manage_users() - User operations with identity context
-2. switch_identity() - Switch identity context for operations  
+2. switch_identity() - Switch identity context for operations
 3. manage_user_groups() - Manage user groups and permissions
 
 Features:
@@ -56,7 +56,9 @@ def _get_managers() -> tuple[ConfigManager, IdentityManager, ParameterValidator]
 
 
 async def manage_users(
-    operation: Literal["list", "get", "update", "presence", "groups", "avatar", "profile_fields"],
+    operation: Literal[
+        "list", "get", "update", "presence", "groups", "avatar", "profile_fields"
+    ],
     user_id: int | None = None,
     email: str | None = None,
     # Identity context - NEW
@@ -119,7 +121,13 @@ async def manage_users(
         await manage_users("profile_fields", profile_field_data={"department": "Engineering"})
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "users.manage_users"}):
-        with LogContext(logger, tool="manage_users", operation=operation, as_bot=as_bot, as_admin=as_admin):
+        with LogContext(
+            logger,
+            tool="manage_users",
+            operation=operation,
+            as_bot=as_bot,
+            as_admin=as_admin,
+        ):
             track_tool_call("users.manage_users")
 
             try:
@@ -129,29 +137,31 @@ async def manage_users(
                 if as_bot and as_admin:
                     return {
                         "status": "error",
-                        "error": "Cannot use both as_bot and as_admin simultaneously"
+                        "error": "Cannot use both as_bot and as_admin simultaneously",
                     }
 
                 # Operation-specific validation
                 if operation in ["get", "update"] and not user_id and not email:
                     return {
                         "status": "error",
-                        "error": "user_id or email required for get/update operations"
+                        "error": "user_id or email required for get/update operations",
                     }
 
                 # Ensure user_id is properly initialized for update operations
                 current_user_id = user_id
 
-                if operation == "update" and not any([full_name, status_text, status_emoji]):
+                if operation == "update" and not any(
+                    [full_name, status_text, status_emoji]
+                ):
                     return {
                         "status": "error",
-                        "error": "At least one update field required (full_name, status_text, status_emoji)"
+                        "error": "At least one update field required (full_name, status_text, status_emoji)",
                     }
 
                 if operation == "presence" and not status:
                     return {
                         "status": "error",
-                        "error": "status required for presence operation"
+                        "error": "status required for presence operation",
                     }
 
                 # Select appropriate identity
@@ -176,22 +186,28 @@ async def manage_users(
                                 "operation": "list",
                                 "users": result.get("members", []),
                                 "count": len(result.get("members", [])),
-                                "identity_used": identity_manager.get_current_identity().type.value
+                                "identity_used": identity_manager.get_current_identity().type.value,
                             }
 
                     elif operation == "get":
                         # Get specific user
                         if resolved_user_id:
-                            result = client.get_user_by_id(resolved_user_id, include_custom_profile_fields=include_custom_profile_fields)
+                            result = client.get_user_by_id(
+                                resolved_user_id,
+                                include_custom_profile_fields=include_custom_profile_fields,
+                            )
                         else:
-                            result = client.get_user_by_email(email, include_custom_profile_fields=include_custom_profile_fields)
+                            result = client.get_user_by_email(
+                                email,
+                                include_custom_profile_fields=include_custom_profile_fields,
+                            )
 
                         if result.get("result") == "success":
                             return {
                                 "status": "success",
                                 "operation": "get",
                                 "user": result.get("user", {}),
-                                "identity_used": identity_manager.get_current_identity().type.value
+                                "identity_used": identity_manager.get_current_identity().type.value,
                             }
 
                     elif operation == "update":
@@ -202,7 +218,7 @@ async def manage_users(
                             if user_result.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": f"User not found: {email}"
+                                    "error": f"User not found: {email}",
                                 }
                             resolved_user_id = user_result["user"]["user_id"]
 
@@ -222,12 +238,14 @@ async def manage_users(
                                 "operation": "update",
                                 "user_id": resolved_user_id,
                                 "updated_fields": list(update_data.keys()),
-                                "identity_used": identity_manager.get_current_identity().type.value
+                                "identity_used": identity_manager.get_current_identity().type.value,
                             }
 
                     elif operation == "presence":
                         # Update presence status
-                        result = client.update_presence(status=status, ping_only=False, new_user_input=True)
+                        result = client.update_presence(
+                            status=status, ping_only=False, new_user_input=True
+                        )
 
                         if result.get("result") == "success":
                             return {
@@ -235,7 +253,7 @@ async def manage_users(
                                 "operation": "presence",
                                 "new_status": status,
                                 "client": client,
-                                "identity_used": identity_manager.get_current_identity().type.value
+                                "identity_used": identity_manager.get_current_identity().type.value,
                             }
 
                     elif operation == "groups":
@@ -244,7 +262,9 @@ async def manage_users(
 
                         if result.get("result") == "success":
                             groups = result.get("user_groups", [])
-                            current_profile_user_id = identity_manager.get_current_identity().client.get_profile()["user_id"]
+                            current_profile_user_id = identity_manager.get_current_identity().client.get_profile()[
+                                "user_id"
+                            ]
 
                             # Filter groups where user is a member
                             user_groups = []
@@ -257,7 +277,7 @@ async def manage_users(
                                 "operation": "groups",
                                 "user_groups": user_groups,
                                 "all_groups": groups,
-                                "identity_used": identity_manager.get_current_identity().type.value
+                                "identity_used": identity_manager.get_current_identity().type.value,
                             }
 
                     elif operation == "avatar":
@@ -270,12 +290,12 @@ async def manage_users(
                                     "status": "success",
                                     "operation": "avatar",
                                     "message": "Avatar updated successfully",
-                                    "identity_used": identity_manager.get_current_identity().type.value
+                                    "identity_used": identity_manager.get_current_identity().type.value,
                                 }
                         else:
                             return {
                                 "status": "error",
-                                "error": "avatar_file is required for avatar operation"
+                                "error": "avatar_file is required for avatar operation",
                             }
 
                     elif operation == "profile_fields":
@@ -288,7 +308,7 @@ async def manage_users(
                                     "status": "success",
                                     "operation": "profile_fields",
                                     "updated_fields": list(profile_field_data.keys()),
-                                    "identity_used": identity_manager.get_current_identity().type.value
+                                    "identity_used": identity_manager.get_current_identity().type.value,
                                 }
                         else:
                             # Get current custom profile fields
@@ -298,7 +318,7 @@ async def manage_users(
                                     "status": "success",
                                     "operation": "profile_fields",
                                     "available_fields": result.get("custom_fields", []),
-                                    "identity_used": identity_manager.get_current_identity().type.value
+                                    "identity_used": identity_manager.get_current_identity().type.value,
                                 }
 
                     # Handle API errors
@@ -306,7 +326,7 @@ async def manage_users(
                         "status": "error",
                         "error": result.get("msg", "Unknown error occurred"),
                         "operation": operation,
-                        "code": result.get("code")
+                        "code": result.get("code"),
                     }
 
                 # Execute with identity management and error handling
@@ -314,7 +334,7 @@ async def manage_users(
                     "users.manage_users",
                     {"operation": operation},
                     _execute_user_operation,
-                    preferred_identity
+                    preferred_identity,
                 )
 
                 logger.info(f"User operation {operation} completed successfully")
@@ -325,11 +345,7 @@ async def manage_users(
                 logger.error(error_msg)
                 track_tool_error("users.manage_users", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "operation": operation
-                }
+                return {"status": "error", "error": error_msg, "operation": operation}
 
 
 async def switch_identity(
@@ -361,7 +377,9 @@ async def switch_identity(
         await switch_identity("user", validate=False)
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "users.switch_identity"}):
-        with LogContext(logger, tool="switch_identity", target_identity=identity, persist=persist):
+        with LogContext(
+            logger, tool="switch_identity", target_identity=identity, persist=persist
+        ):
             track_tool_call("users.switch_identity")
 
             try:
@@ -373,20 +391,20 @@ async def switch_identity(
                 except ValueError:
                     return {
                         "status": "error",
-                        "error": f"Invalid identity type: {identity}. Must be one of: user, bot, admin"
+                        "error": f"Invalid identity type: {identity}. Must be one of: user, bot, admin",
                     }
 
                 # Attempt to switch identity
                 result = identity_manager.switch_identity(
-                    target_type,
-                    persist=persist,
-                    validate=validate
+                    target_type, persist=persist, validate=validate
                 )
 
                 # Get available identities for response
                 available_identities = identity_manager.get_available_identities()
 
-                logger.info(f"Successfully switched to {identity} identity (persist={persist})")
+                logger.info(
+                    f"Successfully switched to {identity} identity (persist={persist})"
+                )
 
                 return {
                     "status": "success",
@@ -397,7 +415,7 @@ async def switch_identity(
                     "email": result["email"],
                     "display_name": result["display_name"],
                     "name": result["name"],
-                    "available_identities": available_identities["available"]
+                    "available_identities": available_identities["available"],
                 }
 
             except Exception as e:
@@ -408,7 +426,7 @@ async def switch_identity(
                 return {
                     "status": "error",
                     "error": error_msg,
-                    "target_identity": identity
+                    "target_identity": identity,
                 }
 
 
@@ -436,14 +454,14 @@ async def manage_user_groups(
 
     Examples:
         # Create new user group
-        await manage_user_groups("create", group_name="developers", 
+        await manage_user_groups("create", group_name="developers",
                                 description="Development team", members=[1, 2, 3])
 
         # Add members to existing group
         await manage_user_groups("add_members", group_id=5, members=[4, 5])
 
         # Update group description
-        await manage_user_groups("update", group_name="developers", 
+        await manage_user_groups("update", group_name="developers",
                                 description="Software development team")
 
         # Remove members from group
@@ -453,7 +471,9 @@ async def manage_user_groups(
         await manage_user_groups("delete", group_id=5)
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "users.manage_user_groups"}):
-        with LogContext(logger, tool="manage_user_groups", action=action, group_name=group_name):
+        with LogContext(
+            logger, tool="manage_user_groups", action=action, group_name=group_name
+        ):
             track_tool_call("users.manage_user_groups")
 
             try:
@@ -463,19 +483,23 @@ async def manage_user_groups(
                 if action == "create" and not group_name:
                     return {
                         "status": "error",
-                        "error": "group_name is required for create action"
+                        "error": "group_name is required for create action",
                     }
 
-                if action in ["update", "delete", "add_members", "remove_members"] and not group_name and not group_id:
+                if (
+                    action in ["update", "delete", "add_members", "remove_members"]
+                    and not group_name
+                    and not group_id
+                ):
                     return {
                         "status": "error",
-                        "error": "group_name or group_id is required for this action"
+                        "error": "group_name or group_id is required for this action",
                     }
 
                 if action in ["add_members", "remove_members"] and not members:
                     return {
                         "status": "error",
-                        "error": "members list is required for member operations"
+                        "error": "members list is required for member operations",
                     }
 
                 # This operation typically requires admin privileges
@@ -488,7 +512,7 @@ async def manage_user_groups(
                         request_data = {
                             "name": group_name,
                             "description": description or f"User group: {group_name}",
-                            "members": members or []
+                            "members": members or [],
                         }
                         result = client.create_user_group(request_data)
 
@@ -499,17 +523,22 @@ async def manage_user_groups(
                                 "group_name": group_name,
                                 "group_id": result.get("id"),
                                 "members_added": len(members or []),
-                                "description": description
+                                "description": description,
                             }
 
-                    elif action in ["update", "delete", "add_members", "remove_members"]:
+                    elif action in [
+                        "update",
+                        "delete",
+                        "add_members",
+                        "remove_members",
+                    ]:
                         # First, resolve group_id if only group_name provided
                         if not group_id and group_name:
                             groups_result = client.get_user_groups()
                             if groups_result.get("result") != "success":
                                 return {
                                     "status": "error",
-                                    "error": "Failed to retrieve user groups"
+                                    "error": "Failed to retrieve user groups",
                                 }
 
                             target_group_id = None
@@ -521,7 +550,7 @@ async def manage_user_groups(
                             if not target_group_id:
                                 return {
                                     "status": "error",
-                                    "error": f"User group '{group_name}' not found"
+                                    "error": f"User group '{group_name}' not found",
                                 }
                         else:
                             target_group_id = group_id
@@ -531,17 +560,21 @@ async def manage_user_groups(
                             request_data = {}
                             if description is not None:
                                 request_data["description"] = description
-                            if group_name and group_name != group_name:  # Allow renaming
+                            if (
+                                group_name and group_name != group_name
+                            ):  # Allow renaming
                                 request_data["name"] = group_name
 
-                            result = client.update_user_group(target_group_id, request_data)
+                            result = client.update_user_group(
+                                target_group_id, request_data
+                            )
 
                             if result.get("result") == "success":
                                 return {
                                     "status": "success",
                                     "action": "update",
                                     "group_id": target_group_id,
-                                    "updated_fields": list(request_data.keys())
+                                    "updated_fields": list(request_data.keys()),
                                 }
 
                         elif action == "delete":
@@ -553,12 +586,14 @@ async def manage_user_groups(
                                     "status": "success",
                                     "action": "delete",
                                     "group_id": target_group_id,
-                                    "group_name": group_name
+                                    "group_name": group_name,
                                 }
 
                         elif action == "add_members":
                             # Add members to group
-                            result = client.update_user_group_members(target_group_id, add=members)
+                            result = client.update_user_group_members(
+                                target_group_id, add=members
+                            )
 
                             if result.get("result") == "success":
                                 return {
@@ -566,12 +601,14 @@ async def manage_user_groups(
                                     "action": "add_members",
                                     "group_id": target_group_id,
                                     "members_added": members,
-                                    "count": len(members)
+                                    "count": len(members),
                                 }
 
                         elif action == "remove_members":
                             # Remove members from group
-                            result = client.update_user_group_members(target_group_id, delete=members)
+                            result = client.update_user_group_members(
+                                target_group_id, delete=members
+                            )
 
                             if result.get("result") == "success":
                                 return {
@@ -579,7 +616,7 @@ async def manage_user_groups(
                                     "action": "remove_members",
                                     "group_id": target_group_id,
                                     "members_removed": members,
-                                    "count": len(members)
+                                    "count": len(members),
                                 }
 
                     # Handle API errors
@@ -587,7 +624,7 @@ async def manage_user_groups(
                         "status": "error",
                         "error": result.get("msg", "Unknown error occurred"),
                         "action": action,
-                        "code": result.get("code")
+                        "code": result.get("code"),
                     }
 
                 # Execute with identity management and error handling
@@ -595,7 +632,7 @@ async def manage_user_groups(
                     "users.manage_user_groups",
                     {"action": action},
                     _execute_group_operation,
-                    preferred_identity
+                    preferred_identity,
                 )
 
                 logger.info(f"User group operation {action} completed successfully")
@@ -606,11 +643,7 @@ async def manage_user_groups(
                 logger.error(error_msg)
                 track_tool_error("users.manage_user_groups", str(e))
 
-                return {
-                    "status": "error",
-                    "error": error_msg,
-                    "action": action
-                }
+                return {"status": "error", "error": error_msg, "action": action}
 
 
 def register_users_v25_tools(mcp: Any) -> None:

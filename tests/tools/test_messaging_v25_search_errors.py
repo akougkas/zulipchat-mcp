@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -24,4 +24,3 @@ async def test_search_messages_invalid_params(mock_managers) -> None:
     # too many messages
     res2 = await search_messages(num_before=6000, num_after=10)
     assert res2["status"] == "error" and "Too many" in res2["error"]
-
