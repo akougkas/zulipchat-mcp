@@ -40,6 +40,58 @@ logger = get_logger(__name__)
 SearchResults = dict[str, Any]
 AnalyticsResponse = dict[str, Any]
 
+# Token management constants
+MAX_TOKENS_PER_RESPONSE = 20000  # Leave room for system messages and other content
+AVG_CHARS_PER_TOKEN = 4  # Conservative estimate for token counting
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count for text content."""
+    return len(text) // AVG_CHARS_PER_TOKEN
+
+
+def truncate_for_tokens(results: dict[str, Any], max_tokens: int = MAX_TOKENS_PER_RESPONSE) -> tuple[dict[str, Any], bool]:
+    """Truncate search results to fit within token limits.
+
+    Returns:
+        Tuple of (truncated_results, was_truncated)
+    """
+    import json
+
+    # Convert to JSON string to measure size
+    full_json = json.dumps(results, ensure_ascii=False)
+    estimated_tokens = estimate_tokens(full_json)
+
+    if estimated_tokens <= max_tokens:
+        return results, False
+
+    # Need to truncate - prioritize by result type
+    truncated = {"truncated": True, "original_token_estimate": estimated_tokens}
+    remaining_tokens = max_tokens - estimate_tokens(json.dumps(truncated, ensure_ascii=False))
+
+    # Prioritize message content first, then other results
+    if "messages" in results and remaining_tokens > 1000:
+        # Keep most recent messages
+        messages = results["messages"][:min(50, len(results["messages"]))]  # Max 50 messages
+        truncated["messages"] = messages
+        remaining_tokens -= estimate_tokens(json.dumps({"messages": messages}, ensure_ascii=False))
+
+    # Add other result types if space permits
+    for key in ["streams", "users", "topics", "aggregations"]:
+        if key in results and remaining_tokens > 500:
+            # Truncate these lists to reasonable sizes
+            if isinstance(results[key], list):
+                truncated[key] = results[key][:20]  # Max 20 items
+            else:
+                truncated[key] = results[key]
+            remaining_tokens -= estimate_tokens(json.dumps({key: truncated[key]}, ensure_ascii=False))
+
+    # Add summary stats
+    if "summary" in results:
+        truncated["summary"] = results["summary"]
+
+    return truncated, True
+
 
 # Data structures for search and analytics
 @dataclass
@@ -656,6 +708,11 @@ async def advanced_search(
                                 "has_more": len(matching_topics) >= limit,
                             }
                             results["metadata"]["total_results"] += len(matching_topics)
+
+                    # Apply token limiting to prevent response size issues
+                    results, was_truncated = truncate_for_tokens(results)
+                    if was_truncated:
+                        logger.info(f"Advanced search results truncated for query: '{query}'")
 
                     # Cache results if enabled
                     if use_cache:
@@ -1327,6 +1384,6 @@ def register_search_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    mcp.tool(description="Multi-faceted search across Zulip")(advanced_search)
-    mcp.tool(description="Analytics and insights from message data")(analytics)
-    mcp.tool(description="Daily activity summary for streams")(get_daily_summary)
+    mcp.tool(description="Multi-faceted search across Zulip with intelligent result ranking and aggregation. Search messages (default), users, streams, or topics with powerful filtering, time ranges, and content analysis. Supports search aggregations and statistical insights. Results automatically truncated to fit token limits while preserving key information.")(advanced_search)
+    mcp.tool(description="Generate analytics and insights from message data including activity patterns, sentiment analysis, topic modeling, user participation metrics, and trend analysis. Supports time-range filtering and multiple analytical metrics. Provides actionable insights for community management and engagement optimization.")(analytics)
+    mcp.tool(description="Generate comprehensive daily activity summary showing message counts, active users, popular topics, and stream engagement metrics across specified time period. Aggregates data from multiple streams with activity ranking and participation analysis. Ideal for community management dashboards.")(get_daily_summary)

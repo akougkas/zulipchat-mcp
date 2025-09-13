@@ -790,8 +790,7 @@ async def bulk_operations(
     reaction_type: (
         Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] | None
     ) = None,
-    # Progress callback (NEW)
-    progress_callback: Callable[[ProgressReport], None] | None = None,
+    # Progress callback removed from MCP interface for schema compatibility
 ) -> BulkResponse:
     """Bulk message operations with both simple and advanced selection methods.
 
@@ -823,7 +822,6 @@ async def bulk_operations(
         emoji_name: Emoji name for reaction operations
         emoji_code: Emoji unicode code for reaction operations
         reaction_type: Type of emoji for reaction operations
-        progress_callback: Optional callback for progress updates on long operations.
 
     Returns:
         BulkResponse with status, affected count, and operation details
@@ -837,9 +835,7 @@ async def bulk_operations(
         await bulk_operations("mark_read", narrow=[{"operator": "stream", "operand": "general"}])
 
         # Reaction operations with batch processing and progress reporting
-        def my_progress_reporter(report):
-            print(f"Progress: {report.percent_complete:.2f}%")
-        await bulk_operations("add_reaction", stream="general", emoji_name="thumbs_up", progress_callback=my_progress_reporter)
+        await bulk_operations("add_reaction", stream="general", emoji_name="thumbs_up")
     """
     with Timer(
         "zulip_mcp_tool_duration_seconds", {"tool": "messaging.bulk_operations"}
@@ -999,7 +995,7 @@ async def bulk_operations(
                             return successes, failures
 
                         batch_result = await processor.process(
-                            target_ids, batch_op, progress_callback
+                            target_ids, batch_op
                         )
 
                         return {
@@ -1543,39 +1539,23 @@ def register_messaging_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    # Register tools with comprehensive descriptions
-    mcp.tool(
-        description="Send, schedule, or draft messages with full formatting support and advanced options"
-    )(message)
+    # Register tools with optimized descriptions for maximum LLM tool-calling success
+    mcp.tool(description="Send messages immediately, schedule for later delivery, or create drafts using USER identity. Supports stream/private messages with formatting, emoji translation, and link previews. For bot-authored replies or automated responses, use agents.agent_message instead.")(message)
 
-    mcp.tool(
-        description="Search and retrieve messages with powerful filtering using narrow operators and advanced options"
-    )(search_messages)
+    mcp.tool(description="Search and retrieve messages with powerful filtering. Use simple parameters (stream, topic, sender, text) for basic searches or advanced narrow filters for complex queries. Default behavior searches messages received by current user unless explicitly searching sent messages. Supports time-based filters, content type filters, and pagination.")(search_messages)
 
-    mcp.tool(
-        description="Edit or move messages with comprehensive topic management and stream transfer capabilities"
-    )(edit_message)
+    mcp.tool(description="Edit message content, change topics, or move messages between streams. Supports topic propagation modes (change_one/change_later/change_all) and cross-stream message moving. Cannot simultaneously edit content and move streams - use separate operations for complex changes.")(edit_message)
 
-    mcp.tool(
-        description="Perform bulk operations on multiple messages including reactions, flags, and deletion"
-    )(bulk_operations)
+    mcp.tool(description="Perform bulk operations on multiple messages: mark read/unread, add/remove flags, bulk reactions, or delete messages. Select messages by stream/topic/sender (simple) or narrow filters/message IDs (advanced). Handles large batches with progress reporting and partial failure recovery.")(bulk_operations)
 
-    mcp.tool(
-        description="Get comprehensive message history and edit tracking information"
-    )(message_history)
+    mcp.tool(description="Retrieve comprehensive message history including edit timestamps, content changes, and reaction history. Limited by Zulip API - shows edit metadata but not full revision history. Useful for audit trails and understanding message evolution.")(message_history)
 
-    mcp.tool(
-        description="Cross-post messages between streams with optional reference links"
-    )(cross_post_message)
+    mcp.tool(description="Share/duplicate a message across multiple streams with optional reference back to original. Automatically formats with source attribution and maintains topic context. Ideal for announcements, important updates, or cross-team communication.")(cross_post_message)
 
     # Standalone reaction management functions
-    mcp.tool(
-        description="Add emoji reaction to a single message - simple standalone interface"
-    )(add_reaction)
+    mcp.tool(description="Add single emoji reaction to a specific message. Supports unicode emoji, realm custom emoji, and Zulip extra emoji. Use bulk_operations for adding reactions to multiple messages simultaneously.")(add_reaction)
 
-    mcp.tool(
-        description="Remove emoji reaction from a single message - simple standalone interface"
-    )(remove_reaction)
+    mcp.tool(description="Remove single emoji reaction from a specific message. Must match exact emoji name and type. Use bulk_operations for removing reactions from multiple messages simultaneously.")(remove_reaction)
 
     logger.info("Registered 8 consolidated messaging v2.5.0 tools")
 

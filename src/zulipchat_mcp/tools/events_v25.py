@@ -697,8 +697,14 @@ def register_events_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    mcp.tool(description="Register for real-time events without persistence")(
-        register_events
-    )
-    mcp.tool(description="Poll events from queue (stateless)")(get_events)
-    mcp.tool(description="Simple event listener with callback support")(listen_events)
+    mcp.tool(
+        description="Register for comprehensive real-time event streams from Zulip: supports 20+ event types (messages, reactions, user status, streams, subscriptions, typing indicators, presence, realm changes, etc.), message filtering with narrow parameters, automatic queue cleanup (max 600 seconds lifespan), client capability declarations, and initial state fetching. Returns queue ID, last event ID, and initial realm state. Essential first step for event monitoring - use queue ID with get_events for polling. Auto-cleanup prevents resource leaks. Supports slim presence, subscriber inclusion, and gravatar URLs."
+    )(register_events)
+
+    mcp.tool(
+        description="Poll events from registered event queue with long-polling support: retrieves new events since last_event_id, supports non-blocking immediate return or long-polling with configurable timeout (up to 60s), applies markdown formatting, includes gravatar URLs, and handles queue validation. Returns event batch with status, found_newest flag, and queue validity indicator. Use with register_events queue ID. Handles expired/invalid queues gracefully with clear error messaging. Essential for real-time event processing workflows."
+    )(get_events)
+
+    mcp.tool(
+        description="Comprehensive stateless event listener with webhook integration: automatically registers, polls, and processes events for specified duration (up to 600 seconds), supports webhook delivery to callback URLs, event filtering with custom criteria, adjustable polling intervals, max events per poll limiting, automatic queue management with cleanup, and re-registration on queue expiry. Returns collected events, webhook delivery stats, and session summary. Ideal for temporary event monitoring or automated event processing workflows without manual queue management."
+    )(listen_events)

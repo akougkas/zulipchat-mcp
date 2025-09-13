@@ -1514,12 +1514,12 @@ def register_streams_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    mcp.tool(description="Manage streams with bulk operations support")(manage_streams)
-    mcp.tool(description="Bulk topic operations within streams")(manage_topics)
-    mcp.tool(description="Get comprehensive stream information")(get_stream_info)
-    mcp.tool(description="Get comprehensive stream statistics and analytics")(
+    mcp.tool(description="Complete stream lifecycle management: list, create, update, delete streams, or manage subscriptions. Supports bulk operations on multiple streams. List operations can include public streams, subscribed streams, or all active streams (admin). Create/delete operations require appropriate permissions.")(manage_streams)
+    mcp.tool(description="Topic operations within streams: list topics, move topics between streams, delete topics (admin only), mark topics as read, or mute/unmute topics. Topic moves support different propagation modes and can include cross-stream transfers.")(manage_topics)
+    mcp.tool(description="Retrieve comprehensive stream information including basic details, topic list, subscriber list, and personal subscription settings. Use include_* parameters to control detail level and API call efficiency. Useful for stream discovery and permission analysis.")(get_stream_info)
+    mcp.tool(description="Generate detailed stream statistics and analytics including message counts, user activity metrics, topic statistics, and growth trends. Provides approximate analytics based on recent message samples due to API limitations. Useful for community management and engagement analysis.")(
         stream_analytics
     )
-    mcp.tool(description="Manage stream notification settings and permissions")(
+    mcp.tool(description="Manage personal stream notification preferences, appearance settings (color, pinning), and stream permissions. Get/update operations for personal settings, permission changes require admin access. Controls push notifications, email notifications, and stream organization.")(
         manage_stream_settings
     )

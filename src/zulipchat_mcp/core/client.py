@@ -82,6 +82,12 @@ class ZulipClientWrapper:
             site=client_config["site"],
         )
         self.current_email = client_config["email"]
+        self._base_url = client_config["site"].rstrip('/') if client_config["site"] else ""
+
+    @property
+    def base_url(self) -> str:
+        """Get the base URL for API calls."""
+        return self._base_url
 
     def send_message(
         self,
@@ -587,6 +593,46 @@ class ZulipClientWrapper:
                 "new_user_input": new_user_input,
             },
         )
+
+    def upload_file(self, file_content: bytes, filename: str) -> dict[str, Any]:
+        """Upload a file to Zulip.
+
+        Args:
+            file_content: The file content as bytes
+            filename: The name of the file
+
+        Returns:
+            API response with upload details including 'uri' field
+        """
+        import io
+
+        # The Zulip client expects a file-like object
+        file_obj = io.BytesIO(file_content)
+        file_obj.name = filename
+
+        if hasattr(self.client, 'upload_file'):
+            try:
+                return self.client.upload_file(file_obj)
+            except TypeError:
+                # Try with different argument format
+                return self.client.upload_file(file_content, filename)
+
+        # Fallback to direct API call
+        import requests
+        url = f"{self.base_url}/api/v1/user_uploads"
+        files = {'file': (filename, file_content)}
+
+        # Use proper authentication format
+        import base64
+        auth_string = f"{self.client.email}:{self.client.api_key}"
+        auth_bytes = base64.b64encode(auth_string.encode()).decode()
+        headers = {'Authorization': f'Basic {auth_bytes}'}
+
+        response = requests.post(url, files=files, headers=headers)
+        if response.status_code == 200:
+            return {"result": "success", **response.json()}
+        else:
+            return {"result": "error", "msg": f"Upload failed: {response.text}"}
 
     def get_daily_summary(
         self, streams: list[str] | None = None, hours_back: int = 24

@@ -164,11 +164,9 @@ async def manage_users(
                         "error": "status required for presence operation",
                     }
 
-                # Select appropriate identity
+                # Select appropriate identity (admin deprecated)
                 preferred_identity = None
-                if as_admin:
-                    preferred_identity = IdentityType.ADMIN
-                elif as_bot:
+                if as_bot:
                     preferred_identity = IdentityType.BOT
 
                 # Execute with appropriate identity and error handling
@@ -502,8 +500,8 @@ async def manage_user_groups(
                         "error": "members list is required for member operations",
                     }
 
-                # This operation typically requires admin privileges
-                preferred_identity = IdentityType.ADMIN
+                # Use current identity; Zulip will enforce permissions
+                preferred_identity = None
 
                 # Execute with appropriate identity and error handling
                 async def _execute_group_operation(client, params):
@@ -652,6 +650,6 @@ def register_users_v25_tools(mcp: Any) -> None:
     Args:
         mcp: FastMCP instance to register tools on
     """
-    mcp.tool(description="User operations with identity context")(manage_users)
-    mcp.tool(description="Switch identity context for operations")(switch_identity)
-    mcp.tool(description="Manage user groups and permissions")(manage_user_groups)
+    mcp.tool(description="User management with multi-identity support (user/bot/admin contexts). List users, get profiles, update user information, manage presence status, handle avatars, and work with custom profile fields. Identity context determines available operations - admin operations require admin credentials.")(manage_users)
+    mcp.tool(description="Switch between user, bot, and admin identity contexts for subsequent operations. Controls which credentials and permissions are used for API calls. Essential for tools that require specific identity types (e.g., admin operations, bot messaging). Persists until explicitly changed.")(switch_identity)
+    mcp.tool(description="Create, update, delete, and manage user groups and their memberships. Control group permissions and settings. Admin operations require admin identity context. Useful for organizing users and managing permissions at scale.")(manage_user_groups)

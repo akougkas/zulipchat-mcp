@@ -1,7 +1,7 @@
 """Identity management for multi-credential support in Zulip MCP.
 
-This module provides identity management with support for user, bot, and admin
-credentials with clear capability boundaries.
+This module provides identity management with support for user and bot
+credentials with clear capability boundaries. Admin identity is not used.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class IdentityType(Enum):
 
     USER = "user"
     BOT = "bot"
-    ADMIN = "admin"
+    ADMIN = "admin"  # Deprecated: not used or created
 
 
 @dataclass
@@ -80,17 +80,8 @@ class Identity:
                 "automated_responses",
             }
         elif self.type == IdentityType.ADMIN:
-            # Admin has all capabilities
-            self.capabilities = {
-                "all",
-                "user_management",
-                "realm_settings",
-                "export_data",
-                "topic_delete",
-                "stream_management",
-                "organization_customization",
-                "billing_management",
-            }
+            # Admin identity is deprecated and should not be instantiated
+            self.capabilities = set()
 
     @property
     def client(self) -> ZulipClientWrapper:
@@ -142,25 +133,25 @@ class Identity:
 class IdentityManager:
     """Manages multiple identities with capability-based access control."""
 
-    # Capability requirements for tool categories
+    # Capability requirements for tool categories (lightweight; let API enforce perms)
     TOOL_CAPABILITIES = {
         # Core Messaging
         "messaging.message": ["send_message"],
         "messaging.search_messages": ["read_messages"],
         "messaging.edit_message": ["edit_own_messages"],
         "messaging.bulk_operations": ["bulk_read"],
-        # Stream Management
-        "streams.manage_streams": ["stream_management"],
-        "streams.manage_topics": ["stream_management"],
+        # Stream Management (no pre-gating; Zulip will enforce)
+        "streams.manage_streams": [],
+        "streams.manage_topics": [],
         "streams.get_stream_info": ["read_messages"],
         # Event Streaming
         "events.register_events": ["stream_events"],
         "events.get_events": ["stream_events"],
         "events.listen_events": ["stream_events"],
-        # User & Authentication
-        "users.manage_users": ["user_management"],
+        # User & Authentication (no pre-gating for general operations)
+        "users.manage_users": [],
         "users.switch_identity": [],  # Always allowed
-        "users.manage_user_groups": ["user_management"],
+        "users.manage_user_groups": [],
         # Search & Analytics
         "search.advanced_search": ["search"],
         "search.analytics": ["read_messages"],
@@ -248,32 +239,10 @@ class IdentityManager:
             bot_identity._config_manager = self.config
             self.identities[IdentityType.BOT] = bot_identity
 
-        # Admin identity will be added by _check_admin_privileges if applicable
-        self._check_admin_privileges()
+        # Admin identity is deprecated; do not create/admin-detect
 
-    def _check_admin_privileges(self):
-        """Check if the user identity has admin privileges."""
-        try:
-            user_identity = self.identities[IdentityType.USER]
-            if user_identity:
-                # Try to get realm settings (admin-only endpoint)
-                # Use a simpler admin-only call like get_users which should work
-                result = user_identity.client.client.get_users()
-                if result.get("result") == "success":
-                    # User has admin access
-                    admin_identity = Identity(
-                        type=IdentityType.ADMIN,
-                        email=user_identity.email,
-                        api_key=user_identity.api_key,
-                        site=user_identity.site,
-                        name=f"{user_identity.name} (Admin)",
-                    )
-                    # Provide the config manager to admin identity
-                    admin_identity._config_manager = self.config
-                    self.identities[IdentityType.ADMIN] = admin_identity
-                    logger.info(f"Admin privileges detected for {user_identity.email}")
-        except Exception as e:
-            logger.debug(f"User does not have admin privileges: {e}")
+    def _check_admin_privileges(self):  # Deprecated
+        return None
 
     def get_current_identity(self) -> Identity:
         """Get the current active identity.
@@ -315,9 +284,9 @@ class IdentityManager:
             raise AuthenticationError(f"Identity {identity_type.value} not configured")
 
         if validate:
-            # Validate by making a simple API call
+            # Validate by making a simple API call (no args)
             try:
-                result = identity.client.get_users(request={"client_gravatar": False})
+                result = identity.client.get_users()
                 if result.get("result") != "success":
                     raise AuthenticationError(
                         f"Failed to validate {identity_type.value} credentials"
@@ -409,45 +378,34 @@ class IdentityManager:
     def select_best_identity(
         self, tool: str, preferred: IdentityType | None = None
     ) -> Identity:
-        """Select the best identity for a given tool.
-
-        Args:
-            tool: Tool name to execute
-            preferred: Preferred identity type
-
-        Returns:
-            Best identity for the tool
-
-        Raises:
-            PermissionError: If no identity has the required capability
+        """Select identity using a simple policy:
+        - USER for read/search/edit/list/admin-less ops
+        - BOT for sending messages back (agent-facing writes)
         """
-        # If preferred identity is specified and capable, use it
-        if preferred:
-            if self.check_capability(tool, preferred):
-                identity = self.identities.get(preferred)
-                if identity:
-                    return identity
+        # Honor explicit preference if available
+        if preferred and self.identities.get(preferred):
+            return self.identities[preferred]  # type: ignore[index]
 
-        # Check current identity first
-        if self.check_capability(tool):
-            return self.get_current_identity()
+        tool_lower = tool.lower()
+        # Heuristic: tools that "send" or agent tools use BOT; else USER
+        use_bot = any(
+            kw in tool_lower
+            for kw in [
+                "agent_message",
+                "send_agent_status",
+                "request_user_input",
+                "start_task",
+                "update_task_progress",
+                "complete_task",
+                "poll_agent_events",
+            ]
+        ) or (tool_lower.startswith("messaging.message") and False)
 
-        # Try other identities in order of preference
-        preference_order = [IdentityType.USER, IdentityType.BOT, IdentityType.ADMIN]
-        for identity_type in preference_order:
-            if self.check_capability(tool, identity_type):
-                identity = self.identities.get(identity_type)
-                if identity:
-                    logger.info(
-                        f"Switching to {identity_type.value} identity for tool {tool}"
-                    )
-                    return identity
+        if use_bot and self.identities.get(IdentityType.BOT):
+            return self.identities[IdentityType.BOT]  # type: ignore[index]
 
-        # No identity has the required capability
-        required_capabilities = self.TOOL_CAPABILITIES.get(tool, [])
-        raise PermissionError(
-            f"No configured identity has the required capabilities for {tool}: {required_capabilities}"
-        )
+        # Default to USER
+        return self.identities[IdentityType.USER]  # type: ignore[index]
 
     async def execute_with_identity(
         self,

@@ -490,16 +490,54 @@ def poll_agent_events(
 
 
 def register_agent_tools(mcp: Any) -> None:
-    mcp.tool(description="Register agent and get topic")(register_agent)
-    mcp.tool(description="Send agent message")(agent_message)
-    mcp.tool(description="Wait for human response")(wait_for_response)
-    mcp.tool(description="Send agent status update")(send_agent_status)
-    mcp.tool(description="Request input from user")(request_user_input)
-    mcp.tool(description="Start a new task")(start_task)
-    mcp.tool(description="Update task progress")(update_task_progress)
-    mcp.tool(description="Complete a task")(complete_task)
-    mcp.tool(description="List agent instances")(list_instances)
-    mcp.tool(description="Enable AFK mode for away notifications")(enable_afk_mode)
-    mcp.tool(description="Disable AFK mode")(disable_afk_mode)
-    mcp.tool(description="Get AFK mode status")(get_afk_status)
-    mcp.tool(description="Poll agent chat events")(poll_agent_events)
+    mcp.tool(
+        description="Register AI agent instance and create database records: generates unique agent_id and instance_id, stores agent metadata (type, session, project directory, hostname), initializes AFK state (disabled by default), validates Agents-Channel stream existence, and returns registration details. Essential first step for agent communication system. Creates persistent tracking across sessions with automatic UUID generation. Stores agent type (default: claude-code) and session information for multi-agent coordination."
+    )(register_agent)
+
+    mcp.tool(
+        description="Send bot-authored messages to users via Agents-Channel stream using BOT identity: formats agent messages with metadata, respects AFK mode gating (sends only when AFK enabled or ZULIP_DEV_NOTIFY=1), supports response requirements with unique IDs, automatically routes to Agents-Channel stream with contextual topics, and returns message ID for tracking. Use for automated responses, status updates, and agent-initiated communication. Bypassed when AFK disabled to prevent notification spam. Alternative to messaging_v25.message for bot communications."
+    )(agent_message)
+
+    mcp.tool(
+        description="Wait for user response with timeout-based polling: monitors database for user replies to input requests, supports 5-minute timeout with 1-second polling intervals, handles request status tracking (answered/cancelled/timeout), returns response content with timestamps, and automatically updates request status on timeout. Use with request_user_input for interactive workflows. Blocks execution until response received or timeout reached. Essential for synchronous user interaction patterns."
+    )(wait_for_response)
+
+    mcp.tool(
+        description="Set and track agent status updates: creates timestamped status records in database, supports custom agent types and status messages, generates unique status IDs for tracking, and stores operational state information. Use for progress reporting, health checks, and workflow state communication. Enables status history tracking across agent sessions. Supports any status values (starting, working, completed, error, idle, etc.) with optional descriptive messages."
+    )(send_agent_status)
+
+    mcp.tool(
+        description="Request interactive user input with intelligent routing: creates timestamped input requests with unique short IDs (8-char), supports multiple choice options and contextual information, respects AFK mode gating (only sends when enabled), routes via user email (DM), stream name, or fallback to Agents-Channel, stores requests in database for polling, and returns request ID for wait_for_response. Essential for agent-user interaction workflows. Automatically determines routing based on agent metadata and project context."
+    )(request_user_input)
+
+    mcp.tool(
+        description="Initialize task tracking with database persistence: creates task records with unique IDs, stores task metadata (name, description, agent association), sets initial status and progress (0%), records start timestamps, and returns task_id for progress updates. Essential for long-running workflows and progress monitoring. Use with update_task_progress and complete_task for full task lifecycle management. Enables task history and analytics across agent sessions."
+    )(start_task)
+
+    mcp.tool(
+        description="Update task progress with percentage and status tracking: modifies existing task records with new progress values (0-100%), supports optional status updates (working, blocked, error, etc.), updates database with current timestamp, and returns success confirmation. Use throughout task execution to provide progress visibility. Enables real-time progress monitoring and workflow state management. Supports any integer progress value and custom status descriptions."
+    )(update_task_progress)
+
+    mcp.tool(
+        description="Finalize task completion with results tracking: marks task as completed (100% progress), records completion timestamp, stores task outputs and performance metrics as text, updates database status to 'completed', and returns success confirmation. Final step in task lifecycle. Enables task analytics, outcome tracking, and results retrieval. Stores arbitrary output data and metrics for post-completion analysis and reporting."
+    )(complete_task)
+
+    mcp.tool(
+        description="Retrieve all agent instances with session details: queries database for complete agent instance information, includes agent metadata (type, ID, session ID), project directory and hostname tracking, start timestamps and duration calculations, joins with agent records for full context, and returns sorted list (newest first). Essential for multi-agent coordination, session management, and system monitoring. Enables agent discovery and cluster state visibility."
+    )(list_instances)
+
+    mcp.tool(
+        description="Enable AFK (Away From Keyboard) mode for automatic notifications: activates agent communication system with configurable duration (default 8 hours), sets custom away reason message, stores AFK state in database with timestamps, enables agent_message and request_user_input tools to send notifications, and returns confirmation with duration. Use when away from computer to enable automatic agent communication. Overrides normal notification gating for urgent agent messages."
+    )(enable_afk_mode)
+
+    mcp.tool(
+        description="Disable AFK mode and restore normal operation: deactivates automatic agent notification system, updates database AFK state to disabled, blocks agent_message and request_user_input notifications (unless ZULIP_DEV_NOTIFY=1), sets reason to normal operation mode, and returns confirmation. Use when returning to computer to prevent notification spam. Restores default behavior where agent tools respect user presence and don't send unsolicited messages."
+    )(disable_afk_mode)
+
+    mcp.tool(
+        description="Query current AFK mode status with state details: retrieves AFK state from database, returns enabled/disabled status with reason message, includes last updated timestamp, normalizes boolean values for consistency, and provides current operational mode information. Use to check if automatic notifications are active before calling agent communication tools. Essential for understanding current agent behavior and notification policies."
+    )(get_afk_status)
+
+    mcp.tool(
+        description="Poll unacknowledged chat events from Zulip with topic filtering: retrieves user messages and replies from Agents-Channel, filters by topic prefix (default: 'Agents/Chat/'), limits results (default 50 events), marks events as acknowledged in database, and returns event list with message content and metadata. Enables agent to receive user replies when in AFK mode. Essential for asynchronous agent-user communication and message queue processing."
+    )(poll_agent_events)

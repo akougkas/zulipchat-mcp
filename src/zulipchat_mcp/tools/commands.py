@@ -172,8 +172,13 @@ def list_command_types() -> list[str]:
 
 
 def register_command_tools(mcp: Any) -> None:
-    mcp.tool(description="Execute a command chain")(execute_chain)
-    mcp.tool(description="List available command types")(list_command_types)
+    mcp.tool(
+        description="Execute sophisticated command chains for workflow automation: supports sequential command execution with shared context, includes 4 command types (send_message, wait_for_response, search_messages, conditional_action), provides conditional branching with Python expressions, maintains execution context across commands, integrates with v2.5 tools (advanced_search adapter), handles async operations with fallback loops, and returns comprehensive execution summary with final context. Ideal for complex multi-step workflows like interactive conversations, data processing pipelines, and automated response systems."
+    )(execute_chain)
+
+    mcp.tool(
+        description="List all available command types for workflow construction: returns supported command types array including send_message (Zulip messaging), wait_for_response (user input polling), search_messages (message query with v2.5 integration), and conditional_action (branching logic with Python expressions). Essential reference for building command chains with execute_chain. Each command type supports specific parameters and context integration for sophisticated workflow automation and multi-step operations."
+    )(list_command_types)
 
 
 # Export all symbols for compatibility wrapper

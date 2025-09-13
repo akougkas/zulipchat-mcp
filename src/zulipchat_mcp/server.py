@@ -2,17 +2,16 @@
 
 import argparse
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from .config import ConfigManager
-from .core.migration import MigrationManager
 from .tools import (
-    register_admin_v25_tools,
     register_events_v25_tools,
     register_files_v25_tools,
     register_messaging_v25_tools,
     register_search_v25_tools,
     register_streams_v25_tools,
+    register_system_tools,
     register_users_v25_tools,
 )
 from .utils.database import init_database
@@ -73,14 +72,23 @@ def main() -> None:
     init_database()
     logger.info("Database initialized successfully")
 
-    # Initialize MCP
-    mcp = FastMCP("ZulipChat MCP")
+    # Initialize MCP with modern configuration
+    mcp = FastMCP(
+        "ZulipChat MCP",
+        on_duplicate_tools="warn",           # Warn on duplicate tools
+        on_duplicate_resources="error",      # Error on duplicate resources
+        on_duplicate_prompts="replace",      # Replace duplicate prompts
+        include_fastmcp_meta=True,           # Include metadata for debugging
+        mask_error_details=False             # Show detailed errors for debugging
+        # Note: debug parameter is deprecated, will be passed to run() method instead
+    )
 
-    # Initialize migration manager for backward compatibility
-    migration_manager = MigrationManager()
+    # Middleware configuration (available in FastMCP 2.12.3)
+    # Note: Specific middleware classes may be added in future versions
+    # For now, error handling is configured via mask_error_details parameter
+    logger.info("FastMCP initialized with modern error handling and metadata support")
 
-    # Register V2.5.0 consolidated tools ONLY
-    # The migration manager handles backward compatibility for legacy tool names
+    # Register V2.5.0 consolidated tools
     logger.info("Registering v2.5.0 consolidated tools...")
     register_messaging_v25_tools(
         mcp
@@ -94,7 +102,8 @@ def main() -> None:
     register_users_v25_tools(mcp)  # New: Identity-aware user management
     register_search_v25_tools(mcp)  # Replaces: search_messages, get_daily_summary
     register_files_v25_tools(mcp)  # New: File management with security
-    register_admin_v25_tools(mcp)  # New: Admin tools with permission boundaries
+    # System tools: server info and per-tool help
+    register_system_tools(mcp)
 
     # Register ONLY agent tools (no conflicts, needed for AFK mode and direct imports)
     # These are specialized tools that don't have v2.5.0 equivalents
@@ -107,8 +116,9 @@ def main() -> None:
 
     commands.register_command_tools(mcp)
 
-    # Store migration manager for tool interception if needed
-    mcp._migration_manager = migration_manager  # type: ignore[attr-defined]
+    # Server capabilities are handled by the underlying MCP protocol
+    # FastMCP 2.12.3 handles capability negotiation automatically
+
     logger.info(
         "v2.5.0 architecture consolidation complete: 17 tools → 7 categories + specialized tools"
     )
