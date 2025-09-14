@@ -23,12 +23,11 @@ Features:
 from __future__ import annotations
 
 import builtins as _builtins
-from collections.abc import Callable
 from datetime import datetime
 from typing import Any, Literal
 
 from ..config import ConfigManager
-from ..core.batch_processor import BatchProcessor, ProgressReport
+from ..core.batch_processor import BatchProcessor
 from ..core.error_handling import get_error_handler
 from ..core.identity import IdentityManager, IdentityType
 from ..core.security import validate_emoji
@@ -466,6 +465,8 @@ async def search_messages(
         )
         await search_messages(narrow=narrow_filters)
     """
+    # Type conversion now handled automatically by create_type_converting_mcp wrapper
+
     with Timer(
         "zulip_mcp_tool_duration_seconds", {"tool": "messaging.search_messages"}
     ):
@@ -499,6 +500,10 @@ async def search_messages(
                 # Additional validation
                 if isinstance(anchor, int) and anchor <= 0:
                     return {"status": "error", "error": "Invalid message ID for anchor"}
+
+                # Ensure numeric parameters are integers (handle MCP string input)
+                num_before = int(num_before) if isinstance(num_before, str) else num_before
+                num_after = int(num_after) if isinstance(num_after, str) else num_after
 
                 if num_before < 0 or num_after < 0:
                     return {

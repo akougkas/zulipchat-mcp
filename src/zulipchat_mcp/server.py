@@ -1,6 +1,9 @@
 """ZulipChat MCP Server - CLI argument based like context7."""
 
 import argparse
+import functools
+import types
+from typing import get_args, get_origin, get_type_hints
 
 from fastmcp import FastMCP
 
@@ -16,6 +19,110 @@ from .tools import (
 )
 from .utils.database import init_database
 from .utils.logging import get_logger, setup_structured_logging
+
+# Import UnionType for union type checking
+UnionType = types.UnionType
+
+
+def create_type_converting_mcp(name: str, **kwargs) -> FastMCP:
+    """Create a FastMCP instance with automatic type conversion for common parameter types.
+
+    This wrapper ensures that string parameters are automatically converted to their
+    expected types (int, bool, float) based on function annotations, preventing
+    MCP schema validation errors when LLMs pass all parameters as strings.
+    """
+    mcp = FastMCP(name, **kwargs)
+
+    # Store the original tool method
+    original_tool = mcp.tool
+
+    def convert_parameter_types(value, expected_type):
+        """Convert a parameter value to the expected type if possible."""
+        # Handle None values
+        if value is None:
+            return None
+
+        # If value is already the expected type, return as-is
+        if isinstance(value, expected_type):
+            return value
+
+        # Handle Union types (e.g., int | None, str | None)
+        origin = get_origin(expected_type)
+
+        # Handle both typing.Union and types.UnionType (Python 3.10+ syntax: int | None)
+        is_union_type = (UnionType is not None and isinstance(expected_type, UnionType))
+        if origin is not None or is_union_type:
+            # Get union arguments
+            if is_union_type:
+                # Python 3.10+ union syntax (int | None)
+                args = expected_type.__args__
+            else:
+                # Traditional Union syntax (Union[int, None])
+                args = get_args(expected_type)
+
+            # Try each type in the union
+            for arg_type in args:
+                if arg_type is type(None):
+                    continue
+                try:
+                    return convert_parameter_types(value, arg_type)
+                except (ValueError, TypeError):
+                    continue
+
+        # Convert strings to target types
+        if isinstance(value, str):
+            try:
+                if expected_type is int:
+                    return int(value) if value.strip() else None
+                elif expected_type is float:
+                    return float(value) if value.strip() else None
+                elif expected_type is bool:
+                    # Handle common boolean string representations
+                    if value.lower() in ('true', '1', 'yes', 'on'):
+                        return True
+                    elif value.lower() in ('false', '0', 'no', 'off'):
+                        return False
+                    else:
+                        return bool(value)
+            except (ValueError, AttributeError):
+                pass
+
+        # Return original value if no conversion possible
+        return value
+
+    def type_converting_tool(description: str = None, **tool_kwargs):
+        """Enhanced tool decorator that automatically converts parameter types."""
+        def decorator(func):
+            # Get type hints for the function
+            try:
+                type_hints = get_type_hints(func)
+            except (NameError, AttributeError):
+                # If we can't get type hints, use the original tool decorator
+                return original_tool(description=description, **tool_kwargs)(func)
+
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                # Convert kwargs based on type hints
+                converted_kwargs = {}
+                for param_name, param_value in kwargs.items():
+                    if param_name in type_hints:
+                        expected_type = type_hints[param_name]
+                        converted_kwargs[param_name] = convert_parameter_types(param_value, expected_type)
+                    else:
+                        converted_kwargs[param_name] = param_value
+
+                # Call the original function with converted parameters
+                return await func(*args, **converted_kwargs)
+
+            # Register the wrapper with the original tool decorator
+            return original_tool(description=description, **tool_kwargs)(wrapper)
+
+        return decorator
+
+    # Replace the tool method with our type-converting version
+    mcp.tool = type_converting_tool
+
+    return mcp
 
 
 def main() -> None:
@@ -72,8 +179,8 @@ def main() -> None:
     init_database()
     logger.info("Database initialized successfully")
 
-    # Initialize MCP with modern configuration
-    mcp = FastMCP(
+    # Initialize MCP with modern configuration and automatic type conversion
+    mcp = create_type_converting_mcp(
         "ZulipChat MCP",
         on_duplicate_tools="warn",           # Warn on duplicate tools
         on_duplicate_resources="error",      # Error on duplicate resources
@@ -86,7 +193,7 @@ def main() -> None:
     # Middleware configuration (available in FastMCP 2.12.3)
     # Note: Specific middleware classes may be added in future versions
     # For now, error handling is configured via mask_error_details parameter
-    logger.info("FastMCP initialized with modern error handling and metadata support")
+    logger.info("FastMCP initialized with automatic type conversion, error handling and metadata support")
 
     # Register V2.5.0 consolidated tools
     logger.info("Registering v2.5.0 consolidated tools...")

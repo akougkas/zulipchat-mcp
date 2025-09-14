@@ -263,6 +263,8 @@ class NarrowHelper:
         Example:
             filter = NarrowHelper.last_hours(24)
         """
+        # Ensure hours is an integer (handle string input from MCP)
+        hours = int(hours) if isinstance(hours, str) else hours
         cutoff_time = datetime.now() - timedelta(hours=hours)
         return NarrowHelper.after_time(cutoff_time)
 
@@ -279,6 +281,8 @@ class NarrowHelper:
         Example:
             filter = NarrowHelper.last_days(7)
         """
+        # Ensure days is an integer (handle string input from MCP)
+        days = int(days) if isinstance(days, str) else days
         cutoff_time = datetime.now() - timedelta(days=days)
         return NarrowHelper.after_time(cutoff_time)
 

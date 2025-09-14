@@ -114,14 +114,18 @@ class TimeRange:
                 )
             )
         elif self.days:
-            start_time = datetime.now() - timedelta(days=self.days)
+            # Ensure days is an integer (handle string input from MCP)
+            days = int(self.days) if isinstance(self.days, str) else self.days
+            start_time = datetime.now() - timedelta(days=days)
             filters.append(
                 NarrowFilter(
                     operator="search", operand=f"after:{start_time.isoformat()}"
                 )
             )
         elif self.hours:
-            start_time = datetime.now() - timedelta(hours=self.hours)
+            # Ensure hours is an integer (handle string input from MCP)
+            hours = int(self.hours) if isinstance(self.hours, str) else self.hours
+            start_time = datetime.now() - timedelta(hours=hours)
             filters.append(
                 NarrowFilter(
                     operator="search", operand=f"after:{start_time.isoformat()}"
