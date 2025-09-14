@@ -23,8 +23,42 @@ from ..utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def validate_and_convert_int(value: Any, param_name: str) -> int:
+    """Explicit validation with clear errors for integer parameters.
+
+    Args:
+        value: Value to validate and convert
+        param_name: Name of parameter for error messages
+
+    Returns:
+        Validated integer value
+
+    Raises:
+        ValueError: If value cannot be converted to integer
+
+    Example:
+        hours = validate_and_convert_int("7", "hours")  # Returns 7
+        validate_and_convert_int("abc", "days")  # Raises clear error
+    """
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            raise ValueError(
+                f"{param_name} must be a number, got '{value}'. "
+                f"Example: {param_name}=7 or {param_name}=\"7\""
+            )
+
+    raise ValueError(
+        f"{param_name} must be an integer or string number, got {type(value).__name__}: {value}"
+    )
+
+
 class NarrowHelper:
-    """Enhanced narrow filter helpers combining legacy simplicity with v2.5.0 power.
+    """Enhanced narrow filter helpers combining legacy simplicity with v2.5.1 power.
 
     This class provides both simple static methods for quick narrow building
     and more advanced features for complex filtering scenarios.
@@ -260,12 +294,16 @@ class NarrowHelper:
         Returns:
             NarrowFilter for messages in the last N hours
 
+        Raises:
+            ValueError: If hours cannot be converted to a valid integer
+
         Example:
             filter = NarrowHelper.last_hours(24)
+            filter = NarrowHelper.last_hours("24")  # Also works
         """
-        # Ensure hours is an integer (handle string input from MCP)
-        hours = int(hours) if isinstance(hours, str) else hours
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        # Explicit validation with clear error messages
+        validated_hours = validate_and_convert_int(hours, "hours")
+        cutoff_time = datetime.now() - timedelta(hours=validated_hours)
         return NarrowHelper.after_time(cutoff_time)
 
     @staticmethod
@@ -278,12 +316,16 @@ class NarrowHelper:
         Returns:
             NarrowFilter for messages in the last N days
 
+        Raises:
+            ValueError: If days cannot be converted to a valid integer
+
         Example:
             filter = NarrowHelper.last_days(7)
+            filter = NarrowHelper.last_days("7")  # Also works
         """
-        # Ensure days is an integer (handle string input from MCP)
-        days = int(days) if isinstance(days, str) else days
-        cutoff_time = datetime.now() - timedelta(days=days)
+        # Explicit validation with clear error messages
+        validated_days = validate_and_convert_int(days, "days")
+        cutoff_time = datetime.now() - timedelta(days=validated_days)
         return NarrowHelper.after_time(cutoff_time)
 
     @staticmethod
@@ -614,7 +656,7 @@ def build_basic_narrow(
     """Convenience function for building basic narrow filters.
 
     This function provides the same interface as the legacy NarrowHelper.build_basic_narrow()
-    while leveraging the enhanced v2.5.0 implementation.
+    while leveraging the enhanced v2.5.1 implementation.
 
     Args:
         stream: Stream name to filter by

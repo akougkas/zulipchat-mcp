@@ -1,4 +1,4 @@
-"""Intelligent Batch Processing System for ZulipChat MCP v2.5.0.
+"""Intelligent Batch Processing System for ZulipChat MCP v2.5.1.
 
 This module implements an adaptive batch processing system that dynamically
 adjusts batch sizes based on API rate limits and performance characteristics.

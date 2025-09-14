@@ -1,4 +1,4 @@
-"""Consolidated event streaming tools for ZulipChat MCP v2.5.0.
+"""Consolidated event streaming tools for ZulipChat MCP v2.5.1.
 
 This module implements the 3 stateless event streaming tools according to PLAN-REFACTOR.md:
 1. register_events() - Register for real-time events without persistence

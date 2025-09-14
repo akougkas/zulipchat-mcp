@@ -1,4 +1,4 @@
-"""User & Authentication tools for ZulipChat MCP v2.5.0.
+"""User & Authentication tools for ZulipChat MCP v2.5.1.
 
 This module implements the 3 identity-aware user tools according to PLAN-REFACTOR.md:
 1. manage_users() - User operations with identity context

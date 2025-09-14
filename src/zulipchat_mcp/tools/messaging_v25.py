@@ -1,4 +1,4 @@
-"""Consolidated messaging tools for ZulipChat MCP v2.5.0.
+"""Consolidated messaging tools for ZulipChat MCP v2.5.1.
 
 This module implements 8 consolidated messaging tools according to PLAN-REFACTOR.md:
 1. message() - Send, schedule, or draft messages
@@ -499,7 +499,22 @@ async def search_messages(
 
                 # Additional validation
                 if isinstance(anchor, int) and anchor <= 0:
-                    return {"status": "error", "error": "Invalid message ID for anchor"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_MESSAGE_ID",
+                            "message": f"Invalid message ID for anchor: {anchor}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the message ID",
+                                "Use 'newest', 'oldest', or 'first_unread' as anchor instead",
+                                "Search for messages first to get valid message IDs"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Search messages to find valid message IDs to use as anchor"
+                            }
+                        }
+                    }
 
                 # Ensure numeric parameters are integers (handle MCP string input)
                 num_before = int(num_before) if isinstance(num_before, str) else num_before
@@ -697,7 +712,22 @@ async def edit_message(
 
                 # Basic parameter validation
                 if message_id <= 0:
-                    return {"status": "error", "error": "Invalid message ID"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_MESSAGE_ID",
+                            "message": f"Invalid message ID: {message_id}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the message ID",
+                                "Search for messages first to get valid message IDs",
+                                "Check that the message exists and is accessible"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Find messages to get valid IDs for editing"
+                            }
+                        }
+                    }
 
                 if not content and not topic and not stream_id:
                     return {
@@ -712,7 +742,22 @@ async def edit_message(
                     }
 
                 if propagate_mode not in ["change_one", "change_later", "change_all"]:
-                    return {"status": "error", "error": "Invalid propagate_mode"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_PROPAGATE_MODE",
+                            "message": f"Invalid propagate_mode: '{propagate_mode}'. Must be one of: change_one, change_later, change_all",
+                            "suggestions": [
+                                "Use 'change_one' to edit only this message",
+                                "Use 'change_later' to edit this message and all newer messages in the topic",
+                                "Use 'change_all' to edit all messages in the topic"
+                            ],
+                            "recovery": {
+                                "tool": "edit_message",
+                                "hint": "Specify a valid propagate_mode parameter"
+                            }
+                        }
+                    }
 
                 # Content sanitization
                 safe_content = _truncate_content(content) if content else None
@@ -1083,7 +1128,22 @@ async def message_history(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {"status": "error", "error": "Invalid message ID"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_MESSAGE_ID",
+                            "message": f"Invalid message ID: {message_id}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the message ID",
+                                "Find messages first to get valid message IDs",
+                                "Verify the message exists and is accessible"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Search messages to get valid IDs for history lookup"
+                            }
+                        }
+                    }
 
                 # Execute with error handling
                 async def _execute_history(client, params):
@@ -1220,7 +1280,22 @@ async def cross_post_message(
 
                 # Parameter validation
                 if source_message_id <= 0:
-                    return {"status": "error", "error": "Invalid source message ID"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_SOURCE_MESSAGE_ID",
+                            "message": f"Invalid source message ID: {source_message_id}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the source message ID",
+                                "Find the message you want to cross-post first",
+                                "Verify the message exists and is accessible"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Search messages to get valid IDs for cross-posting"
+                            }
+                        }
+                    }
 
                 if not target_streams:
                     return {
@@ -1369,10 +1444,40 @@ async def add_reaction(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {"status": "error", "error": "Invalid message ID"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_MESSAGE_ID",
+                            "message": f"Invalid message ID: {message_id}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the message ID",
+                                "Find messages first to get valid message IDs",
+                                "Verify the message exists and is accessible"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Search messages to get valid IDs for adding reactions"
+                            }
+                        }
+                    }
 
                 if not validate_emoji(emoji_name):
-                    return {"status": "error", "error": "Invalid emoji name"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_EMOJI_NAME",
+                            "message": f"Invalid emoji name: '{emoji_name}'. Emoji names must be valid Unicode emoji or custom emoji names.",
+                            "suggestions": [
+                                "Use a valid Unicode emoji name like 'thumbs_up' or 'heart'",
+                                "Check available custom emojis in your Zulip organization",
+                                "Make sure the emoji name doesn't contain special characters"
+                            ],
+                            "recovery": {
+                                "tool": "add_reaction",
+                                "hint": "Use a simpler emoji name like 'thumbs_up'"
+                            }
+                        }
+                    }
 
                 if reaction_type not in [
                     "unicode_emoji",
@@ -1381,7 +1486,19 @@ async def add_reaction(
                 ]:
                     return {
                         "status": "error",
-                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji",
+                        "error": {
+                            "code": "INVALID_REACTION_TYPE",
+                            "message": f"Invalid reaction_type: '{reaction_type}'. Must be one of: unicode_emoji, realm_emoji, zulip_extra_emoji",
+                            "suggestions": [
+                                "Use 'unicode_emoji' for standard Unicode emojis like 👍 or ❤️",
+                                "Use 'realm_emoji' for custom emojis specific to your organization",
+                                "Use 'zulip_extra_emoji' for Zulip's extended emoji set"
+                            ],
+                            "recovery": {
+                                "tool": "add_reaction",
+                                "hint": "Use 'unicode_emoji' for most standard emojis"
+                            }
+                        }
                     }
 
                 # Execute with identity management and error handling
@@ -1470,10 +1587,40 @@ async def remove_reaction(
 
                 # Parameter validation
                 if message_id <= 0:
-                    return {"status": "error", "error": "Invalid message ID"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_MESSAGE_ID",
+                            "message": f"Invalid message ID: {message_id}. Message IDs must be positive integers.",
+                            "suggestions": [
+                                "Use a positive integer for the message ID",
+                                "Find messages first to get valid message IDs",
+                                "Verify the message exists and is accessible"
+                            ],
+                            "recovery": {
+                                "tool": "search_messages",
+                                "hint": "Search messages to get valid IDs"
+                            }
+                        }
+                    }
 
                 if not validate_emoji(emoji_name):
-                    return {"status": "error", "error": "Invalid emoji name"}
+                    return {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_EMOJI_NAME",
+                            "message": f"Invalid emoji name: '{emoji_name}'. Emoji names must be valid Unicode emoji or custom emoji names.",
+                            "suggestions": [
+                                "Use a valid Unicode emoji name like 'thumbs_up' or 'heart'",
+                                "Check available custom emojis in your Zulip organization",
+                                "Make sure the emoji name doesn't contain special characters"
+                            ],
+                            "recovery": {
+                                "tool": "remove_reaction",
+                                "hint": "Use a simpler emoji name like 'thumbs_up'"
+                            }
+                        }
+                    }
 
                 if reaction_type not in [
                     "unicode_emoji",
@@ -1482,7 +1629,19 @@ async def remove_reaction(
                 ]:
                     return {
                         "status": "error",
-                        "error": "Invalid reaction_type. Must be unicode_emoji, realm_emoji, or zulip_extra_emoji",
+                        "error": {
+                            "code": "INVALID_REACTION_TYPE",
+                            "message": f"Invalid reaction_type: '{reaction_type}'. Must be one of: unicode_emoji, realm_emoji, zulip_extra_emoji",
+                            "suggestions": [
+                                "Use 'unicode_emoji' for standard Unicode emojis like 👍 or ❤️",
+                                "Use 'realm_emoji' for custom emojis specific to your organization",
+                                "Use 'zulip_extra_emoji' for Zulip's extended emoji set"
+                            ],
+                            "recovery": {
+                                "tool": "remove_reaction",
+                                "hint": "Use 'unicode_emoji' for most standard emojis"
+                            }
+                        }
                     }
 
                 # Execute with identity management and error handling

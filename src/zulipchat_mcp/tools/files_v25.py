@@ -1,4 +1,4 @@
-"""File & Media Management tools for ZulipChat MCP v2.5.0.
+"""File & Media Management tools for ZulipChat MCP v2.5.1.
 
 This module implements the 2 enhanced file tools according to PLAN-REFACTOR.md:
 1. upload_file() - Upload files with progress tracking

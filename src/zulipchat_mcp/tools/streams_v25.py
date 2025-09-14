@@ -1,4 +1,4 @@
-"""Consolidated stream management tools for ZulipChat MCP v2.5.0.
+"""Consolidated stream management tools for ZulipChat MCP v2.5.1.
 
 This module implements the 3 consolidated stream management tools according to PLAN-REFACTOR.md:
 1. manage_streams() - List, create, update, delete, subscribe operations

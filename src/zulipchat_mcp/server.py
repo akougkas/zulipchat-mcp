@@ -5,17 +5,28 @@ import argparse
 from fastmcp import FastMCP
 
 from .config import ConfigManager
-from .core.service_manager import ServiceManager
+# Optional service manager for background services
+try:
+    from .core.service_manager import ServiceManager
+    service_manager_available = True
+except ImportError:
+    service_manager_available = False
+
 from .tools import (
-    register_events_v25_tools,
-    register_files_v25_tools,
-    register_messaging_v25_tools,
-    register_search_v25_tools,
-    register_streams_v25_tools,
+    register_messaging_tools,
+    register_search_tools,
+    register_streams_tools,
+    register_users_tools,
+    register_events_tools,
+    register_files_tools,
     register_system_tools,
-    register_users_v25_tools,
 )
-from .utils.database import init_database
+try:
+    from .utils.database import init_database
+    database_available = True
+except ImportError:
+    database_available = False
+
 from .utils.logging import get_logger, setup_structured_logging
 
 
@@ -66,9 +77,15 @@ def main() -> None:
 
     logger.info("Configuration loaded successfully")
 
-    # Initialize database
-    init_database()
-    logger.info("Database initialized")
+    # Initialize database (optional for agent features)
+    if database_available:
+        try:
+            init_database()
+            logger.info("Database initialized")
+        except Exception as e:
+            logger.warning(f"Database initialization failed: {e}")
+    else:
+        logger.info("Database not available (agent features disabled)")
 
     # Initialize MCP with modern configuration
     mcp = FastMCP(
@@ -82,42 +99,46 @@ def main() -> None:
 
     logger.info("FastMCP initialized successfully")
 
-    # Register V2.5.0 consolidated tools
-    logger.info("Registering v2.5.0 consolidated tools...")
-    register_messaging_v25_tools(
-        mcp
-    )  # Replaces: send_message, get_messages, edit_message, add_reaction
-    register_streams_v25_tools(
-        mcp
-    )  # Replaces: get_streams, create_stream, rename_stream, archive_stream
-    register_events_v25_tools(
-        mcp
-    )  # Replaces: register_agent, poll_agent_events (agent system)
-    register_users_v25_tools(mcp)  # New: Identity-aware user management
-    register_search_v25_tools(mcp)  # Replaces: search_messages, get_daily_summary
-    register_files_v25_tools(mcp)  # New: File management with security
-    # System tools: server info and per-tool help
-    register_system_tools(mcp)
+    # Register simplified tools
+    logger.info("Registering v2.5.1 simplified tools...")
+    register_messaging_tools(mcp)  # Send messages, reactions, editing
+    register_search_tools(mcp)     # Search with fuzzy user matching
+    register_streams_tools(mcp)    # Stream management
+    register_users_tools(mcp)      # User management and presence
+    register_events_tools(mcp)     # Event system
+    register_files_tools(mcp)      # File uploads
+    register_system_tools(mcp)     # System info and identity switching
 
-    # Register ONLY agent tools (no conflicts, needed for AFK mode and direct imports)
-    # These are specialized tools that don't have v2.5.0 equivalents
-    from .tools import agents
+    # Optional: Register agent tools if available (for backward compatibility)
+    try:
+        from .tools import agents
+        agents.register_agent_tools(mcp)
+        logger.info("Agent tools registered")
+    except ImportError:
+        logger.debug("Agent tools not available (optional)")
 
-    agents.register_agent_tools(mcp)
-
-    # Register command tools (needed for workflow chains)
-    from .tools import commands
-
-    commands.register_command_tools(mcp)
+    try:
+        from .tools import commands
+        commands.register_command_tools(mcp)
+        logger.info("Command tools registered")
+    except ImportError:
+        logger.debug("Command tools not available (optional)")
 
     # Server capabilities are handled by the underlying MCP protocol
     # FastMCP 2.12.3 handles capability negotiation automatically
 
-    logger.info("Tool registration complete: 43+ tools across 9 categories")
+    logger.info("Tool registration complete: Simplified tools across 7 categories")
 
-    # Start background services (message listener, AFK watcher)
-    service_manager = ServiceManager(config_manager, enable_listener=args.enable_listener)
-    service_manager.start()
+    # Start background services (message listener, AFK watcher) if available
+    if service_manager_available and args.enable_listener:
+        try:
+            service_manager = ServiceManager(config_manager, enable_listener=args.enable_listener)
+            service_manager.start()
+            logger.info("Background services started")
+        except Exception as e:
+            logger.warning(f"Could not start background services: {e}")
+    else:
+        logger.info("Background services disabled")
 
     logger.info("Starting ZulipChat MCP server...")
     mcp.run()

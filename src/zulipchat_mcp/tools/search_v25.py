@@ -1,4 +1,4 @@
-"""Advanced Search & Analytics tools for ZulipChat MCP v2.5.0.
+"""Advanced Search & Analytics tools for ZulipChat MCP v2.5.1.
 
 This module implements the 2 enhanced search tools according to PLAN-REFACTOR.md:
 1. advanced_search() - Multi-faceted search across Zulip
@@ -20,6 +20,7 @@ from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from typing import Any, Literal, cast
 
 from ..config import ConfigManager
@@ -48,6 +49,129 @@ AVG_CHARS_PER_TOKEN = 4  # Conservative estimate for token counting
 def estimate_tokens(text: str) -> int:
     """Estimate token count for text content."""
     return len(text) // AVG_CHARS_PER_TOKEN
+
+
+class AmbiguousUserError(Exception):
+    """Raised when user identifier matches multiple users."""
+
+    def __init__(self, identifier: str, matches: list[dict[str, Any]]):
+        self.identifier = identifier
+        self.matches = matches
+        match_strings = [f"{m.get('full_name')} ({m.get('email')})" for m in matches]
+        super().__init__(
+            f"Multiple matches for '{identifier}': {', '.join(match_strings[:5])}"
+        )
+
+
+class UserNotFoundError(Exception):
+    """Raised when user identifier cannot be resolved."""
+
+    def __init__(self, identifier: str):
+        self.identifier = identifier
+        super().__init__(f"No user matching '{identifier}'")
+
+
+async def resolve_user_identifier(
+    identifier: str, client: ZulipClientWrapper
+) -> dict[str, Any]:
+    """Resolve partial names, emails, or IDs to full user info.
+
+    This function provides fuzzy matching for user identification, solving
+    the problem where the Zulip narrow 'sender' operator ONLY accepts email
+    addresses but users often provide partial names.
+
+    Args:
+        identifier: User identifier - can be email, partial name, or full name
+        client: ZulipClientWrapper for API access
+
+    Returns:
+        Dict with user info including 'email' field for narrow construction
+
+    Raises:
+        AmbiguousUserError: When identifier matches multiple users
+        UserNotFoundError: When identifier cannot be resolved
+        Exception: For API errors
+
+    Examples:
+        user = await resolve_user_identifier("Jaime", client)
+        # Returns: {"email": "jcernudagarcia@hawk.iit.edu", "full_name": "Jaime Garcia", ...}
+
+        user = await resolve_user_identifier("user@example.com", client)
+        # Returns: {"email": "user@example.com", ...}
+    """
+    try:
+        # Try exact email match first (most efficient)
+        if "@" in identifier:
+            # Get all users to check if email exists
+            response = await client.get_users()
+            if response.get("result") == "success":
+                users = response.get("members", [])
+                exact_match = next(
+                    (user for user in users if user.get("email") == identifier), None
+                )
+                if exact_match:
+                    return exact_match
+            # Email not found, fall through to fuzzy matching
+        else:
+            # Get all users for fuzzy matching
+            response = await client.get_users()
+            if response.get("result") != "success":
+                raise Exception(f"Failed to fetch users: {response.get('msg', 'Unknown error')}")
+
+            users = response.get("members", [])
+
+            # Try exact full name match first
+            exact_matches = [
+                user for user in users
+                if user.get("full_name", "").lower() == identifier.lower()
+            ]
+            if len(exact_matches) == 1:
+                return exact_matches[0]
+            elif len(exact_matches) > 1:
+                raise AmbiguousUserError(identifier, exact_matches)
+
+            # Try partial name matching with similarity scoring
+            def similarity_score(user_name: str, query: str) -> float:
+                """Calculate similarity score between user name and query."""
+                return SequenceMatcher(None, user_name.lower(), query.lower()).ratio()
+
+            # Find partial matches with good similarity
+            partial_matches = []
+            for user in users:
+                full_name = user.get("full_name", "")
+                # Check if query is contained in name or if similarity is high
+                if (
+                    identifier.lower() in full_name.lower()
+                    or similarity_score(full_name, identifier) > 0.6
+                ):
+                    score = similarity_score(full_name, identifier)
+                    partial_matches.append((score, user))
+
+            # Sort by similarity score (highest first)
+            partial_matches.sort(key=lambda x: x[0], reverse=True)
+
+            if not partial_matches:
+                raise UserNotFoundError(identifier)
+            elif len(partial_matches) == 1:
+                return partial_matches[0][1]
+            else:
+                # Check if top match is significantly better than others
+                best_score = partial_matches[0][0]
+                close_matches = [
+                    user for score, user in partial_matches
+                    if score > best_score - 0.2  # Within 20% of best score
+                ]
+
+                if len(close_matches) == 1:
+                    return close_matches[0]
+                else:
+                    raise AmbiguousUserError(identifier, close_matches[:5])
+
+    except (AmbiguousUserError, UserNotFoundError):
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving user identifier '{identifier}': {e}")
+        raise Exception(f"Failed to resolve user '{identifier}': {str(e)}")
 
 
 def truncate_for_tokens(results: dict[str, Any], max_tokens: int = MAX_TOKENS_PER_RESPONSE) -> tuple[dict[str, Any], bool]:
@@ -413,6 +537,61 @@ async def advanced_search(
                         "status": "error",
                         "error": "Limit must be between 1 and 1000",
                     }
+
+                # Resolve sender identifier to email if needed (NEW in v2.5.1)
+                if sender:
+                    try:
+                        user_info = await resolve_user_identifier(sender, client)
+                        original_sender = sender
+                        sender = user_info.get("email")
+                        logger.debug(f"Resolved sender '{original_sender}' to '{sender}'")
+                    except AmbiguousUserError as e:
+                        # Return structured error with suggestions for recovery
+                        return {
+                            "status": "error",
+                            "error": {
+                                "code": "AMBIGUOUS_USER",
+                                "message": str(e),
+                                "suggestions": [
+                                    f"Did you mean: {match.get('full_name')} ({match.get('email')})?"
+                                    for match in e.matches[:3]
+                                ],
+                                "recovery": {
+                                    "tool": "advanced_search",
+                                    "hint": "Use the full email address or more specific name"
+                                }
+                            }
+                        }
+                    except UserNotFoundError as e:
+                        # Return structured error with recovery guidance
+                        return {
+                            "status": "error",
+                            "error": {
+                                "code": "USER_NOT_FOUND",
+                                "message": str(e),
+                                "suggestions": [
+                                    "Check the spelling of the user's name",
+                                    "Try using the full email address instead",
+                                    "Use 'list_users' tool to see all available users"
+                                ],
+                                "recovery": {
+                                    "tool": "manage_users",
+                                    "params": {"operation": "list"}
+                                }
+                            }
+                        }
+                    except Exception as e:
+                        return {
+                            "status": "error",
+                            "error": {
+                                "code": "USER_RESOLUTION_FAILED",
+                                "message": f"Failed to resolve sender '{sender}': {str(e)}",
+                                "suggestions": [
+                                    "Try using the email address directly",
+                                    "Check your connection and try again"
+                                ]
+                            }
+                        }
 
                 # Build effective narrow filters with enhanced logic
                 simple_params_provided = any(
