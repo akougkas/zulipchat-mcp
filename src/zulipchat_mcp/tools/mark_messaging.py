@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..client import ZulipClientWrapper
+from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
 
 

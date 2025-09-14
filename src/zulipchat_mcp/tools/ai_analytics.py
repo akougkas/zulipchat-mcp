@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP, Context
 
-from ..client import ZulipClientWrapper
+from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
 
 

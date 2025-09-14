@@ -67,22 +67,42 @@ class ZulipClientWrapper:
 
         # Check if bot identity is requested and available
         if use_bot_identity and self.config_manager.has_bot_credentials():
-            client_config = self.config_manager.get_zulip_client_config(use_bot=True)
+            self._client_config = self.config_manager.get_zulip_client_config(use_bot=True)
             self.identity = "bot"
             self.identity_name = self.config_manager.config.bot_name or "Bot"
         else:
-            client_config = self.config_manager.get_zulip_client_config(use_bot=False)
+            self._client_config = self.config_manager.get_zulip_client_config(use_bot=False)
             self.identity = "user"
-            email = client_config.get("email")
+            email = self._client_config.get("email")
             self.identity_name = email.split("@")[0] if email else "User"
 
-        self.client = Client(
-            email=client_config["email"],
-            api_key=client_config["api_key"],
-            site=client_config["site"],
-        )
-        self.current_email = client_config["email"]
-        self._base_url = client_config["site"].rstrip('/') if client_config["site"] else ""
+        # Lazy loading: client created on first API call
+        self._client = None
+        self.current_email = self._client_config["email"]
+        self._base_url = self._client_config["site"].rstrip('/') if self._client_config["site"] else ""
+
+    @property
+    def client(self) -> Client:
+        """Lazy-loaded Zulip client. Creates connection on first access."""
+        if self._client is None:
+            self._client = self._create_client()
+        return self._client
+
+    def _create_client(self) -> Client:
+        """Create and configure the Zulip client."""
+        try:
+            return Client(
+                email=self._client_config["email"],
+                api_key=self._client_config["api_key"],
+                site=self._client_config["site"],
+            )
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if client connection has been established."""
+        return self._client is not None
 
     @property
     def base_url(self) -> str:

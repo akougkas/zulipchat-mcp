@@ -16,7 +16,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from ..client import ZulipClientWrapper
+from ..core.client import ZulipClientWrapper
 from ..exceptions import (
     ValidationError,
     ZulipMCPError,

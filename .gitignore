@@ -210,3 +210,4 @@ config.json
 
 # Workflow
 .github/
+.benchmarks/

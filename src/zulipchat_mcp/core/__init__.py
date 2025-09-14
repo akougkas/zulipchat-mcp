@@ -14,7 +14,7 @@ from .error_handling import (
 
 # Note: CircuitBreaker removed as over-engineering
 from .identity import Identity, IdentityManager, IdentityType
-from .migration import MigrationManager, MigrationStatus, ToolMigration
+# Migration system removed - no longer needed for v2.5.1
 from .validation import (
     NarrowBuilder,
     NarrowFilter,

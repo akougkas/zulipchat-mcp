@@ -10,7 +10,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..client import ZulipClientWrapper
+from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
 
 
