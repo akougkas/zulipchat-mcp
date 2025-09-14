@@ -90,7 +90,7 @@ def create_type_converting_mcp(name: str, **kwargs) -> FastMCP:
         # Return original value if no conversion possible
         return value
 
-    def type_converting_tool(description: str = None, **tool_kwargs):
+    def type_converting_tool(**kwargs):
         """Enhanced tool decorator that automatically converts parameter types."""
         def decorator(func):
             # Get type hints for the function
@@ -98,13 +98,13 @@ def create_type_converting_mcp(name: str, **kwargs) -> FastMCP:
                 type_hints = get_type_hints(func)
             except (NameError, AttributeError):
                 # If we can't get type hints, use the original tool decorator
-                return original_tool(description=description, **tool_kwargs)(func)
+                return original_tool(**kwargs)(func)
 
             @functools.wraps(func)
-            async def wrapper(*args, **kwargs):
+            async def wrapper(*args, **call_kwargs):
                 # Convert kwargs based on type hints
                 converted_kwargs = {}
-                for param_name, param_value in kwargs.items():
+                for param_name, param_value in call_kwargs.items():
                     if param_name in type_hints:
                         expected_type = type_hints[param_name]
                         converted_kwargs[param_name] = convert_parameter_types(param_value, expected_type)
@@ -115,7 +115,7 @@ def create_type_converting_mcp(name: str, **kwargs) -> FastMCP:
                 return await func(*args, **converted_kwargs)
 
             # Register the wrapper with the original tool decorator
-            return original_tool(description=description, **tool_kwargs)(wrapper)
+            return original_tool(**kwargs)(wrapper)
 
         return decorator
 
