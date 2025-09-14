@@ -1,70 +1,37 @@
-# Release v2.5.0 - Enhanced Credential Management & Complete Tool Suite
+# Release v2.5.0
 
-## 🎯 Key Improvements
+## Overview
 
-### Enhanced Credential Management
-- **Clear separation** of mandatory vs optional parameters
-- **Simplified installation** with better CLI examples
-- **Dual-identity system** for user and bot credentials
-- **Improved documentation** with consistent configuration across all installation methods
+ZulipChat MCP v2.5.0 delivers a complete, production-ready Model Context Protocol server for Zulip with 40+ tools organized across 9 categories, enabling AI assistants to become Zulip power users.
 
-### Tool Optimization (43+ tools)
-- **60% improvement** in AI tool-calling accuracy
-- **Optimized descriptions** following MCP best practices
-- **Complete 9-category organization** for improved tool discovery
-- **Token-efficient** responses with smart result limiting
+## Key Features
 
-## ✨ New Features
+### 🛠️ Complete Tool Suite (40+ tools)
+- **Messaging** (8 tools) - Send, edit, search, bulk operations, reactions
+- **Streams & Topics** (5 tools) - Lifecycle management, analytics, permissions
+- **Real-time Events** (3 tools) - Event streams, webhooks, long-polling
+- **User Management** (3 tools) - Multi-identity, groups, profiles
+- **Search & Analytics** (3 tools) - AI insights, sentiment, participation
+- **Files & Media** (2 tools) - Upload, share, metadata extraction
+- **Agent Communication** (13 tools) - Task tracking, AFK mode, workflows
+- **Commands** (3 tools) - Workflow automation, chains
+- **System** (3+ tools) - Server info, documentation, identity management
 
-### Agent Communication System (13 new tools)
-- `register_agent` - Database persistence with session tracking
-- `agent_message` - BOT identity messaging with AFK gating
-- `request_user_input` - Interactive workflows with intelligent routing
-- `start_task`, `update_progress`, `complete_task` - Full task lifecycle
-- `enable_afk_mode`, `disable_afk_mode` - Away-mode automation
-- Complete workflow automation and monitoring capabilities
+### 🔐 Enhanced Security & Control
+- Manual-only PyPI publishing for release control
+- Clear credential management with mandatory/optional parameters
+- Dual-identity system supporting user and bot contexts
+- Secure file operations with validation
 
-### Advanced Search & Analytics (3 new tools)
-- `advanced_search` - Multi-faceted search with intelligent ranking
-- `analytics` - AI-powered insights with sentiment analysis
-- `get_daily_summary` - Comprehensive activity summaries
+### 📚 Comprehensive Documentation
+- Complete API reference for all tool categories
+- User guides for installation and configuration
+- Developer documentation for architecture and components
+- Contributing guidelines and troubleshooting guides
 
-### Stream & User Management (5 new tools)
-- `stream_analytics` - Growth trends and engagement metrics
-- `manage_stream_settings` - Notification preferences and permissions
-- `switch_identity` - Session continuity with validation
-- `manage_user_groups` - Complete group lifecycle management
-- `listen_events` - Webhook integration with stateless operation
+## Installation
 
-### File Management (2 new tools)
-- `upload_file` - Progress tracking with auto-sharing
-- `manage_files` - Complete file lifecycle with metadata
-
-### System & Workflow (6 new tools)
-- `server_info` - Comprehensive metadata with routing hints
-- `tool_help` - On-demand documentation
-- `execute_chain` - Sophisticated workflow automation
-- `identity_policy` - Best practices guide
-- `bootstrap_agent` - Agent registration helper
-- `list_command_types` - Workflow construction reference
-
-## 🔧 Technical Improvements
-
-### Architecture
-- **FastMCP framework** for high-performance operations
-- **DuckDB integration** for persistence and caching
-- **Async-first design** for optimal performance
-- **Modular structure** with clear separation of concerns
-
-### Code Quality
-- **90% test coverage** enforced
-- **Type hints** for all public APIs
-- **Comprehensive error handling**
-- **Security-first design** with credential protection
-
-## 📦 Installation
-
-### Quick Start (GitHub)
+### Quick Start
 ```bash
 uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
   --zulip-email user@org.com \
@@ -72,18 +39,7 @@ uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
   --zulip-site https://org.zulipchat.com
 ```
 
-### With Bot (Advanced Features)
-```bash
-# Add bot credentials for agent communication features
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_KEY \
-  --zulip-site https://org.zulipchat.com \
-  --zulip-bot-email bot@org.com \
-  --zulip-bot-api-key BOT_KEY
-```
-
-### Claude Code Integration
+### Claude Code
 ```bash
 claude mcp add zulipchat \
   -e ZULIP_EMAIL=user@org.com \
@@ -92,33 +48,40 @@ claude mcp add zulipchat \
   -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```
 
-## 🚀 Migration Guide
+## Technical Improvements
 
-### From v1.x to v2.5
-1. **Update import paths** - Use new modular structure
-2. **Review configuration** - Bot credentials now optional
-3. **Test integrations** - Verify tool compatibility
-4. **Update documentation** - Follow new examples
+- **Performance**: 60% improvement in AI tool-calling accuracy
+- **Architecture**: FastMCP framework with DuckDB persistence
+- **Testing**: 90% test coverage requirement enforced
+- **Async-first**: Optimized for concurrent operations
+- **Token Efficiency**: Smart result limiting and caching
+
+## Migration from Previous Versions
 
 ### Breaking Changes
 - Import paths changed from flat to modular structure
 - Admin tools removed from AI access for security
-- Some tool names updated for clarity
+- Documentation moved from `docs/v2.5.0/` to cleaner structure
 
-## 📊 Performance Metrics
+### Upgrade Steps
+1. Update import paths to new modular structure
+2. Review bot credential configuration (now optional)
+3. Check tool compatibility with new names
+4. Update documentation references
 
-- **Tool accuracy**: 60% improvement in AI selection
-- **Response time**: 30% faster with optimized caching
-- **Token usage**: 40% reduction with smart limiting
-- **Coverage**: 90% test coverage maintained
+## Requirements
 
-## 🔗 Resources
+- Python 3.10+
+- Zulip account with API access
+- Optional: Bot account for advanced features
 
-- [Full Documentation](https://github.com/akougkas/zulipchat-mcp/blob/main/README.md)
-- [API Reference](https://github.com/akougkas/zulipchat-mcp/tree/main/docs)
-- [Issue Tracker](https://github.com/akougkas/zulipchat-mcp/issues)
-- [Zulip API Docs](https://zulip.com/api/)
+## Links
+
+- [Documentation](https://github.com/akougkas/zulipchat-mcp/tree/main/docs)
+- [API Reference](https://github.com/akougkas/zulipchat-mcp/tree/main/docs/api-reference)
+- [Contributing](https://github.com/akougkas/zulipchat-mcp/blob/main/CONTRIBUTING.md)
+- [Issues](https://github.com/akougkas/zulipchat-mcp/issues)
 
 ---
 
-**Thank you** to all contributors and the Zulip community for making this release possible!
+For complete documentation, see the [README](https://github.com/akougkas/zulipchat-mcp#readme).
