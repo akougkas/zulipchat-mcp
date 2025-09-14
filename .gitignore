@@ -208,8 +208,3 @@ config.json
 # Development artifacts
 .dev-artifacts/
 
-# Agent files
-AGENTS.md
-CLAUDE.md
-CHANGELOG.md
-GEMINI.md

@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.5.0] - 2025-09-14 — Enhanced Packaging & Distribution
+
+### Enhanced Credential Management
+- Enhanced `.env` loading to check both current directory and home directory (~/.env)
+- Improved error messages for missing credentials with clear guidance on all configuration methods
+- Priority order: CLI arguments > current directory .env > home directory .env > environment variables
+
+### Distribution & Installation
+- Verified all installation methods work with real Zulip credentials:
+  - PyPI installation with pre-built wheels (fastest)
+  - GitHub installation building from source (functional, slower)
+  - TestPyPI installation for pre-release testing
+- Added GitHub Actions workflow for automated PyPI publishing
+- Added MANIFEST.in for proper package distribution
+- Reorganized documentation structure (moved release notes to docs/v2.5.0/)
+
+### Claude Code Integration
+- Fixed Claude Code MCP integration syntax with proper `--` separator
+- Verified real-world functionality with comprehensive testing
+- Updated documentation with tested command patterns
+
+### Project Organization
+- Updated .gitignore to exclude agent-specific configuration files
+- Enhanced development documentation for AI agents (AGENTS.md, CLAUDE.md)
+- Ready for public v2.5.0 PyPI release
+
 ## [2.5.0] - 2025-09-13 — Fixes & Test Polish
 
 ### Fixes

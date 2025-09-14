@@ -32,6 +32,19 @@
 - PRs should include: clear summary/motivation, linked issues, tests (or rationale), and example CLI invocation/output when relevant.
 - Keep changes minimal and focused; update `README.md`/`AGENTS.md` when behavior or commands change.
 
+## Distribution & Installation Testing
+- **Installation Methods**: Three primary distribution channels:
+  - `uvx zulipchat-mcp` (PyPI - fastest, pre-built wheels)
+  - `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
+  - `uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp` (TestPyPI - for pre-release testing)
+- **Credential Loading**: Enhanced `.env` file support checks both current directory and home directory (~/.env). Priority: CLI args > current directory .env > home directory .env > environment variables.
+- **Claude Code Integration**: Use `--` separator for proper argument passing:
+  ```bash
+  # Correct syntax (tested)
+  claude mcp add zulipchat -e ZULIP_EMAIL=bot@org.com -e ZULIP_API_KEY=key -e ZULIP_SITE=https://org.zulipchat.com -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+  ```
+- **Testing Before Release**: Always test all three installation methods with real credentials in clean environments to ensure packaging works correctly.
+
 ## Security & Configuration Tips
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
 - Prefer CLI flags for credentials in MCP clients. For background features, `--enable-listener` is available.

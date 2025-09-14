@@ -218,15 +218,13 @@ Add to `claude_desktop_config.json`:
 
 ```bash
 # From PyPI (once published)
-claude mcp add zulipchat uvx zulipchat-mcp
+claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx zulipchat-mcp
 
 # From GitHub (available now)
-claude mcp add zulipchat uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 
-# Then configure environment variables when prompted:
-# ZULIP_EMAIL=bot@your-org.zulipchat.com
-# ZULIP_API_KEY=your-api-key
-# ZULIP_SITE=https://your-org.zulipchat.com
+# From TestPyPI (for testing)
+claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp
 ```
 
 #### Cursor
