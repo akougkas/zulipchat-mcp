@@ -1,10 +1,11 @@
-"""ZulipChat MCP Server - CLI argument based like context7."""
+"""ZulipChat MCP Server - Environment-first configuration."""
 
 import argparse
 
 from fastmcp import FastMCP
 
 from .config import ConfigManager
+from .core.service_manager import ServiceManager
 from .tools import (
     register_events_v25_tools,
     register_files_v25_tools,
@@ -20,33 +21,25 @@ from .utils.logging import get_logger, setup_structured_logging
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    parser = argparse.ArgumentParser(description="ZulipChat MCP Server")
-
-    # Required credentials
-    parser.add_argument("--zulip-email", help="Zulip email address")
-    parser.add_argument("--zulip-api-key", help="Zulip API key")
-    parser.add_argument(
-        "--zulip-site", help="Zulip site URL (e.g., https://yourorg.zulipchat.com)"
+    parser = argparse.ArgumentParser(
+        description="ZulipChat MCP Server - Integrates Zulip Chat with AI assistants",
+        epilog="Environment variables take priority over CLI arguments."
     )
+
+    # Optional CLI arguments (environment variables take priority)
+    parser.add_argument("--zulip-email", help="Zulip email (fallback for ZULIP_EMAIL)")
+    parser.add_argument("--zulip-api-key", help="Zulip API key (fallback for ZULIP_API_KEY)")
+    parser.add_argument("--zulip-site", help="Zulip site URL (fallback for ZULIP_SITE)")
 
     # Optional bot credentials
-    parser.add_argument(
-        "--zulip-bot-email", help="Bot email for advanced features (optional)"
-    )
-    parser.add_argument("--zulip-bot-api-key", help="Bot API key (optional)")
-    parser.add_argument(
-        "--zulip-bot-name", default="Claude Code", help="Bot display name"
-    )
-    parser.add_argument("--zulip-bot-avatar-url", help="Bot avatar URL (optional)")
+    parser.add_argument("--zulip-bot-email", help="Bot email (fallback for ZULIP_BOT_EMAIL)")
+    parser.add_argument("--zulip-bot-api-key", help="Bot API key (fallback for ZULIP_BOT_API_KEY)")
+    parser.add_argument("--zulip-bot-name", help="Bot display name (fallback for ZULIP_BOT_NAME)")
+    parser.add_argument("--zulip-bot-avatar-url", help="Bot avatar URL (fallback for ZULIP_BOT_AVATAR_URL)")
 
-    # Debug options
+    # Service options
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    # Optional: enable message listener background service
-    parser.add_argument(
-        "--enable-listener",
-        action="store_true",
-        help="Enable Zulip message listener service",
-    )
+    parser.add_argument("--enable-listener", action="store_true", help="Enable message listener service")
 
     args = parser.parse_args()
 
@@ -54,7 +47,7 @@ def main() -> None:
     setup_structured_logging()
     logger = get_logger(__name__)
 
-    # Initialize configuration with CLI args
+    # Initialize configuration (environment-first, CLI fallback)
     config_manager = ConfigManager(
         email=args.zulip_email,
         api_key=args.zulip_api_key,
@@ -65,12 +58,17 @@ def main() -> None:
         bot_avatar_url=args.zulip_bot_avatar_url,
         debug=args.debug,
     )
+
+    # Validate configuration
+    if not config_manager.validate_config():
+        logger.error("Invalid configuration detected")
+        return
+
     logger.info("Configuration loaded successfully")
 
     # Initialize database
-    logger.info("Initializing database...")
     init_database()
-    logger.info("Database initialized successfully")
+    logger.info("Database initialized")
 
     # Initialize MCP with modern configuration
     mcp = FastMCP(
@@ -115,72 +113,11 @@ def main() -> None:
     # Server capabilities are handled by the underlying MCP protocol
     # FastMCP 2.12.3 handles capability negotiation automatically
 
-    logger.info(
-        "v2.5.0 architecture consolidation complete: 43+ tools across 9 categories"
-    )
+    logger.info("Tool registration complete: 43+ tools across 9 categories")
 
-    # Start message listener based on CLI flag and/or AFK state watcher
-    try:
-        import asyncio
-        import threading
-        import time as _time
-
-        from .core.client import ZulipClientWrapper
-        from .services.message_listener import MessageListener
-        from .utils.database_manager import DatabaseManager
-
-        client = ZulipClientWrapper(config_manager, use_bot_identity=True)
-        dbm = DatabaseManager()
-        listener_ref: dict[str, object | None] = {"listener": None, "thread": None}
-
-        def _start_listener() -> None:
-            if listener_ref["listener"] is not None:
-                return
-            listener = MessageListener(client, dbm)
-            listener_ref["listener"] = listener
-
-            def _run() -> None:
-                asyncio.run(listener.start())
-
-            t = threading.Thread(target=_run, name="zulip-listener", daemon=True)
-            listener_ref["thread"] = t
-            t.start()
-            logger.info("Message listener started (watcher)")
-
-        def _stop_listener() -> None:
-            listener = listener_ref.get("listener")
-            if listener is None:
-                return
-            try:
-                # type: ignore[attr-defined]
-                asyncio.run(listener.stop())  # best-effort
-            except Exception:
-                pass
-            listener_ref["listener"] = None
-            listener_ref["thread"] = None
-            logger.info("Message listener stopped (watcher)")
-
-        def _afk_watcher() -> None:
-            # If CLI explicitly enabled, start immediately
-            if args.enable_listener:
-                _start_listener()
-            # Poll AFK state and toggle listener accordingly
-            while True:
-                try:
-                    state = dbm.get_afk_state() or {}
-                    enabled = bool(state.get("is_afk"))
-                    has_listener = listener_ref["listener"] is not None
-                    if enabled and not has_listener:
-                        _start_listener()
-                    elif (not enabled) and has_listener and not args.enable_listener:
-                        _stop_listener()
-                except Exception as _e:
-                    logger.error(f"AFK watcher error: {_e}")
-                _time.sleep(5)
-
-        threading.Thread(target=_afk_watcher, name="afk-watcher", daemon=True).start()
-    except Exception as e:
-        logger.error(f"Failed to initialize listener/watcher: {e}")
+    # Start background services (message listener, AFK watcher)
+    service_manager = ServiceManager(config_manager, enable_listener=args.enable_listener)
+    service_manager.start()
 
     logger.info("Starting ZulipChat MCP server...")
     mcp.run()

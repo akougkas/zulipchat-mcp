@@ -1,6 +1,6 @@
 """Configuration management for ZulipChat MCP Server.
 
-CLI arguments with .env fallback - matches context7 pattern.
+Environment-first configuration following MCP standards.
 """
 
 import os
@@ -10,17 +10,10 @@ try:
     from dotenv import load_dotenv
     from pathlib import Path
 
-    # Load .env file from multiple locations (first found wins)
-    # Priority: current directory > home directory
-    env_locations = [
-        Path.cwd() / ".env",  # Current working directory
-        Path.home() / ".env",  # User home directory
-    ]
-
-    for env_path in env_locations:
-        if env_path.exists():
-            load_dotenv(env_path)
-            break
+    # Load .env file for development (only current directory)
+    env_path = Path.cwd() / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
 except ImportError:
     # python-dotenv not available, skip loading .env
     pass
@@ -43,7 +36,7 @@ class ZulipConfig:
 
 
 class ConfigManager:
-    """CLI-based configuration with .env fallback for development."""
+    """Environment-first configuration following MCP standards."""
 
     def __init__(
         self,
@@ -54,43 +47,54 @@ class ConfigManager:
         bot_api_key: str | None = None,
         bot_name: str | None = None,
         bot_avatar_url: str | None = None,
-        debug: bool = False,
+        debug: bool | None = None,
     ) -> None:
+        # Environment-first: env vars take priority, CLI args are fallback
         self.config = self._load_config(
-            email=email,
-            api_key=api_key,
-            site=site,
-            bot_email=bot_email,
-            bot_api_key=bot_api_key,
-            bot_name=bot_name,
-            bot_avatar_url=bot_avatar_url,
-            debug=debug,
+            cli_email=email,
+            cli_api_key=api_key,
+            cli_site=site,
+            cli_bot_email=bot_email,
+            cli_bot_api_key=bot_api_key,
+            cli_bot_name=bot_name,
+            cli_bot_avatar_url=bot_avatar_url,
+            cli_debug=debug,
         )
 
     def _load_config(
         self,
-        email: str | None = None,
-        api_key: str | None = None,
-        site: str | None = None,
-        bot_email: str | None = None,
-        bot_api_key: str | None = None,
-        bot_name: str | None = None,
-        bot_avatar_url: str | None = None,
-        debug: bool = False,
+        cli_email: str | None = None,
+        cli_api_key: str | None = None,
+        cli_site: str | None = None,
+        cli_bot_email: str | None = None,
+        cli_bot_api_key: str | None = None,
+        cli_bot_name: str | None = None,
+        cli_bot_avatar_url: str | None = None,
+        cli_debug: bool | None = None,
     ) -> ZulipConfig:
-        """Load configuration from CLI args with .env fallback."""
-        # Priority: CLI args > environment variables > error
-        final_email = email or self._get_email()
-        final_api_key = api_key or self._get_api_key()
-        final_site = site or self._get_site()
-        final_debug = debug or self._get_debug()
+        """Load configuration - environment first, CLI fallback."""
+        # MCP standard: Environment variables take priority
+        final_email = self._get_email() or cli_email
+        final_api_key = self._get_api_key() or cli_api_key
+        final_site = self._get_site() or cli_site
+
+        # Validate required fields
+        if not final_email:
+            raise ValueError(self._format_error("ZULIP_EMAIL", "email address"))
+        if not final_api_key:
+            raise ValueError(self._format_error("ZULIP_API_KEY", "API key"))
+        if not final_site:
+            raise ValueError(self._format_error("ZULIP_SITE", "site URL"))
+
+        # Optional settings
+        final_debug = self._get_debug() if cli_debug is None else cli_debug
         final_port = self._get_port()
 
         # Bot credentials (optional)
-        final_bot_email = bot_email or self._get_bot_email()
-        final_bot_api_key = bot_api_key or self._get_bot_api_key()
-        final_bot_name = bot_name or self._get_bot_name()
-        final_bot_avatar_url = bot_avatar_url or self._get_bot_avatar_url()
+        final_bot_email = self._get_bot_email() or cli_bot_email
+        final_bot_api_key = self._get_bot_api_key() or cli_bot_api_key
+        final_bot_name = self._get_bot_name() or cli_bot_name or "Claude Code"
+        final_bot_avatar_url = self._get_bot_avatar_url() or cli_bot_avatar_url
 
         return ZulipConfig(
             email=final_email,
@@ -104,35 +108,38 @@ class ConfigManager:
             bot_avatar_url=final_bot_avatar_url,
         )
 
-    def _get_email(self) -> str:
+    def _format_error(self, env_var: str, description: str) -> str:
+        """Format helpful error message for missing configuration."""
+        return f"""\nMissing required configuration: {env_var}
+
+To configure ZulipChat MCP, you need to provide your {description}.
+
+Option 1: Set environment variable (recommended for Claude Code)
+  export {env_var}=<your-value>
+
+Option 2: Create .env file in current directory
+  echo "{env_var}=<your-value>" >> .env
+
+Option 3: Use command line argument (for testing)
+  uv run zulipchat-mcp --{env_var.lower().replace('_', '-')} <your-value>
+
+Get your Zulip credentials:
+  1. Go to your Zulip settings: https://your-org.zulipchat.com/#settings/account-and-privacy
+  2. Click "Show/change your API key"
+  3. Copy your email and API key
+"""
+
+    def _get_email(self) -> str | None:
         """Get Zulip email from environment variable."""
-        if email := os.getenv("ZULIP_EMAIL"):
-            return email
-        raise ValueError(
-            "No Zulip email found. Please provide --zulip-email argument, "
-            "set ZULIP_EMAIL environment variable, or create a .env file "
-            "in your current directory or home directory."
-        )
+        return os.getenv("ZULIP_EMAIL")
 
-    def _get_api_key(self) -> str:
+    def _get_api_key(self) -> str | None:
         """Get Zulip API key from environment variable."""
-        if key := os.getenv("ZULIP_API_KEY"):
-            return key
-        raise ValueError(
-            "No Zulip API key found. Please provide --zulip-api-key argument, "
-            "set ZULIP_API_KEY environment variable, or create a .env file "
-            "in your current directory or home directory."
-        )
+        return os.getenv("ZULIP_API_KEY")
 
-    def _get_site(self) -> str:
+    def _get_site(self) -> str | None:
         """Get Zulip site URL from environment variable."""
-        if site := os.getenv("ZULIP_SITE"):
-            return site
-        raise ValueError(
-            "No Zulip site URL found. Please provide --zulip-site argument, "
-            "set ZULIP_SITE environment variable, or create a .env file "
-            "in your current directory or home directory."
-        )
+        return os.getenv("ZULIP_SITE")
 
     def _get_debug(self) -> bool:
         """Get debug mode setting."""
@@ -182,9 +189,9 @@ class ConfigManager:
         """Get bot API key for AI agents."""
         return os.getenv("ZULIP_BOT_API_KEY")
 
-    def _get_bot_name(self) -> str:
+    def _get_bot_name(self) -> str | None:
         """Get bot display name."""
-        return os.getenv("ZULIP_BOT_NAME", "Claude Code")
+        return os.getenv("ZULIP_BOT_NAME")
 
     def _get_bot_avatar_url(self) -> str | None:
         """Get bot avatar URL."""
