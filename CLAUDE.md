@@ -104,6 +104,13 @@ def register_*_v25_tools(mcp: FastMCP) -> None:
 
 ## Development Guidelines
 
+### Core Philosophy: Less is More
+- **Elegant simplicity is the primary success metric**
+- Achieve goals with minimal code - every line must justify its existence
+- Prefer leveraging Zulip's native capabilities over custom implementations
+- Remove complexity rather than managing it
+- If a solution feels complicated, it probably is - find a simpler way
+
 ### Python Environment
 - **Critical**: NEVER use pip - always use `uv run` for all Python operations
 - Python 3.10+ required
@@ -115,6 +122,7 @@ def register_*_v25_tools(mcp: FastMCP) -> None:
 - Type hints required for all public APIs
 - Prefer async/await for I/O operations
 - 4-space indentation, snake_case for functions/variables, CamelCase for classes
+- **Minimize abstractions** - direct, clear code over clever patterns
 
 ### Testing Strategy
 - Tests in `tests/` directory following pytest conventions
@@ -125,6 +133,7 @@ def register_*_v25_tools(mcp: FastMCP) -> None:
 
 ### File Operations
 - **Always prefer editing existing files over creating new ones**
+- **Consider deletion before addition** - can we solve this by removing code?
 - Use Read tool before any file modifications
 - Maintain existing code patterns and conventions
 

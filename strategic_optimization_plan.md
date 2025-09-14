@@ -3,6 +3,8 @@
 ## Mission
 Fix tool invocation failures in ZulipChat MCP by addressing type validation, user resolution, and parameter ambiguity issues. Create v2.5.1 on a new branch with comprehensive fixes.
 
+**Core Principle**: Less is more - achieve elegant solutions with minimal code. Every line must justify its existence.
+
 ## Current Problems and Bugs
 
 ### 1. Type Validation Failures
@@ -24,6 +26,7 @@ Input: search_messages(sender="Jaime")
 Error: Invalid narrow operator: unknown user Jaime
 ```
 **Desired Behavior**: Resolve "Jaime" to "jcernudagarcia@hawk.iit.edu" through fuzzy matching or user lookup
+**Zulip API Reality**: The narrow `sender` operator ONLY accepts email addresses, not names (see research in `/tmp/zulip_message_api_analysis.md`)
 
 ### 3. Parameter Overload and Ambiguity
 **Location**: `src/zulipchat_mcp/tools/messaging_v25.py`, `search_v25.py`
@@ -61,6 +64,31 @@ return {"status": "error", "error": "Invalid narrow operator"}
 - AI consistently chooses the right tool variant for the task
 - Clear tool descriptions prevent ambiguity
 - Focused tools reduce parameter confusion
+
+## Zulip API Research Findings
+
+### Critical Insights from API Investigation
+1. **Narrow System Reality** (from `/tmp/zulip_message_api_analysis.md`):
+   - The `sender` operator in narrow ONLY accepts email addresses
+   - User resolution must happen BEFORE building the narrow
+   - Time filters use `after:` and `before:` operators with timestamps
+   - Full-text search uses the `search` operator
+
+2. **Type Flexibility** (from `/tmp/zulip_search_patterns.md`):
+   - Zulip API is flexible with type conversion
+   - Our implementation already has robust type conversion utilities
+   - The issue is in our MCP layer, not the Zulip client layer
+
+3. **Missing Features** (from `/tmp/zulip_advanced_features.md`):
+   - Scheduled messages are partially implemented but not fully exposed
+   - Dual identity (user vs bot) is supported but not clearly distinguished
+   - Many advanced features exist but are hidden behind complex parameters
+
+### Simplification Opportunities
+- Remove complex type conversion wrappers - Zulip handles this well
+- Use Zulip's native search operators directly
+- Leverage the `/users` endpoint for name resolution
+- Expose scheduled messages as a simple, focused tool
 
 ## Implementation Instructions
 
