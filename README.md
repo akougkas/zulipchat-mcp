@@ -125,36 +125,79 @@ AI: Design Analytics:
 
 ## Quick Start
 
-### Claude Code (Current Setup)
+### Install & Run (Recommended)
+
+**From PyPI** (once published):
 ```bash
-# Clone and setup for development:
-git clone https://github.com/akougkas/zulipchat-mcp.git
-cd zulipchat-mcp
-uv sync
+# Install globally
+pip install zulipchat-mcp
 
-# Add to Claude Code:
-claude mcp add zulipchat uv run zulipchat-mcp
-
-# Configure credentials in Claude Code when prompted:
-# - ZULIP_EMAIL: your-email@domain.com  
-# - ZULIP_API_KEY: your-api-key
-# - ZULIP_SITE: https://your-org.zulipchat.com
-# - ZULIP_BOT_EMAIL: bot-email@domain.com (optional)
-# - ZULIP_BOT_API_KEY: bot-api-key (optional)
+# Or use uvx (recommended)
+uvx zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
 ```
 
-### Standard MCP Installation
+**From GitHub** (available now):
 ```bash
-# Install directly with uvx:
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
+```
+
+**For Claude Code Users**:
+```bash
+# From PyPI (once published)
+claude mcp add zulipchat uvx zulipchat-mcp
+
+# From GitHub (available now)
+claude mcp add zulipchat uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 ```
 
 ## Installation
 
-### For Claude Desktop
+### Universal Installation
+
+**Option 1: From PyPI** (recommended, once published)
+```bash
+pip install zulipchat-mcp
+# or
+uvx zulipchat-mcp
+```
+
+**Option 2: From GitHub** (available now)
+```bash
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+```
+
+**Option 3: From Source** (for development)
+```bash
+git clone https://github.com/akougkas/zulipchat-mcp.git
+cd zulipchat-mcp
+uv sync
+uv run zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
+```
+
+### For MCP Clients
+
+#### Claude Desktop
 
 Add to `claude_desktop_config.json`:
 
+**From PyPI** (once published):
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+**From GitHub** (available now):
 ```json
 {
   "mcpServers": {
@@ -171,16 +214,112 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-### For Cursor / Continue / Windsurf
+#### Claude Code
 
-Same configuration format - just add to your client's MCP config:
+```bash
+# From PyPI (once published)
+claude mcp add zulipchat uvx zulipchat-mcp
 
+# From GitHub (available now)
+claude mcp add zulipchat uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+
+# Then configure environment variables when prompted:
+# ZULIP_EMAIL=bot@your-org.zulipchat.com
+# ZULIP_API_KEY=your-api-key
+# ZULIP_SITE=https://your-org.zulipchat.com
+```
+
+#### Cursor
+
+Add to your `mcp_config.json`:
+
+**From PyPI** (once published):
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+**From GitHub** (available now):
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
       "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+#### Continue
+
+Add to your `config.json`:
+
+**From PyPI** (once published):
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+**From GitHub** (available now):
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
+        "ZULIP_API_KEY": "your-api-key",
+        "ZULIP_SITE": "https://your-org.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+#### Windsurf
+
+Same configuration as Cursor - add to your MCP configuration file.
+
+#### Cline (VS Code)
+
+Add to your VS Code settings or Cline configuration:
+
+**From PyPI** (once published):
+```json
+{
+  "cline.mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp"],
       "env": {
         "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
         "ZULIP_API_KEY": "your-api-key",

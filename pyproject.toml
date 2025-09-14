@@ -52,6 +52,7 @@ dev = [
     "bandit>=1.8",
     "safety>=3.0",
     "coverage[toml]>=7.0",
+    "twine>=6.2.0",
 ]
 
 [project.urls]
@@ -64,6 +65,9 @@ Changelog = "https://github.com/akougkas/zulipchat-mcp/releases"
 [project.scripts]
 zulipchat-mcp = "zulipchat_mcp.server:main"
 zulipchat-mcp-integrate = "zulipchat_mcp.integrations.registry:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zulipchat_mcp"]
 
 [tool.uv]
 package = true

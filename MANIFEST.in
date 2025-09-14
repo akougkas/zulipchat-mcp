@@ -1,0 +1,36 @@
+# Include essential project files
+include README.md
+include LICENSE
+include .env.example
+
+# Include configuration files
+include pyproject.toml
+
+# Include source code
+recursive-include src *.py
+recursive-include src *.pyi
+
+# Exclude test files and development artifacts
+recursive-exclude tests *
+recursive-exclude docs *
+recursive-exclude .github *
+recursive-exclude .claude *
+recursive-exclude .gemini *
+recursive-exclude .cursor *
+exclude AGENTS.md
+exclude CLAUDE.md
+exclude CHANGELOG.md
+exclude .gitignore
+exclude .env
+exclude .env.*
+exclude *.log
+exclude .coverage*
+exclude htmlcov
+exclude .pytest_cache
+exclude __pycache__
+exclude .mypy_cache
+exclude .ruff_cache
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * *.pyo
+recursive-exclude * .DS_Store

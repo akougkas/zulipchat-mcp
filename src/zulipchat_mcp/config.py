@@ -8,9 +8,19 @@ from dataclasses import dataclass
 
 try:
     from dotenv import load_dotenv
+    from pathlib import Path
 
-    # Load .env file from current working directory
-    load_dotenv()
+    # Load .env file from multiple locations (first found wins)
+    # Priority: current directory > home directory
+    env_locations = [
+        Path.cwd() / ".env",  # Current working directory
+        Path.home() / ".env",  # User home directory
+    ]
+
+    for env_path in env_locations:
+        if env_path.exists():
+            load_dotenv(env_path)
+            break
 except ImportError:
     # python-dotenv not available, skip loading .env
     pass
@@ -99,8 +109,9 @@ class ConfigManager:
         if email := os.getenv("ZULIP_EMAIL"):
             return email
         raise ValueError(
-            "No Zulip email found. Please provide --zulip-email argument "
-            "or set ZULIP_EMAIL environment variable."
+            "No Zulip email found. Please provide --zulip-email argument, "
+            "set ZULIP_EMAIL environment variable, or create a .env file "
+            "in your current directory or home directory."
         )
 
     def _get_api_key(self) -> str:
@@ -108,8 +119,9 @@ class ConfigManager:
         if key := os.getenv("ZULIP_API_KEY"):
             return key
         raise ValueError(
-            "No Zulip API key found. Please provide --zulip-api-key argument "
-            "or set ZULIP_API_KEY environment variable."
+            "No Zulip API key found. Please provide --zulip-api-key argument, "
+            "set ZULIP_API_KEY environment variable, or create a .env file "
+            "in your current directory or home directory."
         )
 
     def _get_site(self) -> str:
@@ -117,8 +129,9 @@ class ConfigManager:
         if site := os.getenv("ZULIP_SITE"):
             return site
         raise ValueError(
-            "No Zulip site URL found. Please provide --zulip-site argument "
-            "or set ZULIP_SITE environment variable."
+            "No Zulip site URL found. Please provide --zulip-site argument, "
+            "set ZULIP_SITE environment variable, or create a .env file "
+            "in your current directory or home directory."
         )
 
     def _get_debug(self) -> bool:
