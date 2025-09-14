@@ -14,10 +14,16 @@ except ImportError:
 
 from .tools import (
     register_messaging_tools,
+    register_schedule_messaging_tools,
+    register_emoji_messaging_tools,
+    register_mark_messaging_tools,
     register_search_tools,
+    register_stream_management_tools,
+    register_topic_management_tools,
     register_streams_tools,
+    register_event_management_tools,
+    register_events_tools,  # Now agent communication
     register_users_tools,
-    register_events_tools,
     register_files_tools,
     register_system_tools,
 )
@@ -99,15 +105,21 @@ def main() -> None:
 
     logger.info("FastMCP initialized successfully")
 
-    # Register simplified tools
-    logger.info("Registering v2.5.1 simplified tools...")
-    register_messaging_tools(mcp)  # Send messages, reactions, editing
-    register_search_tools(mcp)     # Search with fuzzy user matching
-    register_streams_tools(mcp)    # Stream management
-    register_users_tools(mcp)      # User management and presence
-    register_events_tools(mcp)     # Event system
-    register_files_tools(mcp)      # File uploads
-    register_system_tools(mcp)     # System info and identity switching
+    # Register decoupled tools by API domain
+    logger.info("Registering v2.5.1 decoupled tools...")
+    register_messaging_tools(mcp)          # Core send/edit operations
+    register_schedule_messaging_tools(mcp) # Scheduled message management
+    register_emoji_messaging_tools(mcp)    # Emoji reactions
+    register_mark_messaging_tools(mcp)     # Message flag updates
+    register_search_tools(mcp)             # Search with narrow construction
+    register_stream_management_tools(mcp)  # Stream CRUD operations
+    register_topic_management_tools(mcp)   # Topic operations
+    register_streams_tools(mcp)            # Stream analytics and settings
+    register_event_management_tools(mcp)   # Core event system
+    register_events_tools(mcp)             # Agent communication
+    register_users_tools(mcp)              # READ-ONLY user operations
+    register_files_tools(mcp)              # File uploads
+    register_system_tools(mcp)             # System info and identity switching
 
     # Optional: Register agent tools if available (for backward compatibility)
     try:

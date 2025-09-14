@@ -596,9 +596,284 @@ async def get_daily_summary(
     }
 
 
+async def analyze_with_llm(
+    data_source: Literal["messages", "streams", "users"],
+    analysis_type: str,
+    # Data fetching parameters
+    stream: str | None = None,
+    topic: str | None = None,
+    sender: str | None = None,
+    last_hours: int | None = None,
+    last_days: int | None = None,
+    limit: int = 100,
+    # Analysis prompt
+    custom_prompt: str | None = None,
+    ctx: Any = None,  # FastMCP Context for elicitation
+) -> dict[str, Any]:
+    """Fetch data from Zulip and analyze with LLM via elicitation."""
+    if not ctx:
+        return {"status": "error", "error": "Context required for LLM analysis"}
+
+    config = ConfigManager()
+    client = ZulipClientWrapper(config)
+
+    try:
+        # Fetch data based on source
+        if data_source == "messages":
+            search_result = await search_messages(
+                stream=stream,
+                topic=topic,
+                sender=sender,
+                last_hours=last_hours,
+                last_days=last_days,
+                limit=limit,
+            )
+
+            if search_result.get("status") != "success":
+                return {"status": "error", "error": "Failed to fetch messages for analysis"}
+
+            messages = search_result.get("messages", [])
+            if not messages:
+                return {"status": "success", "analysis": "No messages found for analysis"}
+
+            # Prepare data for LLM analysis
+            data_summary = f"Messages ({len(messages)} total):\n"
+            for i, msg in enumerate(messages[:20]):  # Limit to 20 for token efficiency
+                data_summary += f"{i+1}. {msg['sender']}: {msg['content'][:100]}...\n"
+
+        elif data_source == "streams":
+            streams_result = client.get_streams()
+            if streams_result.get("result") != "success":
+                return {"status": "error", "error": "Failed to fetch streams"}
+
+            streams = streams_result.get("streams", [])
+            data_summary = f"Streams ({len(streams)} total):\n"
+            for stream in streams[:20]:
+                data_summary += f"- {stream.get('name')}: {stream.get('description', 'No description')}\n"
+
+        else:  # users
+            users_result = client.get_users()
+            if users_result.get("result") != "success":
+                return {"status": "error", "error": "Failed to fetch users"}
+
+            users = users_result.get("members", [])
+            data_summary = f"Users ({len(users)} total):\n"
+            for user in users[:20]:
+                data_summary += f"- {user.get('full_name')} ({user.get('email')})\n"
+
+        # Create analysis prompt
+        if custom_prompt:
+            analysis_prompt = custom_prompt.replace("{data}", data_summary)
+        else:
+            default_prompts = {
+                "engagement": f"Analyze engagement patterns and trends in this Zulip data:\n\n{data_summary}\n\nProvide insights on activity levels, top contributors, and engagement trends.",
+                "sentiment": f"Analyze team sentiment and energy from these Zulip messages:\n\n{data_summary}\n\nProvide insights on team mood, energy levels, and any concerns.",
+                "collaboration": f"Analyze collaboration patterns in this Zulip data:\n\n{data_summary}\n\nProvide insights on teamwork, communication patterns, and collaboration quality.",
+                "summary": f"Provide a comprehensive summary of this Zulip data:\n\n{data_summary}\n\nInclude key statistics, patterns, and notable insights.",
+            }
+            analysis_prompt = default_prompts.get(analysis_type, f"Analyze this Zulip data for {analysis_type}:\n\n{data_summary}")
+
+        # Use LLM for analysis via elicitation
+        try:
+            llm_response = await ctx.sample(analysis_prompt)
+            analysis_result = llm_response.text.strip()
+
+            return {
+                "status": "success",
+                "analysis_type": analysis_type,
+                "data_source": data_source,
+                "data_count": len(messages) if data_source == "messages" else (len(streams) if data_source == "streams" else len(users)),
+                "analysis": analysis_result,
+                "generated_at": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            return {"status": "error", "error": f"LLM analysis failed: {str(e)}"}
+
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+async def construct_narrow(
+    # Basic narrow operators
+    stream: str | None = None,
+    topic: str | None = None,
+    sender: str | None = None,
+    # Content filters
+    search_text: str | None = None,
+    has_attachment: bool | None = None,
+    has_link: bool | None = None,
+    has_image: bool | None = None,
+    # Message state filters
+    is_private: bool | None = None,
+    is_starred: bool | None = None,
+    is_mentioned: bool | None = None,
+    is_unread: bool | None = None,
+    is_muted: bool | None = None,
+    is_followed: bool | None = None,
+    # Time-based filters
+    after_time: datetime | str | None = None,
+    before_time: datetime | str | None = None,
+    # ID-based filters
+    message_id: int | None = None,
+    near_message_id: int | None = None,
+    # Advanced filters
+    dm_with: str | list[str] | None = None,
+    group_dm_with: str | list[str] | None = None,
+) -> dict[str, Any]:
+    """Construct a narrow filter following Zulip API patterns."""
+    try:
+        narrow = []
+
+        # Basic operators
+        if stream:
+            narrow.append({"operator": "stream", "operand": stream})
+        if topic:
+            narrow.append({"operator": "topic", "operand": topic})
+        if sender:
+            narrow.append({"operator": "sender", "operand": sender})
+
+        # Content search
+        if search_text:
+            narrow.append({"operator": "search", "operand": search_text})
+
+        # Has filters
+        if has_attachment is not None:
+            if has_attachment:
+                narrow.append({"operator": "has", "operand": "attachment"})
+            else:
+                narrow.append({"operator": "has", "operand": "attachment", "negated": True})
+
+        if has_link is not None:
+            if has_link:
+                narrow.append({"operator": "has", "operand": "link"})
+            else:
+                narrow.append({"operator": "has", "operand": "link", "negated": True})
+
+        if has_image is not None:
+            if has_image:
+                narrow.append({"operator": "has", "operand": "image"})
+            else:
+                narrow.append({"operator": "has", "operand": "image", "negated": True})
+
+        # Is filters
+        if is_private is not None:
+            if is_private:
+                narrow.append({"operator": "is", "operand": "private"})
+            else:
+                narrow.append({"operator": "is", "operand": "private", "negated": True})
+
+        if is_starred is not None:
+            if is_starred:
+                narrow.append({"operator": "is", "operand": "starred"})
+            else:
+                narrow.append({"operator": "is", "operand": "starred", "negated": True})
+
+        if is_mentioned is not None:
+            if is_mentioned:
+                narrow.append({"operator": "is", "operand": "mentioned"})
+            else:
+                narrow.append({"operator": "is", "operand": "mentioned", "negated": True})
+
+        if is_unread is not None:
+            if is_unread:
+                narrow.append({"operator": "is", "operand": "unread"})
+            else:
+                narrow.append({"operator": "is", "operand": "unread", "negated": True})
+
+        if is_muted is not None:
+            if is_muted:
+                narrow.append({"operator": "is", "operand": "muted"})
+            else:
+                narrow.append({"operator": "is", "operand": "muted", "negated": True})
+
+        if is_followed is not None:
+            if is_followed:
+                narrow.append({"operator": "is", "operand": "followed"})
+            else:
+                narrow.append({"operator": "is", "operand": "followed", "negated": True})
+
+        # Time filters
+        if after_time:
+            time_str = after_time.isoformat() if isinstance(after_time, datetime) else after_time
+            narrow.append({"operator": "search", "operand": f"after:{time_str}"})
+
+        if before_time:
+            time_str = before_time.isoformat() if isinstance(before_time, datetime) else before_time
+            narrow.append({"operator": "search", "operand": f"before:{time_str}"})
+
+        # ID-based filters
+        if message_id:
+            narrow.append({"operator": "id", "operand": message_id})
+
+        if near_message_id:
+            narrow.append({"operator": "near", "operand": near_message_id})
+
+        # DM filters
+        if dm_with:
+            if isinstance(dm_with, str):
+                narrow.append({"operator": "dm", "operand": dm_with})
+            else:
+                narrow.append({"operator": "dm", "operand": dm_with})
+
+        if group_dm_with:
+            narrow.append({"operator": "group-pm-with", "operand": group_dm_with})
+
+        return {
+            "status": "success",
+            "narrow": narrow,
+            "filter_count": len(narrow),
+            "operators_used": [n["operator"] for n in narrow],
+        }
+
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+async def check_messages_match_narrow(
+    msg_ids: list[int],
+    narrow: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Check whether a set of messages match a narrow filter."""
+    config = ConfigManager()
+    client = ZulipClientWrapper(config)
+
+    try:
+        request_data = {
+            "msg_ids": msg_ids,
+            "narrow": narrow,
+        }
+
+        result = client.client.call_endpoint(
+            "messages/matches_narrow", method="GET", request=request_data
+        )
+
+        if result.get("result") == "success":
+            messages = result.get("messages", {})
+            matching_ids = list(messages.keys())
+
+            return {
+                "status": "success",
+                "total_checked": len(msg_ids),
+                "matching_count": len(matching_ids),
+                "matching_message_ids": [int(msg_id) for msg_id in matching_ids],
+                "non_matching_count": len(msg_ids) - len(matching_ids),
+                "messages": messages,
+                "narrow_applied": narrow,
+            }
+        else:
+            return {"status": "error", "error": result.get("msg", "Failed to check messages against narrow")}
+
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 def register_search_tools(mcp: FastMCP) -> None:
-    """Register search tools with the MCP server."""
+    """Register clean search tools with the MCP server."""
     mcp.tool(name="search_messages", description="Advanced search with fuzzy user matching and comprehensive filtering")(search_messages)
     mcp.tool(name="advanced_search", description="Multi-faceted search across messages, users, streams with aggregations")(advanced_search)
     mcp.tool(name="analytics", description="Generate analytics and insights from message data")(analytics)
     mcp.tool(name="get_daily_summary", description="Get daily activity summary with engagement metrics")(get_daily_summary)
+    mcp.tool(name="analyze_with_llm", description="Fetch Zulip data and analyze with LLM via elicitation")(analyze_with_llm)
+    mcp.tool(name="construct_narrow", description="Construct narrow filter following Zulip API patterns")(construct_narrow)
+    mcp.tool(name="check_messages_match_narrow", description="Check whether messages match a narrow filter")(check_messages_match_narrow)
