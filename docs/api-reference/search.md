@@ -8,6 +8,7 @@ The search category provides multi-faceted search across Zulip with analytics an
 |----------|---------|------------------|
 | [`advanced_search()`](#advanced_search) | Multi-faceted search across Zulip | User |
 | [`analytics()`](#analytics) | Analytics and insights from message data | User |
+| [`get_daily_summary()`](#get_daily_summary) | Generate daily activity summary | User |
 
 ## Functions
 

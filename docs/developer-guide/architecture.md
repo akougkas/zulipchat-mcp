@@ -1,6 +1,6 @@
 # Architecture Overview
 
-ZulipChat MCP v2.5.0 implements a layered architecture with identity-aware operations, progressive disclosure, and comprehensive error handling. This document provides a complete architectural overview for developers.
+ZulipChat MCP implements a layered architecture with identity-aware operations, progressive disclosure, and comprehensive error handling. This document provides a complete architectural overview for developers.
 
 ## System Architecture
 
@@ -129,7 +129,7 @@ class MigrationManager:
         self.warned_tools: Set[str] = set()
     
     def migrate_tool_call(self, tool_name: str, params: Dict) -> Tuple[str, Dict]:
-        """Migrate legacy tool call to v2.5.0 equivalent."""
+        """Migrate legacy tool call to current equivalent."""
         
     def _migrate_params(self, migration: ToolMigration, old_params: Dict) -> Dict:
         """Transform parameters from legacy to new format."""
@@ -424,7 +424,7 @@ identity_manager.register_identity_type(IdentityType.CUSTOM, CustomIdentity)
 
 ### Backward Compatibility Strategy
 
-1. **Dual Tool Registration**: Legacy and v2.5.0 tools coexist
+1. **Dual Tool Registration**: Legacy and current tools coexist
 2. **Parameter Migration**: Automatic parameter transformation
 3. **Deprecation Warnings**: User notification system
 4. **Timeline Management**: Controlled removal process

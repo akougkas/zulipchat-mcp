@@ -120,7 +120,7 @@ def main() -> None:
     # FastMCP 2.12.3 handles capability negotiation automatically
 
     logger.info(
-        "v2.5.0 architecture consolidation complete: 17 tools → 7 categories + specialized tools"
+        "v2.5.0 architecture consolidation complete: 43+ tools across 9 categories"
     )
 
     # Start message listener based on CLI flag and/or AFK state watcher

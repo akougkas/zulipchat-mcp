@@ -21,13 +21,13 @@ export ZULIP_EMAIL="your@email.com"
 export ZULIP_API_KEY="your_api_key"
 export ZULIP_SITE="https://yourorg.zulipchat.com"
 
-python -m zulipchat_mcp.server
+uv run python -m src.zulipchat_mcp.server
 ```
 
 ### With Debug Logging
 
 ```bash
-python -m zulipchat_mcp.server --debug
+uv run python -m src.zulipchat_mcp.server --debug
 ```
 
 ### Expected Output
@@ -265,29 +265,40 @@ await message(
 ### Health Check
 
 ```python
-# Verify server health
-from zulipchat_mcp.utils.health import perform_health_check
+# Basic health check (health module not yet implemented)
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
+from src.zulipchat_mcp.config import ConfigManager
 
-health = await perform_health_check()
-print(f"Server status: {health['status']}")
+config = ConfigManager()
+try:
+    if config.validate_config():
+        print("✅ Configuration valid")
+    else:
+        print("❌ Configuration invalid")
 
-if health['status'] != 'healthy':
-    print("Issues found:")
-    for check, details in health['checks'].items():
-        if not details['healthy']:
-            print(f"  - {check}: {details['status']}")
+    client = ZulipClientWrapper(config)
+    client.client.get_profile()
+    print("✅ Zulip API connection working")
+    print("✅ Server health OK")
+except Exception as e:
+    print(f"❌ Health check failed: {e}")
 ```
 
 ### Connection Test
 
 ```python
 # Test basic Zulip connectivity
-result = await manage_users(operation="get", user_id="me")
-if result.get("status") == "success":
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
+from src.zulipchat_mcp.config import ConfigManager
+
+config = ConfigManager()
+client = ZulipClientWrapper(config)
+try:
+    result = client.client.get_profile()
     print("✅ Zulip connection working")
     print(f"Connected as: {result['full_name']}")
-else:
-    print("❌ Connection issue:", result.get("error"))
+except Exception as e:
+    print("❌ Connection issue:", str(e))
 ```
 
 ## MCP Client Integration
@@ -310,8 +321,8 @@ from mcp.client.stdio import stdio_client
 
 async def main():
     server_params = StdioServerParameters(
-        command="python",
-        args=["-m", "zulipchat_mcp.server"]
+        command="uv",
+        args=["run", "python", "-m", "src.zulipchat_mcp.server"]
     )
     
     async with stdio_client(server_params) as (read, write):
@@ -352,14 +363,23 @@ if result.get("status") == "error":
 else:
     print("Message sent successfully!")
 
-# Advanced error handling with retries
-from zulipchat_mcp.core.error_handling import get_error_handler
+# Advanced error handling (error handling module not yet implemented)
+# Basic retry pattern example
+import asyncio
+import random
 
-handler = get_error_handler()
-result = await handler.execute_with_retry(
-    lambda: message("send", "stream", "general", "Retry test"),
-    operation_name="send_message"
-)
+async def send_with_retry(operation, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            # Call your message function here
+            result = await message("send", "stream", "general", f"Attempt {attempt + 1}")
+            return result
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            wait_time = (2 ** attempt) + random.uniform(0, 1)
+            print(f"Attempt {attempt + 1} failed, retrying in {wait_time:.1f}s")
+            await asyncio.sleep(wait_time)
 ```
 
 ## Performance Tips

@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Comprehensive troubleshooting guide for ZulipChat MCP v2.5.0 covering common issues, error scenarios, debugging procedures, and operational support.
+Comprehensive troubleshooting guide for ZulipChat MCP covering common issues, error scenarios, debugging procedures, and operational support.
 
 ## Quick Diagnostics Checklist
 
@@ -70,8 +70,10 @@ curl -u "$ZULIP_EMAIL:$ZULIP_API_KEY" \
 
 # Test with Python
 python -c "
-from zulipchat_mcp.core.client import ZulipClientWrapper
-client = ZulipClientWrapper()
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
+from src.zulipchat_mcp.config import ConfigManager
+config = ConfigManager()
+client = ZulipClientWrapper(config)
 result = client.client.get_profile()
 print(f'Authenticated as: {result[\"full_name\"]}')
 "
@@ -143,8 +145,10 @@ async def diagnose_connectivity():
     
     # Test authentication
     try:
-        from zulipchat_mcp.core.client import ZulipClientWrapper
-        client = ZulipClientWrapper()
+        from src.zulipchat_mcp.core.client import ZulipClientWrapper
+        from src.zulipchat_mcp.config import ConfigManager
+        config = ConfigManager()
+        client = ZulipClientWrapper(config)
         profile = client.client.get_profile()
         results["authentication"] = f"✅ Logged in as: {profile['full_name']}"
     except Exception as e:
@@ -204,14 +208,13 @@ user_map = {u["user_id"]: u for u in users["users"]}
 
 #### Rate Limit Configuration
 ```python
-# Configure rate limiter settings
-from zulipchat_mcp.core.error_handling import configure_rate_limiter
+# Note: Advanced rate limiter configuration not yet implemented
+# Current rate limiting is handled by the Zulip API server
+# Basic retry logic is built into the client wrapper
 
-configure_rate_limiter(
-    max_requests=60,      # Requests per minute
-    time_window=60.0,     # Time window in seconds
-    burst_limit=10        # Allow short bursts
-)
+# For now, handle rate limits with delays:
+import asyncio
+await asyncio.sleep(1)  # Add delay between requests if needed
 ```
 
 ### Configuration Errors
@@ -436,7 +439,7 @@ python -m zulipchat_mcp.server
 
 **Programmatically**:
 ```python
-from zulipchat_mcp.utils.logging import setup_structured_logging
+from src.zulipchat_mcp.utils.logging import setup_structured_logging
 setup_structured_logging(level="DEBUG")
 ```
 
@@ -480,15 +483,24 @@ grep "api_call_duration" logs.json | \
 ```python
 # This only works if you have direct Python access to the server
 # NOT available through MCP tools
-from zulipchat_mcp.utils.health import perform_health_check
+# Note: Health check module not yet fully implemented
 
-health = await perform_health_check()
-print(f"Overall status: {health['status']}")
+# Basic health checks you can perform manually:
+from src.zulipchat_mcp.config import ConfigManager
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
 
-# Actual checks available:
-# - config_validation
-# - cache_operational  
-# - metrics_operational
+config = ConfigManager()
+if config.validate_config():
+    print("✅ Config validation: OK")
+else:
+    print("❌ Config validation: FAILED")
+
+try:
+    client = ZulipClientWrapper(config)
+    client.client.get_profile()
+    print("✅ Zulip connection: OK")
+except Exception as e:
+    print(f"❌ Zulip connection: FAILED - {e}")
 ```
 
 **Actual Health Check Response** (simplified):
@@ -540,8 +552,8 @@ print(f"Overall status: {health['status']}")
 
 # What you CAN do:
 # Enable debug logging to see timing information
-export DEBUG=true
-uv run python -m zulipchat_mcp.server --debug
+export MCP_DEBUG=true
+uv run python -m src.zulipchat_mcp.server --debug
 # Then check stderr output for timing logs
 ```
 
@@ -579,10 +591,15 @@ The system automatically retries failed operations:
 
 **Clear Message Cache** (if implemented):
 ```python
-# Note: Cache clearing depends on implementation
-from zulipchat_mcp.core.cache import message_cache
-# message_cache doesn't have a clear method in current implementation
-# You may need to restart the server to clear caches
+# Note: Cache clearing not yet implemented
+# Current caching is handled by DuckDB and client wrapper
+# To clear cache, restart the server or delete database files
+
+# Database files are typically in:
+# - ~/.cache/zulipchat-mcp/ (if using XDG dirs)
+# - ./zulipchat_mcp.db (local file)
+
+# Restart the server to clear in-memory caches
 ```
 
 **Restart Server**:
@@ -590,7 +607,7 @@ from zulipchat_mcp.core.cache import message_cache
 # The most reliable way to recover from persistent errors
 # is to restart the MCP server
 # Ctrl+C to stop, then restart with:
-uv run python -m zulipchat_mcp.server \
+uv run python -m src.zulipchat_mcp.server \
   --zulip-email $ZULIP_EMAIL \
   --zulip-api-key $ZULIP_API_KEY \
   --zulip-site $ZULIP_SITE
@@ -688,7 +705,7 @@ tail -f logs.json | grep -i auth
 ```bash
 # Quick system status
 python -c "
-from zulipchat_mcp.utils.health import perform_health_check
+from src.zulipchat_mcp.utils.health import perform_health_check
 import asyncio
 result = asyncio.run(perform_health_check()) 
 print(f'Status: {result[\"status\"]}')
@@ -699,7 +716,7 @@ print(f'Status: {result[\"status\"]}')
 ```bash
 # Check configuration completeness
 python -c "
-from zulipchat_mcp.config import ConfigManager
+from src.zulipchat_mcp.config import ConfigManager
 config = ConfigManager()
 issues = config.validate_config()
 print('Configuration issues:', issues or 'None')
@@ -710,7 +727,7 @@ print('Configuration issues:', issues or 'None')
 ```bash
 # Test Zulip API connectivity
 python -c "
-from zulipchat_mcp.core.client import ZulipClientWrapper
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
 try:
     client = ZulipClientWrapper()
     profile = client.client.get_profile()

@@ -1,4 +1,4 @@
-# ZulipChat MCP v2.5.0 Documentation
+# ZulipChat MCP Documentation
 
 A comprehensive Model Context Protocol (MCP) server for Zulip integration with advanced identity management, progressive disclosure, and robust error handling.
 
@@ -11,7 +11,7 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 
 ### For Developers
 - **[Architecture Overview](developer-guide/architecture.md)** - System design and patterns
-- **[Tool Categories](developer-guide/tool-categories.md)** - 7 consolidated tool groups
+- **[Tool Categories](developer-guide/tool-categories.md)** - 9 consolidated tool groups
 - **[Foundation Components](developer-guide/foundation-components.md)** - Core infrastructure
 
 ### API Reference
@@ -23,10 +23,13 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 | [Users](api-reference/users.md) | User management & identity | `manage_users()`, `switch_identity()` |
 | [Search](api-reference/search.md) | Advanced search & analytics | `advanced_search()`, `analytics()` |
 | [Files](api-reference/files.md) | File upload & management | `upload_file()`, `manage_files()` |
+| [Agents](api-reference/agents.md) | AI agent lifecycle & communication | `register_agent()`, `agent_message()`, `request_user_input()` |
+| [Commands](api-reference/commands.md) | Workflow automation & chains | `execute_chain()`, `list_command_types()` |
+| [System](api-reference/system.md) | Server meta & identity management | `server_info()`, `tool_help()`, `identity_policy()` |
 
 
 ### Migration & Support
-- **[Migration Guide](migration-guide.md)** - Migrating from legacy tools to v2.5.0
+- **[Migration Guide](migration-guide.md)** - Migrating from legacy tools
 - **[Troubleshooting](troubleshooting.md)** - Error handling and operational support
 
 ## 🎯 Key Features
@@ -76,9 +79,12 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 | **Users** | 3 tools | User management and identity switching |
 | **Search** | 2 tools | Advanced search with analytics |
 | **Files** | 2 tools | File upload and management |
+| **Agents** | 13 tools | AI agent lifecycle, communication, and task management |
+| **Commands** | 2 tools | Workflow automation and command chain execution |
+| **System** | 4 tools | Server metadata, tool documentation, identity policies |
 
 
-**Total**: 23 consolidated tools replacing 24+ legacy functions
+**Total**: 40+ tools across 9 categories with comprehensive workflow automation
 
 ## 🔗 Integration Examples
 

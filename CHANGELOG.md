@@ -14,7 +14,7 @@
   - TestPyPI installation for pre-release testing
 - Added GitHub Actions workflow for automated PyPI publishing
 - Added MANIFEST.in for proper package distribution
-- Reorganized documentation structure (moved release notes to docs/v2.5.0/)
+- Reorganized documentation structure (moved release notes to docs/releases/v2.5.0/)
 
 ### Claude Code Integration
 - Fixed Claude Code MCP integration syntax with proper `--` separator
@@ -57,7 +57,7 @@
 ### 📄 Documentation
 - New testing guide at `docs/testing/README.md` (scope, fixtures/fakes, contract tests, coverage gate, cleaning, performance tips).
 - Note in `AGENTS.md` about contract-only runs and the coverage gate.
-- v2.5.0 documentation set retained under `docs/v2.5.0/` (reviewed alongside the testing work). Documentation efforts were coordinated with the Claude agent; this release bundles the testing and docs improvements.
+- v2.5.0 documentation set retained under `docs/releases/v2.5.0/` (reviewed alongside the testing work). Documentation efforts were coordinated with the Claude agent; this release bundles the testing and docs improvements.
 
 ### Result
 - Full run: 253 passed, 3 skipped; total coverage 90.08% (gate met).

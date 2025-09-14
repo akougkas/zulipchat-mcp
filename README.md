@@ -1,64 +1,80 @@
 # ZulipChat MCP Server
 
 <div align="center">
+  <!-- TODO: Add banner image showcasing Zulip + AI integration -->
+  <!-- <img src="docs/assets/zulipchat-mcp-banner.png" alt="ZulipChat MCP Banner" width="800"> -->
 
-**Transform how AI assistants interact with Zulip Chat**
-*Now with 60% better tool-calling accuracy and 37+ powerful tools!*
+  <h3>Transform your AI assistant into a Zulip power user with 40+ tools via MCP</h3>
 
-[![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-[![Version](https://img.shields.io/badge/Version-2.5.0-green)](https://github.com/akougkas/zulipchat-mcp)
-[![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
+  [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
+  [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+  [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+  [![Version](https://img.shields.io/badge/Version-2.5.0-green)](https://github.com/akougkas/zulipchat-mcp)
+  [![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
+  [![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
+  [![Code Style](https://img.shields.io/badge/Code%20Style-Black-black)](https://github.com/psf/black)
 
-[🚀 Quick Start](#quick-start) • [📦 Installation](#installation) • [🛠️ Tools](#available-tools-v250) • [💡 Examples](#examples) • [🎉 What's New](https://github.com/akougkas/zulipchat-mcp/releases/latest)
+  [🚀 Quick Start](#-quick-start) • [📦 Installation](#-installation) • [🛠️ Features](#-what-can-you-do) • [📚 Tools](#-available-tools) • [💡 Examples](#-real-world-examples) • [📖 Releases](#-releases) • [🤝 Contributing](CONTRIBUTING.md)
+</div>
+
+---
+
+## Quick Start
+
+Get your AI assistant connected to Zulip in **30 seconds**:
+
+```bash
+# Basic setup (user credentials only)
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com
+```
+
+**Want advanced AI agent features?** Add bot credentials:
+```bash
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com \
+  --zulip-bot-email bot@org.com \
+  --zulip-bot-api-key BOT_API_KEY
+```
+
+## What Can You Do?
+
+Your AI assistant becomes a **Zulip superuser**, capable of:
+
+- **Intelligent Messaging** - Send, schedule, search, and manage messages with context awareness
+- **Stream Management** - Create, configure, and analyze streams with engagement metrics
+- **Real-time Monitoring** - React to events, track activity, and automate responses
+- **Advanced Analytics** - Generate insights, sentiment analysis, and participation reports
+- **File Operations** - Upload, share, and manage files with automatic distribution
+- **Workflow Automation** - Chain complex operations with conditional logic
+
+## Available Tools
+
+<div align="center">
+
+| Category | Tools | Key Capabilities |
+|----------|-------|------------------|
+| **Messaging** | 8 | Send, edit, search, bulk operations, reactions |
+| **Streams & Topics** | 5 | Lifecycle management, analytics, permissions |
+| **Real-time Events** | 3 | Event streams, webhooks, long-polling |
+| **User Management** | 3 | Multi-identity, groups, profiles |
+| **Search & Analytics** | 3 | AI insights, sentiment, participation |
+| **Files & Media** | 2 | Upload, share, metadata extraction |
+| **Agent Communication** | 13 | Task tracking, AFK mode, workflows |
+| **System & Workflow** | 6+ | Chains, documentation, server info |
+| **Total** | **43+** | **Complete Zulip automation** |
 
 </div>
 
-## What is this?
+<details>
+<summary><b>📨 Messaging Tools (8)</b> - Click to expand</summary>
 
-ZulipChat MCP revolutionizes how AI assistants work with your Zulip workspace. With **37+ intelligent tools** and **comprehensive MCP optimization**, your AI can now handle complex workflows, generate insights, and automate tasks with unprecedented accuracy.
+### Messaging
 
-### Real-World Magic
-
-```text
-You: "Generate our daily standup report for #engineering with sentiment analysis"
-AI: Created comprehensive standup:
-    • 12 contributors, 8 tasks completed
-    • Team sentiment: 85% positive
-    • 3 blockers identified with solutions
-
-You: "Cross-post the deployment update to product and support teams"
-AI: Shared across streams with context:
-    • #product (tagged @product-leads)
-    • #support (included timeline & rollback plan)
-
-You: "Show engagement trends for our design discussions this week"
-AI: Design Analytics:
-    • 40% increase in participation
-    • Top collaborators: Alice, Bob, Carol
-    • Trending: accessibility, mobile UX
-```
-
-## Version 2.5.0: The AI Assistant Revolution
-
-**The biggest update yet!** v2.5.0 transforms your AI assistant's Zulip capabilities with unprecedented intelligence and reliability.
-
-### **What Makes This Special**
-
-- **60% Smarter AI Integration**: Completely optimized tool descriptions using latest MCP best practices
-- **37+ Powerful Tools**: From basic messaging to advanced analytics and file management
-- **Security First**: Enhanced permission boundaries and secure-by-default architecture
-- **Modern FastMCP 2.12.3**: Latest framework with advanced features and better performance
-- **Advanced Analytics**: AI-powered insights, sentiment analysis, and engagement tracking
-- **Seamless Workflows**: Cross-stream sharing, bulk operations, and automated reporting
-- **Smart File Management**: Secure uploads with auto-sharing and metadata extraction
-
-## 🛠️ Available Tools (v2.5.0)
-
-**37+ intelligent tools** organized into powerful categories. Each tool is optimized for maximum AI understanding and reliability.
-
-### **Advanced Messaging** (8 tools)
 | Tool | New Capabilities |
 |------|------------------|
 | `message` | Send, schedule, or draft messages with **smart formatting** and **delivery options** |
@@ -69,7 +85,13 @@ AI: Design Analytics:
 | `cross_post_message` | **Attribution-aware** sharing across streams with **context preservation** |
 | `add_reaction` / `remove_reaction` | **Emoji type support** (Unicode, custom, Zulip extra) |
 
-### **Stream & Topic Management** (5 tools)
+</details>
+
+<details>
+<summary><b>📁 Stream & Topic Management (5)</b> - Click to expand</summary>
+
+### Stream & Topic Management
+
 | Tool | New Capabilities |
 |------|------------------|
 | `manage_streams` | **Lifecycle management** with permissions, **bulk subscriptions** |
@@ -78,34 +100,64 @@ AI: Design Analytics:
 | `stream_analytics` | **NEW!** Growth trends, engagement metrics, subscriber activity |
 | `manage_stream_settings` | **NEW!** Notification preferences, appearance, permissions |
 
-### **Real-Time Events** (3 tools)
+</details>
+
+<details>
+<summary><b>⚡ Real-Time Events (3)</b> - Click to expand</summary>
+
+### Real-Time Events
+
 | Tool | New Capabilities |
 |------|------------------|
 | `register_events` | **20+ event types** with **auto-cleanup** and **queue management** |
 | `get_events` | **Long-polling support** with **queue validation** and error handling |
 | `listen_events` | **NEW!** Webhook integration, event filtering, stateless operation |
 
-### **User & Identity Management** (3 tools)
+</details>
+
+<details>
+<summary><b>👥 User & Identity Management (3)</b> - Click to expand</summary>
+
+### User & Identity Management
+
 | Tool | New Capabilities |
 |------|------------------|
 | `manage_users` | **Multi-identity support** (user/bot/admin contexts) |
 | `switch_identity` | **NEW!** Session continuity with validation and capability tracking |
 | `manage_user_groups` | **NEW!** Complete group lifecycle with membership management |
 
-### **Advanced Search & Analytics** (3 tools)
+</details>
+
+<details>
+<summary><b>🔍 Advanced Search & Analytics (3)</b> - Click to expand</summary>
+
+### Advanced Search & Analytics
+
 | Tool | New Capabilities |
 |------|------------------|
 | `advanced_search` | **NEW!** Multi-faceted search with **intelligent ranking** and **aggregation** |
 | `analytics` | **NEW!** AI-powered insights with **sentiment analysis** and **participation metrics** |
 | `get_daily_summary` | **NEW!** Comprehensive activity summaries with **stream engagement** |
 
-### **File & Media Management** (2 tools)
+</details>
+
+<details>
+<summary><b>📎 File & Media Management (2)</b> - Click to expand</summary>
+
+### File & Media Management
+
 | Tool | New Capabilities |
 |------|------------------|
 | `upload_file` | **NEW!** Progress tracking, **auto-sharing**, **security validation** |
 | `manage_files` | **NEW!** Complete file lifecycle with **metadata extraction** |
 
-### **Agent Communication** (13 tools)
+</details>
+
+<details>
+<summary><b>🤖 Agent Communication (13)</b> - Click to expand</summary>
+
+### Agent Communication
+
 | Tool | New Capabilities |
 |------|------------------|
 | `register_agent` | **NEW!** Database persistence with **session tracking** |
@@ -115,7 +167,13 @@ AI: Design Analytics:
 | `enable_afk_mode` / `disable_afk_mode` | **NEW!** Away-mode automation |
 | *...and 6 more agent tools* | Advanced workflow automation and monitoring |
 
-### **System & Workflow** (6 tools)
+</details>
+
+<details>
+<summary><b>⚙️ System & Workflow (6)</b> - Click to expand</summary>
+
+### System & Workflow
+
 | Tool | New Capabilities |
 |------|------------------|
 | `server_info` | **NEW!** Comprehensive metadata with **routing hints** |
@@ -123,60 +181,63 @@ AI: Design Analytics:
 | `execute_chain` | **NEW!** Sophisticated workflow automation with **branching logic** |
 | *...and 3 more system tools* | Identity policy, agent bootstrapping, command types |
 
-## Quick Start
-
-### Install & Run (Recommended)
-
-**From PyPI** (once published):
-```bash
-# Install globally
-pip install zulipchat-mcp
-
-# Or use uvx (recommended)
-uvx zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
-```
-
-**From GitHub** (available now):
-```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
-```
-
-**For Claude Code Users**:
-```bash
-# From PyPI (once published)
-claude mcp add zulipchat uvx zulipchat-mcp
-
-# From GitHub (available now)
-claude mcp add zulipchat uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-```
+</details>
 
 ## Installation
 
-### Universal Installation
+### Choose Your Installation Method
 
-**Option 1: From PyPI** (recommended, once published)
+#### Option 1: From PyPI (Recommended - Coming Soon)
 ```bash
-pip install zulipchat-mcp
-# or
-uvx zulipchat-mcp
+# Basic setup (mandatory parameters)
+uvx zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com
+
+# With bot for AI agent features (add optional parameters)
+uvx zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com \
+  --zulip-bot-email bot@org.com \
+  --zulip-bot-api-key BOT_API_KEY
 ```
 
-**Option 2: From GitHub** (available now)
+#### Option 2: From GitHub (Available Now)
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+# Basic setup
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com
+
+# With bot credentials
+uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com \
+  --zulip-bot-email bot@org.com \
+  --zulip-bot-api-key BOT_API_KEY
 ```
 
-**Option 3: From Source** (for development)
+#### Option 3: From Source (For Development)
 ```bash
 git clone https://github.com/akougkas/zulipchat-mcp.git
 cd zulipchat-mcp
 uv sync
-uv run zulipchat-mcp --zulip-email bot@org.com --zulip-api-key KEY --zulip-site https://org.zulipchat.com
+
+# Run with mandatory parameters
+uv run zulipchat-mcp \
+  --zulip-email user@org.com \
+  --zulip-api-key YOUR_API_KEY \
+  --zulip-site https://org.zulipchat.com
 ```
 
-### For MCP Clients
+### MCP Client Integration
 
-#### Claude Desktop
+<details>
+<summary><b>Claude Desktop</b> - Click for configuration</summary>
 
 Add to `claude_desktop_config.json`:
 
@@ -214,22 +275,40 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-#### Claude Code
+</details>
+
+<details>
+<summary><b>Claude Code</b> - Click for configuration</summary>
 
 ```bash
 # From PyPI (once published)
-claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx zulipchat-mcp
+claude mcp add zulipchat \
+  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
+  -e ZULIP_API_KEY=your-api-key \
+  -e ZULIP_SITE=https://your-org.zulipchat.com \
+  -- uvx zulipchat-mcp
 
 # From GitHub (available now)
-claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+claude mcp add zulipchat \
+  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
+  -e ZULIP_API_KEY=your-api-key \
+  -e ZULIP_SITE=https://your-org.zulipchat.com \
+  -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
 
 # From TestPyPI (for testing)
-claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp
+claude mcp add zulipchat \
+  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
+  -e ZULIP_API_KEY=your-api-key \
+  -e ZULIP_SITE=https://your-org.zulipchat.com \
+  -- uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp
 ```
 
-#### Cursor
+</details>
 
-Add to your `mcp_config.json`:
+<details>
+<summary><b>Cursor/VS Code/Windsurf</b> - Click for configuration</summary>
+
+Add to your `mcp_config.json` or similar editor specific mcp config file:
 
 **From PyPI** (once published):
 ```json
@@ -265,97 +344,12 @@ Add to your `mcp_config.json`:
 }
 ```
 
-#### Continue
+</details>
 
-Add to your `config.json`:
+## Real-World Examples
 
-**From PyPI** (once published):
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-**From GitHub** (available now):
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-#### Windsurf
-
-Same configuration as Cursor - add to your MCP configuration file.
-
-#### Cline (VS Code)
-
-Add to your VS Code settings or Cline configuration:
-
-**From PyPI** (once published):
-```json
-{
-  "cline.mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-## Resources
-
-Access Zulip data directly:
-
-- `zulip://stream/{name}` - Stream message history
-- `zulip://streams` - All available streams
-- `zulip://users` - Organization users
-
-## Smart Prompts
-
-Built-in prompts for common tasks:
-
-- `daily_summary` - Comprehensive daily report
-- `morning_briefing` - Overnight activity summary  
-- `catch_up` - Quick summary of recent messages
-
-## Examples: See the Magic in Action
-
-### **AI-Powered Analytics & Insights**
+### AI-Powered Analytics & Insights
 ```text
-You: "Analyze team sentiment around our Q4 goals across all channels"
-AI: Sentiment Analysis Complete:
-    • Overall sentiment: 82% positive
-    • #engineering: Optimistic about delivery
-    • #product: Concerns about timeline
-    • #design: Excited about new features
-    • Suggestion: Schedule sync on timeline expectations
-
 You: "Show me engagement trends for #design this week with top contributors"
 AI: Design Channel Analytics (7 days):
     • 40% increase in activity
@@ -366,15 +360,8 @@ AI: Design Channel Analytics (7 days):
     • Collaboration score: 9.2/10
 ```
 
-### **Smart Workflow Automation**
+### Smart Workflow Automation
 ```text
-You: "Cross-post the deployment update from #devops to product and support teams with relevant context"
-AI: Deployment Update Shared:
-    • #product: Added impact on user-facing features
-    • #support: Included troubleshooting guide & rollback procedure
-    • #leadership: Executive summary with business metrics
-    • All posts tagged relevant teams and stakeholders
-
 You: "Schedule weekly standup reminders for #engineering every Monday at 9am"
 AI: Automated Standup System Created:
     • Scheduled: Every Monday 9:00 AM
@@ -383,7 +370,7 @@ AI: Automated Standup System Created:
     • Notifications: Team leads get preview 30min prior
 ```
 
-### **Intelligent File Management**
+### Intelligent File Management
 ```text
 You: "Upload the new design mockups and share them in #design with context for review"
 AI: File Upload & Distribution Complete:
@@ -396,7 +383,7 @@ AI: File Upload & Distribution Complete:
       • Review deadline: Next Friday
 ```
 
-### **Advanced Search & Discovery**
+### Advanced Search & Discovery
 ```text
 You: "Find all technical decisions made about authentication in the last month"
 AI: Technical Decision Discovery:
@@ -406,19 +393,9 @@ AI: Technical Decision Discovery:
     • Session timeout policies (implemented - #devops)
     • API key rotation (scheduled - #infrastructure)
     Full decision log exported to #documentation
-
-You: "Search for mentions of 'performance issues' and categorize by severity"
-AI: Performance Issues Analysis:
-    High Priority (3 issues):
-    • Database query timeouts - #backend
-    • Mobile app crashes - #mobile
-    Critical Priority (1 issue):
-    • Production API latency spikes - #devops
-    Trend: 40% increase vs last month
-    Recommended: Performance review meeting
 ```
 
-### **Smart Daily Operations**
+### Smart Daily Operations
 ```text
 You: "Generate our comprehensive daily standup for engineering with blockers and sentiment"
 AI: Daily Engineering Standup Report:
@@ -436,11 +413,35 @@ AI: Daily Engineering Standup Report:
     Team Sentiment: 85% positive
     Energy Level: High (sprint goals on track)
     Notable: Team excited about upcoming hackathon
-    
+
     Sprint Progress: 68% complete (ahead of schedule)
 ```
 
-## Configuration Options
+## Releases
+
+### Latest: v2.5.0 - Enhanced Credential Management
+**43+ tools** with complete Zulip automation capabilities
+- [Release Notes](https://github.com/akougkas/zulipchat-mcp/releases/tag/v2.5.0)
+- [Release Documentation](docs/releases/v2.5.0/RELEASE_v2.5.0.md)
+- [Full Changelog](https://github.com/akougkas/zulipchat-mcp/blob/main/CHANGELOG.md)
+
+### Previous Versions
+- [v1.5.0](https://github.com/akougkas/zulipchat-mcp/releases/tag/v1.5.0) - Project management features
+- [v1.0.0](https://github.com/akougkas/zulipchat-mcp/releases/tag/v1.0.0) - Initial release
+
+## ⚙️ Configuration Guide
+
+### Configuration Parameters
+
+| Parameter | Required | Description | Example |
+|-----------|----------|-------------|---------|
+| `--zulip-email` | Yes | Your Zulip user email | `user@org.com` |
+| `--zulip-api-key` | Yes | Your Zulip API key | `abcd1234...` |
+| `--zulip-site` | Yes | Your Zulip organization URL | `https://org.zulipchat.com` |
+| `--zulip-bot-email` | No | Bot email for AI agent features | `bot@org.com` |
+| `--zulip-bot-api-key` | No | Bot API key | `wxyz5678...` |
+| `--zulip-bot-name` | No | Custom bot display name | `AI Assistant` |
+| `--zulip-bot-avatar-url` | No | Bot avatar image URL | `https://...` |
 
 ### Environment Variables
 ```bash
@@ -459,29 +460,41 @@ Create `~/.config/zulipchat-mcp/config.json`:
 }
 ```
 
-### Direct in MCP Client
-Pass credentials directly in your MCP client configuration (see installation section).
+## Documentation
 
-## Development
+### For Users
+- [Installation Guide](docs/user-guide/installation.md) - Step-by-step setup instructions
+- [Quick Start Tutorial](docs/user-guide/quick-start.md) - Get running in minutes
+- [Configuration Reference](docs/user-guide/configuration.md) - All configuration options
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions
 
-### Local Setup
-```bash
-git clone https://github.com/akougkas/zulipchat-mcp.git
-cd zulipchat-mcp
-uv sync
-uv run zulipchat-mcp
-```
+### For Developers
+- [Architecture Overview](docs/developer-guide/architecture.md) - System design and components
+- [Tool Categories](docs/developer-guide/tool-categories.md) - Tool organization and patterns
+- [Foundation Components](docs/developer-guide/foundation-components.md) - Core building blocks
+- [Testing Guide](docs/testing/README.md) - Testing strategies and coverage
 
-### Testing Connection
-```bash
-uv run python -c "
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager
-config = ConfigManager()
-client = ZulipClientWrapper(config)
-print(f'Connected! Identity: {client.identity_name}')
-"
-```
+### API Reference
+- [Messaging Tools](docs/api-reference/messaging.md) - Message operations documentation
+- [Stream Tools](docs/api-reference/streams.md) - Stream management APIs
+- [Event Tools](docs/api-reference/events.md) - Real-time event handling
+- [User Tools](docs/api-reference/users.md) - User and identity management
+- [Search Tools](docs/api-reference/search.md) - Search and analytics APIs
+- [File Tools](docs/api-reference/files.md) - File operations reference
+
+## Additional Resources
+
+### MCP Resources
+Access Zulip data directly in your AI assistant:
+- `zulip://stream/{name}` - Stream message history
+- `zulip://streams` - All available streams
+- `zulip://users` - Organization users
+
+### Smart Prompts
+Built-in prompts for common tasks:
+- `daily_summary` - Comprehensive daily report
+- `morning_briefing` - Overnight activity summary
+- `catch_up` - Quick summary of recent messages
 
 ## Troubleshooting
 
@@ -498,44 +511,7 @@ print(f'Connected! Identity: {client.identity_name}')
 - Update uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - Reinstall: `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp`
 
-## For AI Agents
-
-If you're an AI agent analyzing this repository:
-
-### Repository Structure
-- **Language**: Python 3.10+
-- **Package Manager**: UV (not pip)
-- **Architecture**: v2.5 modular design with FastMCP framework
-- **Database**: DuckDB for persistence
-- **Testing**: pytest with comprehensive coverage
-- **Entry Point**: `src/zulipchat_mcp/server.py`
-
-### Development Commands
-```bash
-# Setup environment
-uv sync
-
-# Run server
-uv run zulipchat-mcp
-
-# Run tests  
-uv run pytest
-
-# Check imports
-uv run python -c "from src.zulipchat_mcp.server import mcp; print('OK')"
-```
-
-### Key Implementation Files
-- `src/zulipchat_mcp/tools/` - MCP tool implementations
-- `src/zulipchat_mcp/core/client.py` - Zulip API wrapper with dual identity
-- `src/zulipchat_mcp/core/commands/` - Command chain system
-- `src/zulipchat_mcp/config.py` - Configuration management
-- `tests/` - Test suite (import paths updated for v2.5)
-
-### Recent Changes
-The codebase underwent a complete v2.5 architectural refactor. All import paths have been updated to the new modular structure. Previous versions used flat imports like `from zulipchat_mcp.client import` but v2.5 uses `from src.zulipchat_mcp.core.client import`.
-
-## Use Cases
+## Common Use Cases
 
 - **DevOps**: Automate deployment notifications and incident updates
 - **Support**: Route customer questions and create ticket summaries
@@ -543,9 +519,68 @@ The codebase underwent a complete v2.5 architectural refactor. All import paths 
 - **Team Leads**: Daily standups and team activity summaries
 - **HR**: Onboarding workflows and announcement automation
 
-## Architecture
 
-ZulipChat MCP v2.5 features a clean, production-ready architecture:
+## 🤝 Contributing
+
+We welcome contributions from everyone! Whether you're fixing bugs, adding features, or improving docs.
+
+📖 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete guide.
+
+<details>
+<summary><b>🔧 Development</b> - For contributors</summary>
+
+## Development
+
+### Prerequisites
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) package manager (required - we use uv exclusively)
+
+### Local Setup
+```bash
+git clone https://github.com/akougkas/zulipchat-mcp.git
+cd zulipchat-mcp
+uv sync
+
+# Copy environment template (never commit secrets)
+cp -n .env.example .env || true
+
+# Run locally with credentials
+uv run zulipchat-mcp \
+  --zulip-email your@email.com \
+  --zulip-api-key YOUR_KEY \
+  --zulip-site https://yourorg.zulipchat.com
+```
+
+### Testing Connection
+```bash
+uv run python -c "
+from src.zulipchat_mcp.core.client import ZulipClientWrapper
+from src.zulipchat_mcp.config import ConfigManager
+config = ConfigManager()
+client = ZulipClientWrapper(config)
+print(f'Connected! Identity: {client.identity_name}')
+"
+```
+
+### Quality Checks
+```bash
+# Run before pushing
+uv run pytest -q                  # Tests (90% coverage required)
+uv run ruff check .               # Linting
+uv run black .                    # Formatting
+uv run mypy src                   # Type checking
+
+# Optional security checks
+uv run bandit -q -r src
+uv run safety check
+```
+
+</details>
+
+<details>
+<summary><b>🏗️ Architecture</b> - Technical details</summary>
+
+## Architecture
 
 ### Core Structure
 ```
@@ -567,16 +602,11 @@ src/zulipchat_mcp/
 - Smart caching with automatic invalidation
 - Comprehensive error handling and monitoring
 
-## Contributing
+</details>
 
-We welcome contributions! To get started:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-See [AGENTS.md](AGENTS.md) for development guidelines.
+For AI coding agents:
+- [AGENTS.md](AGENTS.md) - Repository guidelines and commands
+- [CLAUDE.md](CLAUDE.md) - Claude Code specific instructions
 
 ## License
 
@@ -588,8 +618,24 @@ MIT - See [LICENSE](LICENSE) for details.
 - [Model Context Protocol](https://modelcontextprotocol.io)
 - [Report Issues](https://github.com/akougkas/zulipchat-mcp/issues)
 
+## Community
+
+### Code of Conduct
+We're committed to providing a welcoming and inclusive experience for everyone. We expect all participants to:
+- Be respectful and collaborative
+- Assume positive intent
+- Provide constructive feedback
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#our-values--code-of-conduct) for our full code of conduct.
+
+### Getting Help
+- 📖 Check the [documentation](docs/README.md)
+- 🐛 [Report issues](https://github.com/akougkas/zulipchat-mcp/issues)
+- 💬 Start a [discussion](https://github.com/akougkas/zulipchat-mcp/discussions)
+- 🤝 Read [CONTRIBUTING.md](CONTRIBUTING.md) to get involved
+
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for the Zulip community</sub>
+  <sub>Built with ❤️ for the Zulip community by contributors around the world</sub>
 </div>

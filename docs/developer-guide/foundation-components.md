@@ -1,6 +1,6 @@
 # Foundation Components
 
-ZulipChat MCP v2.5.0 is built on a robust foundation layer that provides identity management, parameter validation, error handling, and migration support. This guide details each foundation component and their integration patterns.
+ZulipChat MCP is built on a robust foundation layer that provides identity management, parameter validation, error handling, and migration support. This guide details each foundation component and their integration patterns.
 
 ## Foundation Architecture
 
@@ -425,7 +425,7 @@ class MigrationManager:
         self.removal_timeline: Dict[str, str] = {}
     
     def migrate_tool_call(self, tool_name: str, params: Dict) -> Tuple[str, Dict]:
-        """Migrate legacy tool call to v2.5.0 equivalent."""
+        """Migrate legacy tool call to current equivalent."""
         
     def emit_deprecation_warning(self, old_tool: str, new_tool: str):
         """Emit deprecation warning for legacy tool usage."""

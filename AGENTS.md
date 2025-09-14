@@ -49,3 +49,29 @@
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
 - Prefer CLI flags for credentials in MCP clients. For background features, `--enable-listener` is available.
 - Optional checks before release: `uv run bandit -q -r src` and `uv run safety check`.
+
+## Documentation Resources
+
+### User Documentation
+- [Installation Guide](docs/user-guide/installation.md) - Detailed setup instructions
+- [Quick Start Tutorial](docs/user-guide/quick-start.md) - Get running quickly
+- [Configuration Reference](docs/user-guide/configuration.md) - All configuration options
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+
+### Developer Documentation
+- [Architecture Overview](docs/developer-guide/architecture.md) - System design and components
+- [Tool Categories](docs/developer-guide/tool-categories.md) - Tool organization patterns
+- [Foundation Components](docs/developer-guide/foundation-components.md) - Core building blocks
+- [Testing Guide](docs/testing/README.md) - Testing strategies and coverage requirements
+
+### API Reference
+- [Messaging Tools](docs/api-reference/messaging.md) - Message operations
+- [Stream Tools](docs/api-reference/streams.md) - Stream management
+- [Event Tools](docs/api-reference/events.md) - Real-time events
+- [User Tools](docs/api-reference/users.md) - User management
+- [Search Tools](docs/api-reference/search.md) - Search and analytics
+- [File Tools](docs/api-reference/files.md) - File operations
+
+### Release Documentation
+- [Current Release (v2.5.0)](docs/releases/v2.5.0/RELEASE_v2.5.0.md)
+- [Full Documentation Index](docs/README.md)

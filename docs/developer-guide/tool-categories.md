@@ -1,20 +1,23 @@
 # Tool Categories Guide
 
-ZulipChat MCP v2.5.0 consolidates 24+ legacy tools into 7 organized categories with 23 total functions. This guide provides a comprehensive overview of each category, their tools, and usage patterns.
+ZulipChat MCP consolidates 24+ legacy tools into 9 organized categories with 43+ total functions. This guide provides a comprehensive overview of each category, their tools, and usage patterns.
 
 ## Category Overview
 
 | Category | Tools | Primary Focus | Identity Support |
 |----------|-------|---------------|------------------|
-| **[Messaging](#messaging-category)** | 6 | Send, edit, search messages | User, Bot, Admin |
-| **[Streams](#streams-category)** | 5 | Stream and topic management | User, Bot, Admin |  
+| **[Messaging](#messaging-category)** | 8 | Send, edit, search messages | User, Bot, Admin |
+| **[Streams](#streams-category)** | 5 | Stream and topic management | User, Bot, Admin |
 | **[Events](#events-category)** | 3 | Real-time event handling | User, Bot |
 | **[Users](#users-category)** | 3 | User management & identity | User, Admin |
-| **[Search](#search-category)** | 2 | Advanced search & analytics | User, Bot, Admin |
+| **[Search](#search-category)** | 3 | Advanced search & analytics | User, Bot, Admin |
 | **[Files](#files-category)** | 2 | File upload & management | User, Bot |
+| **[Agents](#agents-category)** | 13 | AI agent coordination | Bot, Admin |
+| **[Commands](#commands-category)** | 2 | Workflow automation | User, Bot |
+| **[System](#system-category)** | 4 | Server info & meta tools | All |
 
 
-**Total: 23 consolidated tools** replacing 24+ legacy functions with improved functionality and consistency.
+**Total: 43+ consolidated tools** replacing 24+ legacy functions with improved functionality and consistency.
 
 ## Messaging Category
 
@@ -108,6 +111,25 @@ await cross_post_message(
     target_streams=["announcements", "general"],
     custom_content="Custom message for cross-post",
     include_original_link=True
+)
+```
+
+#### 7. `add_reaction()` - Single Message Reactions
+```python
+await add_reaction(
+    message_id=12345,
+    emoji_name="thumbs_up",
+    emoji_code="👍",
+    reaction_type="unicode_emoji"
+)
+```
+
+#### 8. `remove_reaction()` - Remove Single Message Reactions
+```python
+await remove_reaction(
+    message_id=12345,
+    emoji_name="thumbs_up",
+    reaction_type="unicode_emoji"
 )
 ```
 
@@ -385,26 +407,36 @@ await advanced_search(
 - Content analysis and sentiment
 - Result caching for performance
 
-#### 2. `analytics()` - Search Result Analytics
+#### 2. `analytics()` - Message Data Analytics
 ```python
 await analytics(
-    search_results=search_data,
-    metrics=["message_count", "user_activity", "topic_distribution"],
-    grouping=["sender", "stream", "date"],
-    
-    # Advanced analytics
-    generate_insights=True,
-    time_series_analysis=True,
-    export_format="json"  # Or "csv"
+    metric="activity|sentiment|topics|participation",
+    narrow=[{"operator": "stream", "operand": "general"}],
+    group_by="user|stream|day|hour",
+
+    # Advanced analytics options
+    format="summary|chart_data|detailed",
+    time_range_days=30
+)
+```
+
+#### 3. `get_daily_summary()` - Daily Activity Reports
+```python
+await get_daily_summary(
+    hours_back=24,
+    target_streams=["general", "announcements"],
+    include_stream_details=True,
+    include_user_activity=True
 )
 ```
 
 **Analytics Capabilities:**
 - Message frequency analysis
 - User activity patterns
-- Topic trend analysis  
+- Topic trend analysis
 - Sentiment distribution
 - Time-based patterns
+- Daily engagement summaries
 
 ## Files Category
 
@@ -458,6 +490,162 @@ await manage_files(
 )
 ```
 
+## Agents Category
+
+**Module**: `tools/agents.py`
+**Focus**: AI agent coordination and task management
+**Identity**: Bot, Admin required for messaging functions
+
+### Tools
+
+#### 1. `register_agent()` - Agent Registration
+```python
+await register_agent(
+    agent_type="claude-code",
+    project_dir="/path/to/project",
+    session_id="session_123",
+    host="hostname"
+)
+```
+
+#### 2. `agent_message()` - Agent Communication
+```python
+await agent_message(
+    content="Task completed successfully",
+    topic_prefix="agents",
+    message_type="status|question|result",
+    context_data={"task_id": "123"}
+)
+```
+
+#### 3-5. Task Management
+```python
+# Start task
+task = await start_task("agent_123", "Process Data", "Analyze user reports")
+
+# Update progress
+await update_task_progress(task["task_id"], 50, "processing")
+
+# Complete task
+await complete_task(task["task_id"], "Results saved", "metrics: 100 processed")
+```
+
+#### 6-8. User Interaction
+```python
+# Request user input
+request = await request_user_input(
+    "Do you want to continue?",
+    agent_id="agent_123",
+    choices=["yes", "no"],
+    context="Data processing workflow"
+)
+
+# Wait for response
+response = await wait_for_response(request["request_id"])
+```
+
+#### 9-11. AFK Mode Management
+```python
+# Enable AFK mode for 8 hours
+await enable_afk_mode(hours=8, reason="Away for meeting")
+
+# Check status
+status = await get_afk_status()
+
+# Disable when back
+await disable_afk_mode()
+```
+
+#### 12-13. Agent Status & Events
+```python
+# Send agent status
+await send_agent_status("agent_123", "working", "Processing files")
+
+# Poll for events
+events = await poll_agent_events(limit=50)
+```
+
+## Commands Category
+
+**Module**: `tools/commands.py`
+**Focus**: Workflow automation and command chaining
+**Replaces**: Legacy workflow tools
+
+### Tools
+
+#### 1. `execute_chain()` - Command Chain Execution
+```python
+await execute_chain([
+    {
+        "type": "send_message",
+        "params": {
+            "message_type": "stream",
+            "to": "general",
+            "content": "Starting analysis..."
+        }
+    },
+    {
+        "type": "search_messages",
+        "params": {
+            "narrow": [{"operator": "stream", "operand": "general"}],
+            "limit": 100
+        }
+    },
+    {
+        "type": "conditional_action",
+        "condition": "len(context['messages']) > 50",
+        "true_action": {
+            "type": "send_message",
+            "params": {"content": "Found many messages"}
+        }
+    }
+])
+```
+
+**Supported Command Types:**
+- `send_message`: Send Zulip messages
+- `wait_for_response`: Poll for user input
+- `search_messages`: Query messages
+- `conditional_action`: Branching logic
+
+#### 2. `list_command_types()` - Available Commands
+```python
+# Returns supported command types for chain building
+types = await list_command_types()
+# ["send_message", "wait_for_response", "search_messages", "conditional_action"]
+```
+
+## System Category
+
+**Module**: `tools/system.py`
+**Focus**: Server metadata and development support
+**Identity**: All types supported
+
+### Tools
+
+#### 1. `server_info()` - Server Capabilities
+```python
+info = await server_info()
+# Returns: name, version, identities, routing_hints, limitations
+```
+
+#### 2. `tool_help()` - Tool Documentation
+```python
+help = await tool_help("message")
+# Returns: comprehensive docstring, examples, parameters
+```
+
+#### 3. `identity_policy()` - Identity Guidelines
+```python
+policy = await identity_policy()
+# Returns: when to use USER/BOT/ADMIN identities
+```
+
+#### 4. `bootstrap_agent()` - Agent Registration Helper
+```python
+result = await bootstrap_agent("claude-code")
+# Wrapper around agents.register_agent for initialization
+```
 
 
 ## Cross-Category Integration
@@ -539,6 +727,23 @@ await message(
 - Need metadata extraction
 - Security validation required
 
+### Choose Agents When:
+- AI agent coordination needed
+- Task tracking and progress reporting
+- User interaction during automation
+- AFK mode for away scenarios
+
+### Choose Commands When:
+- Multi-step workflow automation
+- Conditional logic in workflows
+- Chain complex operations together
+
+### Choose System When:
+- Need server capabilities info
+- Debugging tool usage
+- Identity management guidance
+- Agent initialization
+
 
 
 ## Performance Considerations
@@ -551,24 +756,30 @@ await message(
 - **Users**: Long-term caching (10-30 minutes)
 - **Search**: Configurable caching (5-60 minutes)
 - **Files**: Metadata caching (15-30 minutes)
+- **Agents**: Database persistence (permanent)
+- **Commands**: Context caching (execution duration)
+- **System**: Static data (application lifetime)
 
 
 ### Rate Limiting by Category
 
 Each category has optimized rate limits:
-- High-frequency: Events, Messaging
-- Medium-frequency: Search, Streams, Users
-- Low-frequency: Files
+- High-frequency: Events, Messaging, Agents (polling)
+- Medium-frequency: Search, Streams, Users, Commands
+- Low-frequency: Files, System
 
 ### Batch Operation Support
 
 Categories supporting bulk operations:
-- ✅ **Messaging**: Bulk mark read, reactions
+- ✅ **Messaging**: Bulk mark read, reactions, operations
 - ✅ **Streams**: Bulk subscription management
 - ❌ **Events**: Individual event processing
-- ✅ **Users**: Bulk user operations
+- ✅ **Users**: Bulk user operations, group management
 - ❌ **Search**: Single query processing
-- ❌ **Files**: Individual file operations  
+- ❌ **Files**: Individual file operations
+- ✅ **Agents**: Batch task operations
+- ✅ **Commands**: Chain multiple operations
+- ❌ **System**: Individual meta operations  
 
 
 ---

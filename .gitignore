@@ -208,3 +208,5 @@ config.json
 # Development artifacts
 .dev-artifacts/
 
+# Workflow
+.github/

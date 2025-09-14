@@ -12,6 +12,8 @@ The messaging category provides comprehensive message operations including sendi
 | [`bulk_operations()`](#bulk_operations) | Perform bulk actions on multiple messages | User, Bot, Admin |
 | [`message_history()`](#message_history) | Get message history and edit information | User, Admin |
 | [`cross_post_message()`](#cross_post_message) | Share messages across multiple streams | User, Bot |
+| [`add_reaction()`](#add_reaction) | Add emoji reaction to a message | User, Bot |
+| [`remove_reaction()`](#remove_reaction) | Remove emoji reaction from a message | User, Bot |
 
 ## Functions
 

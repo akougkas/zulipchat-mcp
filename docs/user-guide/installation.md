@@ -85,10 +85,10 @@ Verify your installation:
 python --version
 
 # Verify installation
-python -c "import zulipchat_mcp; print('✓ Installation successful')"
+python -c "from src.zulipchat_mcp.server import main; print('✓ Installation successful')"
 
 # Check available commands
-python -m zulipchat_mcp.server --help
+uv run python -m src.zulipchat_mcp.server --help
 ```
 
 ## Next Steps
@@ -203,13 +203,13 @@ uv pip install -e .
 
 ```bash
 # Test import
-python -c "from zulipchat_mcp.server import main; print('✓ Server import OK')"
+python -c "from src.zulipchat_mcp.server import main; print('✓ Server import OK')"
 
 # Test core components
-python -c "from zulipchat_mcp.core.client import ZulipClientWrapper; print('✓ Core OK')"
+python -c "from src.zulipchat_mcp.core.client import ZulipClientWrapper; print('✓ Core OK')"
 
 # Test tool loading
-python -c "from zulipchat_mcp.tools import messaging_v25; print('✓ Tools OK')"
+python -c "from src.zulipchat_mcp.tools import messaging_v25; print('✓ Tools OK')"
 ```
 
 ## Uninstallation
@@ -232,7 +232,9 @@ rm -rf ~/.config/zulipchat-mcp
 ### Checking Current Version
 
 ```bash
-python -c "import zulipchat_mcp; print(zulipchat_mcp.__version__)"
+# Version info not yet implemented in package
+# Current version can be checked from git tags or release notes
+git describe --tags --abbrev=0  # If installed from git
 ```
 
 ### Upgrading
