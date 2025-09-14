@@ -1,11 +1,11 @@
 """Search tools for ZulipChat MCP v2.5.1.
 
-Complete search operations including advanced search, analytics, user resolution,
-and aggregations. All functionality from the complex v25 architecture preserved.
+Core search operations: search messages, advanced search, narrow construction.
+Analytics moved to ai_analytics.py for LLM elicitation.
 """
 
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any, Literal
@@ -16,12 +16,7 @@ from ..client import ZulipClientWrapper
 from ..config import ConfigManager
 
 
-class UserResolutionError(Exception):
-    """Base class for user resolution errors."""
-    pass
-
-
-class AmbiguousUserError(UserResolutionError):
+class AmbiguousUserError(Exception):
     """Raised when user identifier matches multiple users."""
 
     def __init__(self, identifier: str, matches: list[dict[str, Any]]):
@@ -31,7 +26,7 @@ class AmbiguousUserError(UserResolutionError):
         super().__init__(f"Multiple matches for '{identifier}': {', '.join(match_strings[:5])}")
 
 
-class UserNotFoundError(UserResolutionError):
+class UserNotFoundError(Exception):
     """Raised when user identifier cannot be resolved."""
 
     def __init__(self, identifier: str):
@@ -40,10 +35,7 @@ class UserNotFoundError(UserResolutionError):
 
 
 async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -> dict[str, Any]:
-    """Resolve partial names, emails, or IDs to full user info.
-
-    Handles fuzzy matching for cases like 'Jaime' -> 'jcernudagarcia@hawk.iit.edu'
-    """
+    """Resolve partial names, emails, or IDs to full user info."""
     try:
         # Try exact email match first
         if "@" in identifier:
@@ -217,7 +209,6 @@ async def search_messages(
     # Response control
     limit: int = 50,
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
-    highlight: bool = True,
 ) -> dict[str, Any]:
     """Advanced search with fuzzy user resolution and comprehensive filtering."""
     config = ConfigManager()
@@ -237,7 +228,7 @@ async def search_messages(
                         "code": "AMBIGUOUS_USER",
                         "message": str(e),
                         "suggestions": [f"Did you mean: {m.get('full_name')} ({m.get('email')})?" for m in e.matches[:3]],
-                        "recovery": {"tool": "list_users", "hint": "List users to see all available options"}
+                        "recovery": {"tool": "get_users", "hint": "List users to see all available options"}
                     }
                 }
             except UserNotFoundError as e:
@@ -246,8 +237,8 @@ async def search_messages(
                     "error": {
                         "code": "USER_NOT_FOUND",
                         "message": str(e),
-                        "suggestions": ["Use full email address", "Check spelling", "Use list_users to see available users"],
-                        "recovery": {"tool": "list_users", "hint": "Search users to find correct identifier"}
+                        "suggestions": ["Use full email address", "Check spelling", "Use get_users to see available users"],
+                        "recovery": {"tool": "get_users", "hint": "Search users to find correct identifier"}
                     }
                 }
             except Exception as e:
@@ -340,11 +331,10 @@ async def advanced_search(
     # Response control
     limit: int = 100,
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
-    highlight: bool = True,
-    # Analytics
+    # Basic aggregations only
     aggregations: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Multi-faceted search with aggregations and analytics."""
+    """Multi-faceted search with basic aggregations."""
     config = ConfigManager()
     client = ZulipClientWrapper(config)
 
@@ -394,7 +384,7 @@ async def advanced_search(
                 ][:limit]
                 results["streams"] = {"status": "success", "streams": matching_streams, "count": len(matching_streams)}
 
-        # Aggregations
+        # Basic aggregations only
         if aggregations and "messages" in results and results["messages"].get("status") == "success":
             messages = results["messages"].get("messages", [])
             agg_results = {}
@@ -406,16 +396,6 @@ async def advanced_search(
             if "count_by_stream" in aggregations:
                 stream_counts = Counter(msg["stream"] for msg in messages if msg["stream"])
                 agg_results["count_by_stream"] = dict(stream_counts.most_common(10))
-
-            if "word_frequency" in aggregations:
-                # Simple word frequency analysis
-                all_content = " ".join(msg["content"] for msg in messages)
-                words = re.findall(r'\b\w+\b', all_content.lower())
-                word_freq = Counter(words)
-                # Filter common words
-                common_words = {"the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "a", "an", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "can", "this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they"}
-                filtered_words = {word: count for word, count in word_freq.items() if word not in common_words and len(word) > 2}
-                agg_results["word_frequency"] = dict(Counter(filtered_words).most_common(20))
 
             results["aggregations"] = agg_results
 
@@ -429,269 +409,6 @@ async def advanced_search(
 
     except Exception as e:
         return {"status": "error", "error": str(e), "query": query}
-
-
-async def analytics(
-    metric: Literal["activity", "sentiment", "topics", "participation"],
-    # Filters
-    stream: str | None = None,
-    sender: str | None = None,
-    # Time range
-    last_hours: int | None = None,
-    last_days: int | None = None,
-    # Response format
-    format: Literal["summary", "detailed", "chart_data"] = "summary",
-    group_by: Literal["user", "stream", "day", "hour"] | None = None,
-) -> dict[str, Any]:
-    """Generate analytics and insights from message data."""
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    try:
-        # Get messages for analysis
-        search_result = await search_messages(
-            stream=stream,
-            sender=sender,
-            last_hours=last_hours,
-            last_days=last_days,
-            limit=500,  # Larger sample for analytics
-        )
-
-        if search_result.get("status") != "success":
-            return {"status": "error", "error": "Failed to get messages for analytics"}
-
-        messages = search_result.get("messages", [])
-
-        if not messages:
-            return {"status": "success", "metric": metric, "data": {}, "message": "No messages found for analysis"}
-
-        # Perform analytics based on metric type
-        if metric == "activity":
-            # Activity metrics
-            data = {
-                "total_messages": len(messages),
-                "unique_senders": len(set(msg["sender"] for msg in messages)),
-                "streams_active": len(set(msg["stream"] for msg in messages if msg["stream"])),
-                "avg_message_length": sum(len(msg["content"]) for msg in messages) / len(messages),
-            }
-
-            if group_by == "user":
-                user_activity = Counter(msg["sender"] for msg in messages)
-                data["by_user"] = dict(user_activity.most_common(10))
-            elif group_by == "stream":
-                stream_activity = Counter(msg["stream"] for msg in messages if msg["stream"])
-                data["by_stream"] = dict(stream_activity.most_common(10))
-
-        elif metric == "topics":
-            # Topic analysis
-            topics = [msg["topic"] for msg in messages if msg["topic"]]
-            topic_counts = Counter(topics)
-            data = {
-                "total_topics": len(set(topics)),
-                "most_active_topics": dict(topic_counts.most_common(10)),
-                "avg_messages_per_topic": len(messages) / len(set(topics)) if topics else 0,
-            }
-
-        elif metric == "participation":
-            # Participation metrics
-            sender_counts = Counter(msg["sender"] for msg in messages)
-            total_messages = len(messages)
-            data = {
-                "total_participants": len(sender_counts),
-                "participation_distribution": {
-                    sender: {"count": count, "percentage": (count / total_messages) * 100}
-                    for sender, count in sender_counts.most_common(10)
-                },
-                "gini_coefficient": _calculate_gini_coefficient(list(sender_counts.values())),
-            }
-
-        else:  # sentiment
-            # Basic sentiment analysis (simplified)
-            positive_words = {"good", "great", "excellent", "awesome", "fantastic", "love", "like", "thanks", "thank", "perfect", "wonderful", "amazing"}
-            negative_words = {"bad", "terrible", "awful", "hate", "dislike", "wrong", "error", "problem", "issue", "broken", "failed", "fail"}
-
-            sentiment_scores = []
-            for msg in messages:
-                content_lower = msg["content"].lower()
-                positive_count = sum(1 for word in positive_words if word in content_lower)
-                negative_count = sum(1 for word in negative_words if word in content_lower)
-                score = positive_count - negative_count
-                sentiment_scores.append(score)
-
-            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
-            data = {
-                "average_sentiment": avg_sentiment,
-                "positive_messages": len([s for s in sentiment_scores if s > 0]),
-                "negative_messages": len([s for s in sentiment_scores if s < 0]),
-                "neutral_messages": len([s for s in sentiment_scores if s == 0]),
-                "sentiment_distribution": {
-                    "positive": (len([s for s in sentiment_scores if s > 0]) / len(sentiment_scores)) * 100,
-                    "negative": (len([s for s in sentiment_scores if s < 0]) / len(sentiment_scores)) * 100,
-                    "neutral": (len([s for s in sentiment_scores if s == 0]) / len(sentiment_scores)) * 100,
-                }
-            }
-
-        return {
-            "status": "success",
-            "metric": metric,
-            "format": format,
-            "data": data,
-            "sample_size": len(messages),
-            "generated_at": datetime.now().isoformat(),
-        }
-
-    except Exception as e:
-        return {"status": "error", "error": str(e), "metric": metric}
-
-
-def _calculate_gini_coefficient(values: list[int]) -> float:
-    """Calculate Gini coefficient for participation distribution."""
-    if not values:
-        return 0.0
-
-    sorted_values = sorted(values)
-    n = len(sorted_values)
-    total = sum(sorted_values)
-
-    if total == 0:
-        return 0.0
-
-    cumsum = 0
-    for i, value in enumerate(sorted_values):
-        cumsum += value
-        # Gini coefficient formula
-
-    # Simplified calculation
-    return (2 * sum((i + 1) * value for i, value in enumerate(sorted_values))) / (n * total) - (n + 1) / n
-
-
-async def get_daily_summary(
-    streams: list[str] | None = None,
-    hours_back: int = 24,
-) -> dict[str, Any]:
-    """Get daily message summary with comprehensive activity stats."""
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    summary = client.get_daily_summary(streams=streams, hours_back=hours_back)
-
-    # Enhance with additional analytics
-    if isinstance(summary, dict) and "streams" in summary:
-        # Add engagement metrics
-        total_topics = sum(len(stream_data.get("topics", {})) for stream_data in summary["streams"].values())
-        active_streams = len([s for s, data in summary["streams"].items() if data.get("message_count", 0) > 0])
-
-        summary["engagement_metrics"] = {
-            "total_topics": total_topics,
-            "active_streams": active_streams,
-            "avg_messages_per_stream": summary["total_messages"] / max(active_streams, 1),
-            "avg_topics_per_stream": total_topics / max(active_streams, 1),
-        }
-
-    return {
-        "status": "success",
-        "summary": summary,
-        "generated_at": datetime.now().isoformat(),
-        "time_range": f"Last {hours_back} hours",
-    }
-
-
-async def analyze_with_llm(
-    data_source: Literal["messages", "streams", "users"],
-    analysis_type: str,
-    # Data fetching parameters
-    stream: str | None = None,
-    topic: str | None = None,
-    sender: str | None = None,
-    last_hours: int | None = None,
-    last_days: int | None = None,
-    limit: int = 100,
-    # Analysis prompt
-    custom_prompt: str | None = None,
-    ctx: Any = None,  # FastMCP Context for elicitation
-) -> dict[str, Any]:
-    """Fetch data from Zulip and analyze with LLM via elicitation."""
-    if not ctx:
-        return {"status": "error", "error": "Context required for LLM analysis"}
-
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    try:
-        # Fetch data based on source
-        if data_source == "messages":
-            search_result = await search_messages(
-                stream=stream,
-                topic=topic,
-                sender=sender,
-                last_hours=last_hours,
-                last_days=last_days,
-                limit=limit,
-            )
-
-            if search_result.get("status") != "success":
-                return {"status": "error", "error": "Failed to fetch messages for analysis"}
-
-            messages = search_result.get("messages", [])
-            if not messages:
-                return {"status": "success", "analysis": "No messages found for analysis"}
-
-            # Prepare data for LLM analysis
-            data_summary = f"Messages ({len(messages)} total):\n"
-            for i, msg in enumerate(messages[:20]):  # Limit to 20 for token efficiency
-                data_summary += f"{i+1}. {msg['sender']}: {msg['content'][:100]}...\n"
-
-        elif data_source == "streams":
-            streams_result = client.get_streams()
-            if streams_result.get("result") != "success":
-                return {"status": "error", "error": "Failed to fetch streams"}
-
-            streams = streams_result.get("streams", [])
-            data_summary = f"Streams ({len(streams)} total):\n"
-            for stream in streams[:20]:
-                data_summary += f"- {stream.get('name')}: {stream.get('description', 'No description')}\n"
-
-        else:  # users
-            users_result = client.get_users()
-            if users_result.get("result") != "success":
-                return {"status": "error", "error": "Failed to fetch users"}
-
-            users = users_result.get("members", [])
-            data_summary = f"Users ({len(users)} total):\n"
-            for user in users[:20]:
-                data_summary += f"- {user.get('full_name')} ({user.get('email')})\n"
-
-        # Create analysis prompt
-        if custom_prompt:
-            analysis_prompt = custom_prompt.replace("{data}", data_summary)
-        else:
-            default_prompts = {
-                "engagement": f"Analyze engagement patterns and trends in this Zulip data:\n\n{data_summary}\n\nProvide insights on activity levels, top contributors, and engagement trends.",
-                "sentiment": f"Analyze team sentiment and energy from these Zulip messages:\n\n{data_summary}\n\nProvide insights on team mood, energy levels, and any concerns.",
-                "collaboration": f"Analyze collaboration patterns in this Zulip data:\n\n{data_summary}\n\nProvide insights on teamwork, communication patterns, and collaboration quality.",
-                "summary": f"Provide a comprehensive summary of this Zulip data:\n\n{data_summary}\n\nInclude key statistics, patterns, and notable insights.",
-            }
-            analysis_prompt = default_prompts.get(analysis_type, f"Analyze this Zulip data for {analysis_type}:\n\n{data_summary}")
-
-        # Use LLM for analysis via elicitation
-        try:
-            llm_response = await ctx.sample(analysis_prompt)
-            analysis_result = llm_response.text.strip()
-
-            return {
-                "status": "success",
-                "analysis_type": analysis_type,
-                "data_source": data_source,
-                "data_count": len(messages) if data_source == "messages" else (len(streams) if data_source == "streams" else len(users)),
-                "analysis": analysis_result,
-                "generated_at": datetime.now().isoformat(),
-            }
-
-        except Exception as e:
-            return {"status": "error", "error": f"LLM analysis failed: {str(e)}"}
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 
 async def construct_narrow(
@@ -721,7 +438,7 @@ async def construct_narrow(
     dm_with: str | list[str] | None = None,
     group_dm_with: str | list[str] | None = None,
 ) -> dict[str, Any]:
-    """Construct a narrow filter following Zulip API patterns."""
+    """Construct narrow filter following Zulip API patterns."""
     try:
         narrow = []
 
@@ -869,11 +586,8 @@ async def check_messages_match_narrow(
 
 
 def register_search_tools(mcp: FastMCP) -> None:
-    """Register clean search tools with the MCP server."""
+    """Register core search tools with the MCP server."""
     mcp.tool(name="search_messages", description="Advanced search with fuzzy user matching and comprehensive filtering")(search_messages)
-    mcp.tool(name="advanced_search", description="Multi-faceted search across messages, users, streams with aggregations")(advanced_search)
-    mcp.tool(name="analytics", description="Generate analytics and insights from message data")(analytics)
-    mcp.tool(name="get_daily_summary", description="Get daily activity summary with engagement metrics")(get_daily_summary)
-    mcp.tool(name="analyze_with_llm", description="Fetch Zulip data and analyze with LLM via elicitation")(analyze_with_llm)
+    mcp.tool(name="advanced_search", description="Multi-faceted search across messages, users, streams with basic aggregations")(advanced_search)
     mcp.tool(name="construct_narrow", description="Construct narrow filter following Zulip API patterns")(construct_narrow)
     mcp.tool(name="check_messages_match_narrow", description="Check whether messages match a narrow filter")(check_messages_match_narrow)

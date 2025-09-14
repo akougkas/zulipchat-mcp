@@ -1,7 +1,8 @@
 """Topic management tools for ZulipChat MCP v2.5.1.
 
-Topic-specific operations: list, move, delete, mute, mark as read.
-Clean API endpoint mapping without unnecessary complexity.
+Identity-protected topic operations:
+- READ-ONLY for user identity (protects organization)
+- Full operations for bot identity in Agents-Channel only
 """
 
 from typing import Any, Literal
@@ -12,11 +13,8 @@ from ..client import ZulipClientWrapper
 from ..config import ConfigManager
 
 
-async def get_stream_topics(
-    stream_id: int,
-    max_results: int = 100,
-) -> dict[str, Any]:
-    """Get recent topics for a stream."""
+async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str, Any]:
+    """Get recent topics for a stream (READ-ONLY)."""
     config = ConfigManager()
     client = ZulipClientWrapper(config)
 
@@ -24,7 +22,6 @@ async def get_stream_topics(
         result = client.get_stream_topics(stream_id)
         if result.get("result") == "success":
             topics = result.get("topics", [])
-
             return {
                 "status": "success",
                 "stream_id": stream_id,
@@ -38,133 +35,109 @@ async def get_stream_topics(
         return {"status": "error", "error": str(e)}
 
 
-async def move_topic(
-    stream_id: int,
+async def agents_channel_topic_ops(
+    operation: Literal["move", "delete", "mute", "unmute"],
     source_topic: str,
-    target_topic: str,
-    target_stream_id: int | None = None,
+    target_topic: str | None = None,
     propagate_mode: str = "change_all",
-    send_notification_to_new_thread: bool = True,
-    send_notification_to_old_thread: bool = True,
 ) -> dict[str, Any]:
-    """Move topic within stream or to different stream."""
+    """Topic operations in Agents-Channel only (BOT identity protection)."""
     config = ConfigManager()
-    client = ZulipClientWrapper(config)
+
+    # Force bot identity for organizational protection
+    if not config.has_bot_credentials():
+        return {
+            "status": "error",
+            "error": "Bot credentials required for topic operations",
+            "protection": "Prevents AI from modifying organization streams"
+        }
+
+    client = ZulipClientWrapper(config, use_bot_identity=True)
 
     try:
-        # Find a message in the source topic to trigger the move
-        from .search import search_messages
+        # Get Agents-Channel stream ID
+        stream_result = client.get_stream_id("Agents-Channel")
+        if stream_result.get("result") != "success":
+            return {"status": "error", "error": "Agents-Channel not found"}
 
-        # Build narrow to find messages in source topic
-        narrow = [
-            {"operator": "stream", "operand": str(stream_id)},
-            {"operator": "topic", "operand": source_topic}
-        ]
+        agents_channel_id = stream_result.get("stream_id")
 
-        search_result = client.get_messages_raw(narrow=narrow, num_before=1, num_after=0)
+        if operation == "move":
+            if not target_topic:
+                return {"status": "error", "error": "target_topic required for move operation"}
 
-        if search_result.get("result") != "success" or not search_result.get("messages"):
-            return {"status": "error", "error": "No messages found in source topic to move"}
+            # Find message in source topic
+            narrow = [
+                {"operator": "stream", "operand": str(agents_channel_id)},
+                {"operator": "topic", "operand": source_topic}
+            ]
 
-        # Get the first message to trigger the move
-        first_message = search_result["messages"][0]
-        message_id = first_message["id"]
+            search_result = client.get_messages_raw(narrow=narrow, num_before=1, num_after=0)
 
-        # Use edit_message to move the topic
-        from .messaging import edit_message
-        edit_result = await edit_message(
-            message_id=message_id,
-            topic=target_topic,
-            stream_id=target_stream_id,
-            propagate_mode=propagate_mode,
-            send_notification_to_old_thread=send_notification_to_old_thread,
-            send_notification_to_new_thread=send_notification_to_new_thread,
-        )
+            if search_result.get("result") != "success" or not search_result.get("messages"):
+                return {"status": "error", "error": "No messages found in source topic"}
 
-        if edit_result.get("status") == "success":
+            # Use edit_message to move the topic
+            from .messaging import edit_message
+            message_id = search_result["messages"][0]["id"]
+
+            edit_result = await edit_message(
+                message_id=message_id,
+                topic=target_topic,
+                propagate_mode=propagate_mode,
+            )
+
+            if edit_result.get("status") == "success":
+                return {
+                    "status": "success",
+                    "operation": "move",
+                    "stream": "Agents-Channel",
+                    "source_topic": source_topic,
+                    "target_topic": target_topic,
+                    "protection": "Limited to Agents-Channel only",
+                }
+            else:
+                return {"status": "error", "error": edit_result.get("error", "Failed to move topic")}
+
+        elif operation == "delete":
+            result = client.delete_topic(agents_channel_id, source_topic)
+            if result.get("result") == "success":
+                return {
+                    "status": "success",
+                    "operation": "delete",
+                    "stream": "Agents-Channel",
+                    "topic": source_topic,
+                    "protection": "Limited to Agents-Channel only",
+                }
+            else:
+                return {"status": "error", "error": result.get("msg", "Failed to delete topic")}
+
+        elif operation == "mute":
+            result = client.mute_topic(agents_channel_id, source_topic)
             return {
                 "status": "success",
-                "source_stream_id": stream_id,
-                "target_stream_id": target_stream_id or stream_id,
-                "source_topic": source_topic,
-                "target_topic": target_topic,
-                "propagate_mode": propagate_mode,
-                "messages_moved": "all" if propagate_mode == "change_all" else "partial",
-            }
-        else:
-            return {"status": "error", "error": edit_result.get("error", "Failed to move topic")}
+                "operation": "mute",
+                "stream": "Agents-Channel",
+                "topic": source_topic,
+            } if result.get("result") == "success" else {"status": "error", "error": result.get("msg", "Failed to mute")}
 
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def delete_topic(stream_id: int, topic_name: str) -> dict[str, Any]:
-    """Delete a topic from a stream."""
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    try:
-        result = client.delete_topic(stream_id, topic_name)
-        if result.get("result") == "success":
+        elif operation == "unmute":
+            result = client.unmute_topic(agents_channel_id, source_topic)
             return {
                 "status": "success",
-                "stream_id": stream_id,
-                "topic_name": topic_name,
-                "action": "deleted",
-            }
+                "operation": "unmute",
+                "stream": "Agents-Channel",
+                "topic": source_topic,
+            } if result.get("result") == "success" else {"status": "error", "error": result.get("msg", "Failed to unmute")}
+
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to delete topic")}
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def mute_topic(stream_id: int, topic_name: str) -> dict[str, Any]:
-    """Mute a topic for your own notifications."""
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    try:
-        result = client.mute_topic(stream_id, topic_name)
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "stream_id": stream_id,
-                "topic_name": topic_name,
-                "action": "muted",
-            }
-        else:
-            return {"status": "error", "error": result.get("msg", "Failed to mute topic")}
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def unmute_topic(stream_id: int, topic_name: str) -> dict[str, Any]:
-    """Unmute a topic for your own notifications."""
-    config = ConfigManager()
-    client = ZulipClientWrapper(config)
-
-    try:
-        result = client.unmute_topic(stream_id, topic_name)
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "stream_id": stream_id,
-                "topic_name": topic_name,
-                "action": "unmuted",
-            }
-        else:
-            return {"status": "error", "error": result.get("msg", "Failed to unmute topic")}
+            return {"status": "error", "error": f"Unknown operation: {operation}"}
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 
 def register_topic_management_tools(mcp: FastMCP) -> None:
-    """Register topic management tools with the MCP server."""
-    mcp.tool(name="get_stream_topics", description="Get recent topics for a stream")(get_stream_topics)
-    mcp.tool(name="move_topic", description="Move topic within stream or to different stream")(move_topic)
-    mcp.tool(name="delete_topic", description="Delete a topic from a stream")(delete_topic)
-    mcp.tool(name="mute_topic", description="Mute a topic for your own notifications")(mute_topic)
-    mcp.tool(name="unmute_topic", description="Unmute a topic for your own notifications")(unmute_topic)
+    """Register topic management tools with identity protection."""
+    mcp.tool(name="get_stream_topics", description="Get recent topics for a stream (READ-ONLY)")(get_stream_topics)
+    mcp.tool(name="agents_channel_topic_ops", description="Topic operations in Agents-Channel only (BOT identity protection)")(agents_channel_topic_ops)
