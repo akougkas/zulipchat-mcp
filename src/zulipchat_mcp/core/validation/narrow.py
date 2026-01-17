@@ -36,7 +36,13 @@ class NarrowFilter(BaseModel):
     operand: str | int | list[str]
     negated: bool = False
 
-    def __init__(self, operator=None, operand=None, negated=False, **data):
+    def __init__(
+        self,
+        operator: NarrowOperator | str | None = None,
+        operand: str | int | list[str] | None = None,
+        negated: bool = False,
+        **data: Any,
+    ) -> None:
         """Initialize with positional or keyword arguments."""
         if operator is not None and operand is not None and not data:
             # Handle positional arguments
@@ -52,7 +58,7 @@ class NarrowFilter(BaseModel):
             super().__init__(**data)
 
     @field_validator("operand")
-    def validate_operand(cls, v, info):
+    def validate_operand(cls, v: Any, info: Any) -> Any:
         """Validate operand based on operator type."""
         operator = info.data.get("operator")
         if operator == NarrowOperator.ID and not isinstance(v, int):
@@ -95,7 +101,7 @@ class NarrowFilter(BaseModel):
         """String representation of narrow filter."""
         return f"NarrowFilter(operator={self.operator.value}, operand={self.operand})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Equality comparison."""
         if not isinstance(other, NarrowFilter):
             return False
@@ -109,7 +115,7 @@ class NarrowFilter(BaseModel):
 class NarrowBuilder:
     """Fluent interface for building complex narrow filters."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize narrow builder."""
         self.filters: list[NarrowFilter] = []
 
@@ -183,7 +189,7 @@ class NarrowBuilder:
     @staticmethod
     def from_dict(filters: list[dict[str, Any]]) -> list[NarrowFilter]:
         """Create NarrowFilter objects from dictionary format."""
-        result = []
+        result: list[NarrowFilter] = []
         for f in filters:
             result.append(
                 NarrowFilter(

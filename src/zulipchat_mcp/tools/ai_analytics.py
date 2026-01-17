@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastmcp import Context, FastMCP
+from mcp.types import TextContent
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
@@ -32,6 +33,16 @@ async def get_daily_summary(
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+def _extract_llm_text(response: Any) -> str:
+    """Extract text content from an MCP sampling response."""
+    content = getattr(response, "content", [])
+    if content:
+        first = content[0]
+        if isinstance(first, TextContent):
+            return first.text
+    return ""
 
 
 async def analyze_stream_with_llm(
@@ -94,7 +105,12 @@ async def analyze_stream_with_llm(
         # Use LLM for analysis
         try:
             llm_response = await ctx.sample(analysis_prompt)
-            analysis_result = llm_response.text.strip()
+            analysis_result = _extract_llm_text(llm_response).strip()
+            if not analysis_result:
+                return {
+                    "status": "error",
+                    "error": "LLM response missing text content",
+                }
 
             return {
                 "status": "success",
@@ -154,7 +170,7 @@ async def analyze_team_activity_with_llm(
         data_summary = f"Team Activity ({len(all_messages)} messages across {len(team_streams)} streams, {days_back} days):\n\n"
 
         # Group by stream
-        by_stream = {}
+        by_stream: dict[str, list[dict[str, Any]]] = {}
         for msg in all_messages:
             stream = msg.get("stream", "Unknown")
             if stream not in by_stream:
@@ -185,7 +201,12 @@ async def analyze_team_activity_with_llm(
         # Use LLM for analysis
         try:
             llm_response = await ctx.sample(analysis_prompt)
-            analysis_result = llm_response.text.strip()
+            analysis_result = _extract_llm_text(llm_response).strip()
+            if not analysis_result:
+                return {
+                    "status": "error",
+                    "error": "LLM response missing text content",
+                }
 
             return {
                 "status": "success",
@@ -283,7 +304,12 @@ Provide relevant insights and actionable information."""
         # Generate report with LLM
         try:
             llm_response = await ctx.sample(report_prompt)
-            report_content = llm_response.text.strip()
+            report_content = _extract_llm_text(llm_response).strip()
+            if not report_content:
+                return {
+                    "status": "error",
+                    "error": "LLM response missing text content",
+                }
 
             return {
                 "status": "success",

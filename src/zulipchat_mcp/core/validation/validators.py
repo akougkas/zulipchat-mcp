@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class ParameterValidator:
     """Unified parameter validation with progressive disclosure support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parameter validator with tool schemas."""
         self.tool_schemas: dict[str, ToolSchema] = get_all_schemas()
 
@@ -52,7 +52,7 @@ class ParameterValidator:
         # and required-parameter checks behave correctly.
         params = {k: v for k, v in params.items() if v is not None}
 
-        validated = {}
+        validated: dict[str, Any] = {}
         errors = []
 
         # Determine which parameters are allowed based on mode
@@ -421,7 +421,7 @@ class ParameterValidator:
         if not isinstance(time_range, dict):
             raise ValidationError("Time range must be a dictionary")
 
-        validated = {}
+        validated: dict[str, Any] = {}
 
         # Handle different time range formats
         if "days" in time_range:

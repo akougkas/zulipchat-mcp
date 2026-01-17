@@ -233,6 +233,7 @@ class MessageScheduler:
                 message_type=message.message_type,
                 recipients=message.recipients,
                 topic=message.topic,
+                scheduled_id=None,
             )
 
             result = await self.schedule_message(recurring_message)
@@ -271,6 +272,7 @@ class MessageScheduler:
             message_type=message_type,
             recipients=recipients,
             topic=topic,
+            scheduled_id=None,
         )
 
         return await self.schedule_message(reminder)
@@ -324,6 +326,7 @@ Please share:
                 message_type="stream",
                 recipients=stream,
                 topic=topic,
+                scheduled_id=None,
             )
 
             result = await self.schedule_message(standup_message)

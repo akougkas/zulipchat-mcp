@@ -458,7 +458,11 @@ class NarrowHelper:
 
     @classmethod
     def build_stream_narrow(
-        cls, stream: str, topic: str | None = None, sender: str | None = None, **kwargs
+        cls,
+        stream: str,
+        topic: str | None = None,
+        sender: str | None = None,
+        **kwargs: Any,
     ) -> list[NarrowFilter]:
         """Build a narrow focused on a specific stream.
 
@@ -486,7 +490,7 @@ class NarrowHelper:
 
     @classmethod
     def build_user_narrow(
-        cls, sender: str, stream: str | None = None, **kwargs
+        cls, sender: str, stream: str | None = None, **kwargs: Any
     ) -> list[NarrowFilter]:
         """Build a narrow focused on a specific user.
 
@@ -511,7 +515,7 @@ class NarrowHelper:
 
     @classmethod
     def build_search_narrow(
-        cls, text: str, stream: str | None = None, **kwargs
+        cls, text: str, stream: str | None = None, **kwargs: Any
     ) -> list[NarrowFilter]:
         """Build a narrow focused on text search.
 
@@ -651,7 +655,7 @@ def build_basic_narrow(
     topic: str | None = None,
     sender: str | None = None,
     text: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> list[NarrowFilter]:
     """Convenience function for building basic narrow filters.
 

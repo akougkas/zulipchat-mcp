@@ -1,6 +1,6 @@
 """Zulip API client wrapper for MCP integration."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -81,7 +81,7 @@ class ZulipClientWrapper:
             self.identity_name = email.split("@")[0] if email else "User"
 
         # Lazy loading: client created on first API call
-        self._client = None
+        self._client: Client | None = None
         self.current_email = self._client_config["email"]
         self._base_url = (
             self._client_config["site"].rstrip("/")
@@ -141,7 +141,7 @@ class ZulipClientWrapper:
         anchor: str = "newest",
         num_before: int = 100,
         num_after: int = 0,
-        narrow: list[dict[str, str]] | None = None,
+        narrow: list[dict[str, Any]] | None = None,
         include_anchor: bool = True,
         client_gravatar: bool = True,
         apply_markdown: bool = True,
@@ -317,7 +317,9 @@ class ZulipClientWrapper:
         self, subscriptions: list[dict[str, Any]]
     ) -> dict[str, Any]:
         if hasattr(self.client, "update_subscription_settings"):
-            return self.client.update_subscription_settings(subscriptions=subscriptions)
+            return self.client.update_subscription_settings(
+                subscription_data=subscriptions
+            )
         return self.client.call_endpoint(
             "users/me/subscriptions/properties",
             method="PATCH",
@@ -326,9 +328,9 @@ class ZulipClientWrapper:
 
     def add_subscriptions(
         self,
-        subscriptions: list[dict[str, Any]] | None = None,
+        subscriptions: Iterable[dict[str, Any]] | dict[str, Any] | None = None,
         *,
-        streams: list[dict[str, Any]] | None = None,
+        streams: Iterable[dict[str, Any]] | dict[str, Any] | None = None,
         principals: list[str] | None = None,
         announce: bool | None = None,
         authorization_errors_fatal: bool | None = None,
@@ -339,8 +341,12 @@ class ZulipClientWrapper:
         Supports both "subscriptions=[...]" (preferred by tools) and
         "streams=[...]" (used by older client SDKs).
         """
-        subs = subscriptions or streams or []
-        payload: dict[str, Any] = {"subscriptions": subs}
+        subs_input = subscriptions or streams or []
+        if isinstance(subs_input, dict):
+            subs_list = [subs_input]
+        else:
+            subs_list = list(subs_input)
+        payload: dict[str, Any] = {"subscriptions": subs_list}
         if principals is not None:
             payload["principals"] = principals
         if announce is not None:
@@ -350,32 +356,38 @@ class ZulipClientWrapper:
         payload.update({k: v for k, v in kwargs.items() if v is not None})
 
         if hasattr(self.client, "add_subscriptions"):
-            # Try both calling conventions used by zulip-python
-            try:
-                return self.client.add_subscriptions(
-                    streams=subs,
-                    **{k: v for k, v in payload.items() if k != "subscriptions"},
-                )
-            except TypeError:
-                return self.client.add_subscriptions(payload)
+            return self.client.add_subscriptions(
+                streams=subs_list,
+                **{k: v for k, v in payload.items() if k != "subscriptions"},
+            )
         return self.client.call_endpoint(
             "users/me/subscriptions", method="POST", request=payload
         )
 
-    def remove_subscriptions(self, subscriptions: Iterable[str]) -> dict[str, Any]:
+    def remove_subscriptions(
+        self,
+        subscriptions: Iterable[str],
+        principals: Sequence[str] | Sequence[int] | None = None,
+    ) -> dict[str, Any]:
         if hasattr(self.client, "remove_subscriptions"):
-            return self.client.remove_subscriptions(subscriptions=list(subscriptions))
+            return self.client.remove_subscriptions(
+                streams=list(subscriptions), principals=principals
+            )
+        request: dict[str, Any] = {"subscriptions": list(subscriptions)}
+        if principals is not None:
+            request["principals"] = principals
         return self.client.call_endpoint(
             "users/me/subscriptions",
             method="DELETE",
-            request={"subscriptions": list(subscriptions)},
+            request=request,
         )
 
     def update_stream(self, stream_id: int, **updates: Any) -> dict[str, Any]:
+        stream_data = {"stream_id": stream_id, **updates}
         if hasattr(self.client, "update_stream"):
-            return self.client.update_stream(stream_id=stream_id, **updates)
+            return self.client.update_stream(stream_data)
         return self.client.call_endpoint(
-            f"streams/{stream_id}", method="PATCH", request=updates
+            f"streams/{stream_id}", method="PATCH", request=stream_data
         )
 
     def delete_stream(self, stream_id: int) -> dict[str, Any]:
@@ -395,22 +407,11 @@ class ZulipClientWrapper:
 
     def get_subscribers(self, stream_id: int) -> dict[str, Any]:
         """Get subscribers for a stream with fallback methods."""
-        try:
-            # Try positional argument first (zulip-python library expects this)
-            return self.client.get_subscribers(stream_id)
-        except TypeError:
-            try:
-                # Try keyword argument
-                return self.client.get_subscribers(stream_id=stream_id)
-            except Exception:
-                try:
-                    # Try dict format
-                    return self.client.get_subscribers({"stream_id": stream_id})
-                except Exception:
-                    # Fallback to direct API call
-                    return self.client.call_endpoint(
-                        f"streams/{stream_id}/members", method="GET", request={}
-                    )
+        if hasattr(self.client, "get_subscribers"):
+            return self.client.get_subscribers(stream_id=stream_id)
+        return self.client.call_endpoint(
+            f"streams/{stream_id}/members", method="GET", request={}
+        )
 
     def mark_topic_as_read(self, stream_id: int, topic_name: str) -> dict[str, Any]:
         if hasattr(self.client, "mark_topic_as_read"):
@@ -425,7 +426,9 @@ class ZulipClientWrapper:
 
     def mute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
         if hasattr(self.client, "mute_topic"):
-            return self.client.mute_topic(stream_id=stream_id, topic=topic_name)
+            return self.client.mute_topic(
+                {"stream_id": stream_id, "topic": topic_name}
+            )
         return self.client.call_endpoint(
             "users/me/muted_topics",
             method="PATCH",
@@ -509,17 +512,9 @@ class ZulipClientWrapper:
     ) -> dict[str, Any]:
         """Fetch a single user by numeric ID."""
         if hasattr(self.client, "get_user_by_id"):
-            try:
-                return self.client.get_user_by_id(
-                    user_id, include_custom_profile_fields=include_custom_profile_fields
-                )
-            except TypeError:
-                return self.client.get_user_by_id(
-                    {
-                        "user_id": user_id,
-                        "include_custom_profile_fields": include_custom_profile_fields,
-                    }
-                )
+            return self.client.get_user_by_id(
+                user_id, include_custom_profile_fields=include_custom_profile_fields
+            )
         return self.client.call_endpoint(
             f"users/{user_id}",
             method="GET",
@@ -543,15 +538,7 @@ class ZulipClientWrapper:
         """Add/remove a flag on a list of messages."""
         payload = {"messages": messages, "op": op, "flag": flag}
         if hasattr(self.client, "update_message_flags"):
-            try:
-                return self.client.update_message_flags(payload)
-            except TypeError:
-                try:
-                    return self.client.update_message_flags(
-                        messages=messages, op=op, flag=flag
-                    )
-                except Exception:
-                    pass
+            return self.client.update_message_flags(payload)
         return self.client.call_endpoint(
             "messages/flags", method="POST", request=payload
         )
@@ -565,13 +552,10 @@ class ZulipClientWrapper:
                 return self.client.register(kwargs)
         return self.client.call_endpoint("register", method="POST", request=kwargs)
 
-    def deregister(self, queue_id: str) -> dict[str, Any]:
+    def deregister(self, queue_id: str, timeout: float | None = None) -> dict[str, Any]:
         """Delete an event queue by ID."""
         if hasattr(self.client, "deregister"):
-            try:
-                return self.client.deregister(queue_id)
-            except TypeError:
-                return self.client.deregister({"queue_id": queue_id})
+            return self.client.deregister(queue_id, timeout=timeout)
         return self.client.call_endpoint(
             "events", method="DELETE", request={"queue_id": queue_id}
         )
@@ -579,10 +563,7 @@ class ZulipClientWrapper:
     def get_events(self, **kwargs: Any) -> dict[str, Any]:
         """Poll events from a queue (long-poll capable)."""
         if hasattr(self.client, "get_events"):
-            try:
-                return self.client.get_events(**kwargs)
-            except TypeError:
-                return self.client.get_events(kwargs)
+            return self.client.get_events(**kwargs)
         return self.client.call_endpoint("events", method="GET", request=kwargs)
 
     # Convenience methods referenced by users_v25
@@ -600,18 +581,13 @@ class ZulipClientWrapper:
         self, status: str, ping_only: bool = False, new_user_input: bool = True
     ) -> dict[str, Any]:
         if hasattr(self.client, "update_presence"):
-            try:
-                return self.client.update_presence(
-                    status, ping_only=ping_only, new_user_input=new_user_input
-                )
-            except TypeError:
-                return self.client.update_presence(
-                    {
-                        "status": status,
-                        "ping_only": ping_only,
-                        "new_user_input": new_user_input,
-                    }
-                )
+            return self.client.update_presence(
+                {
+                    "status": status,
+                    "ping_only": ping_only,
+                    "new_user_input": new_user_input,
+                }
+            )
         return self.client.call_endpoint(
             "users/me/presence",
             method="POST",
@@ -639,11 +615,7 @@ class ZulipClientWrapper:
         file_obj.name = filename
 
         if hasattr(self.client, "upload_file"):
-            try:
-                return self.client.upload_file(file_obj)
-            except TypeError:
-                # Try with different argument format
-                return self.client.upload_file(file_content, filename)
+            return self.client.upload_file(file_obj)
 
         # Fallback to direct API call
         import requests

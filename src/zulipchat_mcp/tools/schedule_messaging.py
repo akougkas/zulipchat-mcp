@@ -107,7 +107,7 @@ async def update_scheduled_message(
 
     try:
         # Build update data from provided parameters
-        request_data = {}
+        request_data: dict[str, Any] = {}
         if type is not None:
             request_data["type"] = type
         if to is not None:

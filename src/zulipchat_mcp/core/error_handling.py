@@ -9,11 +9,11 @@ from __future__ import annotations
 import asyncio
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 
 from ..utils.logging import get_logger
 from .exceptions import (
@@ -70,7 +70,7 @@ class RetryConfig:
         ]
     )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_attempts < 1:
             raise ValueError("max_attempts must be >= 1")
@@ -91,7 +91,7 @@ class RateLimitConfig:
     burst_limit: int = 10  # Burst capacity
     enforce: bool = True  # Whether to enforce rate limiting
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_requests <= 0:
             raise ValueError("max_requests must be > 0")
@@ -104,17 +104,17 @@ class RateLimitConfig:
 class RateLimiter:
     """Token bucket rate limiter for API calls."""
 
-    def __init__(self, config: RateLimitConfig):
+    def __init__(self, config: RateLimitConfig) -> None:
         """Initialize rate limiter.
 
         Args:
             config: Rate limiting configuration
         """
         self.config = config
-        self.tokens = config.burst_limit
-        self.max_tokens = config.burst_limit
-        self.refill_rate = config.max_requests / config.time_window
-        self.last_refill = time.monotonic()
+        self.tokens: float = float(config.burst_limit)
+        self.max_tokens: float = float(config.burst_limit)
+        self.refill_rate: float = config.max_requests / config.time_window
+        self.last_refill: float = time.monotonic()
         self._lock = asyncio.Lock()
 
     async def acquire(self, tokens: int = 1) -> float:
@@ -146,7 +146,7 @@ class RateLimiter:
             wait_time = tokens_needed / self.refill_rate
             return wait_time
 
-    async def wait_if_needed(self, tokens: int = 1):
+    async def wait_if_needed(self, tokens: int = 1) -> None:
         """Wait if rate limit would be exceeded.
 
         Args:
@@ -169,7 +169,7 @@ class ErrorHandler:
         self,
         retry_config: RetryConfig | None = None,
         rate_limit_config: RateLimitConfig | None = None,
-    ):
+    ) -> None:
         """Initialize error handler.
 
         Args:
@@ -246,9 +246,9 @@ class ErrorHandler:
     async def execute_with_retry(
         self,
         func: Callable[..., T],
-        *args,
+        *args: Any,
         operation_name: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> T:
         """Execute a function with automatic retry on failure.
 
@@ -274,9 +274,9 @@ class ErrorHandler:
 
                 # Direct execution - keep it simple
                 if asyncio.iscoroutinefunction(func):
-                    return await func(*args, **kwargs)
-                else:
-                    return func(*args, **kwargs)
+                    async_func = cast(Callable[..., Awaitable[T]], func)
+                    return await async_func(*args, **kwargs)
+                return func(*args, **kwargs)
 
             except Exception as e:
                 last_error = e
@@ -312,7 +312,7 @@ class ErrorHandler:
 
     def create_safe_executor(
         self, func: Callable[..., T], operation_name: str | None = None
-    ) -> Callable[..., T]:
+    ) -> Callable[..., Any]:
         """Create a wrapped version of a function with error handling.
 
         Args:
@@ -325,13 +325,13 @@ class ErrorHandler:
         operation_name = operation_name or func.__name__
 
         @wraps(func)
-        async def async_wrapper(*args, **kwargs) -> T:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> T:
             return await self.execute_with_retry(
                 func, *args, operation_name=operation_name, **kwargs
             )
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs) -> T:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> T:
             # Run async handler in sync context
             loop = asyncio.new_event_loop()
             try:
@@ -369,7 +369,7 @@ def with_retry(
     max_attempts: int = 3,
     operation_name: str | None = None,
     strategy: RetryStrategy = RetryStrategy.EXPONENTIAL,
-):
+) -> Callable[[Callable[..., T]], Callable[..., Any]]:
     """Decorator to add retry logic to a function.
 
     Args:
@@ -381,7 +381,7 @@ def with_retry(
         Decorated function with retry logic
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., T]) -> Callable[..., Any]:
         handler = ErrorHandler(
             retry_config=RetryConfig(
                 max_attempts=max_attempts,
@@ -396,7 +396,7 @@ def with_retry(
 def with_rate_limit(
     calls_per_second: float = 10.0,
     calls_per_minute: float = 200.0,
-):
+) -> Callable[[Callable[..., T]], Callable[..., Any]]:
     """Decorator to add rate limiting to a function.
 
     Args:
@@ -407,7 +407,7 @@ def with_rate_limit(
         Decorated function with rate limiting
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., T]) -> Callable[..., Any]:
         # Convert calls_per_second to max_requests and time_window
         max_requests = int(calls_per_second)
         time_window = 1.0

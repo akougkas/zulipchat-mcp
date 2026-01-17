@@ -6,7 +6,7 @@ credentials with clear capability boundaries. Admin identity is not used.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -52,7 +52,7 @@ class Identity:
     _client: ZulipClientWrapper | None = field(default=None, init=False, repr=False)
     _config_manager: ConfigManager | None = field(default=None, init=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize capabilities based on identity type."""
         # Set display_name from name for backward compatibility
         self.display_name = self.name or self.email.split("@")[0]
@@ -111,7 +111,7 @@ class Identity:
         """Check if this identity has a specific capability."""
         return "all" in self.capabilities or capability in self.capabilities
 
-    def close(self):
+    def close(self) -> None:
         """Close the client connection."""
         self._client = None
 
@@ -119,7 +119,7 @@ class Identity:
         """String representation of identity."""
         return f"Identity(type={self.type.name}, email={self.email}, name={self.name})"
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Equality comparison based on type, email, and name."""
         if not isinstance(other, Identity):
             return False
@@ -160,14 +160,14 @@ class IdentityManager:
         "files.manage_files": ["upload_files"],
     }
 
-    def __init__(self, config: ConfigManager):
+    def __init__(self, config: ConfigManager) -> None:
         """Initialize identity manager with configuration.
 
         Args:
             config: Configuration manager with credentials
         """
         self.config = config
-        self.identities: dict[IdentityType, Identity | None] = {}
+        self.identities: dict[IdentityType, Identity] = {}
         self.current_identity: IdentityType | None = None
         self._temporary_identity: IdentityType | None = None
         # Removed: _identity_stack - over-engineering with nested contexts
@@ -175,38 +175,25 @@ class IdentityManager:
         # Initialize identities
         self._initialize_identities()
 
-    def _initialize_identities(self):
+    def _initialize_identities(self) -> None:
         """Initialize available identities from configuration."""
-        # Handle both real ConfigManager and mock objects
-        # Real ConfigManager has config.config.email, mocks have config.email
-        if hasattr(self.config, "config"):
-            # Real ConfigManager
-            email = self.config.config.email
-            api_key = self.config.config.api_key
-            site = self.config.config.site
-            bot_email = (
-                self.config.config.bot_email
-                if self.config.has_bot_credentials()
-                else None
-            )
-            bot_api_key = (
-                self.config.config.bot_api_key
-                if self.config.has_bot_credentials()
-                else None
-            )
-            bot_name = (
-                self.config.config.bot_name
-                if hasattr(self.config.config, "bot_name")
-                else "Bot"
-            )
-        else:
-            # Mock ConfigManager (for tests)
-            email = self.config.email
-            api_key = self.config.api_key
-            site = self.config.site
-            bot_email = getattr(self.config, "bot_email", None)
-            bot_api_key = getattr(self.config, "bot_api_key", None)
-            bot_name = getattr(self.config, "bot_name", "Bot")
+        config_data = self.config.config
+        email = getattr(self.config, "email", config_data.email)
+        api_key = getattr(self.config, "api_key", config_data.api_key)
+        site = getattr(self.config, "site", config_data.site)
+
+        has_bot_credentials = self.config.has_bot_credentials()
+        bot_email = (
+            getattr(self.config, "bot_email", config_data.bot_email)
+            if has_bot_credentials
+            else None
+        )
+        bot_api_key = (
+            getattr(self.config, "bot_api_key", config_data.bot_api_key)
+            if has_bot_credentials
+            else None
+        )
+        bot_name = getattr(self.config, "bot_name", config_data.bot_name) or "Bot"
 
         # User identity (always available)
         user_identity = Identity(
@@ -222,12 +209,7 @@ class IdentityManager:
         self.current_identity = IdentityType.USER
 
         # Bot identity (optional) - only add if configured
-        has_bot = (
-            self.config.has_bot_credentials()
-            if hasattr(self.config, "has_bot_credentials")
-            else False
-        )
-        if has_bot and bot_email and bot_api_key:
+        if has_bot_credentials and bot_email and bot_api_key:
             bot_identity = Identity(
                 type=IdentityType.BOT,
                 email=bot_email,
@@ -241,7 +223,7 @@ class IdentityManager:
 
         # Admin identity is deprecated; do not create/admin-detect
 
-    def _check_admin_privileges(self):  # Deprecated
+    def _check_admin_privileges(self) -> None:  # Deprecated
         return None
 
     def get_current_identity(self) -> Identity:
@@ -383,8 +365,8 @@ class IdentityManager:
         - BOT for sending messages back (agent-facing writes)
         """
         # Honor explicit preference if available
-        if preferred and self.identities.get(preferred):
-            return self.identities[preferred]  # type: ignore[index]
+        if preferred and preferred in self.identities:
+            return self.identities[preferred]
 
         tool_lower = tool.lower()
         # Heuristic: tools that "send" or agent tools use BOT; else USER
@@ -401,17 +383,17 @@ class IdentityManager:
             ]
         ) or (tool_lower.startswith("messaging.message") and False)
 
-        if use_bot and self.identities.get(IdentityType.BOT):
-            return self.identities[IdentityType.BOT]  # type: ignore[index]
+        if use_bot and IdentityType.BOT in self.identities:
+            return self.identities[IdentityType.BOT]
 
         # Default to USER
-        return self.identities[IdentityType.USER]  # type: ignore[index]
+        return self.identities[IdentityType.USER]
 
     async def execute_with_identity(
         self,
         tool: str,
         params: dict[str, Any],
-        executor: Callable,
+        executor: Callable[[ZulipClientWrapper, dict[str, Any]], Awaitable[Any]],
         preferred_identity: IdentityType | None = None,
     ) -> Any:
         """Execute a tool with the appropriate identity.
@@ -443,28 +425,27 @@ class IdentityManager:
         Returns:
             Dictionary with identity information
         """
-        result = {
+        available: dict[str, dict[str, Any]] = {}
+        result: dict[str, Any] = {
             "current": self.current_identity.value if self.current_identity else None,
             "temporary": (
                 self._temporary_identity.value if self._temporary_identity else None
             ),
-            "available": {},
+            "available": available,
         }
 
         for identity_type, identity in self.identities.items():
-            if identity:
-                result["available"][identity_type.value] = {
-                    "email": identity.email,
-                    "display_name": identity.display_name,
-                    "name": identity.name,
-                    "capabilities": list(identity.capabilities),
-                    "site": identity.site,
-                }
+            available[identity_type.value] = {
+                "email": identity.email,
+                "display_name": identity.display_name,
+                "name": identity.name,
+                "capabilities": list(identity.capabilities),
+                "site": identity.site,
+            }
 
         return result
 
-    def close_all(self):
+    def close_all(self) -> None:
         """Close all client connections."""
         for identity in self.identities.values():
-            if identity:
-                identity.close()
+            identity.close()

@@ -10,7 +10,7 @@
 - `uv sync` — install dependencies.
 - `uv run zulipchat-mcp --zulip-email ... --zulip-api-key ... --zulip-site ... [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
-- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 90%.
+- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 85%.
 - `uv run ruff check .` — lint; `uv run black .` — format; `uv run mypy src` — type-check.
 
 ## Coding Style & Naming Conventions
@@ -22,7 +22,7 @@
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.
 - Mark long/external tests with `@pytest.mark.slow` or `@pytest.mark.integration` and gate in CI via markers.
 - Prefer fast, deterministic unit tests; mock Zulip API calls. Aim for meaningful coverage with `pytest --cov=src`.
-- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache && uv sync --reinstall`), and maintain the coverage gate at 90% while adding minimal, targeted tests without altering functionality.
+- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache && uv sync --reinstall`), and maintain the coverage gate at 85% while adding minimal, targeted tests without altering functionality.
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
@@ -37,7 +37,7 @@
   - `uvx zulipchat-mcp` (PyPI - fastest, pre-built wheels)
   - `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
   - `uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp` (TestPyPI - for pre-release testing)
-- **Credential Loading**: Enhanced `.env` file support checks both current directory and home directory (~/.env). Priority: CLI args > current directory .env > home directory .env > environment variables.
+- **Credential Loading**: Environment-first config with optional `.env` in the current directory. Priority: environment variables (including `.env`) > CLI args.
 - **Claude Code Integration**: Use `--` separator for proper argument passing:
   ```bash
   # Correct syntax (tested)

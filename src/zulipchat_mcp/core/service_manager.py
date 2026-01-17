@@ -74,7 +74,7 @@ class ServiceManager:
             return
 
         try:
-            asyncio.run(listener.stop())  # type: ignore[attr-defined]
+            asyncio.run(listener.stop())
         except Exception:
             pass
 

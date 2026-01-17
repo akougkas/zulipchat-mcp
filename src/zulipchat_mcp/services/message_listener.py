@@ -7,6 +7,8 @@ incoming messages and update pending user input requests.
 from __future__ import annotations
 
 import asyncio
+import re
+from datetime import datetime
 from typing import Any
 
 from ..core.client import ZulipClientWrapper
@@ -128,5 +130,42 @@ class MessageListener:
         except Exception as e:
             logger.error(f"Exception during queue registration: {e}")
 
-    # Rest of the class remains the same as in the previous implementation
-    # ... (full file contents remain identical)
+    def _extract_request_id(self, topic: str | None, content: str | None) -> str | None:
+        if topic and topic.startswith("Agents/Input/"):
+            parts = topic.split("/")
+            if parts:
+                return parts[-1]
+        if content:
+            match = re.search(r"\bID:\s*([A-Za-z0-9_-]{4,})\b", content)
+            if match:
+                return match.group(1)
+        return None
+
+    async def _process_message(self, message: dict[str, Any]) -> None:
+        """Process a message event for pending input requests."""
+        if not message:
+            return
+
+        sender_email = message.get("sender_email")
+        if sender_email and sender_email == self.client.current_email:
+            return
+
+        topic = message.get("subject") or message.get("topic")
+        content = message.get("content")
+        request_id = self._extract_request_id(
+            str(topic) if topic is not None else None,
+            str(content) if content is not None else None,
+        )
+        if not request_id:
+            return
+
+        request = self.db.get_input_request(request_id)
+        if not request or request.get("status") != "pending":
+            return
+
+        self.db.update_input_request(
+            request_id,
+            status="answered",
+            response=content or "",
+            responded_at=datetime.utcnow(),
+        )

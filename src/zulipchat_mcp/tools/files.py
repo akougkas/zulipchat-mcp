@@ -95,6 +95,9 @@ async def upload_file(
         if not filename:
             filename = "upload.bin"
 
+        if file_content is None:
+            return {"status": "error", "error": "No file content provided"}
+
         # Security validation
         validation = validate_file_security(file_content, filename)
         if not validation["valid"]:

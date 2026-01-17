@@ -42,7 +42,7 @@ async def agents_channel_topic_ops(
     operation: Literal["move", "delete", "mute", "unmute"],
     source_topic: str,
     target_topic: str | None = None,
-    propagate_mode: str = "change_all",
+    propagate_mode: Literal["change_one", "change_later", "change_all"] = "change_all",
 ) -> dict[str, Any]:
     """Topic operations in Agents-Channel only (BOT identity protection)."""
     config = ConfigManager()
@@ -64,6 +64,11 @@ async def agents_channel_topic_ops(
             return {"status": "error", "error": "Agents-Channel not found"}
 
         agents_channel_id = stream_result.get("stream_id")
+        if not isinstance(agents_channel_id, int):
+            return {
+                "status": "error",
+                "error": "Agents-Channel stream_id unavailable",
+            }
 
         if operation == "move":
             if not target_topic:

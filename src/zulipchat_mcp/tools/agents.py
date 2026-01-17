@@ -166,8 +166,10 @@ def wait_for_response(request_id: str) -> dict[str, Any]:
                     responded_at = result.get("responded_at")
                     if isinstance(responded_at, datetime):
                         responded_at_val = responded_at.isoformat()
+                    elif responded_at is None:
+                        responded_at_val = None
                     else:
-                        responded_at_val = responded_at
+                        responded_at_val = str(responded_at)
                     return {
                         "status": "success",
                         "request_status": status,
@@ -341,7 +343,7 @@ def update_task_progress(
 
             # Update task progress in database
             update_sql = "UPDATE tasks SET progress = ?"
-            params = [progress]
+            params: list[Any] = [progress]
 
             if status:
                 update_sql += ", status = ?"

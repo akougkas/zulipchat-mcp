@@ -141,7 +141,7 @@ class Command(ABC):
         description: str = "",
         conditions: list[Condition] | None = None,
         rollback_enabled: bool = False,
-    ):
+    ) -> None:
         """Initialize command.
 
         Args:
@@ -215,8 +215,8 @@ class SendMessageCommand(Command):
         to_key: str = "to",
         content_key: str = "content",
         topic_key: str = "topic",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize send message command.
 
         Args:
@@ -281,8 +281,8 @@ class GetMessagesCommand(Command):
         topic_key: str = "topic",
         hours_back_key: str = "hours_back",
         limit_key: str = "limit",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize get messages command."""
         super().__init__(name, "Get messages from Zulip", **kwargs)
         self.stream_name_key = stream_name_key
@@ -356,8 +356,8 @@ class AddReactionCommand(Command):
         name: str = "add_reaction",
         message_id_key: str = "message_id",
         emoji_name_key: str = "emoji_name",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize add reaction command."""
         super().__init__(
             name, "Add reaction to message", rollback_enabled=True, **kwargs
@@ -418,8 +418,8 @@ class ProcessDataCommand(Command):
         processor: Callable[[Any], Any],
         input_key: str,
         output_key: str,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         """Initialize data processing command.
 
         Args:
@@ -472,7 +472,7 @@ class CommandChain:
         client: ZulipClientWrapper | None = None,
         stop_on_error: bool = True,
         enable_rollback: bool = False,
-    ):
+    ) -> None:
         """Initialize command chain.
 
         Args:

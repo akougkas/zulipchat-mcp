@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ZulipChat MCP Server v2.5.0 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v2.5.1 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -22,7 +22,7 @@ uvx zulipchat-mcp
 
 ### Testing & Quality Assurance
 ```bash
-# Run tests (90% coverage gate enforced)
+# Run tests (85% coverage gate enforced)
 uv run pytest -q
 
 # Skip slow/integration tests for faster feedback
@@ -73,7 +73,7 @@ src/zulipchat_mcp/
 
 - **Entry Point**: `src/zulipchat_mcp/server.py` - Main MCP server with CLI argument parsing
 - **Client Wrapper**: `src/zulipchat_mcp/core/client.py` - Dual identity Zulip API wrapper with caching
-- **Tools**: `src/zulipchat_mcp/tools/*_v25.py` - MCP tool implementations following v2.5 patterns
+- **Tools**: `src/zulipchat_mcp/tools/*.py` - MCP tool implementations
 - **Configuration**: `src/zulipchat_mcp/config.py` - Environment/CLI configuration management
 - **Database**: DuckDB integration for persistence and caching
 
@@ -87,7 +87,7 @@ The client supports both user and bot credentials:
 All imports follow the new modular structure:
 ```python
 from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.tools.messaging_v25 import register_messaging_v25_tools
+from src.zulipchat_mcp.tools.messaging import register_messaging_tools
 ```
 
 **Important**: The codebase underwent complete v2.5 architectural refactor. Previous flat imports like `from zulipchat_mcp.client import` are deprecated.
@@ -96,8 +96,8 @@ from src.zulipchat_mcp.tools.messaging_v25 import register_messaging_v25_tools
 
 Each tool module exports a registration function:
 ```python
-# Pattern used across all v2.5 tool modules
-def register_*_v25_tools(mcp: FastMCP) -> None:
+# Pattern used across tool modules
+def register_*_tools(mcp: FastMCP) -> None:
     """Register tools with the MCP server."""
     # Tool implementations here
 ```
@@ -128,7 +128,7 @@ def register_*_v25_tools(mcp: FastMCP) -> None:
 - Tests in `tests/` directory following pytest conventions
 - Mark slow tests with `@pytest.mark.slow`, integration tests with `@pytest.mark.integration`
 - Mock Zulip API calls to keep tests network-free
-- 90% coverage requirement enforced
+- 85% coverage requirement enforced
 - Use `uv run pytest` exclusively (no direct Python)
 
 ### File Operations

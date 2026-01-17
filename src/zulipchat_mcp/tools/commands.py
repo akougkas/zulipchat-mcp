@@ -37,7 +37,9 @@ class WaitForResponseCommand(Command):
         super().__init__(name, "Wait for user response", **kwargs)
         self.request_id_key = request_id_key
 
-    def execute(self, context, client: ZulipClientWrapper):  # type: ignore[override]
+    def execute(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> dict[str, Any]:
         from ..tools.agents import wait_for_response
 
         request_id = context.get(self.request_id_key)
@@ -46,6 +48,12 @@ class WaitForResponseCommand(Command):
         result = wait_for_response(request_id)
         context.set("response", result.get("response"))
         return result
+
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for wait-for-response command."""
+        return None
 
 
 class SearchMessagesCommand(Command):
@@ -60,19 +68,21 @@ class SearchMessagesCommand(Command):
         super().__init__(name, "Search messages", **kwargs)
         self.query_key = query_key
 
-    def execute(self, context, client: ZulipClientWrapper):  # type: ignore[override]
+    def execute(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> dict[str, Any]:
         """Execute search via v2.5 advanced_search adaptor.
 
         Returns a legacy-shaped dict with a top-level "messages" list
         for backward compatibility with prior command chains.
         """
-        from .search_v25 import advanced_search  # v2.5 tool
+        from .search import advanced_search  # v2.5 tool
 
         query = context.get(self.query_key)
         if not query:
             raise ValueError("search_query required in context")
 
-        async def _run() -> dict:
+        async def _run() -> dict[str, Any]:
             res = await advanced_search(query, search_type=["messages"], limit=100)
             # Map v2.5 shape -> legacy shape expected by chains/tests
             msgs = res.get("results", {}).get("messages", {}).get("messages", [])
@@ -91,6 +101,12 @@ class SearchMessagesCommand(Command):
         context.set("search_results", result.get("messages", []))
         return result
 
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for search command."""
+        return None
+
 
 class ConditionalActionCommand(Command):
     """Conditional execution based on a simple Python expression evaluated against context data."""
@@ -106,7 +122,7 @@ class ConditionalActionCommand(Command):
         self.true_command = true_command
         self.false_command = false_command
 
-    def execute(self, context, client: ZulipClientWrapper):  # type: ignore[override]
+    def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> Any:
         # Evaluate condition against context data with no builtins
         try:
             condition_met = bool(
@@ -120,6 +136,12 @@ class ConditionalActionCommand(Command):
         elif self.false_command:
             return self.false_command.execute(context, client)
         return {"status": "skipped"}
+
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        """No-op rollback for conditional command."""
+        return None
 
 
 def build_command(cmd_dict: dict[str, Any]) -> Command:
@@ -149,7 +171,7 @@ def build_command(cmd_dict: dict[str, Any]) -> Command:
     raise ValueError(f"Unknown command type: {ctype}")
 
 
-def execute_chain(commands: list[dict]) -> dict:
+def execute_chain(commands: list[dict[str, Any]]) -> dict[str, Any]:
     """Execute command chain with supported command types."""
     chain = CommandChain("mcp_chain", client=ZulipClientWrapper(ConfigManager()))
     for cmd in commands:

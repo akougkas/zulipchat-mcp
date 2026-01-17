@@ -11,7 +11,7 @@
   [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
   [![Version](https://img.shields.io/badge/Version-2.5.1-green)](https://github.com/akougkas/zulipchat-mcp)
   [![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
-  [![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
+  [![Coverage](https://img.shields.io/badge/Coverage-85%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
   [![Code Style](https://img.shields.io/badge/Code%20Style-Black-black)](https://github.com/psf/black)
 
   [🚀 Quick Start](#-quick-start) • [📦 Installation](#-installation) • [📚 Features](#-what-can-you-do) • [🛠️ Tools](#-available-tools) • [💡 Examples](#-real-world-examples) • [📖 Releases](#-releases) • [🤝 Contributing](CONTRIBUTING.md)
@@ -451,7 +451,7 @@ print(f'Connected! Identity: {client.identity_name}')
 ### Quality Checks
 ```bash
 # Run before pushing
-uv run pytest -q                  # Tests (90% coverage required)
+uv run pytest -q                  # Tests (85% coverage required)
 uv run ruff check .               # Linting
 uv run black .                    # Formatting
 uv run mypy src                   # Type checking

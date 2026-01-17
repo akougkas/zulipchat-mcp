@@ -7,12 +7,24 @@ Analytics moved to ai_analytics.py for LLM elicitation.
 from collections import Counter
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, cast
 
 from fastmcp import FastMCP
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
+
+
+NarrowOperand = str | int | list[str]
+
+
+class NarrowFilterBase(TypedDict):
+    operator: str
+    operand: NarrowOperand
+
+
+class NarrowFilter(NarrowFilterBase, total=False):
+    negated: bool
 
 
 class AmbiguousUserError(Exception):
@@ -124,9 +136,9 @@ def build_narrow(
     last_days: int | str | None = None,
     after_time: datetime | str | None = None,
     before_time: datetime | str | None = None,
-) -> list[dict[str, str]]:
+) -> list[NarrowFilter]:
     """Build comprehensive narrow filter for Zulip API."""
-    narrow = []
+    narrow: list[NarrowFilter] = []
 
     # Basic filters
     if stream:
@@ -307,7 +319,7 @@ async def search_messages(
         anchor = "newest" if sort_by == "newest" else "oldest"
         result = client.get_messages_raw(
             anchor=anchor,
-            narrow=narrow,
+            narrow=cast(list[dict[str, Any]], narrow),
             num_before=limit,
             include_anchor=True,
             client_gravatar=True,
@@ -496,7 +508,7 @@ async def construct_narrow(
 ) -> dict[str, Any]:
     """Construct narrow filter following Zulip API patterns."""
     try:
-        narrow = []
+        narrow: list[NarrowFilter] = []
 
         # Basic operators
         if stream:
