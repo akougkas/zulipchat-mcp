@@ -4,7 +4,6 @@ Agent-specific functionality extracted from original events.py.
 Requires database for persistence and AFK mode management.
 """
 
-import json
 import os
 import uuid
 from datetime import datetime
@@ -12,14 +11,15 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 # Import optional components
 try:
-    from ..utils.database_manager import DatabaseManager
     from ..core.agent_tracker import AgentTracker
-    from ..utils.topics import project_from_path, topic_input, topic_chat
+    from ..utils.database_manager import DatabaseManager
+    from ..utils.topics import topic_input  # noqa: F401 - may be used dynamically
+
     database_available = True
 except ImportError:
     database_available = False
@@ -46,8 +46,14 @@ async def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
             """INSERT INTO agent_instances
                (instance_id, agent_id, session_id, project_dir, host, started_at)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            (instance_id, agent_id, str(uuid.uuid4())[:8], str(os.getcwd()),
-             os.getenv("HOSTNAME", "localhost"), datetime.utcnow()),
+            (
+                instance_id,
+                agent_id,
+                str(uuid.uuid4())[:8],
+                str(os.getcwd()),
+                os.getenv("HOSTNAME", "localhost"),
+                datetime.utcnow(),
+            ),
         )
 
         # Initialize AFK state
@@ -76,7 +82,10 @@ async def agent_message(
 ) -> dict[str, Any]:
     """Send bot-authored messages to users via Agents-Channel."""
     if not database_available:
-        return {"status": "skipped", "reason": "Database not available for agent features"}
+        return {
+            "status": "skipped",
+            "reason": "Database not available for agent features",
+        }
 
     try:
         # Check AFK state
@@ -119,7 +128,9 @@ async def agent_message(
         return {"status": "error", "error": str(e)}
 
 
-async def enable_afk_mode(hours: int = 8, reason: str = "Away from computer") -> dict[str, Any]:
+async def enable_afk_mode(
+    hours: int = 8, reason: str = "Away from computer"
+) -> dict[str, Any]:
     """Enable AFK mode for automatic notifications."""
     if not database_available:
         return {"status": "error", "error": "Database not available for AFK features"}
@@ -150,7 +161,10 @@ async def disable_afk_mode() -> dict[str, Any]:
 async def get_afk_status() -> dict[str, Any]:
     """Query current AFK mode status."""
     if not database_available:
-        return {"status": "success", "afk_state": {"enabled": False, "reason": "Database not available"}}
+        return {
+            "status": "success",
+            "afk_state": {"enabled": False, "reason": "Database not available"},
+        }
 
     try:
         state = DatabaseManager().get_afk_state() or {}
@@ -168,8 +182,22 @@ def register_events_tools(mcp: FastMCP) -> None:
     """Register agent communication tools with the MCP server."""
     # Agent communication tools (if database available)
     if database_available:
-        mcp.tool(name="register_agent", description="Register AI agent instance and create database records")(register_agent)
-        mcp.tool(name="agent_message", description="Send bot-authored messages via Agents-Channel")(agent_message)
-        mcp.tool(name="enable_afk_mode", description="Enable AFK mode for automatic notifications")(enable_afk_mode)
-        mcp.tool(name="disable_afk_mode", description="Disable AFK mode and restore normal operation")(disable_afk_mode)
-        mcp.tool(name="get_afk_status", description="Query current AFK mode status")(get_afk_status)
+        mcp.tool(
+            name="register_agent",
+            description="Register AI agent instance and create database records",
+        )(register_agent)
+        mcp.tool(
+            name="agent_message",
+            description="Send bot-authored messages via Agents-Channel",
+        )(agent_message)
+        mcp.tool(
+            name="enable_afk_mode",
+            description="Enable AFK mode for automatic notifications",
+        )(enable_afk_mode)
+        mcp.tool(
+            name="disable_afk_mode",
+            description="Disable AFK mode and restore normal operation",
+        )(disable_afk_mode)
+        mcp.tool(name="get_afk_status", description="Query current AFK mode status")(
+            get_afk_status
+        )

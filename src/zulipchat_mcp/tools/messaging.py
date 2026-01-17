@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 def sanitize_content(content: str, max_length: int = 50000) -> str:
@@ -66,12 +66,15 @@ async def edit_message(
             "error": {
                 "code": "INVALID_MESSAGE_ID",
                 "message": f"Invalid message ID: {message_id}",
-                "suggestions": ["Use search_messages to find valid message IDs"]
-            }
+                "suggestions": ["Use search_messages to find valid message IDs"],
+            },
         }
 
     if not content and not topic and not stream_id:
-        return {"status": "error", "error": "Must provide content, topic, or stream_id to edit"}
+        return {
+            "status": "error",
+            "error": "Must provide content, topic, or stream_id to edit",
+        }
 
     if propagate_mode not in ["change_one", "change_later", "change_all"]:
         return {
@@ -82,9 +85,9 @@ async def edit_message(
                 "suggestions": [
                     "Use 'change_one' to edit only this message",
                     "Use 'change_later' to edit this and newer messages",
-                    "Use 'change_all' to edit all messages in topic"
-                ]
-            }
+                    "Use 'change_all' to edit all messages in topic",
+                ],
+            },
         }
 
     config = ConfigManager()
@@ -159,7 +162,7 @@ async def cross_post_message(
         return {"status": "error", "error": "Must specify target streams"}
 
     config = ConfigManager()
-    client = ZulipClientWrapper(config)
+    ZulipClientWrapper(config)
 
     try:
         # Get source message
@@ -174,7 +177,10 @@ async def cross_post_message(
 
         # Prepare cross-post content
         if add_reference:
-            prefix = custom_prefix or f"**Cross-posted from #{source_stream} > {source_topic}:**\n\n"
+            prefix = (
+                custom_prefix
+                or f"**Cross-posted from #{source_stream} > {source_topic}:**\n\n"
+            )
             cross_post_content = prefix + source_content
         else:
             cross_post_content = source_content
@@ -189,19 +195,23 @@ async def cross_post_message(
             send_result = await send_message("stream", stream, safe_content, post_topic)
 
             if send_result.get("status") == "success":
-                results.append({
-                    "stream": stream,
-                    "topic": post_topic,
-                    "message_id": send_result.get("message_id"),
-                    "status": "success"
-                })
+                results.append(
+                    {
+                        "stream": stream,
+                        "topic": post_topic,
+                        "message_id": send_result.get("message_id"),
+                        "status": "success",
+                    }
+                )
             else:
-                results.append({
-                    "stream": stream,
-                    "topic": post_topic,
-                    "status": "error",
-                    "error": send_result.get("error", "Failed to post")
-                })
+                results.append(
+                    {
+                        "stream": stream,
+                        "topic": post_topic,
+                        "status": "error",
+                        "error": send_result.get("error", "Failed to post"),
+                    }
+                )
 
         successful = [r for r in results if r["status"] == "success"]
         failed = [r for r in results if r["status"] == "error"]
@@ -221,7 +231,16 @@ async def cross_post_message(
 
 def register_messaging_tools(mcp: FastMCP) -> None:
     """Register core messaging tools with the MCP server."""
-    mcp.tool(name="send_message", description="Send message to stream or user (immediate delivery)")(send_message)
-    mcp.tool(name="edit_message", description="Edit message content, topic, or move between streams with propagation control")(edit_message)
+    mcp.tool(
+        name="send_message",
+        description="Send message to stream or user (immediate delivery)",
+    )(send_message)
+    mcp.tool(
+        name="edit_message",
+        description="Edit message content, topic, or move between streams with propagation control",
+    )(edit_message)
     mcp.tool(name="get_message", description="Get a single message by ID")(get_message)
-    mcp.tool(name="cross_post_message", description="Share/duplicate message across multiple streams with attribution")(cross_post_message)
+    mcp.tool(
+        name="cross_post_message",
+        description="Share/duplicate message across multiple streams with attribution",
+    )(cross_post_message)

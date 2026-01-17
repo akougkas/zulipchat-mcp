@@ -46,11 +46,11 @@ def validate_and_convert_int(value: Any, param_name: str) -> int:
     if isinstance(value, str):
         try:
             return int(value)
-        except ValueError:
+        except ValueError as e:
             raise ValueError(
                 f"{param_name} must be a number, got '{value}'. "
-                f"Example: {param_name}=7 or {param_name}=\"7\""
-            )
+                f'Example: {param_name}=7 or {param_name}="7"'
+            ) from e
 
     raise ValueError(
         f"{param_name} must be an integer or string number, got {type(value).__name__}: {value}"

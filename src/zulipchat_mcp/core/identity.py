@@ -15,7 +15,7 @@ from typing import Any
 from ..config import ConfigManager
 from ..utils.logging import get_logger
 from .client import ZulipClientWrapper
-from .exceptions import AuthenticationError, PermissionError
+from .exceptions import AuthenticationError
 
 logger = get_logger(__name__)
 

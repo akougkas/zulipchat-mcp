@@ -8,8 +8,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def get_streams(
@@ -35,7 +35,10 @@ async def get_streams(
                 "count": len(streams),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to list streams")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to list streams"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -49,7 +52,10 @@ async def get_stream_info(
 ) -> dict[str, Any]:
     """Get detailed information about a specific stream (READ-ONLY)."""
     if not stream_name and not stream_id:
-        return {"status": "error", "error": "Either stream_name or stream_id is required"}
+        return {
+            "status": "error",
+            "error": "Either stream_name or stream_id is required",
+        }
 
     config = ConfigManager()
     client = ZulipClientWrapper(config)
@@ -66,7 +72,9 @@ async def get_stream_info(
         streams_result = client.get_streams()
         if streams_result.get("result") == "success":
             streams = streams_result.get("streams", [])
-            stream_info = next((s for s in streams if s.get("stream_id") == stream_id), None)
+            stream_info = next(
+                (s for s in streams if s.get("stream_id") == stream_id), None
+            )
             if not stream_info:
                 return {"status": "error", "error": "Stream not found"}
         else:
@@ -103,5 +111,10 @@ async def get_stream_info(
 
 def register_stream_management_tools(mcp: FastMCP) -> None:
     """Register READ-ONLY stream tools with the MCP server."""
-    mcp.tool(name="get_streams", description="Get list of streams (READ-ONLY protection)")(get_streams)
-    mcp.tool(name="get_stream_info", description="Get detailed stream information (READ-ONLY protection)")(get_stream_info)
+    mcp.tool(
+        name="get_streams", description="Get list of streams (READ-ONLY protection)"
+    )(get_streams)
+    mcp.tool(
+        name="get_stream_info",
+        description="Get detailed stream information (READ-ONLY protection)",
+    )(get_stream_info)

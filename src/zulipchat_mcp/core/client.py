@@ -67,11 +67,15 @@ class ZulipClientWrapper:
 
         # Check if bot identity is requested and available
         if use_bot_identity and self.config_manager.has_bot_credentials():
-            self._client_config = self.config_manager.get_zulip_client_config(use_bot=True)
+            self._client_config = self.config_manager.get_zulip_client_config(
+                use_bot=True
+            )
             self.identity = "bot"
             self.identity_name = self.config_manager.config.bot_name or "Bot"
         else:
-            self._client_config = self.config_manager.get_zulip_client_config(use_bot=False)
+            self._client_config = self.config_manager.get_zulip_client_config(
+                use_bot=False
+            )
             self.identity = "user"
             email = self._client_config.get("email")
             self.identity_name = email.split("@")[0] if email else "User"
@@ -79,7 +83,11 @@ class ZulipClientWrapper:
         # Lazy loading: client created on first API call
         self._client = None
         self.current_email = self._client_config["email"]
-        self._base_url = self._client_config["site"].rstrip('/') if self._client_config["site"] else ""
+        self._base_url = (
+            self._client_config["site"].rstrip("/")
+            if self._client_config["site"]
+            else ""
+        )
 
     @property
     def client(self) -> Client:
@@ -630,7 +638,7 @@ class ZulipClientWrapper:
         file_obj = io.BytesIO(file_content)
         file_obj.name = filename
 
-        if hasattr(self.client, 'upload_file'):
+        if hasattr(self.client, "upload_file"):
             try:
                 return self.client.upload_file(file_obj)
             except TypeError:
@@ -639,14 +647,16 @@ class ZulipClientWrapper:
 
         # Fallback to direct API call
         import requests
+
         url = f"{self.base_url}/api/v1/user_uploads"
-        files = {'file': (filename, file_content)}
+        files = {"file": (filename, file_content)}
 
         # Use proper authentication format
         import base64
+
         auth_string = f"{self.client.email}:{self.client.api_key}"
         auth_bytes = base64.b64encode(auth_string.encode()).decode()
-        headers = {'Authorization': f'Basic {auth_bytes}'}
+        headers = {"Authorization": f"Basic {auth_bytes}"}
 
         response = requests.post(url, files=files, headers=headers)
         if response.status_code == 200:

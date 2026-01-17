@@ -4,13 +4,13 @@ High-level analytical tools that use LLM elicitation for sophisticated insights.
 Fetches raw Zulip data and processes with LLM reasoning instead of built-in complexity.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal
 
-from fastmcp import FastMCP, Context
+from fastmcp import Context, FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def get_daily_summary(
@@ -46,7 +46,7 @@ async def analyze_stream_with_llm(
         return {"status": "error", "error": "Context required for LLM analysis"}
 
     config = ConfigManager()
-    client = ZulipClientWrapper(config)
+    ZulipClientWrapper(config)
 
     try:
         # Calculate time range
@@ -55,6 +55,7 @@ async def analyze_stream_with_llm(
 
         # Fetch stream messages
         from .search import search_messages
+
         search_result = await search_messages(
             stream=stream_name,
             last_hours=hours_back,
@@ -69,7 +70,9 @@ async def analyze_stream_with_llm(
             return {"status": "success", "analysis": "No messages found for analysis"}
 
         # Prepare data for LLM
-        data_summary = f"Stream: #{stream_name} ({len(messages)} messages, {time_period})\n\n"
+        data_summary = (
+            f"Stream: #{stream_name} ({len(messages)} messages, {time_period})\n\n"
+        )
         for i, msg in enumerate(messages[:20]):  # Limit for tokens
             data_summary += f"{i+1}. {msg['sender']}: {msg['content'][:150]}...\n"
 
@@ -83,7 +86,10 @@ async def analyze_stream_with_llm(
                 "sentiment": f"Analyze team sentiment in this stream:\n\n{data_summary}\n\nProvide insights on mood, energy, and team dynamics.",
                 "summary": f"Provide a comprehensive summary of this stream:\n\n{data_summary}\n\nInclude key patterns, notable discussions, and insights.",
             }
-            analysis_prompt = default_prompts.get(analysis_type, f"Analyze this stream data for {analysis_type}:\n\n{data_summary}")
+            analysis_prompt = default_prompts.get(
+                analysis_type,
+                f"Analyze this stream data for {analysis_type}:\n\n{data_summary}",
+            )
 
         # Use LLM for analysis
         try:
@@ -119,13 +125,14 @@ async def analyze_team_activity_with_llm(
         return {"status": "error", "error": "Context required for LLM analysis"}
 
     config = ConfigManager()
-    client = ZulipClientWrapper(config)
+    ZulipClientWrapper(config)
 
     try:
         # Fetch messages from all team streams
         all_messages = []
         for stream in team_streams:
             from .search import search_messages
+
             search_result = await search_messages(
                 stream=stream,
                 last_hours=days_back * 24,
@@ -138,7 +145,10 @@ async def analyze_team_activity_with_llm(
                 all_messages.extend(messages)
 
         if not all_messages:
-            return {"status": "success", "analysis": "No team activity found for analysis"}
+            return {
+                "status": "success",
+                "analysis": "No team activity found for analysis",
+            }
 
         # Prepare team data summary
         data_summary = f"Team Activity ({len(all_messages)} messages across {len(team_streams)} streams, {days_back} days):\n\n"
@@ -167,7 +177,10 @@ async def analyze_team_activity_with_llm(
                 "energy": f"Assess team energy and morale:\n\n{data_summary}\n\nProvide insights on team spirit, enthusiasm, and well-being.",
                 "progress": f"Analyze team progress and achievements:\n\n{data_summary}\n\nIdentify accomplishments, milestones, and forward momentum.",
             }
-            analysis_prompt = default_prompts.get(analysis_focus, f"Analyze team activity for {analysis_focus}:\n\n{data_summary}")
+            analysis_prompt = default_prompts.get(
+                analysis_focus,
+                f"Analyze team activity for {analysis_focus}:\n\n{data_summary}",
+            )
 
         # Use LLM for analysis
         try:
@@ -290,7 +303,18 @@ Provide relevant insights and actionable information."""
 
 def register_ai_analytics_tools(mcp: FastMCP) -> None:
     """Register AI-powered analytics tools with the MCP server."""
-    mcp.tool(name="get_daily_summary", description="Get basic daily message summary")(get_daily_summary)
-    mcp.tool(name="analyze_stream_with_llm", description="Fetch stream data and analyze with LLM for sophisticated insights")(analyze_stream_with_llm)
-    mcp.tool(name="analyze_team_activity_with_llm", description="Analyze team activity across multiple streams with LLM insights")(analyze_team_activity_with_llm)
-    mcp.tool(name="intelligent_report_generator", description="Generate intelligent reports using LLM analysis of team data")(intelligent_report_generator)
+    mcp.tool(name="get_daily_summary", description="Get basic daily message summary")(
+        get_daily_summary
+    )
+    mcp.tool(
+        name="analyze_stream_with_llm",
+        description="Fetch stream data and analyze with LLM for sophisticated insights",
+    )(analyze_stream_with_llm)
+    mcp.tool(
+        name="analyze_team_activity_with_llm",
+        description="Analyze team activity across multiple streams with LLM insights",
+    )(analyze_team_activity_with_llm)
+    mcp.tool(
+        name="intelligent_report_generator",
+        description="Generate intelligent reports using LLM analysis of team data",
+    )(intelligent_report_generator)

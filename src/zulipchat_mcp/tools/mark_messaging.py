@@ -8,8 +8,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def update_message_flags_for_narrow(
@@ -52,7 +52,10 @@ async def update_message_flags_for_narrow(
                 "found_newest": result.get("found_newest", False),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to update message flags")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to update message flags"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -98,7 +101,7 @@ async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
         # Use stream + topic narrow to match topic messages
         narrow = [
             {"operator": "stream", "operand": str(stream_id)},
-            {"operator": "topic", "operand": topic_name}
+            {"operator": "topic", "operand": topic_name},
         ]
 
         return await update_message_flags_for_narrow(
@@ -132,7 +135,10 @@ async def mark_messages_unread(
                 narrow.append({"operator": "sender", "operand": sender_email})
 
         if not narrow:
-            return {"status": "error", "error": "Must provide narrow or stream_id/topic_name/sender_email"}
+            return {
+                "status": "error",
+                "error": "Must provide narrow or stream_id/topic_name/sender_email",
+            }
 
         return await update_message_flags_for_narrow(
             narrow=narrow,
@@ -165,7 +171,10 @@ async def star_messages(
                 narrow.append({"operator": "sender", "operand": sender_email})
 
         if not narrow:
-            return {"status": "error", "error": "Must provide narrow or stream_id/topic_name/sender_email"}
+            return {
+                "status": "error",
+                "error": "Must provide narrow or stream_id/topic_name/sender_email",
+            }
 
         return await update_message_flags_for_narrow(
             narrow=narrow,
@@ -198,7 +207,10 @@ async def unstar_messages(
                 narrow.append({"operator": "sender", "operand": sender_email})
 
         if not narrow:
-            return {"status": "error", "error": "Must provide narrow or stream_id/topic_name/sender_email"}
+            return {
+                "status": "error",
+                "error": "Must provide narrow or stream_id/topic_name/sender_email",
+            }
 
         return await update_message_flags_for_narrow(
             narrow=narrow,
@@ -214,10 +226,27 @@ async def unstar_messages(
 
 def register_mark_messaging_tools(mcp: FastMCP) -> None:
     """Register message marking tools with the MCP server."""
-    mcp.tool(name="update_message_flags_for_narrow", description="Update personal message flags for messages matching a narrow (modern approach)")(update_message_flags_for_narrow)
-    mcp.tool(name="mark_all_as_read", description="Mark all messages as read using modern narrow approach")(mark_all_as_read)
-    mcp.tool(name="mark_stream_as_read", description="Mark all messages in a stream as read")(mark_stream_as_read)
-    mcp.tool(name="mark_topic_as_read", description="Mark all messages in a topic as read")(mark_topic_as_read)
-    mcp.tool(name="mark_messages_unread", description="Mark messages as unread using flexible narrow construction")(mark_messages_unread)
-    mcp.tool(name="star_messages", description="Star messages matching criteria")(star_messages)
-    mcp.tool(name="unstar_messages", description="Unstar messages matching criteria")(unstar_messages)
+    mcp.tool(
+        name="update_message_flags_for_narrow",
+        description="Update personal message flags for messages matching a narrow (modern approach)",
+    )(update_message_flags_for_narrow)
+    mcp.tool(
+        name="mark_all_as_read",
+        description="Mark all messages as read using modern narrow approach",
+    )(mark_all_as_read)
+    mcp.tool(
+        name="mark_stream_as_read", description="Mark all messages in a stream as read"
+    )(mark_stream_as_read)
+    mcp.tool(
+        name="mark_topic_as_read", description="Mark all messages in a topic as read"
+    )(mark_topic_as_read)
+    mcp.tool(
+        name="mark_messages_unread",
+        description="Mark messages as unread using flexible narrow construction",
+    )(mark_messages_unread)
+    mcp.tool(name="star_messages", description="Star messages matching criteria")(
+        star_messages
+    )
+    mcp.tool(name="unstar_messages", description="Unstar messages matching criteria")(
+        unstar_messages
+    )

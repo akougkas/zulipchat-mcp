@@ -12,8 +12,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]:
@@ -31,7 +31,16 @@ def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]
         mime_type = "application/octet-stream"
 
     # Check for potentially dangerous file types
-    dangerous_extensions = {'.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.ps1'}
+    dangerous_extensions = {
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".com",
+        ".pif",
+        ".scr",
+        ".vbs",
+        ".ps1",
+    }
     file_ext = os.path.splitext(filename)[1].lower()
 
     if file_ext in dangerous_extensions:
@@ -48,7 +57,7 @@ def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]
             "mime_type": mime_type,
             "hash": file_hash,
             "extension": file_ext,
-        }
+        },
     }
 
 
@@ -64,7 +73,10 @@ async def upload_file(
 ) -> dict[str, Any]:
     """Upload files to Zulip with comprehensive capabilities and security validation."""
     if not file_content and not file_path:
-        return {"status": "error", "error": "Either file_content or file_path is required"}
+        return {
+            "status": "error",
+            "error": "Either file_content or file_path is required",
+        }
 
     config = ConfigManager()
     client = ZulipClientWrapper(config)
@@ -73,7 +85,7 @@ async def upload_file(
         # Read file if path provided
         if file_path and not file_content:
             try:
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     file_content = f.read()
                 if not filename:
                     filename = os.path.basename(file_path)
@@ -114,7 +126,7 @@ async def upload_file(
             # Optionally share in stream
             if stream and file_url:
                 share_content = message or f"📎 Uploaded file: **{filename}**"
-                if file_url.startswith('/'):
+                if file_url.startswith("/"):
                     # Make URL absolute
                     share_content += f"\n{client.base_url}{file_url}"
                 else:
@@ -128,7 +140,9 @@ async def upload_file(
                     size_kb = validation["metadata"]["size"] / 1024
                     share_content += f"\n📊 Size: {size_kb:.1f} KB"
 
-                share_result = client.send_message("stream", stream, share_content, topic)
+                share_result = client.send_message(
+                    "stream", stream, share_content, topic
+                )
                 if share_result.get("result") == "success":
                     response["shared_message_id"] = share_result.get("id")
                     response["shared_in_stream"] = stream
@@ -137,14 +151,25 @@ async def upload_file(
             return response
 
         else:
-            return {"status": "error", "error": upload_result.get("msg", "Upload failed")}
+            return {
+                "status": "error",
+                "error": upload_result.get("msg", "Upload failed"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 
 async def manage_files(
-    operation: Literal["list", "get", "delete", "share", "download", "generate_thumbnail", "get_permissions"],
+    operation: Literal[
+        "list",
+        "get",
+        "delete",
+        "share",
+        "download",
+        "generate_thumbnail",
+        "get_permissions",
+    ],
     file_id: str | None = None,
     filters: dict[str, Any] | None = None,
     download_path: str | None = None,
@@ -165,22 +190,30 @@ async def manage_files(
                 "suggestion": "Use search_messages with 'has:attachment' filter to find files",
                 "workaround": {
                     "tool": "search_messages",
-                    "parameters": {"has_attachment": True, "limit": 100}
-                }
+                    "parameters": {"has_attachment": True, "limit": 100},
+                },
             }
 
         elif operation == "share":
             if not file_id:
-                return {"status": "error", "error": "file_id required for share operation"}
+                return {
+                    "status": "error",
+                    "error": "file_id required for share operation",
+                }
 
             if not share_in_stream:
-                return {"status": "error", "error": "share_in_stream required for share operation"}
+                return {
+                    "status": "error",
+                    "error": "share_in_stream required for share operation",
+                }
 
             # Construct file URL and share
             file_url = f"{client.base_url}/user_uploads/{file_id}"
             share_content = f"📎 Shared file: {file_url}"
 
-            result = client.send_message("stream", share_in_stream, share_content, share_in_topic)
+            result = client.send_message(
+                "stream", share_in_stream, share_content, share_in_topic
+            )
 
             if result.get("result") == "success":
                 return {
@@ -192,30 +225,39 @@ async def manage_files(
                     "message_id": result.get("id"),
                 }
             else:
-                return {"status": "error", "error": result.get("msg", "Failed to share file")}
+                return {
+                    "status": "error",
+                    "error": result.get("msg", "Failed to share file"),
+                }
 
         elif operation == "download":
             if not file_id:
-                return {"status": "error", "error": "file_id required for download operation"}
+                return {
+                    "status": "error",
+                    "error": "file_id required for download operation",
+                }
 
             # Construct download URL
             download_url = f"{client.base_url}/user_uploads/{file_id}"
 
             if download_path:
                 try:
-                    import httpx
                     import base64
 
+                    import httpx
+
                     # Download file
-                    auth_string = f"{client.current_email}:{client.config_manager.config.api_key}"
+                    auth_string = (
+                        f"{client.current_email}:{client.config_manager.config.api_key}"
+                    )
                     auth_bytes = base64.b64encode(auth_string.encode()).decode()
-                    headers = {'Authorization': f'Basic {auth_bytes}'}
+                    headers = {"Authorization": f"Basic {auth_bytes}"}
 
                     async with httpx.AsyncClient() as http_client:
                         response = await http_client.get(download_url, headers=headers)
                         response.raise_for_status()
 
-                        with open(download_path, 'wb') as f:
+                        with open(download_path, "wb") as f:
                             f.write(response.content)
 
                     return {
@@ -246,15 +288,20 @@ async def manage_files(
                     "public_files": "Accessible to all users in organization",
                     "stream_files": "Accessible to stream subscribers",
                     "private_files": "Accessible only to conversation participants",
-                }
+                },
             }
 
         else:
             return {
                 "status": "error",
                 "error": f"Operation '{operation}' not implemented",
-                "available_operations": ["list", "share", "download", "get_permissions"],
-                "note": "Zulip API has limited file management capabilities"
+                "available_operations": [
+                    "list",
+                    "share",
+                    "download",
+                    "get_permissions",
+                ],
+                "note": "Zulip API has limited file management capabilities",
             }
 
     except Exception as e:
@@ -263,5 +310,11 @@ async def manage_files(
 
 def register_files_tools(mcp: FastMCP) -> None:
     """Register file tools with the MCP server."""
-    mcp.tool(name="upload_file", description="Upload files with comprehensive security validation and sharing")(upload_file)
-    mcp.tool(name="manage_files", description="File management operations with Zulip API limitations")(manage_files)
+    mcp.tool(
+        name="upload_file",
+        description="Upload files with comprehensive security validation and sharing",
+    )(upload_file)
+    mcp.tool(
+        name="manage_files",
+        description="File management operations with Zulip API limitations",
+    )(manage_files)

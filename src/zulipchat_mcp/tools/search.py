@@ -4,7 +4,6 @@ Core search operations: search messages, advanced search, narrow construction.
 Analytics moved to ai_analytics.py for LLM elicitation.
 """
 
-import re
 from collections import Counter
 from datetime import datetime, timedelta
 from difflib import SequenceMatcher
@@ -12,8 +11,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 class AmbiguousUserError(Exception):
@@ -23,7 +22,9 @@ class AmbiguousUserError(Exception):
         self.identifier = identifier
         self.matches = matches
         match_strings = [f"{m.get('full_name')} ({m.get('email')})" for m in matches]
-        super().__init__(f"Multiple matches for '{identifier}': {', '.join(match_strings[:5])}")
+        super().__init__(
+            f"Multiple matches for '{identifier}': {', '.join(match_strings[:5])}"
+        )
 
 
 class UserNotFoundError(Exception):
@@ -34,7 +35,9 @@ class UserNotFoundError(Exception):
         super().__init__(f"No user matching '{identifier}'")
 
 
-async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -> dict[str, Any]:
+async def resolve_user_identifier(
+    identifier: str, client: ZulipClientWrapper
+) -> dict[str, Any]:
     """Resolve partial names, emails, or IDs to full user info."""
     try:
         # Try exact email match first
@@ -51,13 +54,16 @@ async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -
         # Get all users for fuzzy matching
         response = client.get_users()
         if response.get("result") != "success":
-            raise Exception(f"Failed to fetch users: {response.get('msg', 'Unknown error')}")
+            raise Exception(
+                f"Failed to fetch users: {response.get('msg', 'Unknown error')}"
+            )
 
         users = response.get("members", [])
 
         # Try exact full name match first
         exact_matches = [
-            user for user in users
+            user
+            for user in users
             if user.get("full_name", "").lower() == identifier.lower()
         ]
         if len(exact_matches) == 1:
@@ -71,9 +77,12 @@ async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -
             full_name = user.get("full_name", "")
             if (
                 identifier.lower() in full_name.lower()
-                or SequenceMatcher(None, full_name.lower(), identifier.lower()).ratio() > 0.6
+                or SequenceMatcher(None, full_name.lower(), identifier.lower()).ratio()
+                > 0.6
             ):
-                score = SequenceMatcher(None, full_name.lower(), identifier.lower()).ratio()
+                score = SequenceMatcher(
+                    None, full_name.lower(), identifier.lower()
+                ).ratio()
                 partial_matches.append((score, user))
 
         # Sort by similarity score
@@ -87,8 +96,7 @@ async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -
             # Return best match if significantly better than others
             best_score = partial_matches[0][0]
             close_matches = [
-                user for score, user in partial_matches
-                if score > best_score - 0.2
+                user for score, user in partial_matches if score > best_score - 0.2
             ]
             if len(close_matches) == 1:
                 return close_matches[0]
@@ -98,7 +106,7 @@ async def resolve_user_identifier(identifier: str, client: ZulipClientWrapper) -
     except (AmbiguousUserError, UserNotFoundError):
         raise
     except Exception as e:
-        raise Exception(f"Failed to resolve user '{identifier}': {str(e)}")
+        raise Exception(f"Failed to resolve user '{identifier}': {str(e)}") from e
 
 
 def build_narrow(
@@ -172,17 +180,27 @@ def build_narrow(
     if last_hours:
         hours = int(last_hours) if isinstance(last_hours, str) else last_hours
         cutoff_time = datetime.now() - timedelta(hours=hours)
-        narrow.append({"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"})
+        narrow.append(
+            {"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"}
+        )
     elif last_days:
         days = int(last_days) if isinstance(last_days, str) else last_days
         cutoff_time = datetime.now() - timedelta(days=days)
-        narrow.append({"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"})
+        narrow.append(
+            {"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"}
+        )
     elif after_time:
-        time_str = after_time.isoformat() if isinstance(after_time, datetime) else after_time
+        time_str = (
+            after_time.isoformat() if isinstance(after_time, datetime) else after_time
+        )
         narrow.append({"operator": "search", "operand": f"after:{time_str}"})
 
     if before_time:
-        time_str = before_time.isoformat() if isinstance(before_time, datetime) else before_time
+        time_str = (
+            before_time.isoformat()
+            if isinstance(before_time, datetime)
+            else before_time
+        )
         narrow.append({"operator": "search", "operand": f"before:{time_str}"})
 
     return narrow
@@ -227,9 +245,15 @@ async def search_messages(
                     "error": {
                         "code": "AMBIGUOUS_USER",
                         "message": str(e),
-                        "suggestions": [f"Did you mean: {m.get('full_name')} ({m.get('email')})?" for m in e.matches[:3]],
-                        "recovery": {"tool": "get_users", "hint": "List users to see all available options"}
-                    }
+                        "suggestions": [
+                            f"Did you mean: {m.get('full_name')} ({m.get('email')})?"
+                            for m in e.matches[:3]
+                        ],
+                        "recovery": {
+                            "tool": "get_users",
+                            "hint": "List users to see all available options",
+                        },
+                    },
                 }
             except UserNotFoundError as e:
                 return {
@@ -237,9 +261,16 @@ async def search_messages(
                     "error": {
                         "code": "USER_NOT_FOUND",
                         "message": str(e),
-                        "suggestions": ["Use full email address", "Check spelling", "Use get_users to see available users"],
-                        "recovery": {"tool": "get_users", "hint": "Search users to find correct identifier"}
-                    }
+                        "suggestions": [
+                            "Use full email address",
+                            "Check spelling",
+                            "Use get_users to see available users",
+                        ],
+                        "recovery": {
+                            "tool": "get_users",
+                            "hint": "Search users to find correct identifier",
+                        },
+                    },
                 }
             except Exception as e:
                 return {
@@ -247,8 +278,11 @@ async def search_messages(
                     "error": {
                         "code": "USER_RESOLUTION_FAILED",
                         "message": f"Could not resolve user '{sender}': {str(e)}",
-                        "suggestions": ["Use full email address", "Try a different identifier"]
-                    }
+                        "suggestions": [
+                            "Use full email address",
+                            "Try a different identifier",
+                        ],
+                    },
                 }
 
         # Build narrow filter
@@ -286,18 +320,24 @@ async def search_messages(
             # Process messages for response
             processed_messages = []
             for msg in messages:
-                processed_messages.append({
-                    "id": msg["id"],
-                    "sender": msg["sender_full_name"],
-                    "email": msg["sender_email"],
-                    "timestamp": msg["timestamp"],
-                    "content": msg["content"][:1000] + "..." if len(msg["content"]) > 1000 else msg["content"],
-                    "type": msg["type"],
-                    "stream": msg.get("display_recipient"),
-                    "topic": msg.get("subject"),
-                    "reactions": msg.get("reactions", []),
-                    "flags": msg.get("flags", []),
-                })
+                processed_messages.append(
+                    {
+                        "id": msg["id"],
+                        "sender": msg["sender_full_name"],
+                        "email": msg["sender_email"],
+                        "timestamp": msg["timestamp"],
+                        "content": (
+                            msg["content"][:1000] + "..."
+                            if len(msg["content"]) > 1000
+                            else msg["content"]
+                        ),
+                        "type": msg["type"],
+                        "stream": msg.get("display_recipient"),
+                        "topic": msg.get("subject"),
+                        "reactions": msg.get("reactions", []),
+                        "flags": msg.get("flags", []),
+                    }
+                )
 
             return {
                 "status": "success",
@@ -366,11 +406,16 @@ async def advanced_search(
             if users_response.get("result") == "success":
                 users = users_response.get("members", [])
                 matching_users = [
-                    user for user in users
+                    user
+                    for user in users
                     if query.lower() in user.get("full_name", "").lower()
                     or query.lower() in user.get("email", "").lower()
                 ][:limit]
-                results["users"] = {"status": "success", "users": matching_users, "count": len(matching_users)}
+                results["users"] = {
+                    "status": "success",
+                    "users": matching_users,
+                    "count": len(matching_users),
+                }
 
         # Search streams
         if "streams" in search_type:
@@ -378,14 +423,23 @@ async def advanced_search(
             if streams_response.get("result") == "success":
                 streams = streams_response.get("streams", [])
                 matching_streams = [
-                    stream for stream in streams
+                    stream
+                    for stream in streams
                     if query.lower() in stream.get("name", "").lower()
                     or query.lower() in stream.get("description", "").lower()
                 ][:limit]
-                results["streams"] = {"status": "success", "streams": matching_streams, "count": len(matching_streams)}
+                results["streams"] = {
+                    "status": "success",
+                    "streams": matching_streams,
+                    "count": len(matching_streams),
+                }
 
         # Basic aggregations only
-        if aggregations and "messages" in results and results["messages"].get("status") == "success":
+        if (
+            aggregations
+            and "messages" in results
+            and results["messages"].get("status") == "success"
+        ):
             messages = results["messages"].get("messages", [])
             agg_results = {}
 
@@ -394,7 +448,9 @@ async def advanced_search(
                 agg_results["count_by_user"] = dict(user_counts.most_common(10))
 
             if "count_by_stream" in aggregations:
-                stream_counts = Counter(msg["stream"] for msg in messages if msg["stream"])
+                stream_counts = Counter(
+                    msg["stream"] for msg in messages if msg["stream"]
+                )
                 agg_results["count_by_stream"] = dict(stream_counts.most_common(10))
 
             results["aggregations"] = agg_results
@@ -459,7 +515,9 @@ async def construct_narrow(
             if has_attachment:
                 narrow.append({"operator": "has", "operand": "attachment"})
             else:
-                narrow.append({"operator": "has", "operand": "attachment", "negated": True})
+                narrow.append(
+                    {"operator": "has", "operand": "attachment", "negated": True}
+                )
 
         if has_link is not None:
             if has_link:
@@ -490,7 +548,9 @@ async def construct_narrow(
             if is_mentioned:
                 narrow.append({"operator": "is", "operand": "mentioned"})
             else:
-                narrow.append({"operator": "is", "operand": "mentioned", "negated": True})
+                narrow.append(
+                    {"operator": "is", "operand": "mentioned", "negated": True}
+                )
 
         if is_unread is not None:
             if is_unread:
@@ -508,15 +568,25 @@ async def construct_narrow(
             if is_followed:
                 narrow.append({"operator": "is", "operand": "followed"})
             else:
-                narrow.append({"operator": "is", "operand": "followed", "negated": True})
+                narrow.append(
+                    {"operator": "is", "operand": "followed", "negated": True}
+                )
 
         # Time filters
         if after_time:
-            time_str = after_time.isoformat() if isinstance(after_time, datetime) else after_time
+            time_str = (
+                after_time.isoformat()
+                if isinstance(after_time, datetime)
+                else after_time
+            )
             narrow.append({"operator": "search", "operand": f"after:{time_str}"})
 
         if before_time:
-            time_str = before_time.isoformat() if isinstance(before_time, datetime) else before_time
+            time_str = (
+                before_time.isoformat()
+                if isinstance(before_time, datetime)
+                else before_time
+            )
             narrow.append({"operator": "search", "operand": f"before:{time_str}"})
 
         # ID-based filters
@@ -579,7 +649,10 @@ async def check_messages_match_narrow(
                 "narrow_applied": narrow,
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to check messages against narrow")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to check messages against narrow"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -587,7 +660,19 @@ async def check_messages_match_narrow(
 
 def register_search_tools(mcp: FastMCP) -> None:
     """Register core search tools with the MCP server."""
-    mcp.tool(name="search_messages", description="Advanced search with fuzzy user matching and comprehensive filtering")(search_messages)
-    mcp.tool(name="advanced_search", description="Multi-faceted search across messages, users, streams with basic aggregations")(advanced_search)
-    mcp.tool(name="construct_narrow", description="Construct narrow filter following Zulip API patterns")(construct_narrow)
-    mcp.tool(name="check_messages_match_narrow", description="Check whether messages match a narrow filter")(check_messages_match_narrow)
+    mcp.tool(
+        name="search_messages",
+        description="Advanced search with fuzzy user matching and comprehensive filtering",
+    )(search_messages)
+    mcp.tool(
+        name="advanced_search",
+        description="Multi-faceted search across messages, users, streams with basic aggregations",
+    )(advanced_search)
+    mcp.tool(
+        name="construct_narrow",
+        description="Construct narrow filter following Zulip API patterns",
+    )(construct_narrow)
+    mcp.tool(
+        name="check_messages_match_narrow",
+        description="Check whether messages match a narrow filter",
+    )(check_messages_match_narrow)

@@ -17,7 +17,6 @@ from zulipchat_mcp.config import ConfigManager
 from zulipchat_mcp.core import (
     ErrorHandler,
     IdentityManager,
-    MigrationManager,
     ParameterValidator,
     RetryConfig,
     RetryStrategy,
@@ -170,12 +169,6 @@ def error_handler() -> ErrorHandler:
             jitter=False,
         )
     )
-
-
-@pytest.fixture
-def migration_manager() -> MigrationManager:
-    """MigrationManager fixture."""
-    return MigrationManager()
 
 
 @pytest.fixture

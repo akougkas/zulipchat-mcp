@@ -1,6 +1,6 @@
 """Core domain logic and primitives for ZulipChat MCP."""
 
-# Export new v2.5.0 foundation components (simplified)
+# Export v2.5.1 foundation components (simplified)
 from .error_handling import (
     ErrorHandler,
     RateLimitConfig,
@@ -14,7 +14,8 @@ from .error_handling import (
 
 # Note: CircuitBreaker removed as over-engineering
 from .identity import Identity, IdentityManager, IdentityType
-# Migration system removed - no longer needed for v2.5.1
+
+# Note: Migration system removed in v2.5.1 - no longer needed
 from .validation import (
     NarrowBuilder,
     NarrowFilter,
@@ -49,8 +50,4 @@ __all__ = [
     "get_error_handler",
     "with_rate_limit",
     "with_retry",
-    # Migration
-    "MigrationManager",
-    "MigrationStatus",
-    "ToolMigration",
 ]

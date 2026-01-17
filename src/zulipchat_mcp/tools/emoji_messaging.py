@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 def validate_emoji(emoji_name: str) -> bool:
@@ -23,7 +23,9 @@ async def add_reaction(
     message_id: int,
     emoji_name: str,
     emoji_code: str | None = None,
-    reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] = "unicode_emoji",
+    reaction_type: Literal[
+        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Add emoji reaction to message with validation."""
     if not isinstance(message_id, int) or message_id <= 0:
@@ -32,8 +34,8 @@ async def add_reaction(
             "error": {
                 "code": "INVALID_MESSAGE_ID",
                 "message": "Invalid message ID. Must be a positive integer.",
-                "suggestions": ["Use search_messages to find valid message IDs"]
-            }
+                "suggestions": ["Use search_messages to find valid message IDs"],
+            },
         }
 
     if not validate_emoji(emoji_name):
@@ -45,9 +47,9 @@ async def add_reaction(
                 "suggestions": [
                     "Use alphanumeric characters and underscores only",
                     "Keep emoji name under 50 characters",
-                    "Check available emojis in your Zulip organization"
-                ]
-            }
+                    "Check available emojis in your Zulip organization",
+                ],
+            },
         }
 
     config = ConfigManager()
@@ -75,7 +77,10 @@ async def add_reaction(
                 "reaction_type": reaction_type,
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to add reaction")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to add reaction"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -85,7 +90,9 @@ async def remove_reaction(
     message_id: int,
     emoji_name: str,
     emoji_code: str | None = None,
-    reaction_type: Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"] = "unicode_emoji",
+    reaction_type: Literal[
+        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Remove emoji reaction from message with validation."""
     if not isinstance(message_id, int) or message_id <= 0:
@@ -110,7 +117,10 @@ async def remove_reaction(
                 "action": "removed",
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to remove reaction")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to remove reaction"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -118,5 +128,10 @@ async def remove_reaction(
 
 def register_emoji_messaging_tools(mcp: FastMCP) -> None:
     """Register emoji reaction tools with the MCP server."""
-    mcp.tool(name="add_reaction", description="Add emoji reaction to message with comprehensive validation")(add_reaction)
-    mcp.tool(name="remove_reaction", description="Remove emoji reaction from message")(remove_reaction)
+    mcp.tool(
+        name="add_reaction",
+        description="Add emoji reaction to message with comprehensive validation",
+    )(add_reaction)
+    mcp.tool(name="remove_reaction", description="Remove emoji reaction from message")(
+        remove_reaction
+    )

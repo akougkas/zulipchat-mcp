@@ -3,7 +3,7 @@
 import asyncio
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
@@ -26,10 +26,10 @@ class ServiceManager:
         """
         self.config_manager = config_manager
         self.enable_listener = enable_listener
-        self.listener_ref: Dict[str, Optional[Any]] = {"listener": None, "thread": None}
-        self.client: Optional[ZulipClientWrapper] = None
-        self.dbm: Optional[DatabaseManager] = None
-        self._watcher_thread: Optional[threading.Thread] = None
+        self.listener_ref: dict[str, Any | None] = {"listener": None, "thread": None}
+        self.client: ZulipClientWrapper | None = None
+        self.dbm: DatabaseManager | None = None
+        self._watcher_thread: threading.Thread | None = None
 
     def start(self) -> None:
         """Start the service manager and AFK watcher."""
@@ -40,9 +40,7 @@ class ServiceManager:
 
             # Start AFK watcher thread
             self._watcher_thread = threading.Thread(
-                target=self._afk_watcher,
-                name="afk-watcher",
-                daemon=True
+                target=self._afk_watcher, name="afk-watcher", daemon=True
             )
             self._watcher_thread.start()
             logger.info("Service manager started")

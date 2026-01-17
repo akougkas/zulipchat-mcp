@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
@@ -69,7 +69,9 @@ async def server_info() -> dict[str, Any]:
 
 def register_system_tools(mcp: FastMCP) -> None:
     """Register system tools with the MCP server."""
-    mcp.tool(name="switch_identity", description="Switch between user and bot identities")(switch_identity)
-    mcp.tool(name="server_info", description="Get server information and capabilities")(server_info)
-
-
+    mcp.tool(
+        name="switch_identity", description="Switch between user and bot identities"
+    )(switch_identity)
+    mcp.tool(name="server_info", description="Get server information and capabilities")(
+        server_info
+    )

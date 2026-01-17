@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str, Any]:
@@ -29,7 +29,10 @@ async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str,
                 "count": len(topics),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to list topics")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to list topics"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -49,7 +52,7 @@ async def agents_channel_topic_ops(
         return {
             "status": "error",
             "error": "Bot credentials required for topic operations",
-            "protection": "Prevents AI from modifying organization streams"
+            "protection": "Prevents AI from modifying organization streams",
         }
 
     client = ZulipClientWrapper(config, use_bot_identity=True)
@@ -64,21 +67,29 @@ async def agents_channel_topic_ops(
 
         if operation == "move":
             if not target_topic:
-                return {"status": "error", "error": "target_topic required for move operation"}
+                return {
+                    "status": "error",
+                    "error": "target_topic required for move operation",
+                }
 
             # Find message in source topic
             narrow = [
                 {"operator": "stream", "operand": str(agents_channel_id)},
-                {"operator": "topic", "operand": source_topic}
+                {"operator": "topic", "operand": source_topic},
             ]
 
-            search_result = client.get_messages_raw(narrow=narrow, num_before=1, num_after=0)
+            search_result = client.get_messages_raw(
+                narrow=narrow, num_before=1, num_after=0
+            )
 
-            if search_result.get("result") != "success" or not search_result.get("messages"):
+            if search_result.get("result") != "success" or not search_result.get(
+                "messages"
+            ):
                 return {"status": "error", "error": "No messages found in source topic"}
 
             # Use edit_message to move the topic
             from .messaging import edit_message
+
             message_id = search_result["messages"][0]["id"]
 
             edit_result = await edit_message(
@@ -97,7 +108,10 @@ async def agents_channel_topic_ops(
                     "protection": "Limited to Agents-Channel only",
                 }
             else:
-                return {"status": "error", "error": edit_result.get("error", "Failed to move topic")}
+                return {
+                    "status": "error",
+                    "error": edit_result.get("error", "Failed to move topic"),
+                }
 
         elif operation == "delete":
             result = client.delete_topic(agents_channel_id, source_topic)
@@ -110,25 +124,36 @@ async def agents_channel_topic_ops(
                     "protection": "Limited to Agents-Channel only",
                 }
             else:
-                return {"status": "error", "error": result.get("msg", "Failed to delete topic")}
+                return {
+                    "status": "error",
+                    "error": result.get("msg", "Failed to delete topic"),
+                }
 
         elif operation == "mute":
             result = client.mute_topic(agents_channel_id, source_topic)
-            return {
-                "status": "success",
-                "operation": "mute",
-                "stream": "Agents-Channel",
-                "topic": source_topic,
-            } if result.get("result") == "success" else {"status": "error", "error": result.get("msg", "Failed to mute")}
+            return (
+                {
+                    "status": "success",
+                    "operation": "mute",
+                    "stream": "Agents-Channel",
+                    "topic": source_topic,
+                }
+                if result.get("result") == "success"
+                else {"status": "error", "error": result.get("msg", "Failed to mute")}
+            )
 
         elif operation == "unmute":
             result = client.unmute_topic(agents_channel_id, source_topic)
-            return {
-                "status": "success",
-                "operation": "unmute",
-                "stream": "Agents-Channel",
-                "topic": source_topic,
-            } if result.get("result") == "success" else {"status": "error", "error": result.get("msg", "Failed to unmute")}
+            return (
+                {
+                    "status": "success",
+                    "operation": "unmute",
+                    "stream": "Agents-Channel",
+                    "topic": source_topic,
+                }
+                if result.get("result") == "success"
+                else {"status": "error", "error": result.get("msg", "Failed to unmute")}
+            )
 
         else:
             return {"status": "error", "error": f"Unknown operation: {operation}"}
@@ -139,5 +164,11 @@ async def agents_channel_topic_ops(
 
 def register_topic_management_tools(mcp: FastMCP) -> None:
     """Register topic management tools with identity protection."""
-    mcp.tool(name="get_stream_topics", description="Get recent topics for a stream (READ-ONLY)")(get_stream_topics)
-    mcp.tool(name="agents_channel_topic_ops", description="Topic operations in Agents-Channel only (BOT identity protection)")(agents_channel_topic_ops)
+    mcp.tool(
+        name="get_stream_topics",
+        description="Get recent topics for a stream (READ-ONLY)",
+    )(get_stream_topics)
+    mcp.tool(
+        name="agents_channel_topic_ops",
+        description="Topic operations in Agents-Channel only (BOT identity protection)",
+    )(agents_channel_topic_ops)

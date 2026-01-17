@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def _dummy_tool_decorator(description: str):
+def _dummy_tool_decorator(name: str | None = None, description: str | None = None):
     def _wrap(fn):
         return fn
 
@@ -11,25 +11,39 @@ def _dummy_tool_decorator(description: str):
 
 
 class DummyMCP:
-    def tool(self, description: str | None = None):
-        return _dummy_tool_decorator(description or "")
+    def tool(self, name: str | None = None, description: str | None = None):
+        return _dummy_tool_decorator(name, description)
 
 
-def test_register_messaging_and_search_and_streams_and_users_tools():
-    from zulipchat_mcp.tools.admin_v25 import register_admin_v25_tools
-
-    from zulipchat_mcp.tools.events_v25 import register_events_v25_tools
-    from zulipchat_mcp.tools.files_v25 import register_files_v25_tools
-    from zulipchat_mcp.tools.messaging_v25 import register_messaging_v25_tools
-    from zulipchat_mcp.tools.search_v25 import register_search_v25_tools
-    from zulipchat_mcp.tools.streams_v25 import register_streams_v25_tools
-    from zulipchat_mcp.tools.users_v25 import register_users_v25_tools
+def test_register_all_tools():
+    """Test that all tool registration functions work without errors."""
+    from zulipchat_mcp.tools import (
+        register_ai_analytics_tools,
+        register_emoji_messaging_tools,
+        register_event_management_tools,
+        register_events_tools,
+        register_files_tools,
+        register_mark_messaging_tools,
+        register_messaging_tools,
+        register_schedule_messaging_tools,
+        register_search_tools,
+        register_stream_management_tools,
+        register_system_tools,
+        register_topic_management_tools,
+        register_users_tools,
+    )
 
     mcp = DummyMCP()
-    register_messaging_v25_tools(mcp)
-    register_search_v25_tools(mcp)
-    register_streams_v25_tools(mcp)
-    register_users_v25_tools(mcp)
-    register_events_v25_tools(mcp)
-    register_files_v25_tools(mcp)
-    register_admin_v25_tools(mcp)
+    register_messaging_tools(mcp)
+    register_schedule_messaging_tools(mcp)
+    register_emoji_messaging_tools(mcp)
+    register_mark_messaging_tools(mcp)
+    register_search_tools(mcp)
+    register_stream_management_tools(mcp)
+    register_topic_management_tools(mcp)
+    register_event_management_tools(mcp)
+    register_events_tools(mcp)
+    register_ai_analytics_tools(mcp)
+    register_users_tools(mcp)
+    register_files_tools(mcp)
+    register_system_tools(mcp)

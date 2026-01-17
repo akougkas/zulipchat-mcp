@@ -7,8 +7,9 @@ import os
 from dataclasses import dataclass
 
 try:
-    from dotenv import load_dotenv
     from pathlib import Path
+
+    from dotenv import load_dotenv
 
     # Load .env file for development (only current directory)
     env_path = Path.cwd() / ".env"

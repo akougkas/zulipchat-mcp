@@ -10,8 +10,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def register_events(
@@ -58,7 +58,10 @@ async def register_events(
                 "queue_lifespan_secs": queue_lifespan_secs,
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to register events")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to register events"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -95,10 +98,15 @@ async def get_events(
                 "found_newest": result.get("found_newest", False),
                 "queue_id": queue_id,
                 "event_count": len(events),
-                "last_event_id": max([e.get("id", last_event_id) for e in events], default=last_event_id),
+                "last_event_id": max(
+                    [e.get("id", last_event_id) for e in events], default=last_event_id
+                ),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to get events")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to get events"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -116,7 +124,7 @@ async def listen_events(
 ) -> dict[str, Any]:
     """Comprehensive stateless event listener with automatic queue management."""
     config = ConfigManager()
-    client = ZulipClientWrapper(config)
+    ZulipClientWrapper(config)
 
     try:
         # Register queue
@@ -154,7 +162,10 @@ async def listen_events(
                         for event in events:
                             include_event = True
                             for filter_key, filter_value in filters.items():
-                                if filter_key in event and event[filter_key] != filter_value:
+                                if (
+                                    filter_key in event
+                                    and event[filter_key] != filter_value
+                                ):
                                     include_event = False
                                     break
                             if include_event:
@@ -163,14 +174,20 @@ async def listen_events(
 
                     if events:
                         collected_events.extend(events[:max_events_per_poll])
-                        last_event_id = max([e.get("id", last_event_id) for e in events], default=last_event_id)
+                        last_event_id = max(
+                            [e.get("id", last_event_id) for e in events],
+                            default=last_event_id,
+                        )
 
                         # Send to webhook if configured
                         if callback_url:
                             try:
                                 import httpx
+
                                 async with httpx.AsyncClient() as http_client:
-                                    await http_client.post(callback_url, json={"events": events})
+                                    await http_client.post(
+                                        callback_url, json={"events": events}
+                                    )
                             except Exception:
                                 pass  # Best effort
 
@@ -194,7 +211,7 @@ async def listen_events(
                 "event_types": event_types,
                 "poll_interval": poll_interval,
                 "max_events_per_poll": max_events_per_poll,
-            }
+            },
         }
 
     except Exception as e:
@@ -212,7 +229,10 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
         if result.get("result") == "success":
             return {"status": "success", "queue_id": queue_id}
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to deregister queue")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to deregister queue"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -220,7 +240,18 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
 
 def register_event_management_tools(mcp: FastMCP) -> None:
     """Register event management tools with the MCP server."""
-    mcp.tool(name="register_events", description="Register for comprehensive real-time event streams")(register_events)
-    mcp.tool(name="get_events", description="Poll events from registered queue with long-polling")(get_events)
-    mcp.tool(name="listen_events", description="Comprehensive stateless event listener with webhook integration")(listen_events)
-    mcp.tool(name="deregister_events", description="Deregister event queue")(deregister_events)
+    mcp.tool(
+        name="register_events",
+        description="Register for comprehensive real-time event streams",
+    )(register_events)
+    mcp.tool(
+        name="get_events",
+        description="Poll events from registered queue with long-polling",
+    )(get_events)
+    mcp.tool(
+        name="listen_events",
+        description="Comprehensive stateless event listener with webhook integration",
+    )(listen_events)
+    mcp.tool(name="deregister_events", description="Deregister event queue")(
+        deregister_events
+    )

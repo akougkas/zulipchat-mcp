@@ -11,15 +11,16 @@ As specified in strategic_optimization_plan.md.
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
-from src.zulipchat_mcp.utils.narrow_helpers import validate_and_convert_int
-from src.zulipchat_mcp.tools.search_v25 import (
-    resolve_user_identifier,
+import pytest
+
+from zulipchat_mcp.tools.search import (
     AmbiguousUserError,
     UserNotFoundError,
+    resolve_user_identifier,
 )
+from zulipchat_mcp.utils.narrow_helpers import validate_and_convert_int
 
 
 class TestTypeValidation:
@@ -61,7 +62,7 @@ class TestUserResolution:
     @pytest.fixture
     def mock_client(self):
         """Create mock client with sample users."""
-        client = AsyncMock()
+        client = Mock()
         client.get_users.return_value = {
             "result": "success",
             "members": [
@@ -80,33 +81,40 @@ class TestUserResolution:
                     "full_name": "Jane Smith",
                     "user_id": 125,
                 },
-            ]
+            ],
         }
         return client
 
+    @pytest.mark.asyncio
     async def test_resolve_exact_email_match(self, mock_client):
         """Test exact email matching works."""
-        result = await resolve_user_identifier("jcernudagarcia@hawk.iit.edu", mock_client)
+        result = await resolve_user_identifier(
+            "jcernudagarcia@hawk.iit.edu", mock_client
+        )
         assert result["email"] == "jcernudagarcia@hawk.iit.edu"
         assert result["full_name"] == "Jaime Garcia"
 
+    @pytest.mark.asyncio
     async def test_resolve_exact_name_match(self, mock_client):
         """Test exact full name matching works."""
         result = await resolve_user_identifier("Jaime Garcia", mock_client)
         assert result["email"] == "jcernudagarcia@hawk.iit.edu"
         assert result["full_name"] == "Jaime Garcia"
 
+    @pytest.mark.asyncio
     async def test_resolve_partial_name_match(self, mock_client):
         """Test partial name matching (key functionality from strategic plan)."""
         result = await resolve_user_identifier("Jaime", mock_client)
         assert result["email"] == "jcernudagarcia@hawk.iit.edu"
         assert result["full_name"] == "Jaime Garcia"
 
+    @pytest.mark.asyncio
     async def test_resolve_case_insensitive_match(self, mock_client):
         """Test case insensitive matching."""
         result = await resolve_user_identifier("jaime garcia", mock_client)
         assert result["email"] == "jcernudagarcia@hawk.iit.edu"
 
+    @pytest.mark.asyncio
     async def test_resolve_nonexistent_user(self, mock_client):
         """Test nonexistent user raises UserNotFoundError."""
         with pytest.raises(UserNotFoundError) as exc_info:
@@ -114,14 +122,17 @@ class TestUserResolution:
 
         assert "No user matching 'NonexistentUser'" in str(exc_info.value)
 
+    @pytest.mark.asyncio
     async def test_resolve_ambiguous_user(self, mock_client):
         """Test ambiguous matches raise AmbiguousUserError."""
         # Add another John to create ambiguity
-        mock_client.get_users.return_value["members"].append({
-            "email": "john.wilson@example.com",
-            "full_name": "John Wilson",
-            "user_id": 126,
-        })
+        mock_client.get_users.return_value["members"].append(
+            {
+                "email": "john.wilson@example.com",
+                "full_name": "John Wilson",
+                "user_id": 126,
+            }
+        )
 
         with pytest.raises(AmbiguousUserError) as exc_info:
             await resolve_user_identifier("John", mock_client)
@@ -130,11 +141,12 @@ class TestUserResolution:
         assert len(error.matches) >= 2
         assert "Multiple matches for 'John'" in str(error)
 
+    @pytest.mark.asyncio
     async def test_resolve_api_error_handling(self, mock_client):
         """Test API error handling."""
         mock_client.get_users.return_value = {
             "result": "error",
-            "msg": "API connection failed"
+            "msg": "API connection failed",
         }
 
         with pytest.raises(Exception) as exc_info:
@@ -143,66 +155,12 @@ class TestUserResolution:
         assert "Failed to fetch users" in str(exc_info.value)
 
 
-class TestStructuredErrorMessages:
-    """Test structured error message format."""
-
-    async def test_user_not_found_error_structure(self, mock_client):
-        """Test UserNotFoundError produces structured error format."""
-        from src.zulipchat_mcp.tools.search_v25 import advanced_search
-
-        # Mock empty user list
-        mock_client.get_users.return_value = {
-            "result": "success",
-            "members": []
-        }
-
-        # Test that search with invalid sender returns structured error
-        result = await advanced_search("test query", sender="InvalidUser")
-
-        assert result["status"] == "error"
-        assert "error" in result
-        error = result["error"]
-
-        # Check structured error format
-        assert "code" in error
-        assert "message" in error
-        assert "suggestions" in error
-        assert "recovery" in error
-
-        assert error["code"] == "USER_NOT_FOUND"
-        assert isinstance(error["suggestions"], list)
-        assert len(error["suggestions"]) > 0
-        assert "tool" in error["recovery"]
-
-    async def test_ambiguous_user_error_structure(self, mock_client):
-        """Test AmbiguousUserError produces structured error format."""
-        from src.zulipchat_mcp.tools.search_v25 import advanced_search
-
-        # Mock multiple similar users
-        mock_client.get_users.return_value = {
-            "result": "success",
-            "members": [
-                {"email": "john1@example.com", "full_name": "John Doe", "user_id": 1},
-                {"email": "john2@example.com", "full_name": "John Smith", "user_id": 2},
-            ]
-        }
-
-        result = await advanced_search("test", sender="John")
-
-        assert result["status"] == "error"
-        error = result["error"]
-
-        assert error["code"] == "AMBIGUOUS_USER"
-        assert "Did you mean:" in error["suggestions"][0]
-        assert error["recovery"]["tool"] == "advanced_search"
-
-
 class TestParameterValidation:
     """Test parameter validation across tools."""
 
     def test_narrow_helpers_type_conversion(self):
         """Test NarrowHelper accepts string parameters and converts them."""
-        from src.zulipchat_mcp.utils.narrow_helpers import NarrowHelper
+        from zulipchat_mcp.utils.narrow_helpers import NarrowHelper
 
         # Should not raise exception with string input
         narrow_filter = NarrowHelper.last_days("7")

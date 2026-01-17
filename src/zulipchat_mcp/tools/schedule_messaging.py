@@ -9,8 +9,8 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..core.client import ZulipClientWrapper
 from ..config import ConfigManager
+from ..core.client import ZulipClientWrapper
 
 
 async def get_scheduled_messages() -> dict[str, Any]:
@@ -19,7 +19,9 @@ async def get_scheduled_messages() -> dict[str, Any]:
     client = ZulipClientWrapper(config)
 
     try:
-        result = client.client.call_endpoint("scheduled_messages", method="GET", request={})
+        result = client.client.call_endpoint(
+            "scheduled_messages", method="GET", request={}
+        )
 
         if result.get("result") == "success":
             return {
@@ -28,7 +30,10 @@ async def get_scheduled_messages() -> dict[str, Any]:
                 "count": len(result.get("scheduled_messages", [])),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to get scheduled messages")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to get scheduled messages"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -49,7 +54,10 @@ async def create_scheduled_message(
     try:
         # Validate required parameters
         if type in ["stream", "channel"] and not topic:
-            return {"status": "error", "error": "Topic required for stream/channel messages"}
+            return {
+                "status": "error",
+                "error": "Topic required for stream/channel messages",
+            }
 
         # Prepare request data
         request_data = {
@@ -63,16 +71,23 @@ async def create_scheduled_message(
         if topic:
             request_data["topic"] = topic
 
-        result = client.client.call_endpoint("scheduled_messages", method="POST", request=request_data)
+        result = client.client.call_endpoint(
+            "scheduled_messages", method="POST", request=request_data
+        )
 
         if result.get("result") == "success":
             return {
                 "status": "success",
                 "scheduled_message_id": result.get("scheduled_message_id"),
-                "scheduled_at": datetime.fromtimestamp(scheduled_delivery_timestamp).isoformat(),
+                "scheduled_at": datetime.fromtimestamp(
+                    scheduled_delivery_timestamp
+                ).isoformat(),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to create scheduled message")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to create scheduled message"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -105,12 +120,15 @@ async def update_scheduled_message(
             request_data["scheduled_delivery_timestamp"] = scheduled_delivery_timestamp
 
         if not request_data:
-            return {"status": "error", "error": "Must provide at least one field to update"}
+            return {
+                "status": "error",
+                "error": "Must provide at least one field to update",
+            }
 
         result = client.client.call_endpoint(
             f"scheduled_messages/{scheduled_message_id}",
             method="PATCH",
-            request=request_data
+            request=request_data,
         )
 
         if result.get("result") == "success":
@@ -120,11 +138,15 @@ async def update_scheduled_message(
                 "updated_fields": list(request_data.keys()),
                 "new_delivery_time": (
                     datetime.fromtimestamp(scheduled_delivery_timestamp).isoformat()
-                    if scheduled_delivery_timestamp else None
+                    if scheduled_delivery_timestamp
+                    else None
                 ),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to update scheduled message")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to update scheduled message"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -137,9 +159,7 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
 
     try:
         result = client.client.call_endpoint(
-            f"scheduled_messages/{scheduled_message_id}",
-            method="DELETE",
-            request={}
+            f"scheduled_messages/{scheduled_message_id}", method="DELETE", request={}
         )
 
         if result.get("result") == "success":
@@ -149,7 +169,10 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
                 "action": "deleted",
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Failed to delete scheduled message")}
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to delete scheduled message"),
+            }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -157,7 +180,19 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
 
 def register_schedule_messaging_tools(mcp: FastMCP) -> None:
     """Register scheduled messaging tools with the MCP server."""
-    mcp.tool(name="get_scheduled_messages", description="Get all scheduled messages for current user")(get_scheduled_messages)
-    mcp.tool(name="create_scheduled_message", description="Create a scheduled message using Zulip's native API")(create_scheduled_message)
-    mcp.tool(name="update_scheduled_message", description="Update a scheduled message's attributes")(update_scheduled_message)
-    mcp.tool(name="delete_scheduled_message", description="Delete (cancel) a scheduled message")(delete_scheduled_message)
+    mcp.tool(
+        name="get_scheduled_messages",
+        description="Get all scheduled messages for current user",
+    )(get_scheduled_messages)
+    mcp.tool(
+        name="create_scheduled_message",
+        description="Create a scheduled message using Zulip's native API",
+    )(create_scheduled_message)
+    mcp.tool(
+        name="update_scheduled_message",
+        description="Update a scheduled message's attributes",
+    )(update_scheduled_message)
+    mcp.tool(
+        name="delete_scheduled_message",
+        description="Delete (cancel) a scheduled message",
+    )(delete_scheduled_message)
