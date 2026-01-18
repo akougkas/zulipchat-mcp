@@ -3,6 +3,7 @@
 Identity-protected topic operations:
 - READ-ONLY for user identity (protects organization)
 - Full operations for bot identity in Agents-Channel only
+- Destructive operations (delete) require --unsafe mode
 """
 
 from typing import Any, Literal
@@ -11,6 +12,7 @@ from fastmcp import FastMCP
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
+from ..core.security import is_unsafe_mode
 
 
 async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str, Any]:
@@ -119,6 +121,14 @@ async def agents_channel_topic_ops(
                 }
 
         elif operation == "delete":
+            # Delete requires --unsafe mode
+            if not is_unsafe_mode():
+                return {
+                    "status": "error",
+                    "error": "Delete operation requires --unsafe mode",
+                    "hint": "Start the server with --unsafe flag to enable destructive operations",
+                }
+
             result = client.delete_topic(agents_channel_id, source_topic)
             if result.get("result") == "success":
                 return {

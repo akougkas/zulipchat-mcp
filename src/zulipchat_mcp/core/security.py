@@ -1,11 +1,71 @@
-"""Security module for ZulipChat MCP Server."""
+"""Security module for ZulipChat MCP Server.
+
+Includes:
+- Safety mode context (--unsafe flag management)
+- Rate limiting
+- Input sanitization
+- Validation helpers
+"""
 
 import html
 import re
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from functools import wraps
 from typing import Any
+
+# Global safety mode context - defaults to SAFE (unsafe_mode=False)
+_unsafe_mode: ContextVar[bool] = ContextVar("unsafe_mode", default=False)
+
+
+def set_unsafe_mode(enabled: bool) -> None:
+    """Set the global safety mode.
+
+    Args:
+        enabled: If True, dangerous operations are allowed.
+    """
+    _unsafe_mode.set(enabled)
+
+
+def is_unsafe_mode() -> bool:
+    """Check if unsafe mode is enabled.
+
+    Returns:
+        True if unsafe operations are allowed, False otherwise.
+    """
+    return _unsafe_mode.get()
+
+
+def require_unsafe_mode(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Decorator that blocks a function unless --unsafe mode is enabled.
+
+    Use this on dangerous tools like delete_message, delete_stream, etc.
+    """
+    @wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if not is_unsafe_mode():
+            return {
+                "status": "error",
+                "error": "This operation requires --unsafe mode",
+                "hint": "Start the server with --unsafe flag to enable destructive operations",
+            }
+        return await func(*args, **kwargs)
+    return wrapper
+
+
+def require_unsafe_mode_sync(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Synchronous version of require_unsafe_mode decorator."""
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if not is_unsafe_mode():
+            return {
+                "status": "error",
+                "error": "This operation requires --unsafe mode",
+                "hint": "Start the server with --unsafe flag to enable destructive operations",
+            }
+        return func(*args, **kwargs)
+    return wrapper
 
 
 class RateLimiter:

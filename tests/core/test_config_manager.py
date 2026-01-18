@@ -29,12 +29,13 @@ def test_config_manager_validates_and_bot_config(monkeypatch) -> None:
 
 
 def test_config_manager_errors_and_defaults(monkeypatch) -> None:
-    # Clear env to trigger errors
-    for k in ["ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE"]:
+    # Clear env to trigger validation failure
+    for k in ["ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE", "ZULIP_CONFIG_FILE"]:
         os.environ.pop(k, None)
 
-    with pytest.raises(ValueError):
-        ConfigManager(email=None)
+    # Without credentials, validation should fail (not raise)
+    cm_no_creds = ConfigManager()
+    assert cm_no_creds.validate_config() is False
 
     # Provide via env again; port/debug fallbacks
     _set_env()
@@ -43,9 +44,6 @@ def test_config_manager_errors_and_defaults(monkeypatch) -> None:
     cm = ConfigManager()
     assert cm.config.port == 3000  # fallback on invalid port
     assert cm.config.debug is True
-    # With bot creds set, use_bot returns bot creds
-    user_cfg = cm.get_zulip_client_config(use_bot=True)
-    assert user_cfg["email"] == os.environ["ZULIP_BOT_EMAIL"]
 
     # Clear bot env; has_bot_credentials should be False
     os.environ.pop("ZULIP_BOT_EMAIL", None)

@@ -82,10 +82,10 @@ class ZulipClientWrapper:
 
         # Lazy loading: client created on first API call
         self._client: Client | None = None
-        self.current_email = self._client_config["email"]
+        self.current_email = self._client_config.get("email")
         self._base_url = (
             self._client_config["site"].rstrip("/")
-            if self._client_config["site"]
+            if self._client_config.get("site")
             else ""
         )
 
@@ -99,14 +99,27 @@ class ZulipClientWrapper:
     def _create_client(self) -> Client:
         """Create and configure the Zulip client."""
         try:
-            return Client(
-                email=self._client_config["email"],
-                api_key=self._client_config["api_key"],
-                site=self._client_config["site"],
-            )
+            if self._client_config.get("config_file"):
+                client = Client(config_file=self._client_config["config_file"])
+                # Backfill properties from loaded client config
+                if not self.current_email and hasattr(client, "email"):
+                    self.current_email = client.email
+                    # Update identity name if it was default "User"/Bot
+                    if self.identity_name in ("User", "Bot") and self.current_email:
+                        self.identity_name = self.current_email.split("@")[0]
+
+                if not self._base_url and hasattr(client, "base_url"):
+                    self._base_url = client.base_url.rstrip("/")
+
+                return client
+            else:
+                return Client(
+                    email=self._client_config["email"],
+                    api_key=self._client_config["api_key"],
+                    site=self._client_config["site"],
+                )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
-
     @property
     def is_connected(self) -> bool:
         """Check if client connection has been established."""

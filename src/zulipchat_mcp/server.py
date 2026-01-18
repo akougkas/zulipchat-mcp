@@ -1,10 +1,11 @@
-"""ZulipChat MCP Server - Environment-first configuration."""
+"""ZulipChat MCP Server - zuliprc-first configuration."""
 
 import argparse
 
 from fastmcp import FastMCP
 
 from .config import ConfigManager
+from .core.security import set_unsafe_mode
 
 # Optional service manager for background services
 try:
@@ -44,32 +45,25 @@ def main() -> None:
     """Main entry point for the MCP server."""
     parser = argparse.ArgumentParser(
         description="ZulipChat MCP Server - Integrates Zulip Chat with AI assistants",
-        epilog="Environment variables take priority over CLI arguments.",
+        epilog="Configuration via zuliprc files is required.",
     )
 
-    # Optional CLI arguments (environment variables take priority)
-    parser.add_argument("--zulip-email", help="Zulip email (fallback for ZULIP_EMAIL)")
+    # Configuration Files
     parser.add_argument(
-        "--zulip-api-key", help="Zulip API key (fallback for ZULIP_API_KEY)"
-    )
-    parser.add_argument("--zulip-site", help="Zulip site URL (fallback for ZULIP_SITE)")
-
-    # Optional bot credentials
-    parser.add_argument(
-        "--zulip-bot-email", help="Bot email (fallback for ZULIP_BOT_EMAIL)"
+        "--zulip-config-file",
+        help="Path to user zuliprc file (default: searches standard locations)",
     )
     parser.add_argument(
-        "--zulip-bot-api-key", help="Bot API key (fallback for ZULIP_BOT_API_KEY)"
-    )
-    parser.add_argument(
-        "--zulip-bot-name", help="Bot display name (fallback for ZULIP_BOT_NAME)"
-    )
-    parser.add_argument(
-        "--zulip-bot-avatar-url",
-        help="Bot avatar URL (fallback for ZULIP_BOT_AVATAR_URL)",
+        "--zulip-bot-config-file",
+        help="Path to bot zuliprc file (optional, for dual identity)",
     )
 
-    # Service options
+    # Safety & Operational Options
+    parser.add_argument(
+        "--unsafe",
+        action="store_true",
+        help="Enable dangerous tools (delete messages/users, mass unsubscribe). Default: SAFE mode.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument(
         "--enable-listener", action="store_true", help="Enable message listener service"
@@ -81,24 +75,24 @@ def main() -> None:
     setup_structured_logging()
     logger = get_logger(__name__)
 
-    # Initialize configuration (environment-first, CLI fallback)
+    # Initialize configuration (zuliprc only)
     config_manager = ConfigManager(
-        email=args.zulip_email,
-        api_key=args.zulip_api_key,
-        site=args.zulip_site,
-        bot_email=args.zulip_bot_email,
-        bot_api_key=args.zulip_bot_api_key,
-        bot_name=args.zulip_bot_name,
-        bot_avatar_url=args.zulip_bot_avatar_url,
+        config_file=args.zulip_config_file,
+        bot_config_file=args.zulip_bot_config_file,
         debug=args.debug,
     )
 
     # Validate configuration
     if not config_manager.validate_config():
-        logger.error("Invalid configuration detected")
+        logger.error("Invalid configuration. Please run 'uv run zulipchat-mcp-setup' first.")
         return
 
     logger.info("Configuration loaded successfully")
+
+    # Set global safety mode context
+    set_unsafe_mode(args.unsafe)
+    if args.unsafe:
+        logger.warning("RUNNING IN UNSAFE MODE - Dangerous tools enabled")
 
     # Initialize database (optional for agent features)
     if database_available:
@@ -113,35 +107,40 @@ def main() -> None:
     # Initialize MCP with modern configuration
     mcp = FastMCP(
         "ZulipChat MCP",
-        on_duplicate_tools="warn",  # Warn on duplicate tools
-        on_duplicate_resources="error",  # Error on duplicate resources
-        on_duplicate_prompts="replace",  # Replace duplicate prompts
-        include_fastmcp_meta=True,  # Include metadata for debugging
-        mask_error_details=False,  # Show detailed errors for debugging
+        on_duplicate_tools="warn",
+        on_duplicate_resources="error",
+        on_duplicate_prompts="replace",
+        include_fastmcp_meta=True,
     )
 
     logger.info("FastMCP initialized successfully")
 
-    # Register ultra-simplified tools by API domain
-    logger.info("Registering v2.5.1 ultra-simplified tools...")
-    register_messaging_tools(mcp)  # Core send/edit operations
-    register_schedule_messaging_tools(mcp)  # Scheduled message management
-    register_emoji_messaging_tools(mcp)  # Emoji reactions
-    register_mark_messaging_tools(mcp)  # Message flag updates
-    register_search_tools(mcp)  # Core search with narrow construction
-    register_stream_management_tools(mcp)  # READ-ONLY stream operations
-    register_topic_management_tools(mcp)  # Agents-Channel topic ops only
-    register_event_management_tools(mcp)  # Core event system
-    register_events_tools(mcp)  # Agent communication
-    register_ai_analytics_tools(mcp)  # AI-powered analytics via LLM elicitation
-    register_users_tools(mcp)  # READ-ONLY user operations
-    register_files_tools(mcp)  # File uploads with security
-    register_system_tools(mcp)  # System info and identity switching
+    # Register all tools
+    # Safety mode is enforced at the tool level via @require_unsafe_mode decorator
+    logger.info("Registering v2.5.1 tools...")
 
-    # Optional: Register agent tools if available (for backward compatibility)
+    # Core messaging
+    register_messaging_tools(mcp)          # Send/Edit messages
+    register_emoji_messaging_tools(mcp)    # Reactions
+    register_schedule_messaging_tools(mcp) # Scheduled messages
+    register_mark_messaging_tools(mcp)     # Read receipts
+
+    # Discovery & Search (read-only)
+    register_search_tools(mcp)             # Message search
+    register_stream_management_tools(mcp)  # Stream info
+    register_topic_management_tools(mcp)   # Topic operations
+    register_users_tools(mcp)              # User info
+    register_ai_analytics_tools(mcp)       # Analytics
+
+    # System & Events
+    register_system_tools(mcp)             # Identity management
+    register_events_tools(mcp)             # Agent communication
+    register_event_management_tools(mcp)   # Event queue management
+    register_files_tools(mcp)              # File uploads
+
+    # Optional: Register agent tools if available
     try:
         from .tools import agents
-
         agents.register_agent_tools(mcp)
         logger.info("Agent tools registered")
     except ImportError:
@@ -149,11 +148,11 @@ def main() -> None:
 
     try:
         from .tools import commands
-
         commands.register_command_tools(mcp)
         logger.info("Command tools registered")
     except ImportError:
         logger.debug("Command tools not available (optional)")
+
 
     # Server capabilities are handled by the underlying MCP protocol
     # FastMCP 2.12.3 handles capability negotiation automatically

@@ -69,282 +69,74 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 </div>
 
-## Installation
+## 📦 Installation & Setup
 
-### Choose Your Installation Method
+We recommend using our interactive setup wizard to configure the server securely.
 
-#### Option 1: From PyPI (Recommended - Coming Soon)
-```bash
-# Basic setup (mandatory parameters)
-uvx zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com
+### Quick Start (The "Wizard" Way)
 
-# With bot for AI agent features (add optional parameters)
-uvx zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com \
-  --zulip-bot-email bot@org.com \
-  --zulip-bot-api-key BOT_API_KEY
-```
+1.  **Run the Setup Wizard:**
+    ```bash
+    uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp-setup
+    ```
+    This tool will:
+    *   Help you find your `zuliprc` file (downloadable from Zulip Settings).
+    *   Validate your connection.
+    *   Automatically generate the configuration for **Claude Desktop** or **Gemini CLI**.
 
-#### Option 2: From GitHub (Available Now)
-```bash
-# Basic setup
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com
+### Manual Configuration (For Power Users)
 
-# With bot credentials
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com \
-  --zulip-bot-email bot@org.com \
-  --zulip-bot-api-key BOT_API_KEY
-```
+If you prefer to configure manually, download your `zuliprc` file from Zulip (**Settings** -> **Personal settings** -> **Account & privacy**) and point the server to it.
 
-#### Option 3: From Source (For Development)
-```bash
-git clone https://github.com/akougkas/zulipchat-mcp.git
-cd zulipchat-mcp
-uv sync
+**Gemini CLI / Claude Desktop Config:**
 
-# Run with mandatory parameters
-uv run zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com
-```
-
-### MCP Client Integration
-
-<details>
-<summary><b>Claude Desktop</b> - Click for configuration</summary>
-
-Add to `claude_desktop_config.json`:
-
-**From PyPI** (once published):
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
-      "args": ["zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
+      "args": [
+        "--from", "git+https://github.com/akougkas/zulipchat-mcp.git",
+        "zulipchat-mcp",
+        "--zulip-config-file", "/path/to/your/zuliprc"
+      ]
     }
   }
 }
 ```
 
-**From GitHub** (available now):
+**Dual Identity (User + AI Bot):**
+To enable your agent to send automated replies as a bot while reading as you:
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
+      "args": [
+        "--from", "git+https://github.com/akougkas/zulipchat-mcp.git",
+        "zulipchat-mcp",
+        "--zulip-config-file", "/path/to/user/zuliprc",
+        "--zulip-bot-config-file", "/path/to/bot/zuliprc"
+      ]
     }
   }
 }
 ```
-
-</details>
-
-<details>
-<summary><b>Claude Code</b> - Click for configuration</summary>
-
-```bash
-# From PyPI (once published)
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
-  -e ZULIP_API_KEY=your-api-key \
-  -e ZULIP_SITE=https://your-org.zulipchat.com \
-  -- uvx zulipchat-mcp
-
-# From GitHub (available now)
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
-  -e ZULIP_API_KEY=your-api-key \
-  -e ZULIP_SITE=https://your-org.zulipchat.com \
-  -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-
-# From TestPyPI (for testing)
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=bot@your-org.zulipchat.com \
-  -e ZULIP_API_KEY=your-api-key \
-  -e ZULIP_SITE=https://your-org.zulipchat.com \
-  -- uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp
-```
-
-</details>
-
-<details>
-<summary><b>Cursor/VS Code/Windsurf</b> - Click for configuration</summary>
-
-Add to your `mcp_config.json` or similar editor specific mcp config file:
-
-**From PyPI** (once published):
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-**From GitHub** (available now):
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/akougkas/zulipchat-mcp.git", "zulipchat-mcp"],
-      "env": {
-        "ZULIP_EMAIL": "bot@your-org.zulipchat.com",
-        "ZULIP_API_KEY": "your-api-key",
-        "ZULIP_SITE": "https://your-org.zulipchat.com"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-## Real-World Examples
-
-### AI-Powered Analytics & Insights
-```text
-You: "Show me engagement trends for #design this week with top contributors"
-AI: Design Channel Analytics (7 days):
-    • 40% increase in activity
-    • 127 messages (+32% vs last week)
-    • Top contributors: Alice (23), Bob (18), Carol (15)
-    • Peak activity: Tuesday 2-4pm
-    • Hot topics: accessibility (28%), mobile UX (22%)
-    • Collaboration score: 9.2/10
-```
-
-### Smart Workflow Automation
-```text
-You: "Schedule weekly standup reminders for #engineering every Monday at 9am"
-AI: Automated Standup System Created:
-    • Scheduled: Every Monday 9:00 AM
-    • Template: Previous week summary + upcoming milestones
-    • Auto-includes: Sprint progress & blockers
-    • Notifications: Team leads get preview 30min prior
-```
-
-### Intelligent File Management
-```text
-You: "Upload the new design mockups and share them in #design with context for review"
-AI: File Upload & Distribution Complete:
-    Uploaded: UI_Mockups_v3.2.pdf (4.2MB, 24 pages)
-    Auto-detected: Figma export, includes mobile & desktop views
-    Shared in #design with:
-      • Design review request template
-      • @design-leads tagged for approval
-      • Comparison links to previous version
-      • Review deadline: Next Friday
-```
-
-### Advanced Search & Discovery
-```text
-You: "Find all technical decisions made about authentication in the last month"
-AI: Technical Decision Discovery:
-    Found 8 authentication-related decisions:
-    • OAuth 2.0 implementation (approved - #backend)
-    • Multi-factor requirements (pending - #security)
-    • Session timeout policies (implemented - #devops)
-    • API key rotation (scheduled - #infrastructure)
-    Full decision log exported to #documentation
-```
-
-### Smart Daily Operations
-```text
-You: "Generate our comprehensive daily standup for engineering with blockers and sentiment"
-AI: Daily Engineering Standup Report:
-
-    Yesterday's Accomplishments (12 contributors):
-    • API endpoint refactoring completed (Alice, Bob)
-    • Mobile UI bugs fixed (Carol, Dan)
-    • Security audit findings addressed (Eve, Frank)
-
-    Current Blockers (3 identified):
-    • Database migration pending DBA review
-    • Third-party API rate limits affecting tests
-    • Design assets needed for new feature
-
-    Team Sentiment: 85% positive
-    Energy Level: High (sprint goals on track)
-    Notable: Team excited about upcoming hackathon
-
-    Sprint Progress: 68% complete (ahead of schedule)
-```
-
-## Releases
-
-### Latest: v2.5.0 - Enhanced Credential Management
-**43+ tools** with complete Zulip automation capabilities
-- [Release Notes](https://github.com/akougkas/zulipchat-mcp/releases/tag/v2.5.0)
-- [Release Documentation](docs/releases/v2.5.0/RELEASE_v2.5.0.md)
-- [Full Changelog](https://github.com/akougkas/zulipchat-mcp/blob/main/CHANGELOG.md)
-
-### Previous Versions
-- [v1.5.0](https://github.com/akougkas/zulipchat-mcp/releases/tag/v1.5.0) - Project management features
-- [v1.0.0](https://github.com/akougkas/zulipchat-mcp/releases/tag/v1.0.0) - Initial release
 
 ## ⚙️ Configuration Guide
 
-### Configuration Parameters
+### Authentication (Zuliprc)
+The server now strictly requires `zuliprc` files for authentication. This improves security by avoiding plain-text API keys in command arguments.
 
-| Parameter | Required | Description | Example |
-|-----------|----------|-------------|---------|
-| `--zulip-email` | Yes | Your Zulip user email | `user@org.com` |
-| `--zulip-api-key` | Yes | Your Zulip API key | `abcd1234...` |
-| `--zulip-site` | Yes | Your Zulip organization URL | `https://org.zulipchat.com` |
-| `--zulip-bot-email` | No | Bot email for AI agent features | `bot@org.com` |
-| `--zulip-bot-api-key` | No | Bot API key | `wxyz5678...` |
-| `--zulip-bot-name` | No | Custom bot display name | `AI Assistant` |
-| `--zulip-bot-avatar-url` | No | Bot avatar image URL | `https://...` |
+*   `--zulip-config-file PATH`: Path to your primary User `zuliprc`.
+*   `--zulip-bot-config-file PATH`: (Optional) Path to a Bot `zuliprc` for dual identity features.
 
-### Environment Variables
-```bash
-export ZULIP_EMAIL="bot@zulip.com"
-export ZULIP_API_KEY="your-key"
-export ZULIP_SITE="https://org.zulipchat.com"
-```
+### Safety Modes
+*   **Safe Mode (Default):** Restricts dangerous actions like deleting users or streams.
+*   **Unsafe Mode (`--unsafe`):** Enables administrative tools. Use with caution.
 
-### Config File
-Create `~/.config/zulipchat-mcp/config.json`:
-```json
-{
-  "email": "bot@zulip.com",
-  "api_key": "your-key",
-  "site": "https://org.zulipchat.com"
-}
-```
+### Debugging
+*   `--debug`: Enables detailed logging to stderr.
 
 ## Documentation
 
