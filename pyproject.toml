@@ -165,30 +165,31 @@ markers = [
 
 [tool.coverage.run]
 source = ["src/zulipchat_mcp"]
-omit = [
-  # Entry points and server setup (hard to unit test)
-  "src/zulipchat_mcp/server.py",
-  "src/zulipchat_mcp/config.py",
-  # Integrations and background services (external dependencies)
-  "src/zulipchat_mcp/integrations/*",
-  "src/zulipchat_mcp/services/*",
-  # Core infrastructure (requires live Zulip connection)
-  "src/zulipchat_mcp/core/client.py",
-  "src/zulipchat_mcp/core/cache.py",
-  "src/zulipchat_mcp/core/agent_tracker.py",
-  "src/zulipchat_mcp/core/service_manager.py",
-  "src/zulipchat_mcp/core/commands/*",
-  # Utilities with external dependencies
-  "src/zulipchat_mcp/utils/database*",
-  "src/zulipchat_mcp/utils/logging.py",
-  "src/zulipchat_mcp/utils/health.py",
-  # Tool modules (require mocked Zulip client for full coverage)
-  "src/zulipchat_mcp/tools/*.py",
-  # Core modules
-  "src/zulipchat_mcp/core/exceptions.py",
-  "src/zulipchat_mcp/core/identity.py",
-  "src/zulipchat_mcp/core/validation/*",
-]
+# omit = [
+#   # Entry points and server setup (hard to unit test)
+#   "src/zulipchat_mcp/server.py",
+#   "src/zulipchat_mcp/config.py",
+#   "src/zulipchat_mcp/setup_wizard.py",
+#   # Integrations and background services (external dependencies)
+#   "src/zulipchat_mcp/integrations/*",
+#   "src/zulipchat_mcp/services/*",
+#   # Core infrastructure (requires live Zulip connection)
+#   "src/zulipchat_mcp/core/client.py",
+#   "src/zulipchat_mcp/core/cache.py",
+#   "src/zulipchat_mcp/core/agent_tracker.py",
+#   "src/zulipchat_mcp/core/service_manager.py",
+#   "src/zulipchat_mcp/core/commands/*",
+#   # Utilities with external dependencies
+#   "src/zulipchat_mcp/utils/database*",
+#   "src/zulipchat_mcp/utils/logging.py",
+#   "src/zulipchat_mcp/utils/health.py",
+#   # Tool modules (require mocked Zulip client for full coverage)
+#   "src/zulipchat_mcp/tools/*.py",
+#   # Core modules
+#   "src/zulipchat_mcp/core/exceptions.py",
+#   "src/zulipchat_mcp/core/identity.py",
+#   "src/zulipchat_mcp/core/validation/*",
+# ]
 
 [tool.coverage.report]
 exclude_lines = [
