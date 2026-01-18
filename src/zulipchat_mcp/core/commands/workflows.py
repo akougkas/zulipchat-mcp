@@ -10,15 +10,68 @@ Reference: Building effective agents (https://www.anthropic.com/engineering/buil
 
 from typing import Any
 
+from ..client import ZulipClientWrapper
 from .engine import (
     AddReactionCommand,
+    Command,
     CommandChain,
     Condition,
     ConditionOperator,
+    ExecutionContext,
     GetMessagesCommand,
     ProcessDataCommand,
     SendMessageCommand,
 )
+
+
+class GenerateDigestCommand(Command):
+    """Command to generate a digest from context data."""
+
+    def __init__(self, stream_names: list[str], hours_back: int, **kwargs: Any) -> None:
+        super().__init__("generate_digest", "Generate message digest", **kwargs)
+        self.stream_names = stream_names
+        self.hours_back = hours_back
+
+    def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> str:
+        digest_lines = [f"# Daily Digest - Last {self.hours_back} hours\n"]
+        total_messages = 0
+
+        for i, stream_name in enumerate(self.stream_names):
+            messages = context.get(f"stream_{i}_messages", [])
+            total_messages += len(messages)
+
+            digest_lines.append(f"## #{stream_name} ({len(messages)} messages)")
+
+            if messages:
+                # Show recent message senders
+                senders: dict[str, int] = {}
+                for msg in messages:
+                    sender = msg.get("sender", "Unknown")
+                    senders[sender] = senders.get(sender, 0) + 1
+
+                top_senders = sorted(
+                    senders.items(), key=lambda x: x[1], reverse=True
+                )[:3]
+                if top_senders:
+                    digest_lines.append("Top contributors:")
+                    for sender, count in top_senders:
+                        digest_lines.append(f"- {sender}: {count} messages")
+
+            digest_lines.append("")
+
+        digest_lines.append(
+            f"**Total messages across all streams: {total_messages}**"
+        )
+        content = "\n".join(digest_lines)
+        
+        # Store in context
+        context.set("digest_content", content)
+        return content
+
+    def _rollback_impl(
+        self, context: ExecutionContext, client: ZulipClientWrapper
+    ) -> None:
+        pass
 
 
 class ChainBuilder:
@@ -117,7 +170,8 @@ class ChainBuilder:
 
             chain.add_command(
                 AddReactionCommand(
-                    conditions=[Condition("last_message_id", ConditionOperator.EXISTS)]
+                    conditions=[Condition("last_message_id", ConditionOperator.EXISTS)],
+                    message_id_key="last_message_id",
                 )
             )
 
@@ -192,45 +246,11 @@ class ChainBuilder:
                 )
             )
 
-        # Generate digest
-        def create_digest(context_data: dict[str, Any]) -> str:
-            digest_lines = [f"# Daily Digest - Last {hours_back} hours\n"]
-            total_messages = 0
-
-            for i, stream_name in enumerate(stream_names):
-                messages = context_data.get(f"stream_{i}_messages", [])
-                total_messages += len(messages)
-
-                digest_lines.append(f"## #{stream_name} ({len(messages)} messages)")
-
-                if messages:
-                    # Show recent message senders
-                    senders: dict[str, int] = {}
-                    for msg in messages:
-                        sender = msg["sender"]
-                        senders[sender] = senders.get(sender, 0) + 1
-
-                    top_senders = sorted(
-                        senders.items(), key=lambda x: x[1], reverse=True
-                    )[:3]
-                    if top_senders:
-                        digest_lines.append("Top contributors:")
-                        for sender, count in top_senders:
-                            digest_lines.append(f"- {sender}: {count} messages")
-
-                digest_lines.append("")
-
-            digest_lines.append(
-                f"**Total messages across all streams: {total_messages}**"
-            )
-            return "\n".join(digest_lines)
-
+        # Generate digest using custom command that can access full context
         chain.add_command(
-            ProcessDataCommand(
-                name="generate_digest",
-                processor=create_digest,
-                input_key="dummy",
-                output_key="digest_content",
+            GenerateDigestCommand(
+                stream_names=stream_names,
+                hours_back=hours_back,
             )
         )
 

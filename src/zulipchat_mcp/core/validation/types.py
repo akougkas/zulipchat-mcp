@@ -97,6 +97,11 @@ class ParameterSchema:
         self.min_value = None
         self.max_value = None
         self.pattern = None
+        
+        # Initialize flags with defaults
+        self.basic_param = False
+        self.advanced_param = False
+        self.expert_param = False
 
         # Handle any additional kwargs
         for key, value in kwargs.items():

@@ -41,7 +41,9 @@ class DatabaseManager:
         self.conn: duckdb.DuckDBPyConnection | None = None
         self._write_lock = threading.RLock()
 
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        dirname = os.path.dirname(db_path)
+        if dirname:
+            os.makedirs(dirname, exist_ok=True)
 
         # Retry loop for handling transient lock issues
         last_error: Exception | None = None
