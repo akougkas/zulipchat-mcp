@@ -335,7 +335,7 @@ class ZulipClientWrapper:
             {"message_id": message_id, "emoji_name": emoji_name}
         )
 
-    # Additional endpoints used by v2.5 tools
+    # Additional endpoints used by v0.4 tools
     def update_message(self, request: dict[str, Any]) -> dict[str, Any]:
         return self.client.update_message(request)
 
@@ -513,7 +513,7 @@ class ZulipClientWrapper:
         return self.client.update_message(request)
 
     # -------------------------
-    # Missing wrapper methods (v2.5 blockers)
+    # Missing wrapper methods (v0.4 blockers)
     # -------------------------
 
     def get_user_by_email(

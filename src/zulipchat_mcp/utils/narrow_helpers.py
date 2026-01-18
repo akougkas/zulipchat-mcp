@@ -2,7 +2,7 @@
 
 This module provides enhanced narrow building utilities ported from the legacy
 messaging_simple.py implementation, combining the simplicity of legacy helpers
-with the type safety and power of v2.5.0 architecture.
+with the type safety and power of v0.4.0 architecture.
 
 Key features:
 - Simple narrow builders for common use cases
@@ -58,7 +58,7 @@ def validate_and_convert_int(value: Any, param_name: str) -> int:
 
 
 class NarrowHelper:
-    """Enhanced narrow filter helpers combining legacy simplicity with v2.5.1 power.
+    """Enhanced narrow filter helpers combining legacy simplicity with v0.4.0 power.
 
     This class provides both simple static methods for quick narrow building
     and more advanced features for complex filtering scenarios.
@@ -660,7 +660,7 @@ def build_basic_narrow(
     """Convenience function for building basic narrow filters.
 
     This function provides the same interface as the legacy NarrowHelper.build_basic_narrow()
-    while leveraging the enhanced v2.5.1 implementation.
+    while leveraging the enhanced v0.4.0 implementation.
 
     Args:
         stream: Stream name to filter by

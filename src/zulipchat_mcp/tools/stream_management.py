@@ -1,4 +1,4 @@
-"""Stream reader tools for ZulipChat MCP v2.5.1.
+"""Stream reader tools for ZulipChat MCP v0.4.0.
 
 READ-ONLY stream operations to protect organization from AI changes.
 Simple stream discovery and information retrieval only.

@@ -117,7 +117,7 @@ def main() -> None:
 
     # Register all tools
     # Safety mode is enforced at the tool level via @require_unsafe_mode decorator
-    logger.info("Registering v2.5.1 tools...")
+    logger.info("Registering v0.4.0 tools...")
 
     # Core messaging
     register_messaging_tools(mcp)          # Send/Edit messages

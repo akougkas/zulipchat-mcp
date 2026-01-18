@@ -1,8 +1,8 @@
 """Command chain tools for workflow automation.
 
-Cleanup (v2.5):
+Cleanup (v0.4):
 - Replace legacy search import with a thin adaptor to `search_v25.advanced_search`.
-  This keeps command chains working while aligning with the v2.5 tool surface.
+  This keeps command chains working while aligning with the v0.4 tool surface.
 """
 
 import asyncio
@@ -71,12 +71,12 @@ class SearchMessagesCommand(Command):
     def execute(
         self, context: ExecutionContext, client: ZulipClientWrapper
     ) -> dict[str, Any]:
-        """Execute search via v2.5 advanced_search adaptor.
+        """Execute search via v0.4 advanced_search adaptor.
 
         Returns a legacy-shaped dict with a top-level "messages" list
         for backward compatibility with prior command chains.
         """
-        from .search import advanced_search  # v2.5 tool
+        from .search import advanced_search  # v0.4 tool
 
         query = context.get(self.query_key)
         if not query:
@@ -84,7 +84,7 @@ class SearchMessagesCommand(Command):
 
         async def _run() -> dict[str, Any]:
             res = await advanced_search(query, search_type=["messages"], limit=100)
-            # Map v2.5 shape -> legacy shape expected by chains/tests
+            # Map v0.4 shape -> legacy shape expected by chains/tests
             msgs = res.get("results", {}).get("messages", {}).get("messages", [])
             return {"status": res.get("status", "success"), "messages": msgs}
 
@@ -195,11 +195,11 @@ def list_command_types() -> list[str]:
 
 def register_command_tools(mcp: Any) -> None:
     mcp.tool(
-        description="Execute sophisticated command chains for workflow automation: supports sequential command execution with shared context, includes 4 command types (send_message, wait_for_response, search_messages, conditional_action), provides conditional branching with Python expressions, maintains execution context across commands, integrates with v2.5 tools (advanced_search adapter), handles async operations with fallback loops, and returns comprehensive execution summary with final context. Ideal for complex multi-step workflows like interactive conversations, data processing pipelines, and automated response systems."
+        description="Execute sophisticated command chains for workflow automation: supports sequential command execution with shared context, includes 4 command types (send_message, wait_for_response, search_messages, conditional_action), provides conditional branching with Python expressions, maintains execution context across commands, integrates with v0.4 tools (advanced_search adapter), handles async operations with fallback loops, and returns comprehensive execution summary with final context. Ideal for complex multi-step workflows like interactive conversations, data processing pipelines, and automated response systems."
     )(execute_chain)
 
     mcp.tool(
-        description="List all available command types for workflow construction: returns supported command types array including send_message (Zulip messaging), wait_for_response (user input polling), search_messages (message query with v2.5 integration), and conditional_action (branching logic with Python expressions). Essential reference for building command chains with execute_chain. Each command type supports specific parameters and context integration for sophisticated workflow automation and multi-step operations."
+        description="List all available command types for workflow construction: returns supported command types array including send_message (Zulip messaging), wait_for_response (user input polling), search_messages (message query with v0.4 integration), and conditional_action (branching logic with Python expressions). Essential reference for building command chains with execute_chain. Each command type supports specific parameters and context integration for sophisticated workflow automation and multi-step operations."
     )(list_command_types)
 
 

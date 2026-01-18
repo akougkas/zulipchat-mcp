@@ -1,4 +1,4 @@
-"""Topic management tools for ZulipChat MCP v2.5.1.
+"""Topic management tools for ZulipChat MCP v0.4.0.
 
 Identity-protected topic operations:
 - READ-ONLY for user identity (protects organization)

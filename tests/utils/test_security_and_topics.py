@@ -70,7 +70,7 @@ def test_security_validators_smoke() -> None:
     assert sanitize_input("<b>hi</b>`rm -rf`") == "&lt;b&gt;hi&lt;/b&gt;rm -rf"
     assert validate_stream_name("dev-stream_1.0")
     assert not validate_stream_name("bad/../../name")
-    assert validate_topic("Release (v2.5)!?")
+    assert validate_topic("Release (v0.4)!?")
     assert not validate_topic("")
     assert validate_emoji("thumbs_up") and not validate_emoji("bad name!")
     assert validate_email("user@example.com") and not validate_email("nope@bad")

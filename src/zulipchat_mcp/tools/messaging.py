@@ -1,4 +1,4 @@
-"""Core messaging tools for ZulipChat MCP v2.5.1.
+"""Core messaging tools for ZulipChat MCP v0.4.0.
 
 Clean implementation focused ONLY on core send/edit operations.
 Reactions moved to emoji_messaging.py, bulk ops moved to mark_messaging.py.

@@ -1,4 +1,4 @@
-"""Tests for simplified ErrorHandler v2.5.0 functionality (no circuit breaker)."""
+"""Tests for simplified ErrorHandler v0.4.0 functionality (no circuit breaker)."""
 
 from __future__ import annotations
 

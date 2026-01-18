@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    # Prefer v2.5 core client directly (avoid top-level wrappers)
+    # Prefer v0.4 core client directly (avoid top-level wrappers)
     from ..config import ConfigManager
     from ..core.client import ZulipClientWrapper
 

@@ -1,4 +1,4 @@
-"""Event system tools for ZulipChat MCP v2.5.1.
+"""Event system tools for ZulipChat MCP v0.4.0.
 
 Core event handling: register, poll, listen, deregister.
 Direct mapping to Zulip's event API endpoints.

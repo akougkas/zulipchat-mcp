@@ -1,4 +1,4 @@
-"""AI-powered analytics tools for ZulipChat MCP v2.5.1.
+"""AI-powered analytics tools for ZulipChat MCP v0.4.0.
 
 High-level analytical tools that use LLM elicitation for sophisticated insights.
 Fetches raw Zulip data and processes with LLM reasoning instead of built-in complexity.

@@ -1,6 +1,6 @@
-"""Tests for tool reliability improvements in v2.5.1.
+"""Tests for tool reliability improvements in v0.4.0.
 
-This module tests the key fixes implemented in v2.5.1:
+This module tests the key fixes implemented in v0.4.0:
 1. Type validation with string-to-int conversion
 2. User resolution with fuzzy matching
 3. Structured error messages with recovery guidance

@@ -1,6 +1,6 @@
 # Installation Guide
 
-Complete installation guide for ZulipChat MCP v2.5.0 with multiple deployment options.
+Complete installation guide for ZulipChat MCP v0.3.0 with multiple deployment options.
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ For production environments:
 uv pip install git+https://github.com/akougkas/zulipchat-mcp.git
 
 # Or install specific version/tag
-uv pip install git+https://github.com/akougkas/zulipchat-mcp.git@v2.5.0
+uv pip install git+https://github.com/akougkas/zulipchat-mcp.git@v0.3.0
 ```
 
 ### Method 3: PyPI Installation

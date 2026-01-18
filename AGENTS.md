@@ -73,5 +73,5 @@
 - [File Tools](docs/api-reference/files.md) - File operations
 
 ### Release Documentation
-- [Current Release (v2.5.0)](docs/releases/v2.5.0/RELEASE_v2.5.0.md)
+- [Current Release (v0.4.0)](docs/releases/v0.4.0/RELEASE_v0.4.0.md)
 - [Full Documentation Index](docs/README.md)

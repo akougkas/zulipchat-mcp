@@ -1,4 +1,4 @@
-"""Agent communication tools for ZulipChat MCP v2.5.1.
+"""Agent communication tools for ZulipChat MCP v0.4.0.
 
 This module is a stub that delegates to agents.py for backwards compatibility.
 The actual implementation lives in agents.py to avoid duplication.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ZulipChat MCP Server v2.5.1 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.4.0 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -83,14 +83,14 @@ The client supports both user and bot credentials:
 - Bot identity for posting messages and administrative tasks
 - Identity switching via `switch_identity` tool
 
-### Import Patterns (v2.5)
+### Import Patterns (v0.4)
 All imports follow the new modular structure:
 ```python
 from src.zulipchat_mcp.core.client import ZulipClientWrapper
 from src.zulipchat_mcp.tools.messaging import register_messaging_tools
 ```
 
-**Important**: The codebase underwent complete v2.5 architectural refactor. Previous flat imports like `from zulipchat_mcp.client import` are deprecated.
+**Important**: The codebase underwent complete v0.4 architectural refactor. Previous flat imports like `from zulipchat_mcp.client import` are deprecated.
 
 ## Tool Registration Pattern
 
@@ -166,15 +166,15 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 ## Security Notes
 - Never commit credentials to repository
 - Use `.env` file (gitignored) for local development
-- Administrative tools removed from AI access in v2.5 for security
+- Administrative tools removed from AI access in v0.4 for security
 - All credentials handled via environment variables or CLI arguments
 
 ## Common Issues
 
 ### Import Errors
-Ensure using v2.5 import paths:
+Ensure using v0.4 import paths:
 ```python
-# Correct (v2.5)
+# Correct (v0.4)
 from src.zulipchat_mcp.core.client import ZulipClientWrapper
 
 # Incorrect (legacy)

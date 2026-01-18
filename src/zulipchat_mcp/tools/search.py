@@ -1,4 +1,4 @@
-"""Search tools for ZulipChat MCP v2.5.1.
+"""Search tools for ZulipChat MCP v0.4.0.
 
 Core search operations: search messages, advanced search, narrow construction.
 Analytics moved to ai_analytics.py for LLM elicitation.

@@ -1,4 +1,4 @@
-"""Message marking tools for ZulipChat MCP v2.5.1.
+"""Message marking tools for ZulipChat MCP v0.4.0.
 
 Clean implementation of Zulip's message flag update API endpoints.
 Uses modern "update personal message flags for narrow" instead of deprecated endpoints.

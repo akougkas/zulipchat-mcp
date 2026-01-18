@@ -1,4 +1,4 @@
-"""Tool parameter schemas for all v2.5.0 ZulipChat MCP tools."""
+"""Tool parameter schemas for all v0.4.0 ZulipChat MCP tools."""
 
 from __future__ import annotations
 

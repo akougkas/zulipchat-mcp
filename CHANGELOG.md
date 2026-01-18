@@ -14,7 +14,7 @@
   - TestPyPI installation for pre-release testing
 - Added GitHub Actions workflow for automated PyPI publishing
 - Added MANIFEST.in for proper package distribution
-- Reorganized documentation structure (moved release notes to docs/releases/v2.5.0/)
+- Reorganized documentation structure (moved release notes to docs/releases/v0.4.0/)
 
 ### Claude Code Integration
 - Fixed Claude Code MCP integration syntax with proper `--` separator
@@ -24,12 +24,12 @@
 ### Project Organization
 - Updated .gitignore to exclude agent-specific configuration files
 - Enhanced development documentation for AI agents (AGENTS.md, CLAUDE.md)
-- Ready for public v2.5.0 PyPI release
+- Ready for public v0.4.0 PyPI release
 
 ## [2.5.0] - 2025-09-13 — Fixes & Test Polish
 
 ### Fixes
-- core(client): Implement missing wrapper methods used by v2.5 tools — `get_user_by_email`, `get_user_by_id`, `get_message`, `update_message_flags`, and events methods `register`/`deregister`/`get_events`. These restore users_v25, messaging_v25 bulk ops, and events_v25 flows.
+- core(client): Implement missing wrapper methods used by v0.4 tools — `get_user_by_email`, `get_user_by_id`, `get_message`, `update_message_flags`, and events methods `register`/`deregister`/`get_events`. These restore users_v25, messaging_v25 bulk ops, and events_v25 flows.
 - core(client): Normalize parameter handling for `get_subscribers(stream_id=...)` and make `add_subscriptions(...)` accept both `subscriptions=[...]` (tools) and `streams=[...]` (legacy SDK) with optional `principals`/`announce`/`authorization_errors_fatal`.
 
 ### Tests
@@ -57,7 +57,7 @@
 ### 📄 Documentation
 - New testing guide at `docs/testing/README.md` (scope, fixtures/fakes, contract tests, coverage gate, cleaning, performance tips).
 - Note in `AGENTS.md` about contract-only runs and the coverage gate.
-- v2.5.0 documentation set retained under `docs/releases/v2.5.0/` (reviewed alongside the testing work). Documentation efforts were coordinated with the Claude agent; this release bundles the testing and docs improvements.
+- v0.4.0 documentation set retained under `docs/releases/v0.4.0/` (reviewed alongside the testing work). Documentation efforts were coordinated with the Claude agent; this release bundles the testing and docs improvements.
 
 ### Result
 - Full run: 253 passed, 3 skipped; total coverage 90.08% (gate met).

@@ -1,4 +1,4 @@
-"""Pytest configuration and shared fixtures for Zulip MCP v2.5.1 tests."""
+"""Pytest configuration and shared fixtures for Zulip MCP v0.4.0 tests."""
 
 from __future__ import annotations
 

@@ -382,7 +382,7 @@ ScheduledMessage(scheduled_id=some_id, ...)
 
 1. **Rapid prototyping** - Type hints were deprioritized during initial development
 2. **SDK evolution** - Zulip SDK signatures may have changed
-3. **v2.5 refactor** - Module consolidation left some type inconsistencies
+3. **v0.4 refactor** - Module consolidation left some type inconsistencies
 4. **FastMCP types** - New MCP types weren't fully integrated
 
 ### Risk Areas

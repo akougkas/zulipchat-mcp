@@ -1,4 +1,4 @@
-"""User management tools for ZulipChat MCP v2.5.1.
+"""User management tools for ZulipChat MCP v0.4.0.
 
 Clean READ-ONLY user operations based on Zulip API endpoints.
 No user creation/editing - just reading, searching, and matching users.

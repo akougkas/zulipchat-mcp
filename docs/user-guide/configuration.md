@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Complete configuration guide for ZulipChat MCP v2.5.0 including credentials, identity management, and server settings.
+Complete configuration guide for ZulipChat MCP v0.3.0 including credentials, identity management, and server settings.
 
 ## Configuration Overview
 

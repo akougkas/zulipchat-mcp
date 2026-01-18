@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get up and running with ZulipChat MCP v2.5.0 in minutes. This guide covers basic usage patterns and common operations.
+Get up and running with ZulipChat MCP v0.3.0 in minutes. This guide covers basic usage patterns and common operations.
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ uv run python -m src.zulipchat_mcp.server --debug
 ### Expected Output
 
 ```
-[INFO] ZulipChat MCP v2.5.0 starting...
+[INFO] ZulipChat MCP v0.3.0 starting...
 [INFO] Identity: User (your@email.com)
 [INFO] Connected to: Your Organization (yourorg.zulipchat.com)  
 [INFO] Available tools: 23 (7 categories)

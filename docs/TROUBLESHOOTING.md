@@ -585,7 +585,7 @@ The system automatically retries failed operations:
 - **Max attempts**: 3 (configurable)
 
 **Circuit Breaker**:
-> ⚠️ **NOTE**: Circuit breaker was removed from v2.5.0 as "over-engineering for MCP adapter pattern". The code comment states MCP servers should be stateless adapters.
+> ⚠️ **NOTE**: Circuit breaker was removed from v0.3.0 as "over-engineering for MCP adapter pattern". The code comment states MCP servers should be stateless adapters.
 
 ### Manual Recovery
 
@@ -779,6 +779,6 @@ sed 's/[a-zA-Z0-9._%+-]\+@[a-zA-Z0-9.-]\+\.[a-zA-Z]\{2,\}/***EMAIL***/g'
 
 ---
 
-This troubleshooting guide covers the most common issues with ZulipChat MCP v2.5.0. For additional help, consult the [API Reference](api-reference/) documentation or seek community support.
+This troubleshooting guide covers the most common issues with ZulipChat MCP v0.3.0. For additional help, consult the [API Reference](api-reference/) documentation or seek community support.
 
 **Related**: [Configuration Guide](user-guide/configuration.md) | [Migration Guide](migration-guide.md)

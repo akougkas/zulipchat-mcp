@@ -1,4 +1,4 @@
-"""File management tools for ZulipChat MCP v2.5.1.
+"""File management tools for ZulipChat MCP v0.4.0.
 
 Complete file operations including upload, management, sharing, and security validation.
 All functionality from the complex v25 architecture preserved in minimal code.

@@ -63,7 +63,7 @@ A comprehensive Model Context Protocol (MCP) server for Zulip integration with a
 
 ## 🔄 Version Compatibility
 
-- **Current**: v2.5.0 (active development)
+- **Current**: v0.3.0 (active development)
 - **Legacy tools**: Supported with deprecation warnings
 - **Migration timeline**: Legacy removal in v3.0.0  
 - **Python support**: 3.10, 3.11, 3.12
@@ -104,9 +104,9 @@ events = await get_events(queue["queue_id"])
 
 ## 📈 Migration Path
 
-1. **Current state**: Legacy and v2.5.0 tools coexist
+1. **Current state**: Legacy and v0.3.0 tools coexist
 2. **Transition phase**: Gradual adoption with compatibility warnings
-3. **Target state**: Pure v2.5.0 architecture (v3.0.0)
+3. **Target state**: Pure v0.3.0 architecture (v3.0.0)
 
 ## 🆘 Getting Help
 
@@ -118,4 +118,4 @@ events = await get_events(queue["queue_id"])
 
 ---
 
-**ZulipChat MCP v2.5.0** - Production-ready MCP server with comprehensive Zulip integration
+**ZulipChat MCP v0.3.0** - Production-ready MCP server with comprehensive Zulip integration

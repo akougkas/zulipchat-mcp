@@ -1,4 +1,4 @@
-"""System tools for ZulipChat MCP v2.5.1.
+"""System tools for ZulipChat MCP v0.4.0.
 
 System information and identity management tools.
 """
@@ -45,7 +45,7 @@ async def server_info() -> dict[str, Any]:
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "2.5.1",
+        "version": "0.4.0",
         "available_identities": {
             "user": {"available": True, "email": config.config.email},
             "bot": {

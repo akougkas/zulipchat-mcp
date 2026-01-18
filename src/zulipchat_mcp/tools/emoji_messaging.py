@@ -1,4 +1,4 @@
-"""Emoji reaction tools for ZulipChat MCP v2.5.1.
+"""Emoji reaction tools for ZulipChat MCP v0.4.0.
 
 Clean implementation of Zulip's emoji reaction API endpoints.
 Direct mapping to add/remove reaction APIs.

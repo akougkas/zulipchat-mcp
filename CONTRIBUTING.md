@@ -75,11 +75,11 @@ src/zulipchat_mcp/
 └── config.py       # Configuration management
 ```
 
-Tool group pattern (v2.5):
+Tool group pattern (v0.4):
 
 - New tools live under `src/zulipchat_mcp/tools/`
 - Expose a registration function like `register_*_tools(mcp)` that mirrors existing modules
-- Follow v2.5 import style (no legacy flat imports):
+- Follow v0.4 import style (no legacy flat imports):
 
 ```python
 from src.zulipchat_mcp.core.client import ZulipClientWrapper
@@ -163,7 +163,7 @@ Before requesting review, please ensure:
 - [ ] No secrets, keys, or credentials in code, tests, or commit history
 - [ ] Docs updated if behavior, CLI flags, or tool APIs changed (`README.md`, `AGENTS.md`, `CLAUDE.md`)
 - [ ] Example CLI invocation/output included when relevant
-- [ ] For tools: follows v2.5 registration pattern under `src/zulipchat_mcp/tools/`
+- [ ] For tools: follows v0.4 registration pattern under `src/zulipchat_mcp/tools/`
 
 Review & merge:
 
