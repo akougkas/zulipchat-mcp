@@ -94,18 +94,17 @@ async def agents_channel_topic_ops(
             ):
                 return {"status": "error", "error": "No messages found in source topic"}
 
-            # Use edit_message to move the topic
-            from .messaging import edit_message
-
+            # Use the existing bot client directly to preserve identity
+            # (Do NOT import edit_message wrapper - it creates new user client)
             message_id = search_result["messages"][0]["id"]
 
-            edit_result = await edit_message(
+            edit_result = client.edit_message(
                 message_id=message_id,
                 topic=target_topic,
                 propagate_mode=propagate_mode,
             )
 
-            if edit_result.get("status") == "success":
+            if edit_result.get("result") == "success":
                 return {
                     "status": "success",
                     "operation": "move",

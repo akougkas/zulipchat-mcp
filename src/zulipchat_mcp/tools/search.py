@@ -188,32 +188,9 @@ def build_narrow(
         else:
             narrow.append({"operator": "is", "operand": "mentioned", "negated": True})
 
-    # Time filters (priority order)
-    if last_hours:
-        hours = int(last_hours) if isinstance(last_hours, str) else last_hours
-        cutoff_time = datetime.now() - timedelta(hours=hours)
-        narrow.append(
-            {"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"}
-        )
-    elif last_days:
-        days = int(last_days) if isinstance(last_days, str) else last_days
-        cutoff_time = datetime.now() - timedelta(days=days)
-        narrow.append(
-            {"operator": "search", "operand": f"after:{cutoff_time.isoformat()}"}
-        )
-    elif after_time:
-        time_str = (
-            after_time.isoformat() if isinstance(after_time, datetime) else after_time
-        )
-        narrow.append({"operator": "search", "operand": f"after:{time_str}"})
-
-    if before_time:
-        time_str = (
-            before_time.isoformat()
-            if isinstance(before_time, datetime)
-            else before_time
-        )
-        narrow.append({"operator": "search", "operand": f"before:{time_str}"})
+    # Note: Time filters are NOT added to narrow - Zulip's get_messages API
+    # doesn't support search operator with after:/before: syntax.
+    # Time filtering is done client-side in search_messages().
 
     return narrow
 
@@ -297,7 +274,7 @@ async def search_messages(
                     },
                 }
 
-        # Build narrow filter
+        # Build narrow filter (without time - handled via anchor_date)
         narrow = build_narrow(
             stream=stream,
             topic=topic,
@@ -309,18 +286,56 @@ async def search_messages(
             is_private=is_private,
             is_starred=is_starred,
             is_mentioned=is_mentioned,
-            last_hours=last_hours,
-            last_days=last_days,
-            after_time=after_time,
-            before_time=before_time,
         )
 
+        # Determine anchor strategy based on time filters and sort
+        anchor: str = "newest"
+        anchor_date: str | None = None
+        num_before = limit
+        num_after = 0
+
+        # Time-based filtering uses anchor="date" (Zulip 12.0+, feature level 445)
+        # NOTE: anchor_date positions the anchor but does NOT filter - post-fetch filtering required
+        cutoff_ts: float | None = None
+        before_ts: float | None = None
+
+        if last_hours or last_days or after_time:
+            # Calculate cutoff time
+            if last_hours:
+                hours = int(last_hours) if isinstance(last_hours, str) else last_hours
+                cutoff = datetime.now() - timedelta(hours=hours)
+            elif last_days:
+                days = int(last_days) if isinstance(last_days, str) else last_days
+                cutoff = datetime.now() - timedelta(days=days)
+            elif after_time:
+                cutoff = after_time if isinstance(after_time, datetime) else datetime.fromisoformat(str(after_time))
+            else:
+                cutoff = None
+
+            if cutoff:
+                anchor = "date"
+                anchor_date = cutoff.isoformat()
+                cutoff_ts = cutoff.timestamp()
+                # When using anchor_date, we want messages AFTER the cutoff
+                num_before = 0
+                num_after = limit
+
+        if before_time:
+            bt = before_time if isinstance(before_time, datetime) else datetime.fromisoformat(str(before_time))
+            before_ts = bt.timestamp()
+
+        if sort_by == "oldest" and anchor != "date":
+            anchor = "oldest"
+            num_before = 0
+            num_after = limit
+
         # Execute search
-        anchor = "newest" if sort_by == "newest" else "oldest"
         result = client.get_messages_raw(
             anchor=anchor,
+            anchor_date=anchor_date,
             narrow=cast(list[dict[str, Any]], narrow),
-            num_before=limit,
+            num_before=num_before,
+            num_after=num_after,
             include_anchor=True,
             client_gravatar=True,
             apply_markdown=True,
@@ -328,6 +343,12 @@ async def search_messages(
 
         if result.get("result") == "success":
             messages = result.get("messages", [])
+
+            # Post-fetch time filtering (anchor_date positions anchor, doesn't filter)
+            if cutoff_ts is not None:
+                messages = [m for m in messages if m["timestamp"] >= cutoff_ts]
+            if before_ts is not None:
+                messages = [m for m in messages if m["timestamp"] <= before_ts]
 
             # Process messages for response
             processed_messages = []

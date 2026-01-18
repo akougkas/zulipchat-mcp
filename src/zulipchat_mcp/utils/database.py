@@ -2,10 +2,24 @@
 
 import os
 import threading
+import time
 from datetime import datetime
 from typing import Any
 
 import duckdb
+
+
+class DatabaseLockedError(Exception):
+    """Raised when the database is locked by another process."""
+
+    def __init__(self, db_path: str, original_error: Exception):
+        self.db_path = db_path
+        self.original_error = original_error
+        super().__init__(
+            f"Database is locked by another process: {db_path}. "
+            "Another MCP server instance may be running. "
+            f"Original error: {original_error}"
+        )
 
 
 class DatabaseManager:
@@ -15,15 +29,39 @@ class DatabaseManager:
     and connection management.
     """
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, max_retries: int = 3, retry_delay: float = 0.2) -> None:
         """Initialize database manager with connection and migrations.
 
         Args:
             db_path: Path to the DuckDB database file
+            max_retries: Maximum number of connection attempts on lock
+            retry_delay: Delay between retries in seconds
         """
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.conn = duckdb.connect(db_path)
+        self.db_path = db_path
+        self.conn: duckdb.DuckDBPyConnection | None = None
         self._write_lock = threading.RLock()
+
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+        # Retry loop for handling transient lock issues
+        last_error: Exception | None = None
+        for attempt in range(max_retries):
+            try:
+                self.conn = duckdb.connect(db_path)
+                break
+            except duckdb.IOException as e:
+                last_error = e
+                if "lock" in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    continue
+                raise DatabaseLockedError(db_path, e) from e
+            except Exception as e:
+                last_error = e
+                raise
+
+        if self.conn is None:
+            raise DatabaseLockedError(db_path, last_error or Exception("Unknown error"))
+
         self.run_migrations()
 
     def run_migrations(self) -> None:
@@ -237,7 +275,16 @@ class DatabaseManager:
     def close(self) -> None:
         """Close the database connection."""
         if self.conn:
-            self.conn.close()
+            try:
+                self.conn.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            finally:
+                self.conn = None
+
+    def __del__(self) -> None:
+        """Ensure connection is closed on garbage collection."""
+        self.close()
 
 
 # Global database manager instance

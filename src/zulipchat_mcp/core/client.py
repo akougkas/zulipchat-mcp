@@ -158,9 +158,21 @@ class ZulipClientWrapper:
         include_anchor: bool = True,
         client_gravatar: bool = True,
         apply_markdown: bool = True,
+        anchor_date: str | None = None,
     ) -> dict[str, Any]:
-        """Get raw messages response from Zulip API."""
-        request = {
+        """Get raw messages response from Zulip API.
+
+        Args:
+            anchor: Message ID or special value ("newest", "oldest", "first_unread", "date")
+            anchor_date: ISO 8601 datetime string, required when anchor="date" (Zulip 12.0+)
+            num_before: Number of messages before anchor to fetch
+            num_after: Number of messages after anchor to fetch
+            narrow: List of narrow filter dicts
+            include_anchor: Whether to include the anchor message
+            client_gravatar: Use client-side gravatar
+            apply_markdown: Render markdown in content
+        """
+        request: dict[str, Any] = {
             "anchor": anchor,
             "num_before": num_before,
             "num_after": num_after,
@@ -169,6 +181,10 @@ class ZulipClientWrapper:
             "client_gravatar": client_gravatar,
             "apply_markdown": apply_markdown,
         }
+
+        # Add anchor_date for time-based queries (Zulip 12.0+, feature level 445)
+        if anchor == "date" and anchor_date:
+            request["anchor_date"] = anchor_date
 
         return self.client.get_messages(request)
 
@@ -419,9 +435,11 @@ class ZulipClientWrapper:
         return self.client.get_stream_id(stream)
 
     def get_subscribers(self, stream_id: int) -> dict[str, Any]:
-        """Get subscribers for a stream with fallback methods."""
-        if hasattr(self.client, "get_subscribers"):
-            return self.client.get_subscribers(stream_id=stream_id)
+        """Get subscribers for a stream by ID.
+
+        Note: SDK's get_subscribers expects stream name, not ID.
+        We use call_endpoint directly with stream_id for efficiency.
+        """
         return self.client.call_endpoint(
             f"streams/{stream_id}/members", method="GET", request={}
         )

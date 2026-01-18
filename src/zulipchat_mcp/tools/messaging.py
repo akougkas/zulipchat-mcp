@@ -34,6 +34,10 @@ async def send_message(
     if type == "stream" and not topic:
         return {"status": "error", "error": "Topic required for stream messages"}
 
+    # Validate recipient is not empty
+    if not to or (isinstance(to, list) and len(to) == 0):
+        return {"status": "error", "error": "Recipient list cannot be empty"}
+
     # Content sanitization
     safe_content = sanitize_content(content)
 

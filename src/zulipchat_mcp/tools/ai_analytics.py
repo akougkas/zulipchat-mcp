@@ -246,7 +246,10 @@ async def intelligent_report_generator(
         )
 
         if team_activity.get("status") != "success":
-            return {"status": "error", "error": "Failed to gather team activity data"}
+            return {
+                "status": "error",
+                "error": team_activity.get("error", "Failed to gather team activity data"),
+            }
 
         analysis = team_activity.get("analysis", "")
 
