@@ -469,7 +469,7 @@ migration = ToolMigration(
         "subject": "topic"
     },
     status=MigrationStatus.DEPRECATED,
-    deprecated_since="2.5.0",
+    deprecated_since="0.4.0",
     removal_version="3.0.0"
 )
 ```

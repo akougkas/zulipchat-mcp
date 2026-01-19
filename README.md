@@ -9,9 +9,9 @@
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
   [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-  [![Version](https://img.shields.io/badge/Version-2.5.1-green)](https://github.com/akougkas/zulipchat-mcp)
+  [![Version](https://img.shields.io/badge/Version-0.4.0-green)](https://github.com/akougkas/zulipchat-mcp)
   [![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
-  [![Coverage](https://img.shields.io/badge/Coverage-85%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
+  [![Coverage](https://img.shields.io/badge/Coverage-60%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
   [![Code Style](https://img.shields.io/badge/Code%20Style-Black-black)](https://github.com/psf/black)
 
   [🚀 Quick Start](#-quick-start) • [📦 Installation](#-installation) • [📚 Features](#-what-can-you-do) • [🛠️ Tools](#-available-tools) • [💡 Examples](#-real-world-examples) • [📖 Releases](#-releases) • [🤝 Contributing](CONTRIBUTING.md)

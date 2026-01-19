@@ -92,7 +92,7 @@ from src.zulipchat_mcp.core.client import ZulipClientWrapper
 Run these before you push:
 
 ```bash
-uv run pytest -q                       # tests (90% coverage gate in CI)
+uv run pytest -q                       # tests (60% coverage gate)
 uv run ruff check .                    # lint
 uv run black .                         # format (line length 88)
 uv run mypy src                        # type-check

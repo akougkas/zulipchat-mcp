@@ -1,8 +1,8 @@
-# Release v0.3.0
+# Release v0.4.0
 
 ## Overview
 
-ZulipChat MCP v0.3.0 delivers a complete, production-ready Model Context Protocol server for Zulip with 40+ tools organized across 9 categories, enabling AI assistants to become Zulip power users.
+ZulipChat MCP v0.4.0 delivers a complete, production-ready Model Context Protocol server for Zulip with 40+ tools organized across 9 categories, enabling AI assistants to become Zulip power users.
 
 ## Key Features
 
@@ -52,7 +52,7 @@ claude mcp add zulipchat \
 
 - **Performance**: 60% improvement in AI tool-calling accuracy
 - **Architecture**: FastMCP framework with DuckDB persistence
-- **Testing**: 90% test coverage requirement enforced
+- **Testing**: 60% test coverage requirement enforced
 - **Async-first**: Optimized for concurrent operations
 - **Token Efficiency**: Smart result limiting and caching
 
@@ -61,7 +61,8 @@ claude mcp add zulipchat \
 ### Breaking Changes
 - Import paths changed from flat to modular structure
 - Admin tools removed from AI access for security
-- Documentation moved from `docs/v0.3.0/` to cleaner structure
+- zuliprc-first authentication (credentials via config files, not CLI args)
+- Setup wizard for guided configuration
 
 ### Upgrade Steps
 1. Update import paths to new modular structure

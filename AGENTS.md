@@ -10,7 +10,7 @@
 - `uv sync` — install dependencies.
 - `uv run zulipchat-mcp --zulip-email ... --zulip-api-key ... --zulip-site ... [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
-- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 85%.
+- `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
 - `uv run ruff check .` — lint; `uv run black .` — format; `uv run mypy src` — type-check.
 
 ## Coding Style & Naming Conventions
@@ -107,5 +107,5 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 - [File Tools](docs/api-reference/files.md) - File operations
 
 ### Release Documentation
-- [Current Release (v0.4.0)](docs/releases/v0.4.0/RELEASE_v0.4.0.md)
 - [Full Documentation Index](docs/README.md)
+- [Changelog](CHANGELOG.md)
