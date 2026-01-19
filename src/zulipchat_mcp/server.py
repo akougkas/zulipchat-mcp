@@ -1,11 +1,20 @@
 """ZulipChat MCP Server - zuliprc-first configuration."""
 
 import argparse
+import os
 
 from fastmcp import FastMCP
 
 from .config import ConfigManager
 from .core.security import set_unsafe_mode
+
+# Optional: Anthropic sampling handler for LLM analytics fallback
+try:
+    from fastmcp.client.sampling.handlers.anthropic import AnthropicSamplingHandler
+
+    anthropic_available = True
+except ImportError:
+    anthropic_available = False
 
 # Optional service manager for background services
 try:
@@ -84,7 +93,9 @@ def main() -> None:
 
     # Validate configuration
     if not config_manager.validate_config():
-        logger.error("Invalid configuration. Please run 'uv run zulipchat-mcp-setup' first.")
+        logger.error(
+            "Invalid configuration. Please run 'uv run zulipchat-mcp-setup' first."
+        )
         return
 
     logger.info("Configuration loaded successfully")
@@ -104,6 +115,16 @@ def main() -> None:
     else:
         logger.info("Database not available (agent features disabled)")
 
+    # Configure sampling handler for LLM analytics (fallback when client doesn't support)
+    sampling_handler = None
+    if anthropic_available and os.getenv("ANTHROPIC_API_KEY"):
+        sampling_handler = AnthropicSamplingHandler(
+            default_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+        )
+        logger.info("Anthropic sampling handler configured (fallback mode)")
+    elif anthropic_available:
+        logger.debug("ANTHROPIC_API_KEY not set - LLM analytics will require client sampling support")
+
     # Initialize MCP with modern configuration
     mcp = FastMCP(
         "ZulipChat MCP",
@@ -111,6 +132,8 @@ def main() -> None:
         on_duplicate_resources="error",
         on_duplicate_prompts="replace",
         include_fastmcp_meta=True,
+        sampling_handler=sampling_handler,
+        sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
     )
 
     logger.info("FastMCP initialized successfully")
@@ -120,27 +143,28 @@ def main() -> None:
     logger.info("Registering v0.4.0 tools...")
 
     # Core messaging
-    register_messaging_tools(mcp)          # Send/Edit messages
-    register_emoji_messaging_tools(mcp)    # Reactions
-    register_schedule_messaging_tools(mcp) # Scheduled messages
-    register_mark_messaging_tools(mcp)     # Read receipts
+    register_messaging_tools(mcp)  # Send/Edit messages
+    register_emoji_messaging_tools(mcp)  # Reactions
+    register_schedule_messaging_tools(mcp)  # Scheduled messages
+    register_mark_messaging_tools(mcp)  # Read receipts
 
     # Discovery & Search (read-only)
-    register_search_tools(mcp)             # Message search
+    register_search_tools(mcp)  # Message search
     register_stream_management_tools(mcp)  # Stream info
-    register_topic_management_tools(mcp)   # Topic operations
-    register_users_tools(mcp)              # User info
-    register_ai_analytics_tools(mcp)       # Analytics
+    register_topic_management_tools(mcp)  # Topic operations
+    register_users_tools(mcp)  # User info
+    register_ai_analytics_tools(mcp)  # Analytics
 
     # System & Events
-    register_system_tools(mcp)             # Identity management
-    register_events_tools(mcp)             # Agent communication
-    register_event_management_tools(mcp)   # Event queue management
-    register_files_tools(mcp)              # File uploads
+    register_system_tools(mcp)  # Identity management
+    register_events_tools(mcp)  # Agent communication
+    register_event_management_tools(mcp)  # Event queue management
+    register_files_tools(mcp)  # File uploads
 
     # Optional: Register agent tools if available
     try:
         from .tools import agents
+
         agents.register_agent_tools(mcp)
         logger.info("Agent tools registered")
     except ImportError:
@@ -148,11 +172,11 @@ def main() -> None:
 
     try:
         from .tools import commands
+
         commands.register_command_tools(mcp)
         logger.info("Command tools registered")
     except ImportError:
         logger.debug("Command tools not available (optional)")
-
 
     # Server capabilities are handled by the underlying MCP protocol
     # FastMCP 2.12.3 handles capability negotiation automatically
