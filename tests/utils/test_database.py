@@ -14,6 +14,15 @@ from src.zulipchat_mcp.utils.database import (
 class TestDatabaseManager:
     """Tests for DatabaseManager."""
 
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset singleton before and after each test."""
+        DatabaseManager._instance = None
+        # Also reset the global variable in the module
+        with patch("src.zulipchat_mcp.utils.database._db_manager", None):
+            yield
+        DatabaseManager._instance = None
+
     @pytest.fixture
     def mock_duckdb(self):
         with patch("src.zulipchat_mcp.utils.database.duckdb") as mock:
@@ -79,12 +88,14 @@ class TestDatabaseManager:
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
         
+        # Create a new mock for this test to avoid side_effect pollution
         db.conn.execute.side_effect = [None, Exception("Fail"), None] # BEGIN, INSERT (fail), ROLLBACK
         
         with pytest.raises(Exception, match="Fail"):
             db.execute("INSERT", [1])
             
         # Verify rollback called (last call)
+        # Note: call_args returns the LAST call
         assert db.conn.execute.call_args == call("ROLLBACK")
 
     def test_executemany(self, mock_duckdb, tmp_path):
@@ -137,10 +148,14 @@ class TestDatabaseManager:
 
     def test_global_instances(self, mock_duckdb):
         """Test global instance helpers."""
-        # Reset global
-        with patch("src.zulipchat_mcp.utils.database._db_manager", None):
-            db = init_database(":memory:")
-            assert db is not None
-            
-            db2 = get_database()
-            assert db2 is db
+        # reset_singleton fixture handles resetting _db_manager and DatabaseManager._instance
+        
+        db = init_database(":memory:")
+        assert db is not None
+        
+        db2 = get_database()
+        assert db2 is db
+        
+        # Verify checking calling DatabaseManager() directly also returns the same instance
+        db3 = DatabaseManager(":memory:")
+        assert db3 is db

@@ -13,6 +13,7 @@ class TestFileOperations:
         client = MagicMock()
         client.upload_file.return_value = {"result": "success", "uri": "/user_uploads/1/file.txt"}
         client.send_message.return_value = {"result": "success", "id": 100}
+        client.client.call_endpoint.return_value = {"result": "success"}
         client.base_url = "https://zulip.example.com"
         return client
 
@@ -86,17 +87,39 @@ class TestFileOperations:
         mock_deps.upload_file.assert_called_with(b"data", "../../../etc/passwd")
 
     @pytest.mark.asyncio
+    async def test_list_files(self, mock_deps):
+        """Test listing files."""
+        mock_deps.client.call_endpoint.return_value = {
+            "result": "success", 
+            "attachments": [{"id": 1, "name": "test.txt"}]
+        }
+        result = await manage_files(operation="list")
+        assert result["status"] == "success"
+        assert result["operation"] == "list"
+        assert len(result["files"]) == 1
+        assert result["files"][0]["name"] == "test.txt"
+        
+        mock_deps.client.call_endpoint.assert_called_with("attachments", method="GET", request={})
+
+    @pytest.mark.asyncio
     async def test_delete_own_file(self, mock_deps):
-        """Test delete operation (not implemented)."""
+        """Test delete operation."""
         result = await manage_files(operation="delete", file_id="1")
-        assert result["status"] == "error"
-        assert "not implemented" in result["error"]
+        assert result["status"] == "success"
+        assert result["operation"] == "delete"
+        
+        mock_deps.client.call_endpoint.assert_called_with("attachments/1", method="DELETE", request={})
 
     @pytest.mark.asyncio
     async def test_delete_others_file_fails(self, mock_deps):
-        """Test delete others file (not implemented)."""
+        """Test delete others file (API failure)."""
+        mock_deps.client.call_endpoint.return_value = {
+            "result": "error", 
+            "msg": "Permission denied"
+        }
         result = await manage_files(operation="delete", file_id="2")
         assert result["status"] == "error"
+        assert "Permission denied" in result["error"]
 
     @pytest.mark.asyncio
     async def test_share_file_to_stream(self, mock_deps):

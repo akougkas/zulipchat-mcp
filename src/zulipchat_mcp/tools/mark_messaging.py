@@ -12,6 +12,17 @@ from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
 
 
+def _resolve_stream_name(stream_id: int) -> str:
+    """Resolve stream ID to name using Zulip API."""
+    config = ConfigManager()
+    client = ZulipClientWrapper(config)
+    # get_stream_id with int returns stream info
+    result = client.get_stream_id(stream_id)
+    if result.get("result") == "success":
+        return result["stream"]["name"]
+    raise ValueError(f"Unknown stream ID: {stream_id}")
+
+
 async def update_message_flags_for_narrow(
     narrow: list[dict[str, Any]],
     op: Literal["add", "remove"],
@@ -80,8 +91,9 @@ async def mark_all_as_read() -> dict[str, Any]:
 async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
     """Mark all messages in a stream as read using modern narrow approach."""
     try:
+        stream_name = _resolve_stream_name(stream_id)
         # Use stream narrow to match stream messages
-        narrow = [{"operator": "stream", "operand": str(stream_id)}]
+        narrow = [{"operator": "stream", "operand": stream_name}]
 
         return await update_message_flags_for_narrow(
             narrow=narrow,
@@ -98,9 +110,10 @@ async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
 async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
     """Mark all messages in a topic as read using modern narrow approach."""
     try:
+        stream_name = _resolve_stream_name(stream_id)
         # Use stream + topic narrow to match topic messages
         narrow = [
-            {"operator": "stream", "operand": str(stream_id)},
+            {"operator": "stream", "operand": stream_name},
             {"operator": "topic", "operand": topic_name},
         ]
 
@@ -128,7 +141,11 @@ async def mark_messages_unread(
         if not narrow:
             narrow = []
             if stream_id:
-                narrow.append({"operator": "stream", "operand": str(stream_id)})
+                try:
+                    stream_name = _resolve_stream_name(stream_id)
+                    narrow.append({"operator": "stream", "operand": stream_name})
+                except ValueError as e:
+                    return {"status": "error", "error": str(e)}
             if topic_name:
                 narrow.append({"operator": "topic", "operand": topic_name})
             if sender_email:
@@ -164,7 +181,11 @@ async def star_messages(
         if not narrow:
             narrow = []
             if stream_id:
-                narrow.append({"operator": "stream", "operand": str(stream_id)})
+                try:
+                    stream_name = _resolve_stream_name(stream_id)
+                    narrow.append({"operator": "stream", "operand": stream_name})
+                except ValueError as e:
+                    return {"status": "error", "error": str(e)}
             if topic_name:
                 narrow.append({"operator": "topic", "operand": topic_name})
             if sender_email:
@@ -200,7 +221,11 @@ async def unstar_messages(
         if not narrow:
             narrow = []
             if stream_id:
-                narrow.append({"operator": "stream", "operand": str(stream_id)})
+                try:
+                    stream_name = _resolve_stream_name(stream_id)
+                    narrow.append({"operator": "stream", "operand": stream_name})
+                except ValueError as e:
+                    return {"status": "error", "error": str(e)}
             if topic_name:
                 narrow.append({"operator": "topic", "operand": topic_name})
             if sender_email:

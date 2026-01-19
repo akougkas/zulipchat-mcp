@@ -29,6 +29,14 @@ class DatabaseManager:
     and connection management.
     """
 
+    _instance = None
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "DatabaseManager":
+        """Ensure singleton instance."""
+        if cls._instance is None:
+            cls._instance = super(DatabaseManager, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, db_path: str, max_retries: int = 3, retry_delay: float = 0.2) -> None:
         """Initialize database manager with connection and migrations.
 
@@ -37,6 +45,10 @@ class DatabaseManager:
             max_retries: Maximum number of connection attempts on lock
             retry_delay: Delay between retries in seconds
         """
+        # Skip initialization if already initialized
+        if hasattr(self, "conn") and self.conn is not None:
+            return
+
         self.db_path = db_path
         self.conn: duckdb.DuckDBPyConnection | None = None
         self._write_lock = threading.RLock()

@@ -21,6 +21,11 @@ class TestMessageFlags:
             "processed_count": 10,
             "updated_count": 5
         }
+        # Default successful stream resolution
+        client.get_stream_id.return_value = {
+            "result": "success",
+            "stream": {"name": "Test Stream"}
+        }
         return client
 
     @pytest.fixture
@@ -46,15 +51,19 @@ class TestMessageFlags:
         request = args[1]["request"]
         assert request["flag"] == "read"
         assert request["op"] == "add"
-        assert request["narrow"] == [{"operator": "stream", "operand": "123"}]
+        # Should now use stream NAME resolved from ID
+        assert request["narrow"] == [{"operator": "stream", "operand": "Test Stream"}]
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_stream(self, mock_deps):
-        """Test marking a nonexistent stream (backend error)."""
-        mock_deps.client.call_endpoint.return_value = {"result": "error", "msg": "Invalid stream"}
+        """Test marking a nonexistent stream (validation error)."""
+        # Mock get_stream_id failure
+        mock_deps.get_stream_id.return_value = {"result": "error", "msg": "Invalid stream"}
+        
         result = await mark_stream_as_read(999)
         assert result["status"] == "error"
-        assert "Invalid stream" in result["error"]
+        # Expect the validation error from _resolve_stream_name
+        assert "Unknown stream ID: 999" in result["error"]
 
     @pytest.mark.asyncio
     async def test_star_messages_by_narrow(self, mock_deps):

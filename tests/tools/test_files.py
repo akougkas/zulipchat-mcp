@@ -83,10 +83,16 @@ class TestFilesTools:
 
     @pytest.mark.asyncio
     async def test_manage_files_list(self, mock_deps):
-        """Test manage_files list (unsupported)."""
+        """Test manage_files list."""
+        client = mock_deps
+        client.client.call_endpoint.return_value = {
+            "result": "success", 
+            "attachments": []
+        }
+        
         result = await manage_files("list")
-        assert result["status"] == "error"
-        assert "not supported" in result["error"]
+        assert result["status"] == "success"
+        assert result["operation"] == "list"
 
     @pytest.mark.asyncio
     async def test_manage_files_share(self, mock_deps):

@@ -185,17 +185,52 @@ async def manage_files(
 
     try:
         if operation == "list":
-            # Note: Zulip API has limited file listing capabilities
-            # Files are typically found through message content analysis
-            return {
-                "status": "error",
-                "error": "Direct file listing not supported by Zulip API",
-                "suggestion": "Use search_messages with 'has:attachment' filter to find files",
-                "workaround": {
-                    "tool": "search_messages",
-                    "parameters": {"has_attachment": True, "limit": 100},
-                },
-            }
+            # Use Zulip's attachments API (Feature level 2+)
+            result = client.client.call_endpoint("attachments", method="GET", request={})
+            if result.get("result") == "success":
+                return {
+                    "status": "success",
+                    "operation": "list",
+                    "files": result.get("attachments", []),
+                    "count": len(result.get("attachments", [])),
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get("msg", "Failed to list files"),
+                }
+
+        elif operation == "delete":
+            if not file_id:
+                return {
+                    "status": "error",
+                    "error": "file_id (attachment ID) required for delete operation",
+                }
+
+            try:
+                attachment_id = int(file_id)
+            except ValueError:
+                return {
+                    "status": "error",
+                    "error": "file_id must be a numeric attachment ID for deletion",
+                }
+
+            # Use Zulip's delete attachment API (Feature level 179+)
+            result = client.client.call_endpoint(
+                f"attachments/{attachment_id}", method="DELETE", request={}
+            )
+
+            if result.get("result") == "success":
+                return {
+                    "status": "success",
+                    "operation": "delete",
+                    "message": "File deleted successfully",
+                }
+            else:
+                return {
+                    "status": "error",
+                    "error": result.get("msg", "Failed to delete file"),
+                }
 
         elif operation == "share":
             if not file_id:
@@ -300,6 +335,7 @@ async def manage_files(
                 "error": f"Operation '{operation}' not implemented",
                 "available_operations": [
                     "list",
+                    "delete",
                     "share",
                     "download",
                     "get_permissions",
