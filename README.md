@@ -24,21 +24,13 @@
 Get your AI assistant connected to Zulip in **30 seconds**:
 
 ```bash
-# Basic setup (user credentials only)
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com
+# Run setup wizard (recommended)
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
-**Want advanced AI agent features?** Add bot credentials:
+Or manually with a zuliprc file:
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
-  --zulip-email user@org.com \
-  --zulip-api-key YOUR_API_KEY \
-  --zulip-site https://org.zulipchat.com \
-  --zulip-bot-email bot@org.com \
-  --zulip-bot-api-key BOT_API_KEY
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
 ## What Can You Do?
@@ -71,49 +63,49 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 ## 📦 Installation & Setup
 
-We recommend using our interactive setup wizard to configure the server securely.
+### Option 1: Setup Wizard (Recommended)
 
-### Quick Start (The "Wizard" Way)
+```bash
+uvx --from zulipchat-mcp zulipchat-mcp-setup
+```
 
-1.  **Run the Setup Wizard:**
-    ```bash
-    uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp-setup
-    ```
-    This tool will:
-    *   Help you find your `zuliprc` file (downloadable from Zulip Settings).
-    *   Validate your connection.
-    *   Automatically generate the configuration for **Claude Desktop** or **Gemini CLI**.
+The wizard will find your zuliprc files, validate credentials, and generate config for your MCP client.
 
-### Manual Configuration (For Power Users)
+### Option 2: Claude Code
 
-If you prefer to configure manually, download your `zuliprc` file from Zulip (**Settings** -> **Personal settings** -> **Account & privacy**) and point the server to it.
+```bash
+claude mcp add zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+```
 
-**Gemini CLI / Claude Desktop Config:**
+Or with dual identity (user + bot):
+```bash
+claude mcp add zulipchat -- uvx zulipchat-mcp \
+  --zulip-config-file ~/.zuliprc \
+  --zulip-bot-config-file ~/.zuliprc-bot
+```
+
+### Option 3: Gemini CLI / Claude Desktop / Cursor
+
+Add to your MCP config file:
 
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
-      "args": [
-        "--from", "git+https://github.com/akougkas/zulipchat-mcp.git",
-        "zulipchat-mcp",
-        "--zulip-config-file", "/path/to/your/zuliprc"
-      ]
+      "args": ["zulipchat-mcp", "--zulip-config-file", "/path/to/zuliprc"]
     }
   }
 }
 ```
 
-**Dual Identity (User + AI Bot):**
-To enable your agent to send automated replies as a bot while reading as you:
+**Dual Identity (User + Bot):**
 ```json
 {
   "mcpServers": {
     "zulipchat": {
       "command": "uvx",
       "args": [
-        "--from", "git+https://github.com/akougkas/zulipchat-mcp.git",
         "zulipchat-mcp",
         "--zulip-config-file", "/path/to/user/zuliprc",
         "--zulip-bot-config-file", "/path/to/bot/zuliprc"
@@ -122,6 +114,10 @@ To enable your agent to send automated replies as a bot while reading as you:
   }
 }
 ```
+
+### Getting Your zuliprc
+
+Download from Zulip: **Settings** → **Personal settings** → **Account & privacy** → **API key**
 
 ## ⚙️ Configuration Guide
 
