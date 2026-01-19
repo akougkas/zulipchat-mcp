@@ -21,10 +21,13 @@ class TestMessageFlags:
             "processed_count": 10,
             "updated_count": 5
         }
-        # Default successful stream resolution
-        client.get_stream_id.return_value = {
+        # Default successful stream resolution - now uses get_streams()
+        client.get_streams.return_value = {
             "result": "success",
-            "stream": {"name": "Test Stream"}
+            "streams": [
+                {"stream_id": 123, "name": "Test Stream"},
+                {"stream_id": 456, "name": "Other Stream"},
+            ]
         }
         return client
 
@@ -57,9 +60,12 @@ class TestMessageFlags:
     @pytest.mark.asyncio
     async def test_mark_nonexistent_stream(self, mock_deps):
         """Test marking a nonexistent stream (validation error)."""
-        # Mock get_stream_id failure
-        mock_deps.get_stream_id.return_value = {"result": "error", "msg": "Invalid stream"}
-        
+        # Mock get_streams returns streams that don't include ID 999
+        mock_deps.get_streams.return_value = {
+            "result": "success",
+            "streams": [{"stream_id": 123, "name": "Test Stream"}]
+        }
+
         result = await mark_stream_as_read(999)
         assert result["status"] == "error"
         # Expect the validation error from _resolve_stream_name

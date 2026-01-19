@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
+from ..core.emoji_registry import validate_emoji_for_agent
 
 
 def validate_emoji(emoji_name: str) -> bool:
@@ -38,17 +39,14 @@ async def add_reaction(
             },
         }
 
-    if not validate_emoji(emoji_name):
+    is_valid, error_msg = validate_emoji_for_agent(emoji_name)
+    if not is_valid:
         return {
             "status": "error",
             "error": {
                 "code": "INVALID_EMOJI_NAME",
-                "message": f"Invalid emoji name: '{emoji_name}'",
-                "suggestions": [
-                    "Use alphanumeric characters and underscores only",
-                    "Keep emoji name under 50 characters",
-                    "Check available emojis in your Zulip organization",
-                ],
+                "message": error_msg,
+                "suggestions": ["Use one of the approved emojis"],
             },
         }
 

@@ -26,6 +26,40 @@
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
+## MCP Sampling & LLM Analytics (v0.4+)
+
+### Context Parameter Requirements
+All LLM-powered analytics tools in v0.4 use MCP Sampling via `Context` injection:
+
+**CORRECT** (Required parameter):
+```python
+async def analyze_stream_with_llm(stream_name: str, ctx: Context) -> dict:
+    result = await ctx.sample(f"Analyze stream {stream_name}")
+```
+
+**INCORRECT** (Optional parameter breaks sampling):
+```python
+async def analyze_stream_with_llm(stream_name: str, ctx: Context | None = None) -> dict:
+    if not ctx: return {...}  # This defeats sampling!
+```
+
+### Bidirectional Agent Communication (v0.4+)
+Full agent-to-user messaging pipeline available in `src/zulipchat_mcp/tools/agents.py`:
+- `register_agent()` - Create agent instance with database persistence
+- `agent_message()` - Send message to user (respects AFK mode)
+- `request_user_input()` - Interactive questions with routing (DM, stream, Agents-Channel)
+- `wait_for_response()` - Synchronous polling for user responses
+- `enable_afk_mode()` - Background listener activation
+- `disable_afk_mode()` - Normal operation mode
+
+Use `ZULIP_DEV_NOTIFY=1` environment variable to bypass AFK gating during development.
+
+### Emoji Registry (v0.4+)
+New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent reactions:
+- 12 approved emoji: `thumbs_up`, `heart`, `rocket`, `fire`, `tada`, `check_mark`, `warning`, `thinking`, `bulb`, `wrench`, `star`, `zap`
+- All others rejected at runtime with helpful error messages
+- Use `validate_emoji_for_agent()` to validate before sending reactions
+
 
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).

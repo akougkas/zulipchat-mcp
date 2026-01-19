@@ -48,14 +48,11 @@ def _extract_llm_text(response: Any) -> str:
 async def analyze_stream_with_llm(
     stream_name: str,
     analysis_type: str,
+    ctx: Context,
     time_period: Literal["day", "week", "month"] = "week",
     custom_prompt: str | None = None,
-    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Fetch stream data and analyze with LLM for sophisticated insights."""
-    if not ctx:
-        return {"status": "error", "error": "Context required for LLM analysis"}
-
     config = ConfigManager()
     ZulipClientWrapper(config)
 
@@ -132,14 +129,11 @@ async def analyze_stream_with_llm(
 async def analyze_team_activity_with_llm(
     team_streams: list[str],
     analysis_focus: str,
+    ctx: Context,
     days_back: int = 7,
     custom_prompt: str | None = None,
-    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Analyze team activity across multiple streams with LLM insights."""
-    if not ctx:
-        return {"status": "error", "error": "Context required for LLM analysis"}
-
     config = ConfigManager()
     ZulipClientWrapper(config)
 
@@ -229,13 +223,10 @@ async def analyze_team_activity_with_llm(
 async def intelligent_report_generator(
     report_type: Literal["standup", "weekly", "retrospective", "custom"],
     target_streams: list[str],
+    ctx: Context,
     custom_focus: str | None = None,
-    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Generate intelligent reports using LLM analysis of team data."""
-    if not ctx:
-        return {"status": "error", "error": "Context required for report generation"}
-
     try:
         # Fetch recent team activity
         team_activity = await analyze_team_activity_with_llm(

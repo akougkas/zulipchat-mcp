@@ -16,10 +16,13 @@ def _resolve_stream_name(stream_id: int) -> str:
     """Resolve stream ID to name using Zulip API."""
     config = ConfigManager()
     client = ZulipClientWrapper(config)
-    # get_stream_id with int returns stream info
-    result = client.get_stream_id(stream_id)
+    # Fetch all streams and find the one with matching ID
+    # This is more reliable than the streams/{id} endpoint
+    result = client.get_streams(include_public=True, include_subscribed=True)
     if result.get("result") == "success":
-        return result["stream"]["name"]
+        for stream in result.get("streams", []):
+            if stream.get("stream_id") == stream_id:
+                return stream["name"]
     raise ValueError(f"Unknown stream ID: {stream_id}")
 
 

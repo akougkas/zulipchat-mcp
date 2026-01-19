@@ -35,9 +35,11 @@ class TestDatabaseManager:
         """Test successful initialization."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        
+
         assert db.conn is not None
-        mock_duckdb.connect.assert_called_with(db_path)
+        mock_duckdb.connect.assert_called_with(
+            db_path, config={"access_mode": "READ_WRITE"}
+        )
         # Check migrations run
         assert db.conn.execute.call_count > 0
 

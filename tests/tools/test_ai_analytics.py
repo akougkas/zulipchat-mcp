@@ -19,7 +19,7 @@ class TestAIAnalytics:
         with patch("src.zulipchat_mcp.tools.ai_analytics.ConfigManager"), \
              patch("src.zulipchat_mcp.tools.ai_analytics.ZulipClientWrapper") as mock_wrapper, \
              patch("src.zulipchat_mcp.tools.search.search_messages", new_callable=AsyncMock) as mock_search:
-            
+
             client = MagicMock()
             mock_wrapper.return_value = client
             yield client, mock_search
@@ -35,9 +35,9 @@ class TestAIAnalytics:
         """Test get_daily_summary."""
         client, _ = mock_deps
         client.get_daily_summary.return_value = {"total": 10}
-        
+
         result = await get_daily_summary(streams=["s1"], hours_back=12)
-        
+
         assert result["status"] == "success"
         assert result["summary"]["total"] == 10
         client.get_daily_summary.assert_called_with(streams=["s1"], hours_back=12)
@@ -50,34 +50,28 @@ class TestAIAnalytics:
             "status": "success",
             "messages": [{"sender": "Alice", "content": "Hello"}]
         }
-        
+
         mock_ctx.sample.return_value = MagicMock(content=[TextContent(type="text", text="Analysis result")])
-        
+
         result = await analyze_stream_with_llm(
             stream_name="general",
             analysis_type="summary",
             ctx=mock_ctx
         )
-        
+
         assert result["status"] == "success"
         assert result["analysis"] == "Analysis result"
         mock_ctx.sample.assert_called()
 
-    @pytest.mark.asyncio
-    async def test_analyze_stream_with_llm_no_ctx(self, mock_deps):
-        """Test analyze_stream_with_llm missing context."""
-        result = await analyze_stream_with_llm("general", "summary", ctx=None)
-        assert result["status"] == "error"
-        assert "Context required" in result["error"]
 
     @pytest.mark.asyncio
     async def test_analyze_stream_with_llm_search_failed(self, mock_deps, mock_ctx):
         """Test analyze_stream_with_llm search failure."""
         _, mock_search = mock_deps
         mock_search.return_value = {"status": "error"}
-        
+
         result = await analyze_stream_with_llm("general", "summary", ctx=mock_ctx)
-        
+
         assert result["status"] == "error"
         assert "Failed to fetch stream data" in result["error"]
 
@@ -89,12 +83,12 @@ class TestAIAnalytics:
             "status": "success",
             "messages": [{"sender": "Alice", "content": "Hello"}]
         }
-        
+
         # Simulate sampling error (e.g. client doesn't support it)
         mock_ctx.sample.side_effect = Exception("Client does not support sampling")
-        
+
         result = await analyze_stream_with_llm("general", "summary", ctx=mock_ctx)
-        
+
         assert result["status"] == "error"
         assert "LLM analysis failed" in result["error"]
         assert "Client does not support sampling" in result["error"]
@@ -107,15 +101,15 @@ class TestAIAnalytics:
             "status": "success",
             "messages": [{"sender": "Alice", "content": "Work"}]
         }
-        
+
         mock_ctx.sample.return_value = MagicMock(content=[TextContent(type="text", text="Team analysis")])
-        
+
         result = await analyze_team_activity_with_llm(
             team_streams=["s1", "s2"],
             analysis_focus="productivity",
             ctx=mock_ctx
         )
-        
+
         assert result["status"] == "success"
         assert result["analysis"] == "Team analysis"
         assert result["total_messages"] == 2 # 1 per stream * 2 streams
@@ -126,25 +120,25 @@ class TestAIAnalytics:
         # This calls analyze_team_activity_with_llm internally
         # We can mock analyze_team_activity_with_llm, but since we are patching at module level,
         # we can just rely on the existing mocks for search and sample.
-        
+
         _, mock_search = mock_deps
         mock_search.return_value = {
             "status": "success",
             "messages": [{"sender": "Alice", "content": "Work"}]
         }
-        
+
         # sample called twice: once for analysis, once for report
         mock_ctx.sample.side_effect = [
             MagicMock(content=[TextContent(type="text", text="Analysis")]),
             MagicMock(content=[TextContent(type="text", text="Final Report")])
         ]
-        
+
         result = await intelligent_report_generator(
             report_type="standup",
             target_streams=["s1"],
             ctx=mock_ctx
         )
-        
+
         assert result["status"] == "success"
         assert result["report_content"] == "Final Report"
         assert mock_ctx.sample.call_count == 2

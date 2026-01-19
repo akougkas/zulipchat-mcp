@@ -6,6 +6,7 @@ Cleanup (v0.4):
 """
 
 import asyncio
+import json
 from typing import Any
 
 from ..config import ConfigManager
@@ -23,6 +24,34 @@ from ..core.commands.engine import (
     SendMessageCommand,
 )
 from ..core.commands.workflows import ChainBuilder
+
+
+def _get_command_format_example(cmd_type: str = "send_message") -> dict[str, Any]:
+    """Get example format for command types.
+
+    Returns:
+        Dict showing correct command structure
+    """
+    examples = {
+        "send_message": {
+            "type": "send_message",
+            "params": {
+                "message_type_key": "msg_type",
+                "to_key": "recipient",
+                "content_key": "text",
+                "topic_key": "subject"
+            }
+        },
+        "search_messages": {
+            "type": "search_messages",
+            "params": {"query_key": "search_query"}
+        },
+        "wait_for_response": {
+            "type": "wait_for_response",
+            "params": {"request_id_key": "request_id"}
+        }
+    }
+    return examples.get(cmd_type, examples["send_message"])
 
 
 class WaitForResponseCommand(Command):
@@ -147,7 +176,10 @@ class ConditionalActionCommand(Command):
 def build_command(cmd_dict: dict[str, Any]) -> Command:
     """Helper to build command from dict description."""
     if not cmd_dict or "type" not in cmd_dict:
-        raise ValueError("Invalid command specification")
+        raise ValueError(
+            f"Invalid command specification. Expected format:\n"
+            f"{json.dumps(_get_command_format_example(), indent=2)}"
+        )
     ctype = cmd_dict["type"]
     params = cmd_dict.get("params", {})
 
@@ -168,7 +200,10 @@ def build_command(cmd_dict: dict[str, Any]) -> Command:
             params.get("condition", "False"), true_cmd, false_cmd
         )
 
-    raise ValueError(f"Unknown command type: {ctype}")
+    raise ValueError(
+        f"Unknown command type: '{ctype}'\n"
+        f"Supported types: send_message, search_messages, wait_for_response, conditional_action"
+    )
 
 
 def execute_chain(commands: list[dict[str, Any]]) -> dict[str, Any]:

@@ -169,6 +169,55 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 - Administrative tools removed from AI access in v0.4 for security
 - All credentials handled via environment variables or CLI arguments
 
+## MCP Sampling & LLM Analytics
+
+### Context Parameter (Required, Not Optional)
+All LLM-powered tools require the `Context` parameter injected by FastMCP. Do NOT make it optional:
+
+```python
+from fastmcp import Context, FastMCP
+
+@mcp.tool
+async def analyze_with_llm(query: str, ctx: Context) -> dict[str, Any]:
+    """LLM analysis tool - Context is REQUIRED, not optional."""
+    # FastMCP automatically injects ctx when called
+    result = await ctx.sample(f"Analyze: {query}")
+    return {"analysis": result.text}
+```
+
+**Key Points:**
+- ✅ `ctx: Context` (required) - FastMCP auto-injects
+- ❌ `ctx: Context | None = None` (optional) - breaks sampling
+- Use `await ctx.sample(prompt)` to request LLM completions
+- Client controls model selection and permissions
+
+### Approved Emoji for Agent Reactions
+Agents should use only these 12 emoji for consistency and quick responses:
+- `thumbs_up`, `heart`, `rocket`, `fire`, `tada`, `check_mark`
+- `warning`, `thinking`, `bulb`, `wrench`, `star`, `zap`
+
+Invalid emoji (e.g., `thumbsup` without underscore) will fail at runtime. See `src/zulipchat_mcp/core/emoji_registry.py`.
+
+### Agent-to-User Bidirectional Communication
+Complete implementation exists at `src/zulipchat_mcp/tools/agents.py`:
+- Agents can send messages: `agent_message(content, require_response=True)`
+- Agents can request input: `request_user_input(question, options)`
+- Agents can wait for responses: `wait_for_response(request_id)`
+- Background MessageListener processes Zulip replies automatically
+- AFK mode gates notifications unless `ZULIP_DEV_NOTIFY=1` override set
+
+### Command Chains (execute_chain)
+Workflow automation with context passing between operations:
+```python
+execute_chain([
+    {"type": "search_messages", "params": {"query_key": "search_query"}},
+    {"type": "conditional_action", "params": {
+        "condition": "len(context['search_results']) > 0",
+        "true_action": {"type": "send_message", "params": {...}}
+    }}
+])
+```
+
 ## Common Issues
 
 ### Import Errors
@@ -190,3 +239,10 @@ uv sync --reinstall
 
 ### Connection Testing
 Always test Zulip connection with provided test snippet before implementing features.
+
+### LLM Analytics Not Working
+If you see "Client does not support sampling":
+- Ensure `ctx: Context` is REQUIRED (not optional with `| None`)
+- Remove null checks that guard against None context
+- FastMCP handles injection automatically
+- Client (Claude Code, Gemini) must have sampling capability enabled

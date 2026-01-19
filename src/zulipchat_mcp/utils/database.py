@@ -61,7 +61,10 @@ class DatabaseManager:
         last_error: Exception | None = None
         for attempt in range(max_retries):
             try:
-                self.conn = duckdb.connect(db_path)
+                # Use WAL mode for concurrent access (read_write with wal_autocheckpoint)
+                self.conn = duckdb.connect(db_path, config={"access_mode": "READ_WRITE"})
+                # Enable WAL mode for better concurrent access
+                self.conn.execute("PRAGMA wal_autocheckpoint = 1000")
                 break
             except duckdb.IOException as e:
                 last_error = e

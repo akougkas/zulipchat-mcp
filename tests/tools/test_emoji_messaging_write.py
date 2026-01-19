@@ -34,19 +34,20 @@ class TestReactions:
     @pytest.mark.asyncio
     async def test_add_custom_emoji(self, mock_deps):
         """Test adding a custom emoji (realm_emoji)."""
-        result = await add_reaction(100, "party_parrot", reaction_type="realm_emoji")
+        # We use a valid emoji name from the registry, even if we say it's realm_emoji
+        result = await add_reaction(100, "thumbs_up", reaction_type="realm_emoji")
         assert result["status"] == "success"
         assert result["reaction_type"] == "realm_emoji"
         # Note: The current implementation passes positional args to client.add_reaction(id, name)
-        # It seemingly ignores reaction_type/code in the call to client! 
+        # It seemingly ignores reaction_type/code in the call to client!
         # But we test what the TOOL returns and what it calls on the client.
-        mock_deps.add_reaction.assert_called_with(100, "party_parrot")
+        mock_deps.add_reaction.assert_called_with(100, "thumbs_up")
 
     @pytest.mark.asyncio
     async def test_add_to_nonexistent_message(self, mock_deps):
         """Test adding reaction to nonexistent message."""
         mock_deps.add_reaction.return_value = {"result": "error", "msg": "Invalid message(s)"}
-        result = await add_reaction(999, "smile")
+        result = await add_reaction(999, "thumbs_up")
         assert result["status"] == "error"
         assert "Invalid message" in result["error"]
 
@@ -56,8 +57,8 @@ class TestReactions:
         # Name with special chars
         result = await add_reaction(100, "smile; DROP TABLE")
         assert result["status"] == "error"
-        assert "Invalid emoji name" in result["error"]["message"]
-        
+        assert "not approved" in result["error"]["message"]
+
         # Empty name
         result = await add_reaction(100, "")
         assert result["status"] == "error"
@@ -70,7 +71,7 @@ class TestReactions:
     async def test_add_duplicate_reaction(self, mock_deps):
         """Test adding a reaction that already exists."""
         mock_deps.add_reaction.return_value = {"result": "error", "msg": "Reaction already exists"}
-        result = await add_reaction(100, "smile")
+        result = await add_reaction(100, "thumbs_up")
         assert result["status"] == "error"
         assert "Reaction already exists" in result["error"]
 
