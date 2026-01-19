@@ -2,6 +2,13 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.4.1] - 2025-01-19
+
+### Fixed
+- Updated README with correct PyPI install instructions
+
+---
+
 ## [0.4.0] - 2025-01-19
 
 ### Added
