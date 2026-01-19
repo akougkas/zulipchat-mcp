@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.4.0 - Released 2025-01-19)
+## Current Status (v0.4.1 - Released 2025-01-19)
 
-**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.0/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/0.4.0/)
+**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.1/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/0.4.1/)
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
