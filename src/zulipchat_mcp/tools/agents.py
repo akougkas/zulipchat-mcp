@@ -18,8 +18,9 @@ from ..utils.topics import project_from_path, topic_input
 logger = get_logger(__name__)
 
 
-_tracker = AgentTracker()
+_tracker: AgentTracker | None = None
 _client: ZulipClientWrapper | None = None
+_agent_stream: str | None = None  # Cached stream name
 
 
 def _get_client_bot() -> ZulipClientWrapper:
@@ -27,6 +28,53 @@ def _get_client_bot() -> ZulipClientWrapper:
     if _client is None:
         _client = ZulipClientWrapper(ConfigManager(), use_bot_identity=True)
     return _client
+
+
+def _get_agent_stream(client: ZulipClientWrapper | None = None) -> str:
+    """Get the best available stream for agent communication.
+
+    Checks in order: Agents-Channel, AI Bots, sandbox, then first public stream.
+    Caches result for session consistency.
+    """
+    global _agent_stream
+    if _agent_stream is not None:
+        return _agent_stream
+
+    if client is None:
+        client = _get_client_bot()
+
+    preferred_streams = ["Agents-Channel", "AI Bots", "sandbox", "general"]
+
+    result = client.get_streams(include_public=True, include_subscribed=True)
+    if result.get("result") != "success":
+        _agent_stream = "general"  # Fallback if API fails
+        return _agent_stream
+
+    available = {s["name"]: s for s in result.get("streams", [])}
+
+    # Check preferred streams in order
+    for stream_name in preferred_streams:
+        if stream_name in available:
+            _agent_stream = stream_name
+            return _agent_stream
+
+    # Fallback: first public stream
+    for stream in result.get("streams", []):
+        if not stream.get("invite_only", True):
+            _agent_stream = stream["name"]
+            return _agent_stream
+
+    _agent_stream = "general"  # Last resort
+    return _agent_stream
+
+
+def _get_tracker() -> AgentTracker:
+    """Get the agent tracker with proper stream configuration."""
+    global _tracker
+    if _tracker is None:
+        stream = _get_agent_stream()
+        _tracker = AgentTracker(agent_stream=stream)
+    return _tracker
 
 
 def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
@@ -73,29 +121,22 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                 (False, "Agent ready for normal operations", datetime.utcnow()),
             )
 
-            # Check if Agents-Channel stream exists
+            # Discover best available stream for agent communication
             client = _get_client_bot()
-            response = client.get_streams()
-            streams = (
-                response.get("streams", [])
-                if response.get("result") == "success"
-                else []
-            )
-            stream_exists = any(s.get("name") == "Agents-Channel" for s in streams)
+            discovered_stream = _get_agent_stream(client)
 
-            result = {
+            # Update the tracker with discovered stream
+            tracker = _get_tracker()
+            tracker.set_agent_stream(discovered_stream)
+
+            return {
                 "status": "success",
                 "agent_id": agent_id,
                 "instance_id": instance_id,
                 "agent_type": agent_type,
-                "stream": "Agents-Channel",
+                "stream": discovered_stream,
                 "afk_enabled": False,
             }
-
-            if not stream_exists:
-                result["warning"] = "Stream 'Agents-Channel' does not exist."
-
-            return result
 
         except Exception as e:
             track_tool_error("register_agent", type(e).__name__)
@@ -120,7 +161,7 @@ def agent_message(
                         "status": "skipped",
                         "reason": "AFK disabled; notifications gated",
                     }
-                msg_info = _tracker.format_agent_message(
+                msg_info = _get_tracker().format_agent_message(
                     content, agent_type, require_response
                 )
                 if msg_info["status"] != "ready":
@@ -288,9 +329,11 @@ def request_user_input(
                     topic=topic_input(project_name or "Project", request_id),
                 )
             else:
+                # Use dynamically discovered agent stream
+                agent_stream = _get_agent_stream(client)
                 result = client.send_message(
                     message_type="stream",
-                    to="Agents-Channel",
+                    to=agent_stream,
                     content=message,
                     topic=topic_input(project_name or agent_id, request_id),
                 )

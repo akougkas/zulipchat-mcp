@@ -39,17 +39,17 @@ def _get_command_format_example(cmd_type: str = "send_message") -> dict[str, Any
                 "message_type_key": "msg_type",
                 "to_key": "recipient",
                 "content_key": "text",
-                "topic_key": "subject"
-            }
+                "topic_key": "subject",
+            },
         },
         "search_messages": {
             "type": "search_messages",
-            "params": {"query_key": "search_query"}
+            "params": {"query_key": "search_query"},
         },
         "wait_for_response": {
             "type": "wait_for_response",
-            "params": {"request_id_key": "request_id"}
-        }
+            "params": {"request_id_key": "request_id"},
+        },
     }
     return examples.get(cmd_type, examples["send_message"])
 
@@ -206,12 +206,22 @@ def build_command(cmd_dict: dict[str, Any]) -> Command:
     )
 
 
-def execute_chain(commands: list[dict[str, Any]]) -> dict[str, Any]:
-    """Execute command chain with supported command types."""
+def execute_chain(
+    commands: list[dict[str, Any]], initial_context: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Execute command chain with supported command types.
+
+    Args:
+        commands: List of command dictionaries with type and params
+        initial_context: Optional initial values for the execution context.
+            Commands read values from context using key names, so populate
+            this with values your commands will need.
+            Example: {"search_query": "test", "message_type": "stream"}
+    """
     chain = CommandChain("mcp_chain", client=ZulipClientWrapper(ConfigManager()))
     for cmd in commands:
         chain.add_command(build_command(cmd))
-    context = chain.execute(initial_context={})
+    context = chain.execute(initial_context=initial_context or {})
     return {
         "status": "success",
         "summary": chain.get_execution_summary(),

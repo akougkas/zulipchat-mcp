@@ -33,15 +33,30 @@ class AgentTracker:
     AGENT_REGISTRY_FILE = CONFIG_DIR / "agent_registry.json"
     PENDING_RESPONSES_FILE = CONFIG_DIR / "pending_responses.json"
 
-    # Standard channel name
-    AGENTS_CHANNEL = "Agents-Channel"
+    # Preferred channel names in order of priority
+    PREFERRED_CHANNELS = ["Agents-Channel", "AI Bots", "sandbox", "general"]
 
-    def __init__(self) -> None:
-        """Initialize the agent tracker."""
+    def __init__(self, agent_stream: str | None = None) -> None:
+        """Initialize the agent tracker.
+
+        Args:
+            agent_stream: Override stream name. If None, will use default fallback.
+        """
         self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         self.session_id = str(uuid.uuid4())[:8]  # Short session ID
         # Runtime AFK flag (not persisted)
         self.afk_enabled: bool = False
+        # Cached stream name (set by agents.py after API check)
+        self._agent_stream: str | None = agent_stream
+
+    @property
+    def agents_channel(self) -> str:
+        """Get the configured agent channel name."""
+        return self._agent_stream or self.PREFERRED_CHANNELS[0]
+
+    def set_agent_stream(self, stream_name: str) -> None:
+        """Set the agent stream after API discovery."""
+        self._agent_stream = stream_name
 
     def get_instance_identity(self) -> dict[str, Any]:
         """Return a lightweight identity description for the current instance."""
@@ -70,8 +85,8 @@ class AgentTracker:
         project_name = identity.get("project", "Project")
         topic = topic_chat(project_name, agent_type, self.session_id)
 
-        # Always use standard Agents-Channel
-        stream_name = self.AGENTS_CHANNEL
+        # Use configured agent channel (with smart fallback)
+        stream_name = self.agents_channel
 
         # Create registration record
         registration = {
@@ -122,7 +137,7 @@ class AgentTracker:
         response_id = str(uuid.uuid4()) if require_response else None
         return {
             "status": "ready",
-            "stream": self.AGENTS_CHANNEL,
+            "stream": self.agents_channel,
             "topic": topic,
             "content": content,
             "response_id": response_id,
