@@ -1,8 +1,11 @@
 """Tests for write operations in tools/emoji_messaging.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.zulipchat_mcp.tools.emoji_messaging import add_reaction, remove_reaction
+
 
 class TestReactions:
     """Tests for add/remove reaction functions."""
@@ -18,8 +21,12 @@ class TestReactions:
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch dependencies."""
-        with patch("src.zulipchat_mcp.tools.emoji_messaging.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.emoji_messaging.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.emoji_messaging.ConfigManager"),
+            patch(
+                "src.zulipchat_mcp.tools.emoji_messaging.ZulipClientWrapper"
+            ) as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -46,7 +53,10 @@ class TestReactions:
     @pytest.mark.asyncio
     async def test_add_to_nonexistent_message(self, mock_deps):
         """Test adding reaction to nonexistent message."""
-        mock_deps.add_reaction.return_value = {"result": "error", "msg": "Invalid message(s)"}
+        mock_deps.add_reaction.return_value = {
+            "result": "error",
+            "msg": "Invalid message(s)",
+        }
         result = await add_reaction(999, "thumbs_up")
         assert result["status"] == "error"
         assert "Invalid message" in result["error"]
@@ -70,7 +80,10 @@ class TestReactions:
     @pytest.mark.asyncio
     async def test_add_duplicate_reaction(self, mock_deps):
         """Test adding a reaction that already exists."""
-        mock_deps.add_reaction.return_value = {"result": "error", "msg": "Reaction already exists"}
+        mock_deps.add_reaction.return_value = {
+            "result": "error",
+            "msg": "Reaction already exists",
+        }
         result = await add_reaction(100, "thumbs_up")
         assert result["status"] == "error"
         assert "Reaction already exists" in result["error"]
@@ -89,7 +102,10 @@ class TestReactions:
         Zulip API typically only allows removing own reactions unless admin?
         We assume client.remove_reaction handles the API call and returns error if forbidden.
         """
-        mock_deps.remove_reaction.return_value = {"result": "error", "msg": "Not authorized"}
+        mock_deps.remove_reaction.return_value = {
+            "result": "error",
+            "msg": "Not authorized",
+        }
         result = await remove_reaction(100, "smile")
         assert result["status"] == "error"
         assert "Not authorized" in result["error"]

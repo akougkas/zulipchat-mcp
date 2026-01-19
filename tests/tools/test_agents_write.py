@@ -1,15 +1,18 @@
 """Tests for write operations in tools/agents.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.zulipchat_mcp.tools.agents import (
+    complete_task,
+    disable_afk_mode,
+    enable_afk_mode,
     register_agent,
     start_task,
     update_task_progress,
-    complete_task,
-    enable_afk_mode,
-    disable_afk_mode
 )
+
 
 class TestAgentOperations:
     """Tests for agent/task tracking operations."""
@@ -26,20 +29,24 @@ class TestAgentOperations:
         client = MagicMock()
         client.get_streams.return_value = {
             "result": "success",
-            "streams": [{"name": "Agents-Channel"}]
+            "streams": [{"name": "Agents-Channel"}],
         }
         return client
 
     @pytest.fixture
     def mock_deps(self, mock_db, mock_client):
         """Patch dependencies."""
-        with patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls, \
-             patch("src.zulipchat_mcp.tools.agents.ZulipClientWrapper") as mock_client_cls, \
-             patch("src.zulipchat_mcp.tools.agents.ConfigManager"):
-            
+        with (
+            patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls,
+            patch(
+                "src.zulipchat_mcp.tools.agents.ZulipClientWrapper"
+            ) as mock_client_cls,
+            patch("src.zulipchat_mcp.tools.agents.ConfigManager"),
+        ):
+
             mock_db_cls.return_value = mock_db
             mock_client_cls.return_value = mock_client
-            
+
             # Reset global client cache for clean tests
             with patch("src.zulipchat_mcp.tools.agents._client", None):
                 yield {"db": mock_db, "client": mock_client}
@@ -51,7 +58,7 @@ class TestAgentOperations:
         assert result["status"] == "success"
         assert result["agent_type"] == "test-agent"
         assert "agent_id" in result
-        
+
         # Verify DB calls: 3 executes (agent, instance, afk)
         assert mock_deps["db"].execute.call_count >= 3
 
@@ -77,7 +84,7 @@ class TestAgentOperations:
         result = start_task("agent-123", "Task 1", "Description")
         assert result["status"] == "success"
         assert "task_id" in result
-        
+
         mock_deps["db"].execute.assert_called()
 
     @pytest.mark.asyncio
@@ -85,7 +92,7 @@ class TestAgentOperations:
         """Test updating progress."""
         result = update_task_progress("task-1", 50, "working")
         assert result["status"] == "success"
-        
+
         args = mock_deps["db"].execute.call_args
         assert args[0][0].startswith("UPDATE tasks SET progress = ?")
         assert 50 in args[0][1]
@@ -107,7 +114,7 @@ class TestAgentOperations:
         """Test completing a task."""
         result = complete_task("task-1", "Done", "stats")
         assert result["status"] == "success"
-        
+
         mock_deps["db"].execute.assert_called()
         args = mock_deps["db"].execute.call_args
         assert "completed" in args[0][1]
@@ -124,22 +131,26 @@ class TestAgentOperations:
         """Test enabling AFK mode."""
         result = enable_afk_mode(hours=4, reason="Lunch")
         assert result["status"] == "success"
-        
-        mock_deps["db"].set_afk_state.assert_called_with(enabled=True, reason="Lunch", hours=4)
+
+        mock_deps["db"].set_afk_state.assert_called_with(
+            enabled=True, reason="Lunch", hours=4
+        )
 
     @pytest.mark.asyncio
     async def test_disable_afk_mode(self, mock_deps):
         """Test disabling AFK mode."""
         result = disable_afk_mode()
         assert result["status"] == "success"
-        
-        mock_deps["db"].set_afk_state.assert_called_with(enabled=False, reason="", hours=0)
+
+        mock_deps["db"].set_afk_state.assert_called_with(
+            enabled=False, reason="", hours=0
+        )
 
     @pytest.mark.asyncio
     async def test_afk_hours_negative(self, mock_deps):
         """Test AFK hours negative."""
         result = enable_afk_mode(hours=-1)
-        assert result["status"] == "success" # Tool passes it through
+        assert result["status"] == "success"  # Tool passes it through
 
     @pytest.mark.asyncio
     async def test_afk_hours_very_large(self, mock_deps):

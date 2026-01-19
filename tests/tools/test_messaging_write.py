@@ -1,8 +1,11 @@
 """Tests for write operations in tools/messaging.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
-from src.zulipchat_mcp.tools.messaging import send_message, edit_message
+
+import pytest
+
+from src.zulipchat_mcp.tools.messaging import edit_message, send_message
+
 
 class TestSendMessage:
     """Tests for send_message function."""
@@ -17,8 +20,12 @@ class TestSendMessage:
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch dependencies."""
-        with patch("src.zulipchat_mcp.tools.messaging.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.messaging.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.messaging.ConfigManager"),
+            patch(
+                "src.zulipchat_mcp.tools.messaging.ZulipClientWrapper"
+            ) as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -28,14 +35,18 @@ class TestSendMessage:
         result = await send_message("stream", "general", "Hello", "introductions")
         assert result["status"] == "success"
         assert result["message_id"] == 12345
-        mock_deps.send_message.assert_called_with("stream", "general", "Hello", "introductions")
+        mock_deps.send_message.assert_called_with(
+            "stream", "general", "Hello", "introductions"
+        )
 
     @pytest.mark.asyncio
     async def test_send_private_message_success(self, mock_deps):
         """Test sending a private message successfully."""
         result = await send_message("private", "user@example.com", "Hello")
         assert result["status"] == "success"
-        mock_deps.send_message.assert_called_with("private", "user@example.com", "Hello", None)
+        mock_deps.send_message.assert_called_with(
+            "private", "user@example.com", "Hello", None
+        )
 
     @pytest.mark.asyncio
     async def test_send_to_multiple_users(self, mock_deps):
@@ -43,7 +54,9 @@ class TestSendMessage:
         recipients = ["user1@example.com", "user2@example.com"]
         result = await send_message("private", recipients, "Hello Team")
         assert result["status"] == "success"
-        mock_deps.send_message.assert_called_with("private", recipients, "Hello Team", None)
+        mock_deps.send_message.assert_called_with(
+            "private", recipients, "Hello Team", None
+        )
 
     @pytest.mark.asyncio
     async def test_empty_content(self, mock_deps):
@@ -69,7 +82,7 @@ class TestSendMessage:
         long_content = "a" * 60000
         result = await send_message("stream", "general", long_content, "topic")
         assert result["status"] == "success"
-        
+
         # Verify truncation happened in the call
         args = mock_deps.send_message.call_args
         sent_content = args[0][2]
@@ -120,7 +133,7 @@ class TestSendMessage:
     @pytest.mark.asyncio
     async def test_topic_with_special_chars(self, mock_deps):
         """Test topic with special characters."""
-        topic = 'Topic /\:*?"<>|'
+        topic = r'Topic /\:*?"<>|'
         result = await send_message("stream", "general", "content", topic)
         assert result["status"] == "success"
         mock_deps.send_message.assert_called_with("stream", "general", "content", topic)
@@ -128,7 +141,10 @@ class TestSendMessage:
     @pytest.mark.asyncio
     async def test_invalid_stream_name(self, mock_deps):
         """Test sending to an invalid stream (mocking Zulip failure)."""
-        mock_deps.send_message.return_value = {"result": "error", "msg": "Stream does not exist"}
+        mock_deps.send_message.return_value = {
+            "result": "error",
+            "msg": "Stream does not exist",
+        }
         result = await send_message("stream", "nonexistent", "content", "topic")
         assert result["status"] == "error"
         assert result["error"] == "Stream does not exist"
@@ -136,7 +152,10 @@ class TestSendMessage:
     @pytest.mark.asyncio
     async def test_nonexistent_user(self, mock_deps):
         """Test sending to a nonexistent user (mocking Zulip failure)."""
-        mock_deps.send_message.return_value = {"result": "error", "msg": "User not found"}
+        mock_deps.send_message.return_value = {
+            "result": "error",
+            "msg": "User not found",
+        }
         result = await send_message("private", "nobody@example.com", "content")
         assert result["status"] == "error"
         assert result["error"] == "User not found"
@@ -144,7 +163,10 @@ class TestSendMessage:
     @pytest.mark.asyncio
     async def test_no_permission_to_stream(self, mock_deps):
         """Test sending without permission (mocking Zulip failure)."""
-        mock_deps.send_message.return_value = {"result": "error", "msg": "Not authorized"}
+        mock_deps.send_message.return_value = {
+            "result": "error",
+            "msg": "Not authorized",
+        }
         result = await send_message("stream", "private_stream", "content", "topic")
         assert result["status"] == "error"
         assert result["error"] == "Not authorized"
@@ -152,7 +174,10 @@ class TestSendMessage:
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self, mock_deps):
         """Test handling rate limit error."""
-        mock_deps.send_message.return_value = {"result": "error", "msg": "Rate limit exceeded"}
+        mock_deps.send_message.return_value = {
+            "result": "error",
+            "msg": "Rate limit exceeded",
+        }
         result = await send_message("stream", "general", "content", "topic")
         assert result["status"] == "error"
         assert result["error"] == "Rate limit exceeded"
@@ -190,8 +215,12 @@ class TestEditMessage:
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch dependencies."""
-        with patch("src.zulipchat_mcp.tools.messaging.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.messaging.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.messaging.ConfigManager"),
+            patch(
+                "src.zulipchat_mcp.tools.messaging.ZulipClientWrapper"
+            ) as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -208,13 +237,16 @@ class TestEditMessage:
             propagate_mode="change_one",
             send_notification_to_old_thread=False,
             send_notification_to_new_thread=True,
-            stream_id=None
+            stream_id=None,
         )
 
     @pytest.mark.asyncio
     async def test_edit_others_message_fails(self, mock_deps):
         """Test editing others' message (mocking Zulip security rejection)."""
-        mock_deps.edit_message.return_value = {"result": "error", "msg": "You don't have permission to edit this message"}
+        mock_deps.edit_message.return_value = {
+            "result": "error",
+            "msg": "You don't have permission to edit this message",
+        }
         result = await edit_message(101, content="Hacked")
         assert result["status"] == "error"
         assert "permission" in result["error"]
@@ -222,7 +254,10 @@ class TestEditMessage:
     @pytest.mark.asyncio
     async def test_edit_nonexistent_message(self, mock_deps):
         """Test editing nonexistent message."""
-        mock_deps.edit_message.return_value = {"result": "error", "msg": "Message not found"}
+        mock_deps.edit_message.return_value = {
+            "result": "error",
+            "msg": "Message not found",
+        }
         result = await edit_message(999, content="Ghost")
         assert result["status"] == "error"
         assert "Message not found" in result["error"]
@@ -235,11 +270,11 @@ class TestEditMessage:
         # But if we WANT to set it to empty string?
         # The current implementation treats `if content` as False for "".
         # So it passes None to client.edit_message.
-        # This effectively means "don't change content". 
+        # This effectively means "don't change content".
         # If the user *wants* to clear the content, they might need to send " " or similar?
         # Or maybe the implementation should distinguish between None (no change) and "" (clear).
         # Python: `if content` checks truthiness.
-        
+
         result = await edit_message(100, content="")
         # If content is "", current code:
         # if not content and not topic and not stream_id: return error

@@ -1,13 +1,16 @@
 """Tests for write operations in tools/mark_messaging.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.zulipchat_mcp.tools.mark_messaging import (
+    mark_all_as_read,
     mark_stream_as_read,
     star_messages,
     update_message_flags_for_narrow,
-    mark_all_as_read
 )
+
 
 class TestMessageFlags:
     """Tests for message flag operations."""
@@ -19,7 +22,7 @@ class TestMessageFlags:
         client.client.call_endpoint.return_value = {
             "result": "success",
             "processed_count": 10,
-            "updated_count": 5
+            "updated_count": 5,
         }
         # Default successful stream resolution - now uses get_streams()
         client.get_streams.return_value = {
@@ -27,15 +30,19 @@ class TestMessageFlags:
             "streams": [
                 {"stream_id": 123, "name": "Test Stream"},
                 {"stream_id": 456, "name": "Other Stream"},
-            ]
+            ],
         }
         return client
 
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch dependencies."""
-        with patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch(
+                "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
+            ) as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -45,7 +52,7 @@ class TestMessageFlags:
         result = await mark_stream_as_read(123)
         assert result["status"] == "success"
         assert result["operation"] == "add_read"
-        
+
         # Verify call arguments
         mock_deps.client.call_endpoint.assert_called()
         args = mock_deps.client.call_endpoint.call_args
@@ -63,7 +70,7 @@ class TestMessageFlags:
         # Mock get_streams returns streams that don't include ID 999
         mock_deps.get_streams.return_value = {
             "result": "success",
-            "streams": [{"stream_id": 123, "name": "Test Stream"}]
+            "streams": [{"stream_id": 123, "name": "Test Stream"}],
         }
 
         result = await mark_stream_as_read(999)
@@ -78,7 +85,7 @@ class TestMessageFlags:
         result = await star_messages(narrow=narrow)
         assert result["status"] == "success"
         assert result["operation"] == "add_starred"
-        
+
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["flag"] == "starred"
@@ -96,7 +103,7 @@ class TestMessageFlags:
         """Test marking all messages as read (checks num_after param)."""
         result = await mark_all_as_read()
         assert result["status"] == "success"
-        
+
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["narrow"] == []  # Empty narrow for "all"
@@ -123,10 +130,12 @@ class TestMessageFlags:
     @pytest.mark.asyncio
     async def test_invalid_flag_name(self, mock_deps):
         """Test with an invalid flag name (backend rejection)."""
-        mock_deps.client.call_endpoint.return_value = {"result": "error", "msg": "Invalid flag"}
+        mock_deps.client.call_endpoint.return_value = {
+            "result": "error",
+            "msg": "Invalid flag",
+        }
         result = await update_message_flags_for_narrow(
             narrow=[], op="add", flag="invalid_flag"
         )
         assert result["status"] == "error"
         assert "Invalid flag" in result["error"]
-

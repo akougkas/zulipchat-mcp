@@ -1,20 +1,19 @@
 """Tests for setup_wizard.py."""
 
 import json
-import os
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from src.zulipchat_mcp.setup_wizard import (
-    scan_for_zuliprc_files,
-    validate_zuliprc,
-    generate_mcp_config,
-    write_config_to_file,
-    get_mcp_client_config_path,
-    select_identity,
     generate_claude_code_command,
+    generate_mcp_config,
+    get_mcp_client_config_path,
+    scan_for_zuliprc_files,
+    select_identity,
+    validate_zuliprc,
+    write_config_to_file,
 )
 
 
@@ -33,7 +32,7 @@ class TestScanForZuliprcFiles:
         """Test scanning ~/.zuliprc and ~/.config/zulip/zuliprc."""
         # Create .zuliprc
         (mock_home / ".zuliprc").write_text("[api]\nkey=123", encoding="utf-8")
-        
+
         # Create .config/zulip/zuliprc
         config_dir = mock_home / ".config" / "zulip"
         config_dir.mkdir(parents=True)
@@ -41,7 +40,7 @@ class TestScanForZuliprcFiles:
 
         found = scan_for_zuliprc_files()
         found_paths = [str(p.resolve()) for p in found]
-        
+
         assert str((mock_home / ".zuliprc").resolve()) in found_paths
         assert str((config_dir / "zuliprc").resolve()) in found_paths
 
@@ -76,7 +75,7 @@ class TestValidateZuliprc:
             "result": "success",
             "full_name": "Test User",
             "email": "user@example.com",
-            "is_bot": False
+            "is_bot": False,
         }
         mock_client_cls.return_value = client_instance
 
@@ -85,7 +84,7 @@ class TestValidateZuliprc:
         zuliprc.touch()
 
         result = validate_zuliprc(zuliprc, silent=True)
-        
+
         assert result is not None
         assert result["name"] == "Test User"
         assert result["email"] == "user@example.com"
@@ -99,7 +98,7 @@ class TestValidateZuliprc:
             "result": "success",
             "full_name": "Test Bot",
             "email": "bot@example.com",
-            "is_bot": True
+            "is_bot": True,
         }
         mock_client_cls.return_value = client_instance
 
@@ -107,7 +106,7 @@ class TestValidateZuliprc:
         zuliprc.touch()
 
         result = validate_zuliprc(zuliprc, silent=True)
-        
+
         assert result is not None
         assert result["is_bot"] is True
 
@@ -116,7 +115,7 @@ class TestValidateZuliprc:
         client_instance = MagicMock()
         client_instance.get_profile.return_value = {
             "result": "error",
-            "msg": "Invalid API key"
+            "msg": "Invalid API key",
         }
         mock_client_cls.return_value = client_instance
 
@@ -139,7 +138,7 @@ class TestGenerateMcpConfig:
         """Test config generation with user credentials only."""
         user_config = {"path": "/path/to/zuliprc"}
         config = generate_mcp_config(user_config)
-        
+
         assert "uv" in config["command"]
         assert "zulipchat-mcp" in config["args"][1]
         assert "--zulip-config-file" in config["args"]
@@ -151,7 +150,7 @@ class TestGenerateMcpConfig:
         user_config = {"path": "/path/to/user"}
         bot_config = {"path": "/path/to/bot"}
         config = generate_mcp_config(user_config, bot_config)
-        
+
         assert "--zulip-bot-config-file" in config["args"]
         assert "/path/to/bot" in config["args"]
 
@@ -160,7 +159,7 @@ class TestGenerateMcpConfig:
         user_config = {"path": "/path/to/user"}
         bot_config = {"path": "/path/to/bot"}
         cmd = generate_claude_code_command(user_config, bot_config)
-        
+
         assert "claude mcp add zulipchat" in cmd
         assert "-e ZULIP_CONFIG_FILE=/path/to/user" in cmd
         assert "-e ZULIP_BOT_CONFIG_FILE=/path/to/bot" in cmd
@@ -173,12 +172,12 @@ class TestWriteConfigToFile:
         """Test creating new config file."""
         config_path = tmp_path / "config.json"
         mcp_config = {"command": "test"}
-        
+
         success = write_config_to_file(config_path, "server", mcp_config)
-        
+
         assert success is True
         assert config_path.exists()
-        
+
         content = json.loads(config_path.read_text())
         assert content["mcpServers"]["server"] == mcp_config
 
@@ -187,10 +186,10 @@ class TestWriteConfigToFile:
         config_path = tmp_path / "config.json"
         existing = {"mcpServers": {"other": {}}}
         config_path.write_text(json.dumps(existing))
-        
+
         mcp_config = {"command": "test"}
         write_config_to_file(config_path, "server", mcp_config)
-        
+
         content = json.loads(config_path.read_text())
         assert "other" in content["mcpServers"]
         assert "server" in content["mcpServers"]
@@ -199,25 +198,25 @@ class TestWriteConfigToFile:
         """Test that backup is created."""
         config_path = tmp_path / "config.json"
         config_path.write_text("{}")
-        
+
         write_config_to_file(config_path, "server", {})
-        
+
         backup = tmp_path / "config.json.bak"
         assert backup.exists()
 
 
 class TestHelpers:
     """Tests for helper functions."""
-    
+
     def test_get_mcp_client_config_path(self, monkeypatch, tmp_path):
         """Test path resolution."""
         monkeypatch.setenv("HOME", str(tmp_path))
-        
+
         # Claude Desktop (linux fallback)
         if sys.platform not in ["darwin", "win32"]:
             expected = tmp_path / ".config" / "Claude" / "claude_desktop_config.json"
             assert get_mcp_client_config_path("claude-desktop") == expected
-            
+
         # Gemini (creates default path if not exists)
         expected = tmp_path / ".gemini" / "settings.json"
         assert get_mcp_client_config_path("gemini") == expected
@@ -225,14 +224,13 @@ class TestHelpers:
     def test_select_identity_manual_entry(self, monkeypatch):
         """Test selecting identity with manual entry."""
         monkeypatch.setattr("builtins.input", lambda _: "/manual/path")
-        
+
         with patch("src.zulipchat_mcp.setup_wizard.validate_zuliprc") as mock_validate:
             mock_validate.return_value = {"valid": True}
-            
+
             # Empty list triggers manual entry prompt immediately?
             # No, logic says: if not available: prompt(Enter path...)
-            
+
             result = select_identity([], "User")
             assert result == {"valid": True}
             mock_validate.assert_called()
-

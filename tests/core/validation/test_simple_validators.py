@@ -1,10 +1,11 @@
 """Tests for core/validation/simple_validators.py."""
 
 import pytest
+
 from src.zulipchat_mcp.core.validation.simple_validators import (
+    NarrowHelper,
     SimpleValidator,
     ValidationMode,
-    NarrowHelper,
     get_validator,
     validate_tool_params,
 )
@@ -27,9 +28,9 @@ class TestSimpleValidator:
             "content": "hello",
             "extra_param": "should be filtered",
         }
-        
+
         result = validator.validate_params(tool, params, ValidationMode.BASIC)
-        
+
         assert "extra_param" not in result
         assert result["content"] == "hello"
 
@@ -43,9 +44,9 @@ class TestSimpleValidator:
             "content": "hello",
             "extra_param": "allowed",
         }
-        
+
         result = validator.validate_params(tool, params, ValidationMode.ADVANCED)
-        
+
         assert "extra_param" in result
         assert result["extra_param"] == "allowed"
 
@@ -59,9 +60,9 @@ class TestSimpleValidator:
             "content": "hello",
             "weird_param": "allowed",
         }
-        
+
         result = validator.validate_params(tool, params, ValidationMode.EXPERT)
-        
+
         assert "weird_param" in result
 
     def test_missing_required_params(self, validator):
@@ -71,7 +72,7 @@ class TestSimpleValidator:
             "operation": "send",
             # missing type, to, content
         }
-        
+
         with pytest.raises(ValueError, match="Missing required parameters"):
             validator.validate_params(tool, params, ValidationMode.BASIC)
 
@@ -79,12 +80,12 @@ class TestSimpleValidator:
         """Test validation for unknown tool allows everything (default behavior)."""
         tool = "unknown_tool"
         params = {"any": "thing"}
-        
+
         # In BASIC mode, unknown tool has no BASIC_PARAMS entry, so allowed_params is empty set
         # Thus everything filtered out?
         result = validator.validate_params(tool, params, ValidationMode.BASIC)
         assert result == {}
-        
+
         # In ADVANCED mode
         result = validator.validate_params(tool, params, ValidationMode.ADVANCED)
         assert result == params
@@ -92,11 +93,11 @@ class TestSimpleValidator:
     def test_get_parameter_help(self, validator):
         """Test get_parameter_help returns correct info."""
         tool = "messaging.message"
-        
+
         help_basic = validator.get_parameter_help(tool, ValidationMode.BASIC)
         assert help_basic["mode"] == "basic"
         assert "basic_params" in help_basic
-        
+
         help_advanced = validator.get_parameter_help(tool, ValidationMode.ADVANCED)
         assert help_advanced["mode"] == "advanced"
 
@@ -106,22 +107,34 @@ class TestNarrowHelper:
 
     def test_static_methods(self):
         """Test static helper methods."""
-        assert NarrowHelper.stream("general") == {"operator": "stream", "operand": "general"}
-        assert NarrowHelper.topic("testing") == {"operator": "topic", "operand": "testing"}
-        assert NarrowHelper.sender("me@example.com") == {"operator": "sender", "operand": "me@example.com"}
-        assert NarrowHelper.search_text("hello") == {"operator": "search", "operand": "hello"}
-        assert NarrowHelper.has_attachment() == {"operator": "has", "operand": "attachment"}
+        assert NarrowHelper.stream("general") == {
+            "operator": "stream",
+            "operand": "general",
+        }
+        assert NarrowHelper.topic("testing") == {
+            "operator": "topic",
+            "operand": "testing",
+        }
+        assert NarrowHelper.sender("me@example.com") == {
+            "operator": "sender",
+            "operand": "me@example.com",
+        }
+        assert NarrowHelper.search_text("hello") == {
+            "operator": "search",
+            "operand": "hello",
+        }
+        assert NarrowHelper.has_attachment() == {
+            "operator": "has",
+            "operand": "attachment",
+        }
         assert NarrowHelper.is_private() == {"operator": "is", "operand": "private"}
 
     def test_build_basic_narrow(self):
         """Test build_basic_narrow combines filters."""
         narrow = NarrowHelper.build_basic_narrow(
-            stream="general",
-            topic="python",
-            sender="me@example.com",
-            text="bug"
+            stream="general", topic="python", sender="me@example.com", text="bug"
         )
-        
+
         assert len(narrow) == 4
         assert narrow[0] == {"operator": "stream", "operand": "general"}
         assert narrow[1] == {"operator": "topic", "operand": "python"}
@@ -149,7 +162,7 @@ def test_validate_tool_params_convenience():
         "operation": "send",
         "type": "stream",
         "to": "general",
-        "content": "hello"
+        "content": "hello",
     }
     result = validate_tool_params("messaging.message", params)
     assert result == params

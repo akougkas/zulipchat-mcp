@@ -49,9 +49,9 @@ class GenerateDigestCommand(Command):
                     sender = msg.get("sender", "Unknown")
                     senders[sender] = senders.get(sender, 0) + 1
 
-                top_senders = sorted(
-                    senders.items(), key=lambda x: x[1], reverse=True
-                )[:3]
+                top_senders = sorted(senders.items(), key=lambda x: x[1], reverse=True)[
+                    :3
+                ]
                 if top_senders:
                     digest_lines.append("Top contributors:")
                     for sender, count in top_senders:
@@ -59,11 +59,9 @@ class GenerateDigestCommand(Command):
 
             digest_lines.append("")
 
-        digest_lines.append(
-            f"**Total messages across all streams: {total_messages}**"
-        )
+        digest_lines.append(f"**Total messages across all streams: {total_messages}**")
         content = "\n".join(digest_lines)
-        
+
         # Store in context
         context.set("digest_content", content)
         return content

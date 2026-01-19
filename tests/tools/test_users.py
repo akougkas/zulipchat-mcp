@@ -1,22 +1,24 @@
 """Tests for tools/users.py."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.zulipchat_mcp.tools.users import (
-    validate_email,
-    get_users,
-    get_user_by_id,
-    get_user_by_email,
     get_own_user,
-    get_user_status,
-    update_status,
-    get_user_presence,
     get_presence,
-    get_user_groups,
+    get_user_by_email,
+    get_user_by_id,
     get_user_group_members,
+    get_user_groups,
+    get_user_presence,
+    get_user_status,
+    get_users,
     is_user_group_member,
     mute_user,
     unmute_user,
+    update_status,
+    validate_email,
 )
 
 
@@ -35,8 +37,10 @@ class TestUsersTools:
 
     @pytest.fixture
     def mock_deps(self, mock_client):
-        with patch("src.zulipchat_mcp.tools.users.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.users.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.users.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.users.ZulipClientWrapper") as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -51,14 +55,17 @@ class TestUsersTools:
         """Test get_users."""
         mock_deps.get_users.return_value = {
             "result": "success",
-            "members": [{"user_id": 1, "email": "u1@e.com"}, {"user_id": 2, "email": "u2@e.com"}]
+            "members": [
+                {"user_id": 1, "email": "u1@e.com"},
+                {"user_id": 2, "email": "u2@e.com"},
+            ],
         }
-        
+
         # All users
         result = await get_users()
         assert result["status"] == "success"
         assert result["count"] == 2
-        
+
         # Filtered
         result = await get_users(user_ids=[1])
         assert result["status"] == "success"
@@ -78,7 +85,7 @@ class TestUsersTools:
         # Invalid email
         result = await get_user_by_email("invalid")
         assert result["status"] == "error"
-        
+
         # Valid email
         result = await get_user_by_email("u@e.com")
         assert result["status"] == "success"
@@ -91,22 +98,24 @@ class TestUsersTools:
             "result": "success",
             "user_id": 1,
             "email": "me@e.com",
-            "full_name": "Me"
+            "full_name": "Me",
         }
-        
+
         result = await get_own_user()
         assert result["status"] == "success"
         assert result["user"]["email"] == "me@e.com"
-        mock_deps.client.call_endpoint.assert_called_with("users/me", method="GET", request={})
+        mock_deps.client.call_endpoint.assert_called_with(
+            "users/me", method="GET", request={}
+        )
 
     @pytest.mark.asyncio
     async def test_get_user_status(self, mock_deps):
         """Test get_user_status."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "status": {"status_text": "busy"}
+            "status": {"status_text": "busy"},
         }
-        
+
         result = await get_user_status(1)
         assert result["status"] == "success"
         assert result["user_status"]["status_text"] == "busy"
@@ -120,11 +129,11 @@ class TestUsersTools:
         mock_deps.client.call_endpoint.assert_called_with(
             "users/me/status", method="POST", request={"status_text": "working"}
         )
-        
+
         # Validation error (too long)
         result = await update_status(status_text="a" * 61)
         assert result["status"] == "error"
-        
+
         # Missing args
         result = await update_status()
         assert result["status"] == "error"
@@ -134,9 +143,9 @@ class TestUsersTools:
         """Test get_user_presence."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "presence": {"aggregated": {"status": "active"}}
+            "presence": {"aggregated": {"status": "active"}},
         }
-        
+
         result = await get_user_presence(1)
         assert result["status"] == "success"
         assert result["presence"]["aggregated"]["status"] == "active"
@@ -146,9 +155,9 @@ class TestUsersTools:
         """Test get_presence (all users)."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "presences": {"u1": {}}
+            "presences": {"u1": {}},
         }
-        
+
         result = await get_presence()
         assert result["status"] == "success"
         assert result["users_count"] == 1
@@ -158,9 +167,9 @@ class TestUsersTools:
         """Test get_user_groups."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "user_groups": [{"id": 1}]
+            "user_groups": [{"id": 1}],
         }
-        
+
         result = await get_user_groups()
         assert result["status"] == "success"
         assert result["count"] == 1
@@ -170,9 +179,9 @@ class TestUsersTools:
         """Test get_user_group_members."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "members": [1, 2]
+            "members": [1, 2],
         }
-        
+
         result = await get_user_group_members(1)
         assert result["status"] == "success"
         assert result["member_count"] == 2
@@ -182,9 +191,9 @@ class TestUsersTools:
         """Test is_user_group_member."""
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "is_user_group_member": True
+            "is_user_group_member": True,
         }
-        
+
         result = await is_user_group_member(1, 2)
         assert result["status"] == "success"
         assert result["is_member"] is True
@@ -199,7 +208,7 @@ class TestUsersTools:
         mock_deps.client.call_endpoint.assert_called_with(
             "users/me/muted_users/1", method="POST", request={}
         )
-        
+
         # Unmute
         res = await unmute_user(1)
         assert res["status"] == "success"

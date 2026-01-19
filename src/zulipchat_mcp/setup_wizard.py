@@ -5,7 +5,6 @@ MCP client configuration for Claude Desktop, Gemini CLI, or Claude Code.
 """
 
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -148,8 +147,12 @@ def select_identity(
     available = [f for f in files if f != exclude]
 
     if not available:
-        print(f"\n{YELLOW}No additional zuliprc files available for {identity_type}.{RESET}")
-        manual = prompt(f"Enter path to {identity_type} zuliprc (or press Enter to skip)")
+        print(
+            f"\n{YELLOW}No additional zuliprc files available for {identity_type}.{RESET}"
+        )
+        manual = prompt(
+            f"Enter path to {identity_type} zuliprc (or press Enter to skip)"
+        )
         if manual:
             path = Path(manual).expanduser()
             return validate_zuliprc(path)
@@ -195,9 +198,17 @@ def get_mcp_client_config_path(client_type: str) -> Path | None:
 
     if client_type == "claude-desktop":
         if sys.platform == "darwin":
-            return home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+            return (
+                home
+                / "Library"
+                / "Application Support"
+                / "Claude"
+                / "claude_desktop_config.json"
+            )
         elif sys.platform == "win32":
-            return home / "AppData" / "Roaming" / "Claude" / "claude_desktop_config.json"
+            return (
+                home / "AppData" / "Roaming" / "Claude" / "claude_desktop_config.json"
+            )
         else:
             return home / ".config" / "Claude" / "claude_desktop_config.json"
 

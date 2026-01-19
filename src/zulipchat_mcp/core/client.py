@@ -120,6 +120,7 @@ class ZulipClientWrapper:
                 )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
+
     @property
     def is_connected(self) -> bool:
         """Check if client connection has been established."""
@@ -457,9 +458,7 @@ class ZulipClientWrapper:
 
     def mute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
         if hasattr(self.client, "mute_topic"):
-            return self.client.mute_topic(
-                {"stream_id": stream_id, "topic": topic_name}
-            )
+            return self.client.mute_topic({"stream_id": stream_id, "topic": topic_name})
         return self.client.call_endpoint(
             "users/me/muted_topics",
             method="PATCH",

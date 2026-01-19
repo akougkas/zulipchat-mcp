@@ -14,7 +14,6 @@ from fastmcp import FastMCP
 from ..config import ConfigManager
 from ..core.client import ZulipClientWrapper
 
-
 NarrowOperand = str | int | list[str]
 
 
@@ -308,7 +307,11 @@ async def search_messages(
                 days = int(last_days) if isinstance(last_days, str) else last_days
                 cutoff = datetime.now() - timedelta(days=days)
             elif after_time:
-                cutoff = after_time if isinstance(after_time, datetime) else datetime.fromisoformat(str(after_time))
+                cutoff = (
+                    after_time
+                    if isinstance(after_time, datetime)
+                    else datetime.fromisoformat(str(after_time))
+                )
             else:
                 cutoff = None
 
@@ -321,7 +324,11 @@ async def search_messages(
                 num_after = limit
 
         if before_time:
-            bt = before_time if isinstance(before_time, datetime) else datetime.fromisoformat(str(before_time))
+            bt = (
+                before_time
+                if isinstance(before_time, datetime)
+                else datetime.fromisoformat(str(before_time))
+            )
             before_ts = bt.timestamp()
 
         if sort_by == "oldest" and anchor != "date":

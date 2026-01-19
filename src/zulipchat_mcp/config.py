@@ -128,11 +128,11 @@ class ConfigManager:
                 # Don't raise, just return False to let caller handle error
                 return False
             return True
-        
+
         # Check for environment variables
         if self.config.email and self.config.api_key and self.config.site:
             return True
-            
+
         return False
 
     def has_bot_credentials(self) -> bool:

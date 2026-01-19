@@ -1,7 +1,5 @@
 """Approved emoji registry for agent reactions."""
 
-from typing import Any
-
 APPROVED_EMOJI = {
     "thumbs_up": "Approval or agreement",
     "heart": "Support, love, or encouragement",
@@ -41,6 +39,5 @@ def get_emoji_choices() -> list[dict[str, str]]:
         List of dicts with 'name' and 'description' keys
     """
     return [
-        {"name": name, "description": desc}
-        for name, desc in APPROVED_EMOJI.items()
+        {"name": name, "description": desc} for name, desc in APPROVED_EMOJI.items()
     ]

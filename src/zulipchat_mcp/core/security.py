@@ -42,6 +42,7 @@ def require_unsafe_mode(func: Callable[..., Any]) -> Callable[..., Any]:
 
     Use this on dangerous tools like delete_message, delete_stream, etc.
     """
+
     @wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not is_unsafe_mode():
@@ -51,11 +52,13 @@ def require_unsafe_mode(func: Callable[..., Any]) -> Callable[..., Any]:
                 "hint": "Start the server with --unsafe flag to enable destructive operations",
             }
         return await func(*args, **kwargs)
+
     return wrapper
 
 
 def require_unsafe_mode_sync(func: Callable[..., Any]) -> Callable[..., Any]:
     """Synchronous version of require_unsafe_mode decorator."""
+
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         if not is_unsafe_mode():
@@ -65,6 +68,7 @@ def require_unsafe_mode_sync(func: Callable[..., Any]) -> Callable[..., Any]:
                 "hint": "Start the server with --unsafe flag to enable destructive operations",
             }
         return func(*args, **kwargs)
+
     return wrapper
 
 

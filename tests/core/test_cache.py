@@ -1,15 +1,15 @@
 """Tests for core/cache.py."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-import time
-import asyncio
-from unittest.mock import patch, Mock
+
 from src.zulipchat_mcp.core.cache import (
     MessageCache,
     StreamCache,
     UserCache,
-    cache_decorator,
     async_cache_decorator,
+    cache_decorator,
 )
 
 
@@ -34,11 +34,11 @@ class TestMessageCache:
         with patch("time.time") as mock_time:
             mock_time.return_value = 1000.0
             cache.set("key", "value")
-            
+
             # Not expired
             mock_time.return_value = 1050.0
             assert cache.get("key") == "value"
-            
+
             # Expired
             mock_time.return_value = 1061.0
             assert cache.get("key") is None
@@ -49,20 +49,20 @@ class TestMessageCache:
             mock_time.return_value = 1000.0
             cache.set("valid", "v")
             cache.set("expired", "e")
-            
+
             # Make one expired
             # We need to manually manipulate the cache dict or set with different times
             # But set() uses current time.time().
-            
+
             # Strategy: Set both. Then advance time so one expires?
             # No, if we advance time, both expire if TTL same.
-            
+
             # We can manually set timestamps in cache dict for testing.
-            cache.cache["expired"] = ("e", 900.0) # expired at 1000 (diff 100 > 60)
-            cache.cache["valid"] = ("v", 990.0) # valid at 1000 (diff 10 < 60)
-            
+            cache.cache["expired"] = ("e", 900.0)  # expired at 1000 (diff 100 > 60)
+            cache.cache["valid"] = ("v", 990.0)  # valid at 1000 (diff 10 < 60)
+
             cache.clear_expired()
-            
+
             assert "valid" in cache.cache
             assert "expired" not in cache.cache
 
@@ -125,19 +125,19 @@ class TestCacheDecorators:
     def test_cache_decorator(self):
         """Test sync cache decorator."""
         mock_func = Mock(return_value="result")
-        
+
         @cache_decorator(ttl=60)
         def decorated(arg):
             return mock_func(arg)
-            
+
         # First call: executes function
         assert decorated("test") == "result"
         assert mock_func.call_count == 1
-        
+
         # Second call: cached
         assert decorated("test") == "result"
         assert mock_func.call_count == 1
-        
+
         # Different arg: executes function
         assert decorated("other") == "result"
         assert mock_func.call_count == 2
@@ -146,19 +146,19 @@ class TestCacheDecorators:
     async def test_async_cache_decorator(self):
         """Test async cache decorator."""
         mock_func = Mock(return_value="result")
-        
+
         @async_cache_decorator(ttl=60)
         async def decorated(arg):
             return mock_func(arg)
-            
+
         # First call
         assert await decorated("test") == "result"
         assert mock_func.call_count == 1
-        
+
         # Second call
         assert await decorated("test") == "result"
         assert mock_func.call_count == 1
-        
+
         # Different arg
         assert await decorated("other") == "result"
         assert mock_func.call_count == 2

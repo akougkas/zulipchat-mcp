@@ -1,16 +1,18 @@
 """Tests for tools/search.py."""
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.zulipchat_mcp.tools.search import (
-    resolve_user_identifier,
-    search_messages,
-    advanced_search,
-    construct_narrow,
-    check_messages_match_narrow,
     AmbiguousUserError,
     UserNotFoundError,
+    advanced_search,
+    check_messages_match_narrow,
+    construct_narrow,
+    resolve_user_identifier,
+    search_messages,
 )
 
 
@@ -24,27 +26,36 @@ class TestSearchTools:
             "result": "success",
             "members": [
                 {"full_name": "Test User", "email": "user@example.com", "user_id": 1},
-                {"full_name": "Another User", "email": "another@example.com", "user_id": 2},
+                {
+                    "full_name": "Another User",
+                    "email": "another@example.com",
+                    "user_id": 2,
+                },
                 {"full_name": "Test Bot", "email": "bot@example.com", "user_id": 3},
-            ]
+            ],
         }
         client.get_messages_raw.return_value = {
             "result": "success",
             "messages": [],
-            "anchor": 100
+            "anchor": 100,
         }
         client.get_streams.return_value = {
             "result": "success",
-            "streams": [{"name": "general", "description": "General stream"}]
+            "streams": [{"name": "general", "description": "General stream"}],
         }
         # For check_messages_match_narrow
-        client.client.call_endpoint.return_value = {"result": "success", "messages": {"1": {}}}
+        client.client.call_endpoint.return_value = {
+            "result": "success",
+            "messages": {"1": {}},
+        }
         return client
 
     @pytest.fixture
     def mock_deps(self, mock_client):
-        with patch("src.zulipchat_mcp.tools.search.ConfigManager"), \
-             patch("src.zulipchat_mcp.tools.search.ZulipClientWrapper") as mock_wrapper:
+        with (
+            patch("src.zulipchat_mcp.tools.search.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.search.ZulipClientWrapper") as mock_wrapper,
+        ):
             mock_wrapper.return_value = mock_client
             yield mock_client
 
@@ -54,19 +65,19 @@ class TestSearchTools:
         # Exact email
         res = await resolve_user_identifier("user@example.com", mock_client)
         assert res["email"] == "user@example.com"
-        
+
         # Exact name
         res = await resolve_user_identifier("Test User", mock_client)
         assert res["email"] == "user@example.com"
-        
+
         # Fuzzy name
         res = await resolve_user_identifier("another", mock_client)
         assert res["email"] == "another@example.com"
-        
+
         # Not found
         with pytest.raises(UserNotFoundError):
             await resolve_user_identifier("nonexistent", mock_client)
-            
+
         # Ambiguous (mock behavior for similar names)
         mock_client.get_users.return_value["members"].append(
             {"full_name": "Another User 2", "email": "a2@example.com"}
@@ -83,15 +94,24 @@ class TestSearchTools:
         mock_deps.get_messages_raw.return_value = {
             "result": "success",
             "messages": [
-                {"id": 1, "sender_full_name": "U", "sender_email": "e", "timestamp": 100, "content": "c", "type": "stream", "display_recipient": "s", "subject": "t"}
-            ]
+                {
+                    "id": 1,
+                    "sender_full_name": "U",
+                    "sender_email": "e",
+                    "timestamp": 100,
+                    "content": "c",
+                    "type": "stream",
+                    "display_recipient": "s",
+                    "subject": "t",
+                }
+            ],
         }
-        
+
         result = await search_messages(query="hello")
-        
+
         assert result["status"] == "success"
         assert len(result["messages"]) == 1
-        
+
         # Verify call
         args = mock_deps.get_messages_raw.call_args[1]
         narrow = args["narrow"]
@@ -103,22 +123,36 @@ class TestSearchTools:
         now = datetime.now()
         ts_now = now.timestamp()
         ts_old = (now - timedelta(hours=2)).timestamp()
-        
+
         mock_deps.get_messages_raw.return_value = {
             "result": "success",
             "messages": [
-                {"id": 1, "sender_full_name": "U", "sender_email": "e", "timestamp": ts_now, "content": "recent", "type": "s"},
-                {"id": 2, "sender_full_name": "U", "sender_email": "e", "timestamp": ts_old, "content": "old", "type": "s"}
-            ]
+                {
+                    "id": 1,
+                    "sender_full_name": "U",
+                    "sender_email": "e",
+                    "timestamp": ts_now,
+                    "content": "recent",
+                    "type": "s",
+                },
+                {
+                    "id": 2,
+                    "sender_full_name": "U",
+                    "sender_email": "e",
+                    "timestamp": ts_old,
+                    "content": "old",
+                    "type": "s",
+                },
+            ],
         }
-        
+
         # Search last 1 hour
         result = await search_messages(last_hours=1)
-        
+
         assert result["status"] == "success"
         assert len(result["messages"]) == 1
         assert result["messages"][0]["content"] == "recent"
-        
+
         # Verify anchor_date was used
         args = mock_deps.get_messages_raw.call_args[1]
         assert args["anchor"] == "date"
@@ -129,7 +163,7 @@ class TestSearchTools:
         """Test search with sender name requiring resolution."""
         # 'Test User' resolves to 'user@example.com'
         await search_messages(sender="Test User")
-        
+
         args = mock_deps.get_messages_raw.call_args[1]
         narrow = args["narrow"]
         # Should be resolved email
@@ -141,18 +175,42 @@ class TestSearchTools:
         mock_deps.get_messages_raw.return_value = {
             "result": "success",
             "messages": [
-                {"id": 1, "sender_full_name": "U1", "sender_email": "e1", "timestamp": 100, "content": "c", "type": "stream", "display_recipient": "s1"},
-                {"id": 2, "sender_full_name": "U1", "sender_email": "e1", "timestamp": 100, "content": "c", "type": "stream", "display_recipient": "s1"},
-                {"id": 3, "sender_full_name": "U2", "sender_email": "e2", "timestamp": 100, "content": "c", "type": "stream", "display_recipient": "s2"},
-            ]
+                {
+                    "id": 1,
+                    "sender_full_name": "U1",
+                    "sender_email": "e1",
+                    "timestamp": 100,
+                    "content": "c",
+                    "type": "stream",
+                    "display_recipient": "s1",
+                },
+                {
+                    "id": 2,
+                    "sender_full_name": "U1",
+                    "sender_email": "e1",
+                    "timestamp": 100,
+                    "content": "c",
+                    "type": "stream",
+                    "display_recipient": "s1",
+                },
+                {
+                    "id": 3,
+                    "sender_full_name": "U2",
+                    "sender_email": "e2",
+                    "timestamp": 100,
+                    "content": "c",
+                    "type": "stream",
+                    "display_recipient": "s2",
+                },
+            ],
         }
-        
+
         result = await advanced_search(
             query="",
             search_type=["messages"],
-            aggregations=["count_by_user", "count_by_stream"]
+            aggregations=["count_by_user", "count_by_stream"],
         )
-        
+
         assert result["status"] == "success"
         agg = result["results"]["aggregations"]
         assert agg["count_by_user"]["U1"] == 2
@@ -162,10 +220,12 @@ class TestSearchTools:
     @pytest.mark.asyncio
     async def test_construct_narrow(self):
         """Test narrow construction."""
-        result = await construct_narrow(stream="general", has_image=True, is_private=False)
+        result = await construct_narrow(
+            stream="general", has_image=True, is_private=False
+        )
         assert result["status"] == "success"
         narrow = result["narrow"]
-        
+
         assert {"operator": "stream", "operand": "general"} in narrow
         assert {"operator": "has", "operand": "image"} in narrow
         assert {"operator": "is", "operand": "private", "negated": True} in narrow
@@ -174,12 +234,10 @@ class TestSearchTools:
     async def test_check_messages_match_narrow(self, mock_deps):
         """Test check_messages_match_narrow."""
         result = await check_messages_match_narrow(
-            msg_ids=[1, 2],
-            narrow=[{"operator": "stream", "operand": "general"}]
+            msg_ids=[1, 2], narrow=[{"operator": "stream", "operand": "general"}]
         )
-        
+
         assert result["status"] == "success"
         assert result["total_checked"] == 2
-        assert result["matching_count"] == 1 # Based on mock return {"1": {}}
+        assert result["matching_count"] == 1  # Based on mock return {"1": {}}
         assert result["non_matching_count"] == 1
-

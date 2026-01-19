@@ -1,17 +1,15 @@
 """Tests for core/exceptions.py."""
 
-import pytest
-from datetime import datetime
 from src.zulipchat_mcp.core.exceptions import (
-    ZulipMCPError,
+    AuthenticationError,
+    CircuitBreakerOpenError,
     ConfigurationError,
     ConnectionError,
-    ValidationError,
-    RateLimitError,
-    AuthenticationError,
     NotFoundError,
     PermissionError,
-    CircuitBreakerOpenError,
+    RateLimitError,
+    ValidationError,
+    ZulipMCPError,
     create_error_response,
 )
 
@@ -97,7 +95,7 @@ class TestCreateErrorResponse:
         """Test creating response for generic exception."""
         error = Exception("Something went wrong")
         response = create_error_response(error, "test_op")
-        
+
         assert response["status"] == "error"
         assert response["operation"] == "test_op"
         assert response["error"] == "An unexpected error occurred"
@@ -108,7 +106,7 @@ class TestCreateErrorResponse:
         """Test creating response for ValidationError (safe to expose)."""
         error = ValidationError("Invalid ID")
         response = create_error_response(error, "validate_id")
-        
+
         assert response["error"] == "Invalid ID"
         assert response["error_type"] == "ValidationError"
 
@@ -116,8 +114,10 @@ class TestCreateErrorResponse:
         """Test creating response for ConnectionError (masked)."""
         error = ConnectionError("Connection refused to 127.0.0.1")
         response = create_error_response(error, "connect")
-        
-        assert response["error"] == "Connection failed. Please check your configuration."
+
+        assert (
+            response["error"] == "Connection failed. Please check your configuration."
+        )
         assert response["error_type"] == "ConnectionError"
 
     def test_create_error_response_with_details(self):
@@ -125,5 +125,5 @@ class TestCreateErrorResponse:
         error = Exception("Error")
         details = {"extra": "info"}
         response = create_error_response(error, "op", details)
-        
+
         assert response["details"] == details

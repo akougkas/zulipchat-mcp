@@ -1,13 +1,15 @@
 """Tests for utils/database.py."""
 
-import pytest
+from unittest.mock import MagicMock, call, patch
+
 import duckdb
-from unittest.mock import MagicMock, patch, call
+import pytest
+
 from src.zulipchat_mcp.utils.database import (
-    DatabaseManager,
     DatabaseLockedError,
-    init_database,
+    DatabaseManager,
     get_database,
+    init_database,
 )
 
 
@@ -46,15 +48,15 @@ class TestDatabaseManager:
     def test_init_lock_retry_success(self, mock_duckdb, tmp_path):
         """Test initialization retries on lock and succeeds."""
         db_path = str(tmp_path / "test.db")
-        
+
         # Fail twice with lock error, then succeed
         lock_error = duckdb.IOException("IO Error: Could not set lock on file")
         conn = MagicMock()
-        
+
         mock_duckdb.connect.side_effect = [lock_error, lock_error, conn]
-        
+
         db = DatabaseManager(db_path, max_retries=3, retry_delay=0.01)
-        
+
         assert db.conn == conn
         assert mock_duckdb.connect.call_count == 3
 
@@ -62,23 +64,23 @@ class TestDatabaseManager:
         """Test initialization raises DatabaseLockedError after retries."""
         db_path = str(tmp_path / "test.db")
         lock_error = duckdb.IOException("IO Error: Could not set lock on file")
-        
+
         mock_duckdb.connect.side_effect = lock_error
-        
+
         with pytest.raises(DatabaseLockedError, match="Database is locked"):
             DatabaseManager(db_path, max_retries=3, retry_delay=0.01)
-            
+
         assert mock_duckdb.connect.call_count == 3
 
     def test_execute_transaction(self, mock_duckdb, tmp_path):
         """Test execute wraps in transaction."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        
+
         db.conn.reset_mock()
-        
+
         db.execute("INSERT INTO t VALUES (?)", [1])
-        
+
         # Verify transaction calls
         calls = db.conn.execute.call_args_list
         assert calls[0] == call("BEGIN")
@@ -89,13 +91,17 @@ class TestDatabaseManager:
         """Test execute rolls back on error."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        
+
         # Create a new mock for this test to avoid side_effect pollution
-        db.conn.execute.side_effect = [None, Exception("Fail"), None] # BEGIN, INSERT (fail), ROLLBACK
-        
+        db.conn.execute.side_effect = [
+            None,
+            Exception("Fail"),
+            None,
+        ]  # BEGIN, INSERT (fail), ROLLBACK
+
         with pytest.raises(Exception, match="Fail"):
             db.execute("INSERT", [1])
-            
+
         # Verify rollback called (last call)
         # Note: call_args returns the LAST call
         assert db.conn.execute.call_args == call("ROLLBACK")
@@ -105,9 +111,9 @@ class TestDatabaseManager:
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
         db.conn.reset_mock()
-        
+
         db.executemany("INSERT", [(1,), (2,)])
-        
+
         calls = db.conn.execute.call_args_list
         assert calls[0] == call("BEGIN")
         assert calls[1] == call("INSERT", (1,))
@@ -118,11 +124,11 @@ class TestDatabaseManager:
         """Test query."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        
+
         cursor = MagicMock()
         cursor.fetchall.return_value = [(1,)]
         db.conn.execute.return_value = cursor
-        
+
         res = db.query("SELECT *")
         assert res == [(1,)]
 
@@ -130,11 +136,11 @@ class TestDatabaseManager:
         """Test query_one."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        
+
         cursor = MagicMock()
         cursor.fetchone.return_value = (1,)
         db.conn.execute.return_value = cursor
-        
+
         res = db.query_one("SELECT *")
         assert res == (1,)
 
@@ -143,7 +149,7 @@ class TestDatabaseManager:
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
         conn = db.conn
-        
+
         db.close()
         conn.close.assert_called()
         assert db.conn is None
@@ -151,13 +157,13 @@ class TestDatabaseManager:
     def test_global_instances(self, mock_duckdb):
         """Test global instance helpers."""
         # reset_singleton fixture handles resetting _db_manager and DatabaseManager._instance
-        
+
         db = init_database(":memory:")
         assert db is not None
-        
+
         db2 = get_database()
         assert db2 is db
-        
+
         # Verify checking calling DatabaseManager() directly also returns the same instance
         db3 = DatabaseManager(":memory:")
         assert db3 is db

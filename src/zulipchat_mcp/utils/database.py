@@ -37,7 +37,9 @@ class DatabaseManager:
             cls._instance = super(DatabaseManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, db_path: str, max_retries: int = 3, retry_delay: float = 0.2) -> None:
+    def __init__(
+        self, db_path: str, max_retries: int = 3, retry_delay: float = 0.2
+    ) -> None:
         """Initialize database manager with connection and migrations.
 
         Args:
@@ -62,7 +64,9 @@ class DatabaseManager:
         for attempt in range(max_retries):
             try:
                 # Use WAL mode for concurrent access (read_write with wal_autocheckpoint)
-                self.conn = duckdb.connect(db_path, config={"access_mode": "READ_WRITE"})
+                self.conn = duckdb.connect(
+                    db_path, config={"access_mode": "READ_WRITE"}
+                )
                 # Enable WAL mode for better concurrent access
                 self.conn.execute("PRAGMA wal_autocheckpoint = 1000")
                 break

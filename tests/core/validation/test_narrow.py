@@ -1,12 +1,14 @@
 """Tests for core/validation/narrow.py."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError as PydanticValidationError
+
 from src.zulipchat_mcp.core.validation.narrow import (
+    NarrowBuilder,
     NarrowFilter,
     NarrowOperator,
-    NarrowBuilder,
     ValidationError,
 )
 
@@ -30,12 +32,17 @@ class TestNarrowFilter:
 
     def test_validate_operand_id_must_be_int(self):
         """Test that ID operator requires integer operand."""
-        with pytest.raises(PydanticValidationError, match="ID operator requires integer operand"):
+        with pytest.raises(
+            PydanticValidationError, match="ID operator requires integer operand"
+        ):
             NarrowFilter(NarrowOperator.ID, "123")
-    
+
     def test_validate_operand_stream_must_be_str(self):
         """Test that STREAM operator requires string operand."""
-        with pytest.raises(PydanticValidationError, match="NarrowOperator.STREAM operator requires string operand"):
+        with pytest.raises(
+            PydanticValidationError,
+            match="NarrowOperator.STREAM operator requires string operand",
+        ):
             NarrowFilter(NarrowOperator.STREAM, 123)
 
     def test_to_dict(self):
@@ -77,7 +84,7 @@ class TestNarrowFilter:
         data = {"operator": "stream"}
         with pytest.raises(ValidationError, match="Invalid narrow filter data"):
             NarrowFilter.from_dict(data)
-            
+
     def test_str_representation(self):
         """Test string representation."""
         nf = NarrowFilter(NarrowOperator.STREAM, "general")
@@ -89,7 +96,7 @@ class TestNarrowFilter:
         nf2 = NarrowFilter(NarrowOperator.STREAM, "general")
         nf3 = NarrowFilter(NarrowOperator.STREAM, "random")
         nf4 = "Not a filter"
-        
+
         assert nf1 == nf2
         assert nf1 != nf3
         assert nf1 != nf4
@@ -102,7 +109,7 @@ class TestNarrowBuilder:
         """Test fluent builder methods."""
         builder = NarrowBuilder()
         builder.stream("general").topic("stuff").sender("me@example.com")
-        
+
         assert len(builder.filters) == 3
         assert builder.filters[0].operator == NarrowOperator.STREAM
         assert builder.filters[1].operator == NarrowOperator.TOPIC
@@ -112,7 +119,7 @@ class TestNarrowBuilder:
         """Test has() and is_filter() methods."""
         builder = NarrowBuilder()
         builder.has("attachment").is_filter("private", negated=True)
-        
+
         assert builder.filters[0].operator == NarrowOperator.HAS
         assert builder.filters[0].operand == "attachment"
         assert builder.filters[1].operator == NarrowOperator.IS
@@ -131,9 +138,9 @@ class TestNarrowBuilder:
         builder = NarrowBuilder()
         dt1 = datetime(2023, 1, 1, 12, 0, 0)
         dt2 = datetime(2023, 1, 2, 12, 0, 0)
-        
+
         builder.time_range(dt1, dt2)
-        
+
         assert len(builder.filters) == 2
         assert builder.filters[0].operand == "after:2023-01-01T12:00:00"
         assert builder.filters[1].operand == "before:2023-01-02T12:00:00"

@@ -186,7 +186,9 @@ async def manage_files(
     try:
         if operation == "list":
             # Use Zulip's attachments API (Feature level 2+)
-            result = client.client.call_endpoint("attachments", method="GET", request={})
+            result = client.client.call_endpoint(
+                "attachments", method="GET", request={}
+            )
             if result.get("result") == "success":
                 return {
                     "status": "success",
