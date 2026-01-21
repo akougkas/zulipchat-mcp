@@ -1,0 +1,18 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      ZULIP_CONFIG_FILE:
+        type: string
+        description: "Path to your Zulip configuration file (default: ~/.zuliprc)"
+        default: "~/.zuliprc"
+    required: []
+  commandFunction: |
+    (config) => ({
+      command: 'uvx',
+      args: ['zulipchat-mcp', '--zulip-config-file', config.ZULIP_CONFIG_FILE || '~/.zuliprc'],
+      env: {
+        ZULIP_CONFIG_FILE: config.ZULIP_CONFIG_FILE || '~/.zuliprc'
+      }
+    })
