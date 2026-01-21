@@ -1,474 +1,261 @@
 # Configuration Guide
 
-Complete configuration guide for ZulipChat MCP v0.3.0 including credentials, identity management, and server settings.
+Complete configuration guide for ZulipChat MCP v0.4.3.
 
-## Configuration Overview
+## Quick Start
 
-ZulipChat MCP uses a flexible configuration system with three priority levels:
-
-1. **CLI Arguments** (Highest priority)
-2. **Environment Variables** (Middle priority)
-3. **Default Values** (Fallback)
-
-## Complete CLI Arguments Reference
-
-All available CLI arguments (from actual `server.py` implementation):
+The fastest way to get started:
 
 ```bash
-# View all available CLI arguments
-uv run python -m src.zulipchat_mcp.server --help
+# Run the setup wizard
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 
-# Required credentials
---zulip-email             # Zulip email address
---zulip-api-key          # Zulip API key
---zulip-site             # Zulip site URL (e.g., https://yourorg.zulipchat.com)
-
-# Optional bot credentials
---zulip-bot-email        # Bot email for advanced features (optional)
---zulip-bot-api-key      # Bot API key (optional)
---zulip-bot-name         # Bot display name (default: "Claude Code")
---zulip-bot-avatar-url   # Bot avatar URL (optional)
-
-# Debug and service options
---debug                  # Enable debug logging
---enable-listener        # Enable Zulip message listener service
-
-# Note: --port and --host arguments do NOT exist in the actual implementation
+# Or use your existing zuliprc
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-## Required Configuration
+## Authentication Methods
 
-### Core Zulip Credentials
+ZulipChat MCP supports two authentication methods:
 
-These credentials are **required** for basic functionality:
+### Method 1: Zuliprc File (Recommended)
 
-| Environment Variable | CLI Argument | Description | Example |
-|---------------------|--------------|-------------|---------|
-| `ZULIP_EMAIL` | `--zulip-email` | Your Zulip email address | `user@example.com` |
-| `ZULIP_API_KEY` | `--zulip-api-key` | Your Zulip API key | `zulip_abc123def456...` |
-| `ZULIP_SITE` | `--zulip-site` | Zulip organization URL | `https://yourorg.zulipchat.com` |
+The most secure approach - credentials stay in a file, not exposed in environment or command line.
 
-### Getting Your Zulip Credentials
+**Get your zuliprc:**
+1. Log into your Zulip organization
+2. Go to **Settings** → **Personal settings** → **Account & privacy**
+3. Click **Show/change your API key** → **Download .zuliprc**
+4. Save to `~/.zuliprc`
 
-1. **Login to your Zulip organization**
-2. **Go to Personal Settings** → Account & Privacy
-3. **Generate API key** or copy existing key
-4. **Note your email and organization URL**
+**Run with zuliprc:**
+```bash
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+```
 
-### Basic Environment Setup
+**Zuliprc file format:**
+```ini
+[api]
+email=your-email@example.com
+key=your_api_key_here
+site=https://yourorg.zulipchat.com
+```
 
-Create a `.env` file or set environment variables:
+**Auto-discovery:** If no `--zulip-config-file` is provided, the server searches:
+1. `./zuliprc` (current directory)
+2. `~/.zuliprc` (home directory)
+3. `~/.config/zulip/zuliprc`
+
+### Method 2: Environment Variables (Fallback)
+
+For environments where zuliprc files aren't practical:
 
 ```bash
-# Required credentials
 export ZULIP_EMAIL="your-email@example.com"
-export ZULIP_API_KEY="your_zulip_api_key_here"  
+export ZULIP_API_KEY="your_api_key_here"
 export ZULIP_SITE="https://yourorg.zulipchat.com"
+
+uvx zulipchat-mcp
 ```
 
-## Optional Configuration
+## CLI Arguments Reference
 
-### Bot Identity Configuration
-
-For advanced features like automated agents:
-
-| Environment Variable | CLI Argument | Default | Description |
-|---------------------|--------------|---------|-------------|
-| `ZULIP_BOT_EMAIL` | `--zulip-bot-email` | None | Bot email for automation |
-| `ZULIP_BOT_API_KEY` | `--zulip-bot-api-key` | None | Bot API authentication key |
-| `ZULIP_BOT_NAME` | `--zulip-bot-name` | "Claude Code" | Bot display name |
-| `ZULIP_BOT_AVATAR_URL` | `--zulip-bot-avatar-url` | None | Bot avatar image URL |
-
-### Server Configuration
-
-| Environment Variable | CLI Argument | Default | Description |
-|---------------------|--------------|---------|-------------|
-| `MCP_DEBUG` | `--debug` | False | Enable debug logging |
-| `MCP_PORT` | (none) | 3000 | MCP server port (environment only) |
-
-### Advanced Options
-
-| Environment Variable | CLI Argument | Default | Description |
-|---------------------|--------------|---------|-------------|
-| (none) | `--enable-listener` | False | Enable message listener service |
-
-## Identity Management
-
-ZulipChat MCP supports three distinct identity types with different capabilities:
-
-### 1. User Identity (Default)
-
-Standard user permissions for interactive operations:
-
-**Capabilities:**
-- Send and read messages  
-- Edit own messages
-- Search messages and streams
-- Upload files
-- Subscribe to streams
-- Add reactions
-- Manage personal preferences
-
-**Configuration:**
 ```bash
-# Only requires basic credentials
-ZULIP_EMAIL="user@example.com"
-ZULIP_API_KEY="user_api_key"
-ZULIP_SITE="https://org.zulipchat.com"
+uvx zulipchat-mcp --help
+
+# Configuration
+--zulip-config-file PATH      # Path to user zuliprc file
+--zulip-bot-config-file PATH  # Path to bot zuliprc (for dual identity)
+
+# Modes
+--unsafe                       # Enable dangerous tools (delete, mass unsubscribe)
+--debug                        # Enable debug logging
+--enable-listener              # Enable background message listener
 ```
 
-### 2. Bot Identity
+## Dual Identity Setup
 
-Automated agent permissions for programmatic operations:
+For advanced use cases, configure both user and bot identities:
 
-**Capabilities:**
-- Send automated messages
-- React to messages  
-- Stream events
-- Schedule messages
-- Bulk read operations
-- Webhook integration
-- Automated responses
-
-**Configuration:**
+**Using two zuliprc files:**
 ```bash
-# Requires bot credentials
-ZULIP_BOT_EMAIL="bot@example.com"
-ZULIP_BOT_API_KEY="bot_api_key"  
-ZULIP_BOT_NAME="My Assistant Bot"
-ZULIP_SITE="https://org.zulipchat.com"
+uvx zulipchat-mcp \
+  --zulip-config-file ~/.zuliprc \
+  --zulip-bot-config-file ~/.zuliprc-bot
 ```
 
-### 3. Admin Identity
-
-Full administrative permissions (automatically detected):
-
-**Capabilities:**
-- All user and bot capabilities
-- User management
-- Realm/organization settings
-- Data export and import
-- Stream administration
-- Organization customization
-
-**Configuration:**
+**Using environment variables:**
 ```bash
-# Uses admin user credentials
-ZULIP_EMAIL="admin@example.com"
-ZULIP_API_KEY="admin_api_key"
-ZULIP_SITE="https://org.zulipchat.com"
-```
-
-## Configuration Validation
-
-The system validates configuration on startup:
-
-### Validation Rules
-
-| Field | Validation |
-|-------|------------|
-| `ZULIP_EMAIL` | Must contain '@' character |
-| `ZULIP_API_KEY` | Minimum 10 characters |
-| `ZULIP_SITE` | Must start with `http://` or `https://` |
-| Bot credentials | Optional but validated if provided |
-
-### Testing Configuration
-
-```bash
-# Test basic connectivity
-python -c "
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager
-config = ConfigManager()
-client = ZulipClientWrapper(config)
-result = client.client.get_server_settings()
-print('✓ Connection successful')
-print(f'Server: {result[\"realm_name\"]}')
-"
-
-# Test authentication
-python -c "
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager
-config = ConfigManager()
-client = ZulipClientWrapper(config)
-result = client.client.get_profile()
-print('✓ Authentication successful')
-print(f'User: {result[\"full_name\"]} ({result[\"email\"]})')
-"
-```
-
-## Server Startup Examples
-
-### Basic Startup
-
-```bash
-# Using environment variables
-uv run python -m src.zulipchat_mcp.server
-
-# Using CLI arguments
-uv run python -m src.zulipchat_mcp.server \
-  --zulip-email user@example.com \
-  --zulip-api-key your_api_key \
-  --zulip-site https://yourorg.zulipchat.com
-```
-
-### Development Mode
-
-```bash
-# Enable debug logging
-uv run python -m src.zulipchat_mcp.server --debug
-
-# Enable message listener
-uv run python -m src.zulipchat_mcp.server --enable-listener
-
-# Combined options
-uv run python -m src.zulipchat_mcp.server --debug --enable-listener
-```
-
-### Production Mode
-
-```bash
-# Production configuration
-export ZULIP_EMAIL="bot@myorg.com"
-export ZULIP_API_KEY="production_api_key"
-export ZULIP_SITE="https://myorg.zulipchat.com"
-export MCP_PORT=3000
-
-# Start server
-uv run python -m src.zulipchat_mcp.server
-```
-
-## Multi-Identity Setup
-
-For advanced use cases requiring multiple identity types:
-
-### Dual Identity Configuration
-
-```bash
-# User identity (primary)
+# User identity (primary - for reading/search)
 export ZULIP_EMAIL="user@example.com"
 export ZULIP_API_KEY="user_api_key"
 
-# Bot identity (secondary)  
-export ZULIP_BOT_EMAIL="assistant@example.com"
+# Bot identity (secondary - for posting)
+export ZULIP_BOT_EMAIL="bot@example.com"
 export ZULIP_BOT_API_KEY="bot_api_key"
 
 # Organization
-export ZULIP_SITE="https://example.zulipchat.com"
+export ZULIP_SITE="https://yourorg.zulipchat.com"
 ```
 
-### Dynamic Identity Switching
-
-The system supports runtime identity switching:
-
+**Runtime switching:**
 ```python
-# Switch to bot identity for automation
-await switch_identity("bot", validate_credentials=True)
-
-# Switch back to user identity  
-await switch_identity("user")
-
-# Use admin identity (if available)
-await switch_identity("admin")
+# Use the switch_identity tool
+await switch_identity("bot")   # Switch to bot for automated messages
+await switch_identity("user")  # Switch back to user
 ```
 
-## Security Best Practices
+## MCP Client Configurations
 
-### Credential Management
+### Claude Code
 
 ```bash
-# ✅ Good: Use environment variables
-export ZULIP_API_KEY="your_key_here"
+# Simple setup with zuliprc
+claude mcp add zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 
-# ✅ Good: Use .env files (not committed to git)
-echo "ZULIP_API_KEY=your_key_here" > .env
+# With dual identity
+claude mcp add zulipchat -- uvx zulipchat-mcp \
+  --zulip-config-file ~/.zuliprc \
+  --zulip-bot-config-file ~/.zuliprc-bot
 
-# ❌ Bad: Hardcode in scripts
-python -m server --zulip-api-key hardcoded_key  # DON'T DO THIS
+# With environment variables (if no zuliprc)
+claude mcp add zulipchat \
+  -e ZULIP_EMAIL=you@example.com \
+  -e ZULIP_API_KEY=your_key \
+  -e ZULIP_SITE=https://yourorg.zulipchat.com \
+  -- uvx zulipchat-mcp
 ```
 
-### File Permissions
+### Gemini CLI
 
 ```bash
-# Secure .env file permissions
-chmod 600 .env
-
-# Secure configuration directory
-chmod 700 ~/.config/zulipchat-mcp/
+# Add to Gemini CLI
+gemini mcp add zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-### API Key Rotation
+### Claude Desktop / Cursor / VS Code
+
+Add to your MCP configuration JSON file:
+
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+**Cursor:** `~/.cursor/mcp.json`
+**VS Code:** `.vscode/mcp.json` or user settings
+
+**Using zuliprc (recommended):**
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp", "--zulip-config-file", "/absolute/path/to/zuliprc"]
+    }
+  }
+}
+```
+
+**With dual identity:**
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp",
+        "--zulip-config-file", "/home/user/.zuliprc",
+        "--zulip-bot-config-file", "/home/user/.zuliprc-bot"
+      ]
+    }
+  }
+}
+```
+
+**Using environment variables:**
+```json
+{
+  "mcpServers": {
+    "zulipchat": {
+      "command": "uvx",
+      "args": ["zulipchat-mcp"],
+      "env": {
+        "ZULIP_EMAIL": "your-email@example.com",
+        "ZULIP_API_KEY": "your_api_key",
+        "ZULIP_SITE": "https://yourorg.zulipchat.com"
+      }
+    }
+  }
+}
+```
+
+## Environment Variables Reference
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ZULIP_EMAIL` | User email address | `user@example.com` |
+| `ZULIP_API_KEY` | User API key | `abc123...` |
+| `ZULIP_SITE` | Organization URL | `https://org.zulipchat.com` |
+| `ZULIP_BOT_EMAIL` | Bot email (optional) | `bot@example.com` |
+| `ZULIP_BOT_API_KEY` | Bot API key (optional) | `xyz789...` |
+| `ZULIP_CONFIG_FILE` | Path to user zuliprc | `~/.zuliprc` |
+| `ZULIP_BOT_CONFIG_FILE` | Path to bot zuliprc | `~/.zuliprc-bot` |
+| `MCP_DEBUG` | Enable debug logging | `true` / `false` |
+| `MCP_PORT` | Server port (internal) | `3000` |
+
+## Safety Modes
+
+**Safe Mode (Default):**
+- Restricts dangerous operations
+- Cannot delete messages, users, or streams
+- Cannot perform mass unsubscribe operations
+
+**Unsafe Mode (`--unsafe`):**
+- Enables all administrative tools
+- Use with caution in production
 
 ```bash
-# Regularly rotate API keys
-# 1. Generate new key in Zulip
-# 2. Update environment variable
-# 3. Restart server
-# 4. Revoke old key
+# Enable unsafe mode
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --unsafe
 ```
 
-## Configuration Files
-
-### Supported Locations
-
-```
-# System-wide configuration
-/etc/zulipchat-mcp/config.env
-
-# User-specific configuration
-~/.config/zulipchat-mcp/config.env
-~/.zulipchat-mcp.env
-
-# Project-specific configuration
-./.env
-./config.env
-```
-
-### Configuration File Format
+## Testing Your Configuration
 
 ```bash
-# ZulipChat MCP Configuration
-# Core credentials (required)
-ZULIP_EMAIL=user@example.com
-ZULIP_API_KEY=your_api_key_here
-ZULIP_SITE=https://yourorg.zulipchat.com
-
-# Optional bot configuration
-ZULIP_BOT_EMAIL=bot@example.com
-ZULIP_BOT_API_KEY=bot_api_key_here
-ZULIP_BOT_NAME=Assistant Bot
-
-# Server settings
-MCP_DEBUG=false
-MCP_PORT=3000
-
-# Note: Message listener is enabled via CLI --enable-listener flag only
-```
-
-## Troubleshooting Configuration
-
-### Common Configuration Errors
-
-**Missing Required Variables**
-```
-Error: Missing required environment variable: ZULIP_EMAIL
-Solution: Set all required variables (EMAIL, API_KEY, SITE)
-```
-
-**Invalid URL Format**
-```
-Error: ZULIP_SITE must start with http:// or https://
-Solution: Include protocol in URL
-```
-
-**Authentication Failure**
-```
-Error: 401 Unauthorized
-Solution: Verify email/API key combination
-```
-
-**Bot Configuration Issues**
-```
-Error: Bot credentials invalid
-Solution: Ensure bot is created in Zulip and credentials match
-```
-
-### Configuration Validation Commands
-
-```bash
-# Check environment variables
-env | grep ZULIP
-
-# Test core components (instead of --validate-config which doesn't exist)
-python -c "
-from src.zulipchat_mcp.config import ConfigManager
-config = ConfigManager()
-if config.validate_config():
-    print('✓ Configuration valid')
-else:
-    print('❌ Configuration invalid')
-"
-
-# Test client connection
-python -c "
+# Test connection
+uv run python -c "
 from src.zulipchat_mcp.core.client import ZulipClientWrapper
 from src.zulipchat_mcp.config import ConfigManager
 config = ConfigManager()
 client = ZulipClientWrapper(config)
-print(f'✓ Client initialized with identity: {client.identity_name}')
+print(f'Connected as: {client.identity_name}')
 "
 ```
 
-## Environment-Specific Configuration
+## Troubleshooting
 
-### Development Environment
+**"No Zulip configuration found"**
+- Ensure zuliprc exists at specified path or standard locations
+- Or set ZULIP_EMAIL, ZULIP_API_KEY, ZULIP_SITE environment variables
 
-```bash
-# .env.development
-ZULIP_EMAIL=dev@example.com
-ZULIP_API_KEY=dev_api_key  
-ZULIP_SITE=https://dev.zulipchat.com
-MCP_DEBUG=true
-MCP_PORT=3001
-# Note: Cache TTL and other advanced options not yet configurable
-```
+**"401 Unauthorized"**
+- Verify API key is correct (regenerate in Zulip settings if needed)
+- Check email matches the account that generated the API key
 
-### Testing Environment
+**"Connection failed"**
+- Verify ZULIP_SITE includes `https://`
+- Check network connectivity to your Zulip server
 
-```bash  
-# .env.test
-ZULIP_EMAIL=test@example.com
-ZULIP_API_KEY=test_api_key
-ZULIP_SITE=https://test.zulipchat.com
-MCP_DEBUG=true
-# Note: Rate limiting not yet configurable
-```
+**"Bot credentials not configured"**
+- Create a bot in Zulip: Organization settings → Bots → Add bot
+- Download its zuliprc and use with `--zulip-bot-config-file`
 
-### Production Environment
+## Security Best Practices
 
-```bash
-# .env.production  
-ZULIP_EMAIL=prod@example.com
-ZULIP_API_KEY=secure_prod_key
-ZULIP_SITE=https://prod.zulipchat.com
-MCP_DEBUG=false
-MCP_PORT=3000
-# Note: Cache TTL and other advanced options not yet configurable
-```
-
-## Validated CLI Integration Commands
-
-These commands have been verified against the actual implementation:
-
-```bash
-# Claude Code integration (validated commands)
-# From PyPI (once published)
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=your@email.com \
-  -e ZULIP_API_KEY=your_api_key \
-  -e ZULIP_SITE=https://yourorg.zulipchat.com \
-  -- uvx zulipchat-mcp
-
-# From GitHub (available now)
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=your@email.com \
-  -e ZULIP_API_KEY=your_api_key \
-  -e ZULIP_SITE=https://yourorg.zulipchat.com \
-  -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
-
-# With bot credentials and debug mode
-claude mcp add zulipchat \
-  -e ZULIP_EMAIL=user@yourorg.com \
-  -e ZULIP_API_KEY=user_key \
-  -e ZULIP_BOT_EMAIL=bot@yourorg.com \
-  -e ZULIP_BOT_API_KEY=bot_key \
-  -e ZULIP_SITE=https://yourorg.zulipchat.com \
-  -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp --debug --enable-listener
-```
-
-**Note**: Environment variables must come before the `--` separator. CLI arguments for the server go after the package name.
+1. **Use zuliprc files** instead of environment variables when possible
+2. **Secure file permissions:** `chmod 600 ~/.zuliprc`
+3. **Never commit credentials** to version control
+4. **Rotate API keys** regularly (regenerate in Zulip settings)
+5. **Use Safe Mode** unless you specifically need destructive operations
 
 ---
 
-**Next**: [Quick Start Guide](quick-start.md) - Start using ZulipChat MCP
+**Next**: [Quick Start Guide](quick-start.md)

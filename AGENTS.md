@@ -1,8 +1,8 @@
 # Repository Guidelines
 
-## Current Status (v0.4.1 - Released 2025-01-19)
+## Current Status (v0.4.3 - Released 2025-01-21)
 
-**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.1/) • Install: `uvx zulipchat-mcp`
+**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.3/) • Install: `uvx zulipchat-mcp`
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:
@@ -12,7 +12,7 @@
 
 ## Build, Test, and Development Commands
 - `uv sync` — install dependencies.
-- `uv run zulipchat-mcp --zulip-email ... --zulip-api-key ... --zulip-site ... [--enable-listener]` — run server locally.
+- `uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
 - `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
 - `uv run ruff check .` — lint; `uv run black .` — format; `uv run mypy src` — type-check.

@@ -20,7 +20,7 @@ ZulipChat MCP Server v0.4.3 - A Model Context Protocol (MCP) server that enables
 uv sync
 
 # Run the MCP server locally
-uv run zulipchat-mcp --zulip-email your@email.com --zulip-api-key YOUR_KEY --zulip-site https://yourorg.zulipchat.com
+uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
 
 # Quick run via uvx
 uvx zulipchat-mcp

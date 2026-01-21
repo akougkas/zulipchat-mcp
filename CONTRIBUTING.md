@@ -41,10 +41,8 @@ uv sync
 # Optional: local env (never commit secrets)
 cp -n .env.example .env || true
 
-# Run the MCP server locally (example; requires credentials)
-uv run zulipchat-mcp --zulip-email your@email.com \
-  --zulip-api-key YOUR_KEY \
-  --zulip-site https://yourorg.zulipchat.com
+# Run the MCP server locally (requires zuliprc)
+uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
 Helpful docs:
@@ -200,8 +198,8 @@ When adding features or changing behavior, consider whether any of the following
 # Install deps
 uv sync
 
-# Run server (requires credentials)
-uv run zulipchat-mcp --zulip-email ... --zulip-api-key ... --zulip-site ... [--enable-listener]
+# Run server (requires zuliprc)
+uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]
 
 # Tests (fast)
 uv run pytest -q -m "not slow and not integration"

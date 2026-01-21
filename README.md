@@ -215,14 +215,8 @@ git clone https://github.com/akougkas/zulipchat-mcp.git
 cd zulipchat-mcp
 uv sync
 
-# Copy environment template (never commit secrets)
-cp -n .env.example .env || true
-
-# Run locally with credentials
-uv run zulipchat-mcp \
-  --zulip-email your@email.com \
-  --zulip-api-key YOUR_KEY \
-  --zulip-site https://yourorg.zulipchat.com
+# Run locally with zuliprc
+uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
 ### Testing Connection

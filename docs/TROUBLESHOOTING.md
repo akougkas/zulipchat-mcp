@@ -425,10 +425,7 @@ else:
 
 **Via CLI Arguments**:
 ```bash
-python -m zulipchat_mcp.server --debug \
-  --zulip-email user@example.com \
-  --zulip-api-key api_key \
-  --zulip-site https://org.zulipchat.com
+uvx zulipchat-mcp --debug --zulip-config-file ~/.zuliprc
 ```
 
 **Via Environment Variable**:
@@ -607,10 +604,7 @@ The system automatically retries failed operations:
 # The most reliable way to recover from persistent errors
 # is to restart the MCP server
 # Ctrl+C to stop, then restart with:
-uv run python -m src.zulipchat_mcp.server \
-  --zulip-email $ZULIP_EMAIL \
-  --zulip-api-key $ZULIP_API_KEY \
-  --zulip-site $ZULIP_SITE
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
 ### Graceful Degradation
