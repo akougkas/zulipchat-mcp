@@ -2,6 +2,19 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.4.2] - 2025-01-20
+
+### Added
+- **Privacy Policy**: Added `PRIVACY.md` and privacy section in README (required for MCP directory listings)
+- **MCP Registry Metadata**: Added `server.json` for Official MCP Registry submission
+- **Registry Verification**: Added `mcp-name` metadata for PyPI package ownership verification
+
+### Documentation
+- Prepared for submission to Official MCP Registry, Smithery.ai, Glama.ai, and other directories
+- Added comprehensive privacy policy documentation
+
+---
+
 ## [0.4.1] - 2025-01-19
 
 ### Fixed

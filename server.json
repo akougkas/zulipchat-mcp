@@ -1,0 +1,50 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.akougkas/zulipchat",
+  "title": "ZulipChat MCP Server",
+  "description": "Transform your AI assistant into a Zulip power user with 40+ tools for messaging, stream management, real-time events, analytics, and workflow automation via MCP",
+  "repository": {
+    "url": "https://github.com/akougkas/zulipchat-mcp",
+    "source": "github"
+  },
+  "version": "0.4.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "zulipchat-mcp",
+      "version": "0.4.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtime": "python",
+      "environmentVariables": [
+        {
+          "name": "ZULIP_EMAIL",
+          "description": "Your Zulip account email address",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "ZULIP_API_KEY",
+          "description": "Your Zulip API key",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "ZULIP_SITE",
+          "description": "Your Zulip server URL (e.g., https://yourorg.zulipchat.com)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ],
+      "arguments": [
+        "--zulip-config-file",
+        "~/.zuliprc"
+      ]
+    }
+  ],
+  "remotes": []
+}

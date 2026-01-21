@@ -9,7 +9,7 @@
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
   [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
   [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-  [![Version](https://img.shields.io/badge/Version-0.4.1-green)](https://github.com/akougkas/zulipchat-mcp)
+  [![Version](https://img.shields.io/badge/Version-0.4.2-green)](https://github.com/akougkas/zulipchat-mcp)
   [![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
   [![Coverage](https://img.shields.io/badge/Coverage-60%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
   [![Code Style](https://img.shields.io/badge/Code%20Style-Black-black)](https://github.com/psf/black)
@@ -282,9 +282,23 @@ For AI coding agents:
 - [AGENTS.md](AGENTS.md) - Repository guidelines and commands
 - [CLAUDE.md](CLAUDE.md) - Claude Code specific instructions
 
+## Privacy Policy
+
+This MCP server is designed with privacy as a core principle:
+
+- **No data collection**: This server does not collect, store, or transmit any user data to third parties
+- **Local execution**: All processing happens locally on your machine
+- **Zulip API only**: The server only communicates with your configured Zulip instance using your provided credentials
+- **No telemetry**: No analytics, tracking, or usage data is collected
+- **Credential handling**: API keys and credentials are only used to authenticate with your Zulip server and are never logged or transmitted elsewhere
+
+For the full privacy policy, see [PRIVACY.md](PRIVACY.md).
+
 ## License
 
 MIT - See [LICENSE](LICENSE) for details.
+
+<!-- mcp-name: io.github.akougkas/zulipchat -->
 
 ## Links
 
