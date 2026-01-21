@@ -3,7 +3,7 @@
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import duckdb
@@ -210,7 +210,7 @@ class DatabaseManager:
         if not existing_version:
             self.conn.execute(
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)",
-                [datetime.utcnow()],
+                [datetime.now(timezone.utc)],
             )
 
         # Table for agent inbound chat events (from Zulip)

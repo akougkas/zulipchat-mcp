@@ -121,11 +121,22 @@ class TestFilesTools:
         assert result["status"] == "success"
         assert "download_url" in result
 
-        # Test downloading to file
-        with patch("httpx.AsyncClient") as MockClient:
-            mock_http = AsyncMock()
-            mock_http.get.return_value.content = b"filedata"
-            MockClient.return_value.__aenter__.return_value = mock_http
+        # Test downloading to file - properly mock async context manager
+        mock_response = MagicMock()
+        mock_response.content = b"filedata"
+        mock_response.raise_for_status = MagicMock()
+
+        mock_http = AsyncMock()
+        mock_http.get = AsyncMock(return_value=mock_response)
+
+        # httpx is imported inside the function, so patch the module directly
+        with patch.dict("sys.modules", {"httpx": MagicMock()}):
+            import sys
+
+            mock_async_client = MagicMock()
+            mock_async_client.__aenter__ = AsyncMock(return_value=mock_http)
+            mock_async_client.__aexit__ = AsyncMock(return_value=None)
+            sys.modules["httpx"].AsyncClient = MagicMock(return_value=mock_async_client)
 
             with patch("builtins.open", mock_open()) as m_open:
                 result = await manage_files(

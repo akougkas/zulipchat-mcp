@@ -146,7 +146,9 @@ def build_narrow(
         narrow.append({"operator": "topic", "operand": topic})
     if sender:
         narrow.append({"operator": "sender", "operand": sender})
-    if text:
+    # Add search operator only for actual search terms
+    # Skip if text is empty, "*", or whitespace-only (wildcard = return all)
+    if text and text.strip() and text.strip() != "*":
         narrow.append({"operator": "search", "operand": text})
 
     # Content type filters
@@ -316,12 +318,20 @@ async def search_messages(
                 cutoff = None
 
             if cutoff:
-                anchor = "date"
-                anchor_date = cutoff.isoformat()
                 cutoff_ts = cutoff.timestamp()
-                # When using anchor_date, we want messages AFTER the cutoff
-                num_before = 0
-                num_after = limit
+                # anchor="date" only works efficiently WITH a narrow filter.
+                # Without a narrow, the server times out searching entire DB.
+                # Fallback: use anchor="newest" and filter client-side.
+                if narrow:
+                    anchor = "date"
+                    anchor_date = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    num_before = 0
+                    num_after = limit
+                else:
+                    # No narrow: fetch newest messages, filter by timestamp client-side
+                    anchor = "newest"
+                    num_before = limit * 2  # Fetch extra to account for filtering
+                    num_after = 0
 
         if before_time:
             bt = (

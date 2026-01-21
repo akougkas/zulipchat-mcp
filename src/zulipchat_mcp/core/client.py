@@ -237,25 +237,27 @@ class ZulipClientWrapper:
         hours_back: int = 24,
         limit: int = 100,
     ) -> dict[str, Any]:
-        """Get messages from a specific stream."""
-        narrow = []
+        """Get messages from a specific stream within time range.
+
+        Uses Zulip's anchor="date" + anchor_date parameter (Zulip 12.0+, feature level 445)
+        to position the anchor at the cutoff time, then fetches messages after that point.
+        """
+        narrow: list[dict[str, Any]] = []
         if stream_name:
             narrow.append({"operator": "stream", "operand": stream_name})
         if topic:
             narrow.append({"operator": "topic", "operand": topic})
 
-        # Add time filter for recent messages
-        since_time = datetime.now() - timedelta(hours=hours_back)
-        narrow.append(
-            {
-                "operator": "search",
-                "operand": f"sent_after:{since_time.strftime('%Y-%m-%d')}",
-            }
-        )
+        # Calculate cutoff time for time-based filtering
+        cutoff_time = datetime.now() - timedelta(hours=hours_back)
+        anchor_date_str = cutoff_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         return self.get_messages_raw(
+            anchor="date",
+            anchor_date=anchor_date_str,
             narrow=narrow,
-            num_before=limit,
+            num_before=0,  # No messages before the cutoff
+            num_after=limit,  # Messages after the cutoff
             include_anchor=True,
             client_gravatar=True,
             apply_markdown=True,

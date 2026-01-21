@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..core.client import ZulipClientWrapper
@@ -167,5 +167,5 @@ class MessageListener:
             request_id,
             status="answered",
             response=content or "",
-            responded_at=datetime.utcnow(),
+            responded_at=datetime.now(timezone.utc),
         )

@@ -4,7 +4,7 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..config import ConfigManager
@@ -92,7 +92,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                 INSERT OR REPLACE INTO agents (agent_id, agent_type, created_at, metadata)
                 VALUES (?, ?, ?, ?)
                 """,
-                (agent_id, agent_type, datetime.utcnow(), "{}"),
+                (agent_id, agent_type, datetime.now(timezone.utc), "{}"),
             )
 
             # Insert agent instance
@@ -108,7 +108,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                     str(uuid.uuid4())[:8],  # Short session ID
                     str(os.getcwd()),
                     os.getenv("HOSTNAME", "localhost"),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 ),
             )
 
@@ -118,7 +118,7 @@ def register_agent(agent_type: str = "claude-code") -> dict[str, Any]:
                 INSERT OR REPLACE INTO afk_state (id, is_afk, reason, updated_at)
                 VALUES (1, ?, ?, ?)
                 """,
-                (False, "Agent ready for normal operations", datetime.utcnow()),
+                (False, "Agent ready for normal operations", datetime.now(timezone.utc)),
             )
 
             # Discover best available stream for agent communication
@@ -366,7 +366,7 @@ def start_task(agent_id: str, name: str, description: str = "") -> dict[str, Any
                 (task_id, agent_id, name, description, status, progress, started_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (task_id, agent_id, name, description, "started", 0, datetime.utcnow()),
+                (task_id, agent_id, name, description, "started", 0, datetime.now(timezone.utc)),
             )
 
             return {"status": "success", "task_id": task_id}
@@ -417,7 +417,7 @@ def complete_task(task_id: str, outputs: str = "", metrics: str = "") -> dict[st
                 SET status = ?, progress = ?, completed_at = ?, outputs = ?, metrics = ?
                 WHERE task_id = ?
                 """,
-                ("completed", 100, datetime.utcnow(), outputs, metrics, task_id),
+                ("completed", 100, datetime.now(timezone.utc), outputs, metrics, task_id),
             )
 
             return {"status": "success", "message": "Task completed"}

@@ -119,7 +119,12 @@ class TestSearchTools:
 
     @pytest.mark.asyncio
     async def test_time_filter_post_fetch(self, mock_deps):
-        """Test that time filtering happens after fetch (Bug Regression)."""
+        """Test that time filtering happens after fetch (Bug Regression).
+
+        When no narrow filter is provided, the fallback strategy uses
+        anchor='newest' to avoid Zulip server timeouts, then filters
+        client-side by timestamp.
+        """
         now = datetime.now()
         ts_now = now.timestamp()
         ts_old = (now - timedelta(hours=2)).timestamp()
@@ -146,14 +151,45 @@ class TestSearchTools:
             ],
         }
 
-        # Search last 1 hour
+        # Search last 1 hour (no narrow = fallback to anchor="newest")
         result = await search_messages(last_hours=1)
 
         assert result["status"] == "success"
         assert len(result["messages"]) == 1
         assert result["messages"][0]["content"] == "recent"
 
-        # Verify anchor_date was used
+        # Without a narrow, fallback uses anchor="newest" (avoids server timeout)
+        args = mock_deps.get_messages_raw.call_args[1]
+        assert args["anchor"] == "newest"
+
+    @pytest.mark.asyncio
+    async def test_time_filter_with_stream_uses_anchor_date(self, mock_deps):
+        """Test that anchor='date' is used when a stream narrow is provided."""
+        now = datetime.now()
+        ts_now = now.timestamp()
+
+        mock_deps.get_messages_raw.return_value = {
+            "result": "success",
+            "messages": [
+                {
+                    "id": 1,
+                    "sender_full_name": "U",
+                    "sender_email": "e",
+                    "timestamp": ts_now,
+                    "content": "msg",
+                    "type": "stream",
+                    "display_recipient": "test-stream",
+                    "subject": "topic",
+                },
+            ],
+        }
+
+        # Search with stream filter = anchor="date" is used
+        result = await search_messages(stream="test-stream", last_hours=1)
+
+        assert result["status"] == "success"
+
+        # With a narrow filter, anchor="date" is used efficiently
         args = mock_deps.get_messages_raw.call_args[1]
         assert args["anchor"] == "date"
         assert args["anchor_date"] is not None

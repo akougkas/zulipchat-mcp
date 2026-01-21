@@ -6,7 +6,7 @@ to provide convenient methods used by tools and services.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .database import get_database
@@ -60,7 +60,7 @@ class DatabaseManager:
                     kwargs.get("session_id"),
                     kwargs.get("project_dir"),
                     kwargs.get("host"),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 ],
             )
             return {"status": "success", "agent_id": agent_id}
@@ -105,7 +105,7 @@ class DatabaseManager:
                     question,
                     kwargs.get("options"),
                     kwargs.get("context"),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 ],
             )
             return {"status": "success", "request_id": request_id}
@@ -175,7 +175,7 @@ class DatabaseManager:
                     kwargs.get("description", ""),
                     kwargs.get("status", "started"),
                     kwargs.get("progress", 0),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 ],
             )
             return {"status": "success", "task_id": task_id}
@@ -225,7 +225,7 @@ class DatabaseManager:
                 INSERT INTO afk_state (id, is_afk, reason, auto_return_at, updated_at)
                 VALUES (1, ?, ?, NULL, ?)
                 """,
-                [enabled, reason, datetime.utcnow()],
+                [enabled, reason, datetime.now(timezone.utc)],
             )
             return {"status": "success"}
         except Exception as e:
@@ -242,7 +242,7 @@ class DatabaseManager:
                 INSERT INTO agent_status (status_id, agent_type, status, message, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                [status_id, agent_type, status, message, datetime.utcnow()],
+                [status_id, agent_type, status, message, datetime.now(timezone.utc)],
             )
             return {"status": "success"}
         except Exception as e:
@@ -270,7 +270,7 @@ class DatabaseManager:
                     topic,
                     sender_email,
                     content,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                 ],
             )
             return {"status": "success"}
