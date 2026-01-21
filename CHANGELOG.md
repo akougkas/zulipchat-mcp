@@ -2,6 +2,19 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.4.3] - 2025-01-21
+
+### Fixed
+- **Search Timeout**: Fixed `search_messages` timeout when using time filters without narrow (15s → <1s)
+- **Daily Summary**: Fixed `get_daily_summary` returning 0 messages due to invalid `sent_after:` operator
+- **Wildcard Search**: Fixed wildcard query `*` returning empty results
+- **Python 3.12+**: Fixed `datetime.utcnow()` deprecation warnings
+
+### Improved
+- **Test Coverage**: Increased from 66% to 69% (484 tests, 0 warnings)
+
+---
+
 ## [0.4.2] - 2025-01-20
 
 ### Added
