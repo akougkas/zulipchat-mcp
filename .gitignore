@@ -211,3 +211,6 @@ config.json
 # Workflow
 .github/
 .benchmarks/
+
+# Tokens
+.mcpregistry_*
