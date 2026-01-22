@@ -44,20 +44,70 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 ## Available Tools
 
-<div align="center">
+40+ tools across 8 categories:
 
-| Category | Tools | Key Capabilities |
-|----------|-------|------------------|
-| **📨 Messaging** | <details><summary>**8**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `message` \| Send, schedule, or draft messages with **smart formatting** and **delivery options** \|<br>\| `search_messages` \| **Token-limited results** with **narrow filters** and **advanced queries** \|<br>\| `edit_message` \| Edit content + topics with **propagation modes** and **notification control** \|<br>\| `bulk_operations` \| **Progress tracking** for bulk actions across multiple messages \|<br>\| `message_history` \| Complete **audit trail** with **edit timestamps** and **revision tracking** \|<br>\| `cross_post_message` \| **Attribution-aware** sharing across streams with **context preservation** \|<br>\| `add_reaction` \| **Emoji type support** (Unicode, custom, Zulip extra) \|<br>\| `remove_reaction` \| **Emoji type support** (Unicode, custom, Zulip extra) \|<br><br></details> | Send, edit, search, bulk operations, reactions |
-| **📁 Streams & Topics** | <details><summary>**5**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `manage_streams` \| **Lifecycle management** with permissions, **bulk subscriptions** \|<br>\| `manage_topics` \| **Cross-stream transfers** with **propagation modes** and notifications \|<br>\| `get_stream_info` \| **Comprehensive details** with subscriber lists and topic inclusion \|<br>\| `stream_analytics` \| **NEW!** Growth trends, engagement metrics, subscriber activity \|<br>\| `manage_stream_settings` \| **NEW!** Notification preferences, appearance, permissions \|<br><br></details> | Lifecycle management, analytics, permissions |
-| **⚡ Real-time Events** | <details><summary>**3**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `register_events` \| **20+ event types** with **auto-cleanup** and **queue management** \|<br>\| `get_events` \| **Long-polling support** with **queue validation** and error handling \|<br>\| `listen_events` \| **NEW!** Webhook integration, event filtering, stateless operation \|<br><br></details> | Event streams, webhooks, long-polling |
-| **👥 User Management** | <details><summary>**3**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `manage_users` \| **Multi-identity support** (user/bot/admin contexts) \|<br>\| `switch_identity` \| **NEW!** Session continuity with validation and capability tracking \|<br>\| `manage_user_groups` \| **NEW!** Complete group lifecycle with membership management \|<br><br></details> | Multi-identity, groups, profiles |
-| **🔍 Search & Analytics** | <details><summary>**3**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `advanced_search` \| **NEW!** Multi-faceted search with **intelligent ranking** and **aggregation** \|<br>\| `analytics` \| **NEW!** AI-powered insights with **sentiment analysis** and **participation metrics** \|<br>\| `get_daily_summary` \| **NEW!** Comprehensive activity summaries with **stream engagement** \|<br><br></details> | AI insights, sentiment, participation |
-| **📎 Files & Media** | <details><summary>**2**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `upload_file` \| **NEW!** Progress tracking, **auto-sharing**, **security validation** \|<br>\| `manage_files` \| **NEW!** Complete file lifecycle with **metadata extraction** \|<br><br></details> | Upload, share, metadata extraction |
-| **🤖 Agent Communication** | <details><summary>**13**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `register_agent` \| **NEW!** Database persistence with **session tracking** \|<br>\| `agent_message` \| **NEW!** BOT identity messaging with **AFK gating** \|<br>\| `request_user_input` \| **NEW!** Interactive workflows with **intelligent routing** \|<br>\| `start_task` \| **NEW!** Full task lifecycle management \|<br>\| `update_progress` \| **NEW!** Full task lifecycle management \|<br>\| `complete_task` \| **NEW!** Full task lifecycle management \|<br>\| `enable_afk_mode` \| **NEW!** Away-mode automation \|<br>\| `disable_afk_mode` \| **NEW!** Away-mode automation \|<br>\| *...and 5 more tools* \| Advanced workflow automation and monitoring \|<br><br></details> | Task tracking, AFK mode, workflows |
-| **⚙️ System & Workflow** | <details><summary>**6+**</summary><br><br>\| **Tool** \| **Capabilities** \|<br>\|-------\|----------------\|<br>\| `server_info` \| **NEW!** Comprehensive metadata with **routing hints** \|<br>\| `tool_help` \| **NEW!** On-demand documentation with **module search** \|<br>\| `execute_chain` \| **NEW!** Sophisticated workflow automation with **branching logic** \|<br>\| *...and 3+ more tools* \| Identity policy, agent bootstrapping, command types \|<br><br></details> | Chains, documentation, server info |
+| Category | Count | Highlights |
+|----------|-------|------------|
+| **Messaging** | 12 | Send, edit, schedule, cross-post, reactions |
+| **Streams** | 2 | List and query stream details |
+| **Topics** | 2 | List topics, cross-stream operations |
+| **Users** | 12 | Profiles, presence, groups, muting |
+| **Search & Analytics** | 6 | Narrow filters, AI insights, summaries |
+| **Events** | 4 | Queues, long-polling, webhooks |
+| **Files** | 2 | Upload, share, manage |
+| **System** | 6+ | Identity switching, workflows, chains |
 
-</div>
+<details>
+<summary>View all tools by category</summary>
+
+### Messaging Tools
+- `message` - Send, schedule, or draft messages with smart formatting
+- `search_messages` - Token-limited results with narrow filters
+- `edit_message` - Edit content and topics with propagation modes
+- `bulk_operations` - Progress tracking for bulk actions
+- `message_history` - Audit trail with edit timestamps
+- `cross_post_message` - Attribution-aware sharing across streams
+- `add_reaction` / `remove_reaction` - Emoji support (Unicode, custom, Zulip)
+- `mark_read` / `mark_unread` - Read state management
+- `schedule_message` / `cancel_scheduled` - Delayed delivery
+
+### Stream & Topic Tools
+- `get_stream_info` - Stream details with subscriber lists
+- `list_streams` - Filter by subscription status
+- `list_topics` - Topics within a stream
+- `manage_topics` - Cross-stream transfers with propagation
+
+### User Tools
+- `manage_users` - Multi-identity support (user/bot contexts)
+- `switch_identity` - Session continuity with validation
+- `manage_user_groups` - Group lifecycle and membership
+- `get_presence` - User online status
+- `set_status` - Status emoji and text
+- `mute_user` / `unmute_user` - User muting
+
+### Search & Analytics Tools
+- `advanced_search` - Multi-faceted search with ranking
+- `analytics` - AI-powered insights with sentiment analysis
+- `get_daily_summary` - Activity summaries with engagement
+
+### Event Tools
+- `register_events` - 20+ event types with auto-cleanup
+- `get_events` - Long-polling with queue validation
+- `delete_queue` - Queue cleanup
+- `listen_events` - Webhook integration
+
+### File Tools
+- `upload_file` - Progress tracking with auto-sharing
+- `manage_files` - File lifecycle with metadata extraction
+
+### System & Workflow Tools
+- `server_info` - Server metadata with routing hints
+- `tool_help` - On-demand documentation
+- `execute_chain` - Workflow automation with branching logic
+- `register_agent` - Agent session tracking
+- `agent_message` - Bot identity messaging
+
+</details>
 
 ## 📦 Installation & Setup
 
