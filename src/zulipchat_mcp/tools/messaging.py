@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
@@ -27,7 +27,7 @@ async def send_message(
     topic: str | None = None,
 ) -> dict[str, Any]:
     """Send a message to stream or user (immediate delivery only)."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     # Validate stream messages have topic
@@ -94,7 +94,7 @@ async def edit_message(
             },
         }
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     safe_content = sanitize_content(content) if content else None
@@ -133,7 +133,7 @@ async def get_message(message_id: int) -> dict[str, Any]:
     if not isinstance(message_id, int) or message_id <= 0:
         return {"status": "error", "error": "Invalid message ID"}
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -165,7 +165,7 @@ async def cross_post_message(
     if not target_streams:
         return {"status": "error", "error": "Must specify target streams"}
 
-    config = ConfigManager()
+    config = get_config_manager()
     ZulipClientWrapper(config)
 
     try:

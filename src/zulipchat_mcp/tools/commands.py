@@ -9,7 +9,7 @@ import asyncio
 import json
 from typing import Any
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 from ..core.commands.engine import (
     AddReactionCommand,
@@ -218,7 +218,7 @@ def execute_chain(
             this with values your commands will need.
             Example: {"search_query": "test", "message_type": "stream"}
     """
-    chain = CommandChain("mcp_chain", client=ZulipClientWrapper(ConfigManager()))
+    chain = CommandChain("mcp_chain", client=ZulipClientWrapper(get_config_manager()))
     for cmd in commands:
         chain.add_command(build_command(cmd))
     context = chain.execute(initial_context=initial_context or {})

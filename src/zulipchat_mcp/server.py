@@ -5,7 +5,7 @@ import os
 
 from fastmcp import FastMCP
 
-from .config import ConfigManager
+from .config import init_config_manager
 from .core.security import set_unsafe_mode
 
 # Optional: Anthropic sampling handler for LLM analytics fallback
@@ -85,7 +85,7 @@ def main() -> None:
     logger = get_logger(__name__)
 
     # Initialize configuration (zuliprc only)
-    config_manager = ConfigManager(
+    config_manager = init_config_manager(
         config_file=args.zulip_config_file,
         bot_config_file=args.zulip_bot_config_file,
         debug=args.debug,

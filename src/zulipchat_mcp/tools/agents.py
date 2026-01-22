@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.agent_tracker import AgentTracker
 from ..core.client import ZulipClientWrapper
 from ..utils.database_manager import DatabaseManager
@@ -26,7 +26,7 @@ _agent_stream: str | None = None  # Cached stream name
 def _get_client_bot() -> ZulipClientWrapper:
     global _client
     if _client is None:
-        _client = ZulipClientWrapper(ConfigManager(), use_bot_identity=True)
+        _client = ZulipClientWrapper(get_config_manager(), use_bot_identity=True)
     return _client
 
 

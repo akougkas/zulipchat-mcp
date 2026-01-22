@@ -11,7 +11,7 @@ from typing import Any, Literal, TypedDict, cast
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 NarrowOperand = str | int | list[str]
@@ -219,7 +219,7 @@ async def search_messages(
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
 ) -> dict[str, Any]:
     """Advanced search with fuzzy user resolution and comprehensive filtering."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -425,7 +425,7 @@ async def advanced_search(
     aggregations: list[str] | None = None,
 ) -> dict[str, Any]:
     """Multi-faceted search with basic aggregations."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     search_type = search_type or ["messages"]
@@ -672,7 +672,7 @@ async def check_messages_match_narrow(
     narrow: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Check whether a set of messages match a narrow filter."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:

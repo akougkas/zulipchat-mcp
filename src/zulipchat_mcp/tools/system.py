@@ -7,13 +7,13 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
 async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
     """Switch between user and bot identity contexts."""
-    config = ConfigManager()
+    config = get_config_manager()
 
     try:
         if identity == "bot" and not config.has_bot_credentials():
@@ -40,7 +40,7 @@ async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
 
 async def server_info() -> dict[str, Any]:
     """Get ZulipChat MCP server information and capabilities."""
-    config = ConfigManager()
+    config = get_config_manager()
 
     return {
         "status": "success",

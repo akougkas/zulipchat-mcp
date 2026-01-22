@@ -10,7 +10,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
@@ -26,7 +26,7 @@ async def register_events(
     client_capabilities: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Register for comprehensive real-time event streams from Zulip."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -77,7 +77,7 @@ async def get_events(
     user_client: str | None = None,
 ) -> dict[str, Any]:
     """Poll events from registered queue with long-polling support."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -123,7 +123,7 @@ async def listen_events(
     callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Comprehensive stateless event listener with automatic queue management."""
-    config = ConfigManager()
+    config = get_config_manager()
     ZulipClientWrapper(config)
 
     try:
@@ -220,7 +220,7 @@ async def listen_events(
 
 async def deregister_events(queue_id: str) -> dict[str, Any]:
     """Deregister event queue."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:

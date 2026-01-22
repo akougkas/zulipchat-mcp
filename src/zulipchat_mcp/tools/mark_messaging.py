@@ -8,13 +8,13 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
 def _resolve_stream_name(stream_id: int) -> str:
     """Resolve stream ID to name using Zulip API."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
     # Fetch all streams and find the one with matching ID
     # This is more reliable than the streams/{id} endpoint
@@ -36,7 +36,7 @@ async def update_message_flags_for_narrow(
     num_after: int = 50,
 ) -> dict[str, Any]:
     """Update personal message flags for messages matching a narrow (modern approach)."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:

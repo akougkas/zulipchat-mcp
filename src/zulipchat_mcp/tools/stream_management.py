@@ -8,7 +8,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
@@ -17,7 +17,7 @@ async def get_streams(
     include_public: bool = True,
 ) -> dict[str, Any]:
     """Get list of streams (READ-ONLY)."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -57,7 +57,7 @@ async def get_stream_info(
             "error": "Either stream_name or stream_id is required",
         }
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:

@@ -10,14 +10,14 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 from ..core.security import is_unsafe_mode
 
 
 async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str, Any]:
     """Get recent topics for a stream (READ-ONLY)."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -47,7 +47,7 @@ async def agents_channel_topic_ops(
     propagate_mode: Literal["change_one", "change_later", "change_all"] = "change_all",
 ) -> dict[str, Any]:
     """Topic operations in Agents-Channel only (BOT identity protection)."""
-    config = ConfigManager()
+    config = get_config_manager()
 
     # Force bot identity for organizational protection
     if not config.has_bot_credentials():

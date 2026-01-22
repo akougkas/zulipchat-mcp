@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 from ..core.emoji_registry import validate_emoji_for_agent
 
@@ -50,7 +50,7 @@ async def add_reaction(
             },
         }
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -99,7 +99,7 @@ async def remove_reaction(
     if not validate_emoji(emoji_name):
         return {"status": "error", "error": f"Invalid emoji name: '{emoji_name}'"}
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:

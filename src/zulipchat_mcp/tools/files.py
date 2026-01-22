@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import ConfigManager
+from ..config import get_config_manager
 from ..core.client import ZulipClientWrapper
 
 
@@ -78,7 +78,7 @@ async def upload_file(
             "error": "Either file_content or file_path is required",
         }
 
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
@@ -180,7 +180,7 @@ async def manage_files(
     share_in_topic: str | None = None,
 ) -> dict[str, Any]:
     """Comprehensive file management operations with Zulip API limitations."""
-    config = ConfigManager()
+    config = get_config_manager()
     client = ZulipClientWrapper(config)
 
     try:
