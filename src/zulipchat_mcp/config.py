@@ -157,3 +157,50 @@ class ConfigManager:
             "site": self.config.site,
             "config_file": self.config.config_file,
         }
+
+
+# Module-level singleton for ConfigManager
+_config_manager: ConfigManager | None = None
+
+
+def init_config_manager(
+    config_file: str | None = None,
+    bot_config_file: str | None = None,
+    debug: bool | None = None,
+) -> ConfigManager:
+    """Initialize the global ConfigManager singleton.
+
+    Must be called once at server startup before any tools access config.
+    Subsequent calls will reinitialize (useful for testing).
+
+    Args:
+        config_file: Path to user zuliprc file
+        bot_config_file: Path to bot zuliprc file
+        debug: Enable debug mode
+
+    Returns:
+        The initialized ConfigManager instance
+    """
+    global _config_manager
+    _config_manager = ConfigManager(
+        config_file=config_file,
+        bot_config_file=bot_config_file,
+        debug=debug,
+    )
+    return _config_manager
+
+
+def get_config_manager() -> ConfigManager:
+    """Get the global ConfigManager singleton.
+
+    Returns:
+        The ConfigManager instance
+
+    Raises:
+        RuntimeError: If init_config_manager() was not called first
+    """
+    if _config_manager is None:
+        raise RuntimeError(
+            "ConfigManager not initialized. Call init_config_manager() first."
+        )
+    return _config_manager
