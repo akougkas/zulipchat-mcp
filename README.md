@@ -173,7 +173,8 @@ Download from Zulip: **Settings** > **Personal settings** > **Account & privacy*
 | `--zulip-config-file PATH` | Path to your primary zuliprc |
 | `--zulip-bot-config-file PATH` | Optional bot zuliprc for dual identity |
 | `--unsafe` | Enable administrative tools (use with caution) |
-| `--debug` | Detailed logging to stderr |
+| `--debug` | Enable debug logging (outputs to stderr) |
+| `--enable-listener` | Enable background message listener service |
 </details>
 
 ## Documentation
