@@ -1,18 +1,16 @@
 # ZulipChat MCP Server
 
 <div align="center">
-  <!-- TODO: Add banner image showcasing Zulip + AI integration -->
-  <!-- <img src="docs/assets/zulipchat-mcp-banner.png" alt="ZulipChat MCP Banner" width="800"> -->
 
-  <h3>Transform your AI assistant into a Zulip power user with 40+ tools via MCP</h3>
+  <h3>Connect your AI assistant to Zulip with 8 powerful tool categories via MCP</h3>
 
+  [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
+  [![Downloads](https://img.shields.io/pypi/dm/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
+  [![GitHub stars](https://img.shields.io/github/stars/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/stargazers)
+  [![Last commit](https://img.shields.io/github/last-commit/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/commits/main)
+  [![Python](https://img.shields.io/pypi/pyversions/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
+  [![License](https://img.shields.io/github/license/akougkas/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
-  [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-  [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-  [![Version](https://img.shields.io/badge/Version-0.4.3-green)](https://github.com/akougkas/zulipchat-mcp)
-  [![Release](https://img.shields.io/github/v/release/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/releases/latest)
-  [![Coverage](https://img.shields.io/badge/Coverage-69%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp)
-  [![Code Style](https://img.shields.io/badge/Code%20Style-Black-black)](https://github.com/psf/black)
 
   [🚀 Quick Start](#-quick-start) • [📦 Installation](#-installation) • [📚 Features](#-what-can-you-do) • [🛠️ Tools](#-available-tools) • [💡 Examples](#-real-world-examples) • [📖 Releases](#-releases) • [🤝 Contributing](CONTRIBUTING.md)
 </div>
