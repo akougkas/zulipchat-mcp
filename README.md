@@ -109,30 +109,41 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 </details>
 
-## 📦 Installation & Setup
+## Installation
 
-### Option 1: Setup Wizard (Recommended)
+One command to connect your AI to Zulip:
+
+```bash
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+```
+
+<details>
+<summary><b>Setup Wizard</b> - guided configuration</summary>
 
 ```bash
 uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
-The wizard will find your zuliprc files, validate credentials, and generate config for your MCP client.
+The wizard finds your zuliprc files, validates credentials, and generates MCP client config.
+</details>
 
-### Option 2: Claude Code
+<details>
+<summary><b>Claude Code</b></summary>
 
 ```bash
 claude mcp add zulipchat -- uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-Or with dual identity (user + bot):
+With dual identity (user + bot):
 ```bash
 claude mcp add zulipchat -- uvx zulipchat-mcp \
   --zulip-config-file ~/.zuliprc \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```
+</details>
 
-### Option 3: Gemini CLI / Claude Desktop / Cursor
+<details>
+<summary><b>Gemini CLI / Claude Desktop / Cursor</b></summary>
 
 Add to your MCP config file:
 
@@ -146,41 +157,24 @@ Add to your MCP config file:
   }
 }
 ```
+</details>
 
-**Dual Identity (User + Bot):**
-```json
-{
-  "mcpServers": {
-    "zulipchat": {
-      "command": "uvx",
-      "args": [
-        "zulipchat-mcp",
-        "--zulip-config-file", "/path/to/user/zuliprc",
-        "--zulip-bot-config-file", "/path/to/bot/zuliprc"
-      ]
-    }
-  }
-}
-```
+<details>
+<summary><b>Getting your zuliprc</b></summary>
 
-### Getting Your zuliprc
+Download from Zulip: **Settings** > **Personal settings** > **Account & privacy** > **API key**
+</details>
 
-Download from Zulip: **Settings** → **Personal settings** → **Account & privacy** → **API key**
+<details>
+<summary><b>Configuration options</b></summary>
 
-## ⚙️ Configuration Guide
-
-### Authentication (Zuliprc)
-The server now strictly requires `zuliprc` files for authentication. This improves security by avoiding plain-text API keys in command arguments.
-
-*   `--zulip-config-file PATH`: Path to your primary User `zuliprc`.
-*   `--zulip-bot-config-file PATH`: (Optional) Path to a Bot `zuliprc` for dual identity features.
-
-### Safety Modes
-*   **Safe Mode (Default):** Restricts dangerous actions like deleting users or streams.
-*   **Unsafe Mode (`--unsafe`):** Enables administrative tools. Use with caution.
-
-### Debugging
-*   `--debug`: Enables detailed logging to stderr.
+| Option | Description |
+|--------|-------------|
+| `--zulip-config-file PATH` | Path to your primary zuliprc |
+| `--zulip-bot-config-file PATH` | Optional bot zuliprc for dual identity |
+| `--unsafe` | Enable administrative tools (use with caution) |
+| `--debug` | Detailed logging to stderr |
+</details>
 
 ## Documentation
 
