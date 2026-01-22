@@ -10,11 +10,12 @@ authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},
 ]
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 keywords = ["mcp", "zulip", "chat", "ai", "assistant"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
