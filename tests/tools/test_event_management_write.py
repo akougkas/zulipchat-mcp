@@ -35,7 +35,7 @@ class TestEventManagement:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.event_management.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.event_management.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.event_management.ZulipClientWrapper"
             ) as mock_wrapper,

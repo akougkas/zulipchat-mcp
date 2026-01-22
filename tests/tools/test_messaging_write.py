@@ -21,7 +21,7 @@ class TestSendMessage:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -216,7 +216,7 @@ class TestEditMessage:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.messaging.ZulipClientWrapper"
             ) as mock_wrapper,

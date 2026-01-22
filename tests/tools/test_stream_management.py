@@ -19,7 +19,7 @@ class TestGetStreams:
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
             patch(
-                "src.zulipchat_mcp.tools.stream_management.ConfigManager"
+                "src.zulipchat_mcp.tools.stream_management.get_config_manager"
             ) as mock_config_cls,
             patch(
                 "src.zulipchat_mcp.tools.stream_management.ZulipClientWrapper"
@@ -133,7 +133,7 @@ class TestGetStreamInfo:
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
             patch(
-                "src.zulipchat_mcp.tools.stream_management.ConfigManager"
+                "src.zulipchat_mcp.tools.stream_management.get_config_manager"
             ) as mock_config_cls,
             patch(
                 "src.zulipchat_mcp.tools.stream_management.ZulipClientWrapper"

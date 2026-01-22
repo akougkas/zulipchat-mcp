@@ -29,7 +29,7 @@ class TestScheduledMessages:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.schedule_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.schedule_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.schedule_messaging.ZulipClientWrapper"
             ) as mock_wrapper,

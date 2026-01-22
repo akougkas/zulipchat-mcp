@@ -30,7 +30,7 @@ class TestTopicOperations:
         """Patch dependencies."""
         with (
             patch(
-                "src.zulipchat_mcp.tools.topic_management.ConfigManager"
+                "src.zulipchat_mcp.tools.topic_management.get_config_manager"
             ) as mock_config_cls,
             patch(
                 "src.zulipchat_mcp.tools.topic_management.ZulipClientWrapper"

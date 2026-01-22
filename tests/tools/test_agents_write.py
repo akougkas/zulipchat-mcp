@@ -41,7 +41,7 @@ class TestAgentOperations:
             patch(
                 "src.zulipchat_mcp.tools.agents.ZulipClientWrapper"
             ) as mock_client_cls,
-            patch("src.zulipchat_mcp.tools.agents.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.agents.get_config_manager"),
         ):
 
             mock_db_cls.return_value = mock_db

@@ -39,7 +39,7 @@ class TestSystemTools:
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
             patch(
-                "src.zulipchat_mcp.tools.system.ConfigManager"
+                "src.zulipchat_mcp.tools.system.get_config_manager"
             ) as mock_config_cls,
             patch(
                 "src.zulipchat_mcp.tools.system.ZulipClientWrapper"

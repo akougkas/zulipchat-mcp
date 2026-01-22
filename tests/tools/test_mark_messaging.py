@@ -29,7 +29,7 @@ class TestResolveStreamName:
         """Patch dependencies for stream resolution."""
         mock_client = MagicMock()
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -103,7 +103,7 @@ class TestUpdateMessageFlagsForNarrow:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -222,7 +222,7 @@ class TestMarkAllAsRead:
             "updated_count": 50,
         }
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -294,7 +294,7 @@ class TestMarkTopicAsRead:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -365,7 +365,7 @@ class TestMarkMessagesUnread:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -510,7 +510,7 @@ class TestStarMessages:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,
@@ -632,7 +632,7 @@ class TestUnstarMessages:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,

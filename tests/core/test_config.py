@@ -3,6 +3,8 @@
 import os
 from unittest.mock import patch
 
+import pytest
+
 from src.zulipchat_mcp.config import ConfigManager
 
 
@@ -137,3 +139,63 @@ class TestConfigManager:
         monkeypatch.setenv("MCP_PORT", "invalid")
         manager = ConfigManager()
         assert manager.config.port == 3000
+
+
+class TestConfigManagerSingleton:
+    """Tests for ConfigManager singleton pattern."""
+
+    def test_get_config_manager_before_init_raises(self):
+        """Test that get_config_manager raises if not initialized."""
+        # Reset singleton state
+        import src.zulipchat_mcp.config as config_module
+
+        config_module._config_manager = None
+
+        with pytest.raises(RuntimeError, match="ConfigManager not initialized"):
+            from src.zulipchat_mcp.config import get_config_manager
+
+            get_config_manager()
+
+    def test_init_config_manager_sets_singleton(self, tmp_path):
+        """Test that init_config_manager sets the global singleton."""
+        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
+
+        import src.zulipchat_mcp.config as config_module
+
+        # Create a dummy config file
+        config_file = tmp_path / "zuliprc"
+        config_file.write_text(
+            "[api]\nemail=test@example.com\nkey=abc123\nsite=https://test.zulipchat.com\n"
+        )
+
+        # Initialize
+        result = init_config_manager(config_file=str(config_file), debug=True)
+
+        assert result is not None
+        assert result.config.config_file == str(config_file)
+        assert result.config.debug is True
+
+        # get_config_manager should return the same instance
+        retrieved = get_config_manager()
+        assert retrieved is result
+
+        # Cleanup
+        config_module._config_manager = None
+
+    def test_init_config_manager_can_reinitialize(self, tmp_path):
+        """Test that init_config_manager can be called multiple times."""
+        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
+
+        import src.zulipchat_mcp.config as config_module
+
+        # First init
+        first = init_config_manager(debug=False)
+        assert first.config.debug is False
+
+        # Second init overwrites
+        second = init_config_manager(debug=True)
+        assert second.config.debug is True
+        assert get_config_manager() is second
+
+        # Cleanup
+        config_module._config_manager = None

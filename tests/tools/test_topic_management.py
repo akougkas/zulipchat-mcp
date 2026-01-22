@@ -17,7 +17,7 @@ class TestTopicManagementTools:
     def mock_deps(self):
         with (
             patch(
-                "src.zulipchat_mcp.tools.topic_management.ConfigManager"
+                "src.zulipchat_mcp.tools.topic_management.get_config_manager"
             ) as mock_config,
             patch(
                 "src.zulipchat_mcp.tools.topic_management.ZulipClientWrapper"

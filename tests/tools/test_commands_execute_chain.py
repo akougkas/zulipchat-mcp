@@ -43,6 +43,7 @@ class _DummyConditional:
 
 @patch("zulipchat_mcp.tools.commands.CommandChain", DummyChain)
 @patch("zulipchat_mcp.tools.commands.ZulipClientWrapper", DummyClient)
+@patch("zulipchat_mcp.tools.commands.get_config_manager")
 @patch("zulipchat_mcp.tools.commands.SearchMessagesCommand", _DummyCmd)
 @patch("zulipchat_mcp.tools.commands.SendMessageCommand", _DummyCmd)
 @patch("zulipchat_mcp.tools.commands.ConditionalActionCommand", _DummyConditional)

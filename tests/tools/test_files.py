@@ -17,7 +17,7 @@ class TestFilesTools:
     @pytest.fixture
     def mock_deps(self):
         with (
-            patch("src.zulipchat_mcp.tools.files.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.files.get_config_manager"),
             patch("src.zulipchat_mcp.tools.files.ZulipClientWrapper") as mock_wrapper,
         ):
 

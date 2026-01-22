@@ -36,7 +36,7 @@ class TestMessagingTools:
     def mock_deps(self, mock_client):
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
-            patch("src.zulipchat_mcp.tools.messaging.ConfigManager") as mock_config_cls,
+            patch("src.zulipchat_mcp.tools.messaging.get_config_manager") as mock_config_cls,
             patch(
                 "src.zulipchat_mcp.tools.messaging.ZulipClientWrapper"
             ) as mock_client_cls,

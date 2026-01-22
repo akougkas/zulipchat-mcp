@@ -38,7 +38,7 @@ class TestMessageFlags:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
             ) as mock_wrapper,

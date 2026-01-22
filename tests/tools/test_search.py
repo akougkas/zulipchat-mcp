@@ -53,7 +53,7 @@ class TestSearchTools:
     @pytest.fixture
     def mock_deps(self, mock_client):
         with (
-            patch("src.zulipchat_mcp.tools.search.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.search.get_config_manager"),
             patch("src.zulipchat_mcp.tools.search.ZulipClientWrapper") as mock_wrapper,
         ):
             mock_wrapper.return_value = mock_client

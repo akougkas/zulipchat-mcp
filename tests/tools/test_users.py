@@ -38,7 +38,7 @@ class TestUsersTools:
     @pytest.fixture
     def mock_deps(self, mock_client):
         with (
-            patch("src.zulipchat_mcp.tools.users.ConfigManager"),
+            patch("src.zulipchat_mcp.tools.users.get_config_manager"),
             patch("src.zulipchat_mcp.tools.users.ZulipClientWrapper") as mock_wrapper,
         ):
             mock_wrapper.return_value = mock_client

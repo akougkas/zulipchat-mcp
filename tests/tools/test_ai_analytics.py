@@ -16,7 +16,7 @@ class TestAIAnalytics:
 
     @pytest.fixture
     def mock_deps(self):
-        with patch("src.zulipchat_mcp.tools.ai_analytics.ConfigManager"), \
+        with patch("src.zulipchat_mcp.tools.ai_analytics.get_config_manager"), \
              patch("src.zulipchat_mcp.tools.ai_analytics.ZulipClientWrapper") as mock_wrapper, \
              patch("src.zulipchat_mcp.tools.search.search_messages", new_callable=AsyncMock) as mock_search:
 
