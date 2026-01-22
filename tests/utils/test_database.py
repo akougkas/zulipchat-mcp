@@ -1,4 +1,4 @@
-"""Tests for utils/database.py."""
+"""Tests for utils/database.py - short-lived connection pattern."""
 
 from unittest.mock import MagicMock, call, patch
 
@@ -14,7 +14,7 @@ from src.zulipchat_mcp.utils.database import (
 
 
 class TestDatabaseManager:
-    """Tests for DatabaseManager."""
+    """Tests for DatabaseManager with short-lived connections."""
 
     @pytest.fixture(autouse=True)
     def reset_singleton(self):
@@ -34,16 +34,14 @@ class TestDatabaseManager:
             yield mock
 
     def test_init_success(self, mock_duckdb, tmp_path):
-        """Test successful initialization."""
+        """Test successful initialization with short-lived connection for migrations."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
 
-        assert db.conn is not None
-        mock_duckdb.connect.assert_called_with(
-            db_path, config={"access_mode": "READ_WRITE"}
-        )
-        # Check migrations run
-        assert db.conn.execute.call_count > 0
+        assert db._initialized is True
+        assert db.db_path == db_path
+        # Connection was opened for migrations and closed
+        mock_duckdb.connect.assert_called()
 
     def test_init_lock_retry_success(self, mock_duckdb, tmp_path):
         """Test initialization retries on lock and succeeds."""
@@ -57,7 +55,7 @@ class TestDatabaseManager:
 
         db = DatabaseManager(db_path, max_retries=3, retry_delay=0.01)
 
-        assert db.conn == conn
+        assert db._initialized is True
         assert mock_duckdb.connect.call_count == 3
 
     def test_init_lock_failure(self, mock_duckdb, tmp_path):
@@ -72,98 +70,173 @@ class TestDatabaseManager:
 
         assert mock_duckdb.connect.call_count == 3
 
-    def test_execute_transaction(self, mock_duckdb, tmp_path):
-        """Test execute wraps in transaction."""
+    def test_execute_opens_closes_connection(self, mock_duckdb, tmp_path):
+        """Test execute opens and closes connection for each operation."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
 
-        db.conn.reset_mock()
+        # Reset mock to clear init calls
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
+        mock_duckdb.connect.return_value = conn
 
         db.execute("INSERT INTO t VALUES (?)", [1])
 
+        # Verify connection opened
+        mock_duckdb.connect.assert_called_once()
         # Verify transaction calls
-        calls = db.conn.execute.call_args_list
-        assert calls[0] == call("BEGIN")
-        assert calls[1] == call("INSERT INTO t VALUES (?)", [1])
-        assert calls[2] == call("COMMIT")
+        calls = conn.execute.call_args_list
+        assert call("BEGIN") in calls
+        assert call("INSERT INTO t VALUES (?)", [1]) in calls
+        assert call("COMMIT") in calls
+        # Verify connection closed
+        conn.close.assert_called_once()
 
-    def test_execute_rollback(self, mock_duckdb, tmp_path):
+    def test_execute_retry_on_lock(self, mock_duckdb, tmp_path):
+        """Test execute retries on lock contention."""
+        db_path = str(tmp_path / "test.db")
+        db = DatabaseManager(db_path, max_retries=3, retry_delay=0.01)
+
+        mock_duckdb.connect.reset_mock()
+
+        # First two connections fail with lock, third succeeds
+        lock_error = duckdb.IOException("IO Error: lock")
+        conn_success = MagicMock()
+        mock_duckdb.connect.side_effect = [lock_error, lock_error, conn_success]
+
+        db.execute("INSERT", [1])
+
+        assert mock_duckdb.connect.call_count == 3
+        conn_success.close.assert_called_once()
+
+    def test_execute_rollback_on_error(self, mock_duckdb, tmp_path):
         """Test execute rolls back on error."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
 
-        # Create a new mock for this test to avoid side_effect pollution
-        db.conn.execute.side_effect = [
-            None,
-            Exception("Fail"),
-            None,
-        ]  # BEGIN, INSERT (fail), ROLLBACK
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
+        mock_duckdb.connect.return_value = conn
+
+        # Simulate error on the INSERT
+        conn.execute.side_effect = [
+            None,  # BEGIN
+            Exception("Fail"),  # INSERT fails
+            None,  # ROLLBACK
+        ]
 
         with pytest.raises(Exception, match="Fail"):
             db.execute("INSERT", [1])
 
-        # Verify rollback called (last call)
-        # Note: call_args returns the LAST call
-        assert db.conn.execute.call_args == call("ROLLBACK")
+        # Verify rollback was called
+        assert call("ROLLBACK") in conn.execute.call_args_list
+        conn.close.assert_called()
 
     def test_executemany(self, mock_duckdb, tmp_path):
-        """Test executemany."""
+        """Test executemany uses short-lived connection."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        db.conn.reset_mock()
+
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
+        mock_duckdb.connect.return_value = conn
 
         db.executemany("INSERT", [(1,), (2,)])
 
-        calls = db.conn.execute.call_args_list
-        assert calls[0] == call("BEGIN")
-        assert calls[1] == call("INSERT", (1,))
-        assert calls[2] == call("INSERT", (2,))
-        assert calls[3] == call("COMMIT")
+        calls = conn.execute.call_args_list
+        assert call("BEGIN") in calls
+        assert call("INSERT", (1,)) in calls
+        assert call("INSERT", (2,)) in calls
+        assert call("COMMIT") in calls
+        conn.close.assert_called_once()
 
     def test_query(self, mock_duckdb, tmp_path):
-        """Test query."""
+        """Test query uses short-lived connection."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
 
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
         cursor = MagicMock()
         cursor.fetchall.return_value = [(1,)]
-        db.conn.execute.return_value = cursor
+        conn.execute.return_value = cursor
+        mock_duckdb.connect.return_value = conn
 
         res = db.query("SELECT *")
+
         assert res == [(1,)]
+        conn.close.assert_called_once()
 
     def test_query_one(self, mock_duckdb, tmp_path):
-        """Test query_one."""
+        """Test query_one uses short-lived connection."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
 
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
         cursor = MagicMock()
         cursor.fetchone.return_value = (1,)
-        db.conn.execute.return_value = cursor
+        conn.execute.return_value = cursor
+        mock_duckdb.connect.return_value = conn
 
         res = db.query_one("SELECT *")
-        assert res == (1,)
 
-    def test_close(self, mock_duckdb, tmp_path):
-        """Test close."""
+        assert res == (1,)
+        conn.close.assert_called_once()
+
+    def test_query_as_dicts(self, mock_duckdb, tmp_path):
+        """Test query_as_dicts returns list of dicts."""
         db_path = str(tmp_path / "test.db")
         db = DatabaseManager(db_path)
-        conn = db.conn
 
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [(1, "a"), (2, "b")]
+        cursor.description = [("id",), ("name",)]
+        conn.execute.return_value = cursor
+        mock_duckdb.connect.return_value = conn
+
+        res = db.query_as_dicts("SELECT *")
+
+        assert res == [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
+        conn.close.assert_called_once()
+
+    def test_query_one_as_dict(self, mock_duckdb, tmp_path):
+        """Test query_one_as_dict returns single dict."""
+        db_path = str(tmp_path / "test.db")
+        db = DatabaseManager(db_path)
+
+        mock_duckdb.connect.reset_mock()
+        conn = MagicMock()
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (1, "a")
+        cursor.description = [("id",), ("name",)]
+        conn.execute.return_value = cursor
+        mock_duckdb.connect.return_value = conn
+
+        res = db.query_one_as_dict("SELECT *")
+
+        assert res == {"id": 1, "name": "a"}
+        conn.close.assert_called_once()
+
+    def test_close_is_noop(self, mock_duckdb, tmp_path):
+        """Test close is a no-op since connections are short-lived."""
+        db_path = str(tmp_path / "test.db")
+        db = DatabaseManager(db_path)
+
+        # close should not raise and should be a no-op
         db.close()
-        conn.close.assert_called()
-        assert db.conn is None
+        assert db._initialized is True
 
     def test_global_instances(self, mock_duckdb):
         """Test global instance helpers."""
-        # reset_singleton fixture handles resetting _db_manager and DatabaseManager._instance
-
         db = init_database(":memory:")
         assert db is not None
 
         db2 = get_database()
         assert db2 is db
 
-        # Verify checking calling DatabaseManager() directly also returns the same instance
+        # Verify calling DatabaseManager() directly also returns the same instance
         db3 = DatabaseManager(":memory:")
         assert db3 is db

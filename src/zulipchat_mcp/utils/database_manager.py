@@ -16,12 +16,15 @@ logger = get_logger(__name__)
 
 
 class DatabaseManager:
-    """Manages database operations with a simple, explicit API."""
+    """Manages database operations with a simple, explicit API.
+
+    Uses short-lived connections to support concurrent access from multiple
+    MCP server instances.
+    """
 
     def __init__(self) -> None:
-        # Reuse the existing singleton connection
+        # Reuse the existing singleton for configuration
         self._db = get_database()
-        self.conn = self._db.conn
 
     # Low-level passthroughs (for legacy usage during migration)
     def execute(
@@ -70,16 +73,10 @@ class DatabaseManager:
 
     def get_agent_instance(self, agent_id: str) -> dict[str, Any] | None:
         try:
-            cursor = self.conn.execute(
+            return self._db.query_one_as_dict(
                 "SELECT * FROM agent_instances WHERE agent_id = ? ORDER BY started_at DESC LIMIT 1",
                 [agent_id],
             )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            desc = cursor.description or []
-            columns = [d[0] for d in desc]
-            return dict(zip(columns, row, strict=False))
         except Exception as e:
             logger.error(f"Failed to get agent instance: {e}")
             return None
@@ -115,29 +112,19 @@ class DatabaseManager:
 
     def get_input_request(self, request_id: str) -> dict[str, Any] | None:
         try:
-            cursor = self.conn.execute(
+            return self._db.query_one_as_dict(
                 "SELECT * FROM user_input_requests WHERE request_id = ?",
                 [request_id],
             )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            desc = cursor.description or []
-            columns = [d[0] for d in desc]
-            return dict(zip(columns, row, strict=False))
         except Exception as e:
             logger.error(f"Failed to get input request: {e}")
             return None
 
     def get_pending_input_requests(self) -> list[dict[str, Any]]:
         try:
-            cursor = self.conn.execute(
+            return self._db.query_as_dicts(
                 "SELECT * FROM user_input_requests WHERE status = 'pending'"
             )
-            rows = cursor.fetchall() or []
-            desc = cursor.description or []
-            columns = [d[0] for d in desc]
-            return [dict(zip(columns, r, strict=False)) for r in rows]
         except Exception as e:
             logger.error(f"Failed to list pending input requests: {e}")
             return []
@@ -201,15 +188,9 @@ class DatabaseManager:
     # AFK state
     def get_afk_state(self) -> dict[str, Any] | None:
         try:
-            cursor = self.conn.execute(
+            return self._db.query_one_as_dict(
                 "SELECT * FROM afk_state ORDER BY updated_at DESC LIMIT 1"
             )
-            row = cursor.fetchone()
-            if row is None:
-                return None
-            desc = cursor.description or []
-            columns = [d[0] for d in desc]
-            return dict(zip(columns, row, strict=False))
         except Exception as e:
             logger.error(f"Failed to get AFK state: {e}")
             return None
@@ -283,19 +264,15 @@ class DatabaseManager:
     ) -> list[dict[str, Any]]:
         try:
             if topic_prefix:
-                cursor = self.conn.execute(
+                return self._db.query_as_dicts(
                     "SELECT * FROM agent_events WHERE acked = FALSE AND topic LIKE ? ORDER BY created_at DESC LIMIT ?",
                     [f"{topic_prefix}%", limit],
                 )
             else:
-                cursor = self.conn.execute(
+                return self._db.query_as_dicts(
                     "SELECT * FROM agent_events WHERE acked = FALSE ORDER BY created_at DESC LIMIT ?",
                     [limit],
                 )
-            rows = cursor.fetchall() or []
-            desc = cursor.description or []
-            cols = [d[0] for d in desc]
-            return [dict(zip(cols, r, strict=False)) for r in rows]
         except Exception as e:
             logger.error(f"Failed to fetch unacked events: {e}")
             return []

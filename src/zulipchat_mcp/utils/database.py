@@ -1,4 +1,9 @@
-"""DuckDB-backed persistence for ZulipChat MCP state and cache."""
+"""DuckDB-backed persistence for ZulipChat MCP state and cache.
+
+Uses short-lived connections for write operations to allow concurrent access
+from multiple MCP server instances. Each write operation opens a connection,
+executes, and closes it immediately to release the file lock.
+"""
 
 import os
 import threading
@@ -10,14 +15,13 @@ import duckdb
 
 
 class DatabaseLockedError(Exception):
-    """Raised when the database is locked by another process."""
+    """Raised when the database is locked by another process after retries."""
 
     def __init__(self, db_path: str, original_error: Exception):
         self.db_path = db_path
         self.original_error = original_error
         super().__init__(
-            f"Database is locked by another process: {db_path}. "
-            "Another MCP server instance may be running. "
+            f"Database is locked after max retries: {db_path}. "
             f"Original error: {original_error}"
         )
 
@@ -25,70 +29,81 @@ class DatabaseLockedError(Exception):
 class DatabaseManager:
     """DuckDB database manager for ZulipChat MCP.
 
-    Provides thread-safe database operations with automatic migrations
-    and connection management.
+    Uses short-lived connections for write operations to support concurrent
+    access from multiple MCP server instances. Write operations acquire the
+    lock, execute, and release immediately.
     """
 
     _instance = None
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "DatabaseManager":
-        """Ensure singleton instance."""
+        """Ensure singleton instance within a single process."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(
-        self, db_path: str, max_retries: int = 3, retry_delay: float = 0.2
+        self, db_path: str, max_retries: int = 5, retry_delay: float = 0.1
     ) -> None:
-        """Initialize database manager with connection and migrations.
+        """Initialize database manager.
 
         Args:
             db_path: Path to the DuckDB database file
-            max_retries: Maximum number of connection attempts on lock
-            retry_delay: Delay between retries in seconds
+            max_retries: Maximum number of retry attempts on lock contention
+            retry_delay: Base delay between retries (uses exponential backoff)
         """
         # Skip initialization if already initialized
-        if hasattr(self, "conn") and self.conn is not None:
+        if hasattr(self, "_initialized") and self._initialized:
             return
 
         self.db_path = db_path
-        self.conn: duckdb.DuckDBPyConnection | None = None
-        self._write_lock = threading.RLock()
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self._write_lock = threading.RLock()  # Thread safety within process
+        self._initialized = False
 
         dirname = os.path.dirname(db_path)
         if dirname:
             os.makedirs(dirname, exist_ok=True)
 
-        # Retry loop for handling transient lock issues
+        # Run migrations using short-lived connection
+        self._run_migrations_with_retry()
+        self._initialized = True
+
+    def _connect(self) -> duckdb.DuckDBPyConnection:
+        """Create a new database connection."""
+        return duckdb.connect(self.db_path, config={"access_mode": "READ_WRITE"})
+
+    def _run_migrations_with_retry(self) -> None:
+        """Run migrations with retry logic for lock contention."""
         last_error: Exception | None = None
-        for attempt in range(max_retries):
+        for attempt in range(self.max_retries):
+            conn = None
             try:
-                # Use WAL mode for concurrent access (read_write with wal_autocheckpoint)
-                self.conn = duckdb.connect(
-                    db_path, config={"access_mode": "READ_WRITE"}
-                )
-                # Enable WAL mode for better concurrent access
-                self.conn.execute("PRAGMA wal_autocheckpoint = 1000")
-                break
+                conn = self._connect()
+                self._run_migrations(conn)
+                return
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < max_retries - 1:
-                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (2**attempt))  # Exponential backoff
                     continue
-                raise DatabaseLockedError(db_path, e) from e
-            except Exception as e:
-                last_error = e
-                raise
+                raise DatabaseLockedError(self.db_path, e) from e
+            finally:
+                if conn:
+                    conn.close()
 
-        if self.conn is None:
-            raise DatabaseLockedError(db_path, last_error or Exception("Unknown error"))
+        if last_error:
+            raise DatabaseLockedError(self.db_path, last_error)
 
-        self.run_migrations()
+    def _run_migrations(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Run all database migrations idempotently.
 
-    def run_migrations(self) -> None:
-        """Run all database migrations idempotently."""
+        Args:
+            conn: Active database connection to use for migrations
+        """
         # Create migrations table
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS schema_migrations(
             version INTEGER PRIMARY KEY,
@@ -98,7 +113,7 @@ class DatabaseManager:
         )
 
         # Version 1 schema - Core tables for agent tracking and state
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS afk_state(
             id INTEGER PRIMARY KEY,
@@ -110,7 +125,7 @@ class DatabaseManager:
         """
         )
 
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS agents(
             agent_id TEXT PRIMARY KEY,
@@ -121,7 +136,7 @@ class DatabaseManager:
         """
         )
 
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS agent_instances(
             instance_id TEXT PRIMARY KEY,
@@ -135,7 +150,7 @@ class DatabaseManager:
         """
         )
 
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS user_input_requests(
             request_id TEXT PRIMARY KEY,
@@ -151,7 +166,7 @@ class DatabaseManager:
         """
         )
 
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS tasks(
             task_id TEXT PRIMARY KEY,
@@ -169,7 +184,7 @@ class DatabaseManager:
         )
 
         # Agent status audit trail (optional)
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS agent_status(
             status_id TEXT PRIMARY KEY,
@@ -182,7 +197,7 @@ class DatabaseManager:
         )
 
         # Optional cache tables
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS streams_cache(
             key TEXT PRIMARY KEY,
@@ -192,7 +207,7 @@ class DatabaseManager:
         """
         )
 
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS users_cache(
             key TEXT PRIMARY KEY,
@@ -203,18 +218,18 @@ class DatabaseManager:
         )
 
         # Record schema version if not exists
-        existing_version = self.conn.execute(
+        existing_version = conn.execute(
             "SELECT version FROM schema_migrations WHERE version = 1"
         ).fetchone()
 
         if not existing_version:
-            self.conn.execute(
+            conn.execute(
                 "INSERT INTO schema_migrations (version, applied_at) VALUES (1, ?)",
                 [datetime.now(timezone.utc)],
             )
 
         # Table for agent inbound chat events (from Zulip)
-        self.conn.execute(
+        conn.execute(
             """
           CREATE TABLE IF NOT EXISTS agent_events(
             id TEXT PRIMARY KEY,
@@ -231,42 +246,91 @@ class DatabaseManager:
     def execute(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> None:
-        """Execute a single write operation with transaction wrapping.
+        """Execute a single write operation with short-lived connection.
+
+        Opens a connection, executes the statement in a transaction,
+        and closes immediately to release the file lock.
 
         Args:
             sql: SQL statement to execute
             params: Parameters for the SQL statement
         """
-        with self._write_lock:
-            self.conn.execute("BEGIN")
-            try:
-                self.conn.execute(sql, params or [])
-                self.conn.execute("COMMIT")
-            except Exception:
-                self.conn.execute("ROLLBACK")
-                raise
+        with self._write_lock:  # Thread safety within process
+            last_error: Exception | None = None
+            for attempt in range(self.max_retries):
+                conn = None
+                try:
+                    conn = self._connect()
+                    conn.execute("BEGIN")
+                    conn.execute(sql, params or [])
+                    conn.execute("COMMIT")
+                    return
+                except duckdb.IOException as e:
+                    last_error = e
+                    if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
+                    raise DatabaseLockedError(self.db_path, e) from e
+                except Exception:
+                    if conn:
+                        try:
+                            conn.execute("ROLLBACK")
+                        except Exception:
+                            pass
+                    raise
+                finally:
+                    if conn:
+                        conn.close()
+
+            if last_error:
+                raise DatabaseLockedError(self.db_path, last_error)
 
     def executemany(self, sql: str, seq_params: list[tuple[Any, ...]]) -> None:
         """Execute multiple write operations in a single transaction.
+
+        Opens a connection, executes all statements, and closes immediately.
 
         Args:
             sql: SQL statement to execute
             seq_params: Sequence of parameter tuples
         """
         with self._write_lock:
-            self.conn.execute("BEGIN")
-            try:
-                for params in seq_params:
-                    self.conn.execute(sql, params)
-                self.conn.execute("COMMIT")
-            except Exception:
-                self.conn.execute("ROLLBACK")
-                raise
+            last_error: Exception | None = None
+            for attempt in range(self.max_retries):
+                conn = None
+                try:
+                    conn = self._connect()
+                    conn.execute("BEGIN")
+                    for params in seq_params:
+                        conn.execute(sql, params)
+                    conn.execute("COMMIT")
+                    return
+                except duckdb.IOException as e:
+                    last_error = e
+                    if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
+                    raise DatabaseLockedError(self.db_path, e) from e
+                except Exception:
+                    if conn:
+                        try:
+                            conn.execute("ROLLBACK")
+                        except Exception:
+                            pass
+                    raise
+                finally:
+                    if conn:
+                        conn.close()
+
+            if last_error:
+                raise DatabaseLockedError(self.db_path, last_error)
 
     def query(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> list[tuple[Any, ...]]:
         """Execute a read query and return results.
+
+        Uses short-lived connection with retry for lock contention.
 
         Args:
             sql: SQL query to execute
@@ -275,13 +339,33 @@ class DatabaseManager:
         Returns:
             List of result tuples
         """
-        cursor = self.conn.execute(sql, params or [])
-        return cursor.fetchall()
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.execute(sql, params or [])
+                return cursor.fetchall()
+            except duckdb.IOException as e:
+                last_error = e
+                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (2**attempt))
+                    continue
+                raise DatabaseLockedError(self.db_path, e) from e
+            finally:
+                if conn:
+                    conn.close()
+
+        if last_error:
+            raise DatabaseLockedError(self.db_path, last_error)
+        return []
 
     def query_one(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> tuple[Any, ...] | None:
         """Execute a read query and return the first result.
+
+        Uses short-lived connection with retry for lock contention.
 
         Args:
             sql: SQL query to execute
@@ -290,22 +374,114 @@ class DatabaseManager:
         Returns:
             First result tuple or None if no results
         """
-        cursor = self.conn.execute(sql, params or [])
-        return cursor.fetchone()
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.execute(sql, params or [])
+                return cursor.fetchone()
+            except duckdb.IOException as e:
+                last_error = e
+                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (2**attempt))
+                    continue
+                raise DatabaseLockedError(self.db_path, e) from e
+            finally:
+                if conn:
+                    conn.close()
+
+        if last_error:
+            raise DatabaseLockedError(self.db_path, last_error)
+        return None
+
+    def query_as_dicts(
+        self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
+    ) -> list[dict[str, Any]]:
+        """Execute a read query and return results as dictionaries.
+
+        Uses short-lived connection with retry for lock contention.
+
+        Args:
+            sql: SQL query to execute
+            params: Parameters for the SQL query
+
+        Returns:
+            List of result dictionaries with column names as keys
+        """
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.execute(sql, params or [])
+                rows = cursor.fetchall()
+                if not rows:
+                    return []
+                desc = cursor.description or []
+                columns = [d[0] for d in desc]
+                return [dict(zip(columns, row, strict=False)) for row in rows]
+            except duckdb.IOException as e:
+                last_error = e
+                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (2**attempt))
+                    continue
+                raise DatabaseLockedError(self.db_path, e) from e
+            finally:
+                if conn:
+                    conn.close()
+
+        if last_error:
+            raise DatabaseLockedError(self.db_path, last_error)
+        return []
+
+    def query_one_as_dict(
+        self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
+    ) -> dict[str, Any] | None:
+        """Execute a read query and return the first result as a dictionary.
+
+        Uses short-lived connection with retry for lock contention.
+
+        Args:
+            sql: SQL query to execute
+            params: Parameters for the SQL query
+
+        Returns:
+            First result as dictionary or None if no results
+        """
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries):
+            conn = None
+            try:
+                conn = self._connect()
+                cursor = conn.execute(sql, params or [])
+                row = cursor.fetchone()
+                if row is None:
+                    return None
+                desc = cursor.description or []
+                columns = [d[0] for d in desc]
+                return dict(zip(columns, row, strict=False))
+            except duckdb.IOException as e:
+                last_error = e
+                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
+                    time.sleep(self.retry_delay * (2**attempt))
+                    continue
+                raise DatabaseLockedError(self.db_path, e) from e
+            finally:
+                if conn:
+                    conn.close()
+
+        if last_error:
+            raise DatabaseLockedError(self.db_path, last_error)
+        return None
 
     def close(self) -> None:
-        """Close the database connection."""
-        if self.conn:
-            try:
-                self.conn.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-            finally:
-                self.conn = None
+        """Close the database manager (no-op, connections are short-lived)."""
+        pass  # Connections are short-lived, nothing to close
 
     def __del__(self) -> None:
-        """Ensure connection is closed on garbage collection."""
-        self.close()
+        """Cleanup (no-op, connections are short-lived)."""
+        pass
 
 
 # Global database manager instance
