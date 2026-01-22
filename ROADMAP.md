@@ -1,9 +1,16 @@
 # Roadmap
 
-## v0.4.3 (Current) ✅
-Released 2025-01-21 - [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.3/)
+## v0.5.0 (Current)
 
-## v0.5.0 (Next)
+Released 2026-01-22 - [PyPI](https://pypi.org/project/zulipchat-mcp/)
+
+**Highlights:**
+- ConfigManager singleton pattern for consistent CLI arg handling
+- All logging outputs to stderr (no stdout pollution for MCP STDIO)
+- SECURITY.md with responsible disclosure policy
+- CLI arguments now respected by all tools
+
+## v0.6.0 (Next)
 
 ### Feature 1: Multi-Organization Support
 **Problem**: Users with multiple Zulip orgs (work, personal, open-source) can't switch contexts.

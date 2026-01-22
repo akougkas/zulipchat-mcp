@@ -1,8 +1,8 @@
 # Repository Guidelines
 
-## Current Status (v0.4.3 - Released 2025-01-21)
+## Current Status (v0.5.0)
 
-**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/0.4.3/) • Install: `uvx zulipchat-mcp`
+**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:

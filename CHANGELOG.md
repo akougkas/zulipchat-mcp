@@ -2,6 +2,20 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.5.0] - 2026-01-22
+
+### Changed
+- ConfigManager now uses singleton pattern for consistent CLI arg handling
+- All logging outputs to stderr (no stdout pollution for MCP STDIO)
+
+### Added
+- SECURITY.md with responsible disclosure policy
+
+### Fixed
+- CLI arguments now respected by all tools (singleton config)
+
+---
+
 ## [0.4.3] - 2025-01-21
 
 ### Fixed
