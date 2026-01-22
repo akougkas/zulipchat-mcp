@@ -38,14 +38,10 @@ class TestAgentOperations:
         """Patch dependencies."""
         with (
             patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls,
-            patch(
-                "src.zulipchat_mcp.tools.agents.ZulipClientWrapper"
-            ) as mock_client_cls,
-            patch("src.zulipchat_mcp.tools.agents.get_config_manager"),
-        ):
+            patch("src.zulipchat_mcp.tools.agents.get_client") as mock_get_client:
 
             mock_db_cls.return_value = mock_db
-            mock_client_cls.return_value = mock_client
+            mock_get_client.return_value = mock_client
 
             # Reset global client cache for clean tests
             with patch("src.zulipchat_mcp.tools.agents._client", None):

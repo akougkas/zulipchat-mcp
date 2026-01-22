@@ -9,14 +9,12 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import get_config_manager
-from ..core.client import ZulipClientWrapper
+from ..config import get_client
 
 
 async def get_scheduled_messages() -> dict[str, Any]:
     """Get all scheduled messages for the current user."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(
@@ -48,8 +46,7 @@ async def create_scheduled_message(
     read_by_sender: bool = True,
 ) -> dict[str, Any]:
     """Create a scheduled message using Zulip's native API."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         # Validate required parameters
@@ -102,8 +99,7 @@ async def update_scheduled_message(
     scheduled_delivery_timestamp: int | None = None,
 ) -> dict[str, Any]:
     """Update a scheduled message's attributes."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         # Build update data from provided parameters
@@ -154,8 +150,7 @@ async def update_scheduled_message(
 
 async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
     """Delete (cancel) a scheduled message."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(

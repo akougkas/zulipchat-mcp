@@ -9,8 +9,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import get_config_manager
-from ..core.client import ZulipClientWrapper
+from ..config import get_client
 
 
 def validate_email(email: str) -> bool:
@@ -25,8 +24,7 @@ async def get_users(
     user_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """Get all users in organization (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.get_users()
@@ -61,8 +59,7 @@ async def get_user_by_id(
     include_custom_profile_fields: bool = False,
 ) -> dict[str, Any]:
     """Get specific user by ID (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.get_user_by_id(user_id, include_custom_profile_fields)
@@ -88,8 +85,7 @@ async def get_user_by_email(
     if not validate_email(email):
         return {"status": "error", "error": f"Invalid email format: {email}"}
 
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.get_user_by_email(email, include_custom_profile_fields)
@@ -108,8 +104,7 @@ async def get_user_by_email(
 
 async def get_own_user() -> dict[str, Any]:
     """Get information about the current user (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint("users/me", method="GET", request={})
@@ -142,8 +137,7 @@ async def get_own_user() -> dict[str, Any]:
 
 async def get_user_status(user_id: int) -> dict[str, Any]:
     """Get user's status (away, status text, emoji) (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(
@@ -175,8 +169,7 @@ async def update_status(
     ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Update your own status text and emoji."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         request_data = {}
@@ -222,8 +215,7 @@ async def update_status(
 
 async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
     """Get presence information for a specific user (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(
@@ -248,8 +240,7 @@ async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
 
 async def get_presence() -> dict[str, Any]:
     """Get presence information for all users in organization (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint("realm/presence", method="GET", request={})
@@ -273,8 +264,7 @@ async def get_presence() -> dict[str, Any]:
 
 async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str, Any]:
     """Get all user groups in organization (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         request_data = {"include_deactivated_groups": include_deactivated_groups}
@@ -304,8 +294,7 @@ async def get_user_group_members(
     direct_member_only: bool = False,
 ) -> dict[str, Any]:
     """Get members of a specific user group (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         request_data = {"direct_member_only": direct_member_only}
@@ -337,8 +326,7 @@ async def is_user_group_member(
     direct_member_only: bool = False,
 ) -> dict[str, Any]:
     """Check if user is member of user group (READ-ONLY)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         request_data = {"direct_member_only": direct_member_only}
@@ -368,8 +356,7 @@ async def is_user_group_member(
 
 async def mute_user(muted_user_id: int) -> dict[str, Any]:
     """Mute a user (affects your own notifications)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(
@@ -394,8 +381,7 @@ async def mute_user(muted_user_id: int) -> dict[str, Any]:
 
 async def unmute_user(muted_user_id: int) -> dict[str, Any]:
     """Unmute a user (affects your own notifications)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         result = client.client.call_endpoint(

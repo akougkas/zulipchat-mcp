@@ -162,6 +162,9 @@ class ConfigManager:
 # Module-level singleton for ConfigManager
 _config_manager: ConfigManager | None = None
 
+# Global identity state - tracks whether to use bot or user identity
+_current_identity: str = "user"  # "user" or "bot"
+
 
 def init_config_manager(
     config_file: str | None = None,
@@ -204,3 +207,43 @@ def get_config_manager() -> ConfigManager:
             "ConfigManager not initialized. Call init_config_manager() first."
         )
     return _config_manager
+
+
+def get_current_identity() -> str:
+    """Get the current identity setting ('user' or 'bot')."""
+    return _current_identity
+
+
+def set_current_identity(identity: str) -> None:
+    """Set the current identity ('user' or 'bot')."""
+    global _current_identity
+    if identity not in ("user", "bot"):
+        raise ValueError(f"Invalid identity: {identity}. Must be 'user' or 'bot'.")
+    _current_identity = identity
+
+
+def get_client():
+    """Get a ZulipClientWrapper with the current identity.
+
+    This is the canonical way to get a client - it respects the
+    current identity setting from switch_identity().
+    """
+    from .core.client import ZulipClientWrapper
+
+    config = get_config_manager()
+    use_bot = _current_identity == "bot" and config.has_bot_credentials()
+    return ZulipClientWrapper(config, use_bot_identity=use_bot)
+
+
+def get_bot_client():
+    """Get a ZulipClientWrapper that ALWAYS uses bot identity.
+
+    Use this for operations that must always run as bot regardless
+    of current identity setting (e.g., Agents-Channel operations).
+    """
+    from .core.client import ZulipClientWrapper
+
+    config = get_config_manager()
+    if not config.has_bot_credentials():
+        raise ValueError("Bot credentials not configured")
+    return ZulipClientWrapper(config, use_bot_identity=True)

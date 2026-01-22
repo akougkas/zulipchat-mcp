@@ -16,13 +16,9 @@ class TestFilesTools:
 
     @pytest.fixture
     def mock_deps(self):
-        with (
-            patch("src.zulipchat_mcp.tools.files.get_config_manager"),
-            patch("src.zulipchat_mcp.tools.files.ZulipClientWrapper") as mock_wrapper,
-        ):
-
+        with patch("src.zulipchat_mcp.tools.files.get_client") as mock_get_client:
             client = MagicMock()
-            mock_wrapper.return_value = client
+            mock_get_client.return_value = client
             yield client
 
     def test_validate_file_security(self):

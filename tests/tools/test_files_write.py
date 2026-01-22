@@ -26,11 +26,8 @@ class TestFileOperations:
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch dependencies."""
-        with (
-            patch("src.zulipchat_mcp.tools.files.get_config_manager"),
-            patch("src.zulipchat_mcp.tools.files.ZulipClientWrapper") as mock_wrapper,
-        ):
-            mock_wrapper.return_value = mock_client
+        with patch("src.zulipchat_mcp.tools.files.get_client") as mock_get_client:
+            mock_get_client.return_value = mock_client
             yield mock_client
 
     @pytest.mark.asyncio

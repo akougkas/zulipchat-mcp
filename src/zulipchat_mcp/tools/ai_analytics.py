@@ -10,8 +10,7 @@ from typing import Any, Literal
 from fastmcp import Context, FastMCP
 from mcp.types import TextContent
 
-from ..config import get_config_manager
-from ..core.client import ZulipClientWrapper
+from ..config import get_client
 
 
 async def get_daily_summary(
@@ -19,8 +18,7 @@ async def get_daily_summary(
     hours_back: int = 24,
 ) -> dict[str, Any]:
     """Get basic daily message summary (no complex analytics)."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         summary = client.get_daily_summary(streams=streams, hours_back=hours_back)
@@ -53,8 +51,7 @@ async def analyze_stream_with_llm(
     custom_prompt: str | None = None,
 ) -> dict[str, Any]:
     """Fetch stream data and analyze with LLM for sophisticated insights."""
-    config = get_config_manager()
-    ZulipClientWrapper(config)
+    get_client()  # Validate client is available
 
     try:
         # Calculate time range
@@ -134,8 +131,7 @@ async def analyze_team_activity_with_llm(
     custom_prompt: str | None = None,
 ) -> dict[str, Any]:
     """Analyze team activity across multiple streams with LLM insights."""
-    config = get_config_manager()
-    ZulipClientWrapper(config)
+    get_client()  # Validate client is available
 
     try:
         # Fetch messages from all team streams

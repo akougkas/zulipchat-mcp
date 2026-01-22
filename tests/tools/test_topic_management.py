@@ -20,15 +20,12 @@ class TestTopicManagementTools:
                 "src.zulipchat_mcp.tools.topic_management.get_config_manager"
             ) as mock_config,
             patch(
-                "src.zulipchat_mcp.tools.topic_management.ZulipClientWrapper"
-            ) as mock_client_cls,
-            patch(
                 "src.zulipchat_mcp.tools.topic_management.is_unsafe_mode"
             ) as mock_unsafe,
         ):
 
             client = MagicMock()
-            mock_client_cls.return_value = client
+            mock_get_client.return_value = client
             mock_config_instance = MagicMock()
             mock_config.return_value = mock_config_instance
             mock_config_instance.has_bot_credentials.return_value = True

@@ -12,8 +12,7 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import get_config_manager
-from ..core.client import ZulipClientWrapper
+from ..config import get_client
 
 
 def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]:
@@ -78,8 +77,7 @@ async def upload_file(
             "error": "Either file_content or file_path is required",
         }
 
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         # Read file if path provided
@@ -180,8 +178,7 @@ async def manage_files(
     share_in_topic: str | None = None,
 ) -> dict[str, Any]:
     """Comprehensive file management operations with Zulip API limitations."""
-    config = get_config_manager()
-    client = ZulipClientWrapper(config)
+    client = get_client()
 
     try:
         if operation == "list":

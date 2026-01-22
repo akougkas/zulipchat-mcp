@@ -7,12 +7,14 @@ from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import get_config_manager
-from ..core.client import ZulipClientWrapper
+from ..config import get_client, get_config_manager, set_current_identity
 
 
 async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
-    """Switch between user and bot identity contexts."""
+    """Switch between user and bot identity contexts.
+
+    This sets the global identity state that all tools will use.
+    """
     config = get_config_manager()
 
     try:
@@ -20,12 +22,14 @@ async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
             return {
                 "status": "error",
                 "error": "Bot credentials not configured",
-                "suggestion": "Set ZULIP_BOT_EMAIL and ZULIP_BOT_API_KEY environment variables",
+                "suggestion": "Use --zulip-bot-config-file to specify bot zuliprc",
             }
 
-        # Create client with specified identity
-        use_bot = identity == "bot"
-        client = ZulipClientWrapper(config, use_bot_identity=use_bot)
+        # Persist the identity choice globally
+        set_current_identity(identity)
+
+        # Create client to verify and get info
+        client = get_client()
 
         return {
             "status": "success",

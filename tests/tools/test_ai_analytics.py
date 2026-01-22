@@ -18,12 +18,11 @@ class TestAIAnalytics:
 
     @pytest.fixture
     def mock_deps(self):
-        with patch("src.zulipchat_mcp.tools.ai_analytics.get_config_manager"), \
-             patch("src.zulipchat_mcp.tools.ai_analytics.ZulipClientWrapper") as mock_wrapper, \
+        with patch("src.zulipchat_mcp.tools.ai_analytics.get_client") as mock_get_client, \
              patch("src.zulipchat_mcp.tools.search.search_messages", new_callable=AsyncMock) as mock_search:
 
             client = MagicMock()
-            mock_wrapper.return_value = client
+            mock_get_client.return_value = client
             yield client, mock_search
 
     @pytest.fixture

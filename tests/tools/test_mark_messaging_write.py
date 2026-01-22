@@ -38,12 +38,9 @@ class TestMessageFlags:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.mark_messaging.get_config_manager"),
-            patch(
-                "src.zulipchat_mcp.tools.mark_messaging.ZulipClientWrapper"
-            ) as mock_wrapper,
+            patch("src.zulipchat_mcp.tools.mark_messaging.get_client") as mock_get_client,
         ):
-            mock_wrapper.return_value = mock_client
+            mock_get_client.return_value = mock_client
             yield mock_client
 
     @pytest.mark.asyncio

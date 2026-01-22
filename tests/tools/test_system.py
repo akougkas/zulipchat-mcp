@@ -41,12 +41,9 @@ class TestSystemTools:
             patch(
                 "src.zulipchat_mcp.tools.system.get_config_manager"
             ) as mock_config_cls,
-            patch(
-                "src.zulipchat_mcp.tools.system.ZulipClientWrapper"
-            ) as mock_client_cls,
         ):
             mock_config_cls.return_value = mock_config
-            mock_client_cls.return_value = mock_client
+            mock_get_client.return_value = mock_client
             yield {"config": mock_config, "client": mock_client}
 
 
