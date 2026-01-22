@@ -209,8 +209,8 @@ config.json
 .dev-artifacts/
 
 # Workflow
-.github/
 .benchmarks/
 
 # Tokens
 .mcpregistry_*
+.planning/

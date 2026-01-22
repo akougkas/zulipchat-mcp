@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  version-check:
+    name: Version Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Expected version: $VERSION"
+
+      - name: Check __init__.py version
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          ACTUAL=$(grep '__version__ = ' src/zulipchat_mcp/__init__.py | sed 's/__version__ = "\(.*\)"/\1/')
+          echo "src/zulipchat_mcp/__init__.py: $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Version mismatch in __init__.py: expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+
+      - name: Check server.py version
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          if ! grep -q "Registering v$EXPECTED tools" src/zulipchat_mcp/server.py; then
+            echo "::error::Version mismatch in server.py: expected v$EXPECTED in log message"
+            exit 1
+          fi
+          echo "src/zulipchat_mcp/server.py: v$EXPECTED (OK)"
+
+      - name: Check system.py version
+        run: |
+          EXPECTED="${{ steps.version.outputs.version }}"
+          ACTUAL=$(grep '"version":' src/zulipchat_mcp/tools/system.py | sed 's/.*"version": "\(.*\)".*/\1/')
+          echo "src/zulipchat_mcp/tools/system.py: $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Version mismatch in system.py: expected $EXPECTED, got $ACTUAL"
+            exit 1
+          fi
+
+      - name: Version check passed
+        run: echo "All version strings are consistent at ${{ steps.version.outputs.version }}"
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    needs: version-check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --python ${{ matrix.python-version }}
+
+      - name: Run tests
+        run: uv run pytest -q -m "not slow and not integration"
+
+      - name: Lint with ruff
+        run: uv run ruff check .
+
+      - name: Type check with mypy
+        run: uv run mypy src
