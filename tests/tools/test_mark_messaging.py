@@ -12,7 +12,6 @@ from src.zulipchat_mcp.tools.mark_messaging import (
     _resolve_stream_name,
     mark_all_as_read,
     mark_messages_unread,
-    mark_stream_as_read,
     mark_topic_as_read,
     register_mark_messaging_tools,
     star_messages,

@@ -158,9 +158,8 @@ class TestConfigManagerSingleton:
 
     def test_init_config_manager_sets_singleton(self, tmp_path):
         """Test that init_config_manager sets the global singleton."""
-        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
-
         import src.zulipchat_mcp.config as config_module
+        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
 
         # Create a dummy config file
         config_file = tmp_path / "zuliprc"
@@ -184,9 +183,8 @@ class TestConfigManagerSingleton:
 
     def test_init_config_manager_can_reinitialize(self, tmp_path):
         """Test that init_config_manager can be called multiple times."""
-        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
-
         import src.zulipchat_mcp.config as config_module
+        from src.zulipchat_mcp.config import get_config_manager, init_config_manager
 
         # First init
         first = init_config_manager(debug=False)

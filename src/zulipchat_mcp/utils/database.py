@@ -34,7 +34,7 @@ class DatabaseManager:
     def __new__(cls, *args: Any, **kwargs: Any) -> "DatabaseManager":
         """Ensure singleton instance."""
         if cls._instance is None:
-            cls._instance = super(DatabaseManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(

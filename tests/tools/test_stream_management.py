@@ -18,9 +18,7 @@ class TestGetStreams:
     def mock_deps(self):
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
-            patch(
-                "src.zulipchat_mcp.tools.stream_management.get_config_manager"
-            ) as mock_config_cls,
+            patch("src.zulipchat_mcp.tools.stream_management.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.stream_management.ZulipClientWrapper"
             ) as mock_client_cls,
@@ -132,9 +130,7 @@ class TestGetStreamInfo:
     def mock_deps(self):
         """Patch ConfigManager and ZulipClientWrapper."""
         with (
-            patch(
-                "src.zulipchat_mcp.tools.stream_management.get_config_manager"
-            ) as mock_config_cls,
+            patch("src.zulipchat_mcp.tools.stream_management.get_config_manager"),
             patch(
                 "src.zulipchat_mcp.tools.stream_management.ZulipClientWrapper"
             ) as mock_client_cls,

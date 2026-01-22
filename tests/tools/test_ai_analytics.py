@@ -1,12 +1,14 @@
 """Tests for tools/ai_analytics.py."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from mcp.types import TextContent, ImageContent
+from mcp.types import TextContent
+
 from src.zulipchat_mcp.tools.ai_analytics import (
-    get_daily_summary,
     analyze_stream_with_llm,
     analyze_team_activity_with_llm,
+    get_daily_summary,
     intelligent_report_generator,
 )
 
