@@ -128,12 +128,8 @@ def main() -> None:
     # Initialize MCP with modern configuration
     mcp = FastMCP(
         "ZulipChat MCP",
-        on_duplicate_tools="warn",
-        on_duplicate_resources="error",
-        on_duplicate_prompts="replace",
-        include_fastmcp_meta=True,
         sampling_handler=sampling_handler,
-        sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
+        sampling_handler_behavior="fallback",
     )
 
     logger.info("FastMCP initialized successfully")
