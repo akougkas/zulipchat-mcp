@@ -137,7 +137,7 @@ def main() -> None:
 
     # Register all tools
     # Safety mode is enforced at the tool level via @require_unsafe_mode decorator
-    logger.info("Registering v0.5.1 tools...")
+    logger.info("Registering v0.5.2 tools...")
 
     # Core messaging
     register_messaging_tools(mcp)  # Send/Edit messages
@@ -180,18 +180,27 @@ def main() -> None:
 
     logger.info("Tool registration complete: Simplified tools across 7 categories")
 
-    # Start background services (message listener, AFK watcher) if available
-    if service_manager_available and args.enable_listener:
+    # Warm user/stream caches for fast fuzzy resolution
+    try:
+        from .config import get_client
+
+        _warmup_client = get_client()
+        _warmup_client.get_users()  # populates user_cache via client wrapper
+        _warmup_client.get_streams()  # populates stream_cache via client wrapper
+        logger.info("User and stream caches warmed")
+    except Exception as e:
+        logger.debug(f"Cache warmup skipped: {e}")
+
+    # Start background services (message listener always on, AFK watcher)
+    if service_manager_available:
         try:
             service_manager = ServiceManager(
-                config_manager, enable_listener=args.enable_listener
+                config_manager, enable_listener=True
             )
             service_manager.start()
-            logger.info("Background services started")
+            logger.info("Background services started (listener always on)")
         except Exception as e:
             logger.warning(f"Could not start background services: {e}")
-    else:
-        logger.info("Background services disabled")
 
     logger.info("Starting ZulipChat MCP server...")
     mcp.run()

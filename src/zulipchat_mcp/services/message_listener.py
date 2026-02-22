@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -86,6 +87,8 @@ class MessageListener:
             for ev in events:
                 if isinstance(ev.get("id"), int):
                     self._last_event_id = ev["id"]
+            if events:
+                self._save_queue_state()
             return events
         except Exception as e:
             logger.error(f"Failed to fetch events: {e}")
@@ -93,6 +96,13 @@ class MessageListener:
 
     async def _ensure_queue(self) -> None:
         if self._queue_id is not None:
+            return
+        # Try restoring from persisted state first
+        state = self.db.get_listener_state()
+        if state and state.get("queue_id"):
+            self._queue_id = state["queue_id"]
+            self._last_event_id = state.get("last_event_id")
+            logger.info("Restored event queue from persisted state")
             return
         await self._register_queue()
 
@@ -103,13 +113,11 @@ class MessageListener:
 
     async def _register_queue(self) -> None:
         try:
+            # No narrow — receive all messages (DMs + subscribed streams)
             request = {
                 "event_types": ["message"],
                 "apply_markdown": True,
                 "client_gravatar": True,
-                "narrow": [
-                    {"operator": "stream", "operand": self.stream_name},
-                ],
             }
             resp = self.client.client.call_endpoint(
                 "register", method="POST", request=request
@@ -124,11 +132,17 @@ class MessageListener:
                     )
                 except Exception:
                     self._last_event_id = None
+                self._save_queue_state()
                 logger.info("Registered Zulip event queue for MessageListener")
             else:
                 logger.error(f"Failed to register event queue: {resp.get('msg')}")
         except Exception as e:
             logger.error(f"Exception during queue registration: {e}")
+
+    def _save_queue_state(self) -> None:
+        """Persist current queue_id and last_event_id to DB."""
+        if self._queue_id is not None:
+            self.db.save_listener_state(self._queue_id, self._last_event_id)
 
     def _extract_request_id(self, topic: str | None, content: str | None) -> str | None:
         if topic and topic.startswith("Agents/Input/"):
@@ -142,7 +156,7 @@ class MessageListener:
         return None
 
     async def _process_message(self, message: dict[str, Any]) -> None:
-        """Process a message event for pending input requests."""
+        """Process a message event: update pending input requests and store as agent event."""
         if not message:
             return
 
@@ -152,20 +166,27 @@ class MessageListener:
 
         topic = message.get("subject") or message.get("topic")
         content = message.get("content")
+
+        # Check for pending input request match
         request_id = self._extract_request_id(
             str(topic) if topic is not None else None,
             str(content) if content is not None else None,
         )
-        if not request_id:
-            return
+        if request_id:
+            request = self.db.get_input_request(request_id)
+            if request and request.get("status") == "pending":
+                self.db.update_input_request(
+                    request_id,
+                    status="answered",
+                    response=content or "",
+                    responded_at=datetime.now(timezone.utc),
+                )
 
-        request = self.db.get_input_request(request_id)
-        if not request or request.get("status") != "pending":
-            return
-
-        self.db.update_input_request(
-            request_id,
-            status="answered",
-            response=content or "",
-            responded_at=datetime.now(timezone.utc),
+        # Always store as agent_event for poll_agent_events()
+        self.db.create_agent_event(
+            event_id=str(_uuid.uuid4()),
+            zulip_message_id=message.get("id"),
+            topic=str(topic) if topic else "",
+            sender_email=sender_email or "",
+            content=content or "",
         )

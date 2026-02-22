@@ -3,6 +3,7 @@
 import asyncio
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from ..config import ConfigManager
@@ -83,12 +84,15 @@ class ServiceManager:
         logger.info("Message listener stopped")
 
     def _afk_watcher(self) -> None:
-        """Monitor AFK state and manage listener accordingly."""
-        # If CLI explicitly enabled, start immediately
-        if self.enable_listener:
-            self._start_listener()
+        """Monitor AFK state and manage listener.
 
-        # Poll AFK state and toggle listener accordingly
+        Listener always runs (needed for teleport-chat and poll_agent_events).
+        AFK mode only gates autonomous notifications (agent_message, request_user_input).
+        """
+        # Always start listener regardless of AFK state
+        self._start_listener()
+
+        # Monitor AFK auto_return_at
         while True:
             try:
                 if not self.dbm:
@@ -96,13 +100,22 @@ class ServiceManager:
                     continue
 
                 state = self.dbm.get_afk_state() or {}
-                enabled = bool(state.get("is_afk"))
-                has_listener = self.listener_ref["listener"] is not None
+                is_afk = bool(state.get("is_afk"))
+                auto_return_at = state.get("auto_return_at")
 
-                if enabled and not has_listener:
+                # Enforce auto_return_at expiry
+                if is_afk and auto_return_at is not None:
+                    if isinstance(auto_return_at, datetime):
+                        now = datetime.now(timezone.utc)
+                        if auto_return_at.tzinfo is None:
+                            auto_return_at = auto_return_at.replace(tzinfo=timezone.utc)
+                        if now >= auto_return_at:
+                            self.dbm.set_afk_state(enabled=False, reason="Auto-returned from AFK")
+                            logger.info("AFK auto-return triggered")
+
+                # Restart listener if it died
+                if self.listener_ref["listener"] is None:
                     self._start_listener()
-                elif (not enabled) and has_listener and not self.enable_listener:
-                    self._stop_listener()
             except Exception as e:
                 logger.error(f"AFK watcher error: {e}")
             time.sleep(5)

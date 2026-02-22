@@ -2,6 +2,28 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.5.2] - 2026-02-22
+
+### Added
+- **Teleport-Chat** (`teleport_chat` tool): Bidirectional agent-human messaging via Zulip DMs and channels. Bot identity for private back-channel; user identity for all org-facing actions. Supports fuzzy name resolution and optional wait-for-reply
+- **Fuzzy User Resolution** (`resolve_user` tool): Resolve display names to Zulip emails with fuzzy matching — "Jaime" just works without knowing the formal email
+- **Always-On Message Listener**: Listener runs automatically on startup (no longer gated behind `--enable-listener`). Receives all messages (DMs + streams), not just Agents-Channel
+- **Queue State Persistence**: Listener queue ID and last_event_id survive restarts via `listener_state` DB table
+- **AFK Auto-Return**: `auto_return_at` is now computed from `hours` parameter and enforced — AFK mode expires as expected
+- **Cache Warmup**: User and stream caches pre-populated on server startup for instant fuzzy resolution
+
+### Fixed
+- **`poll_agent_events` always empty**: `_process_message` returned early when no `request_id` matched, never inserting into `agent_events`. Now always stores events
+- **Listener missed DMs**: Event queue was narrowed to Agents-Channel only. Removed narrow — bot now receives all visible messages
+- **AFK `auto_return_at` never set**: `set_afk_state` hardcoded `NULL`. Now computes expiry from hours
+- **Zulip display vs delivery email mismatch**: Added `is_same_user()` to `UserCache` to correctly match `user12345@org.zulipchat.com` against `name@university.edu`
+
+### Changed
+- `--enable-listener` flag kept for backward compat but listener is now always-on
+- `ServiceManager` always starts regardless of flag or AFK state
+
+---
+
 ## [0.5.1] - 2026-02-22
 
 ### Fixed

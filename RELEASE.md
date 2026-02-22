@@ -1,4 +1,4 @@
-# ZulipChat MCP v0.5.1
+# ZulipChat MCP v0.5.2
 
 > A Model Context Protocol server that transforms AI assistants into Zulip power users.
 
@@ -52,16 +52,16 @@ Add to your MCP config file:
 
 ## Complete Feature Set
 
-### 65 MCP Tools Across 8 Categories
+### 67 MCP Tools Across 8 Categories
 
-ZulipChat MCP provides **65 tools** organized into **8 functional categories**, giving AI assistants comprehensive Zulip capabilities:
+ZulipChat MCP provides **67 tools** organized into **8 functional categories**, giving AI assistants comprehensive Zulip capabilities:
 
 | Category | Tools | What It Enables |
 |----------|-------|-----------------|
 | **Messaging** | 15 | Send, edit, schedule, reactions, bulk mark read/unread |
 | **Search & Analytics** | 8 | Advanced search, AI-powered insights, daily summaries |
-| **Users & Identity** | 13 | User management, presence, groups, dual identity |
-| **Agent Communication** | 13 | Register agents, bidirectional messaging, task tracking |
+| **Users & Identity** | 14 | User management, fuzzy name resolution, presence, groups |
+| **Agent Communication** | 14 | Teleport-chat, register agents, bidirectional messaging, task tracking |
 | **Events** | 4 | Real-time event streams, webhooks, long-polling |
 | **Streams & Topics** | 4 | Stream info, topic management, cross-stream ops |
 | **Files** | 2 | Upload with progress, share, metadata extraction |
@@ -111,12 +111,13 @@ AI-powered search with sentiment analysis and engagement metrics.
 
 ---
 
-### Users & Identity (13 tools)
+### Users & Identity (14 tools)
 
-Comprehensive user management with dual identity support.
+Comprehensive user management with fuzzy name resolution and dual identity support.
 
 | Tool | Description |
 |------|-------------|
+| `resolve_user` | **NEW** Fuzzy name-to-email resolution ("Jaime" → jaime@org.zulipchat.com) |
 | `get_users` | List organization users with filters |
 | `get_user_by_id` | Get user by ID |
 | `get_user_by_email` | Get user by email |
@@ -141,12 +142,13 @@ switch_identity("user") # For searches requiring user permissions
 
 ---
 
-### Agent Communication (13 tools)
+### Agent Communication (14 tools)
 
-Bidirectional agent-to-user communication with task tracking.
+Bidirectional agent-to-user communication with teleport-chat and task tracking.
 
 | Tool | Description |
 |------|-------------|
+| `teleport_chat` | **NEW** Send message to user/channel with identity-aware routing and fuzzy names |
 | `register_agent` | Register agent instance in database |
 | `agent_message` | Send bot-authored messages to users |
 | `request_user_input` | Request interactive input with options |
@@ -156,12 +158,14 @@ Bidirectional agent-to-user communication with task tracking.
 | `update_task_progress` | Update task percentage and status |
 | `complete_task` | Mark task complete with results |
 | `list_instances` | List all registered agent instances |
-| `poll_agent_events` | Poll unacknowledged events |
-| `enable_afk_mode` | Enable AFK notifications (configurable hours) |
+| `poll_agent_events` | Poll unacknowledged events (now receives DMs + streams) |
+| `enable_afk_mode` | Enable AFK notifications (configurable hours, auto-return) |
 | `disable_afk_mode` | Return to normal notification mode |
 | `get_afk_status` | Check current AFK state |
 
-**AFK Mode**: When enabled, agents can send notifications even when you're away.
+**Teleport-Chat**: Private bot↔user DM back-channel using bot identity. All org-facing messages (channels, DMs to others) use user identity. Supports `wait_for_reply=True` for synchronous conversations.
+
+**AFK Mode**: When enabled, agents can send notifications even when you're away. Auto-returns after configured hours.
 
 ---
 
@@ -256,19 +260,18 @@ v0.5.0 introduces singleton pattern for ConfigManager, ensuring CLI arguments ar
 
 ---
 
-## What's New in v0.5.0
-
-### Changed
-- ConfigManager now uses singleton pattern for consistent CLI arg handling
-- All logging outputs to stderr (no stdout pollution for MCP STDIO)
+## What's New in v0.5.2
 
 ### Added
-- SECURITY.md with responsible disclosure policy
-- Version bump script (`scripts/bump_version.py`) for release automation
-- CI workflow with version consistency checks
+- **Teleport-Chat**: `teleport_chat` tool for bidirectional agent-human DMs with identity-aware routing
+- **Fuzzy User Resolution**: `resolve_user` tool — "text Jaime" just works
+- **Always-On Listener**: Message listener starts automatically, receives DMs + all streams
+- **AFK Auto-Return**: AFK mode expires after configured hours
 
 ### Fixed
-- CLI arguments now respected by all tools (singleton config pattern)
+- `poll_agent_events` now returns messages (was always empty)
+- Listener sees all messages, not just Agents-Channel
+- Display vs delivery email mismatch handled correctly
 
 ---
 
@@ -289,7 +292,7 @@ v0.5.0 introduces singleton pattern for ConfigManager, ensuring CLI arguments ar
 | `--zulip-bot-config-file PATH` | Optional bot zuliprc for dual identity |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging (outputs to stderr) |
-| `--enable-listener` | Enable background message listener service |
+| `--enable-listener` | Kept for backward compat (listener is now always-on) |
 
 ---
 

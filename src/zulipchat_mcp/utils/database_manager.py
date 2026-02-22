@@ -6,7 +6,7 @@ to provide convenient methods used by tools and services.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .database import get_database
@@ -199,19 +199,48 @@ class DatabaseManager:
         self, enabled: bool, reason: str = "", hours: int = 0
     ) -> dict[str, Any]:
         try:
+            now = datetime.now(timezone.utc)
+            auto_return_at = now + timedelta(hours=hours) if enabled and hours > 0 else None
             # Clear existing state and insert new
             self._db.execute("DELETE FROM afk_state")
             self._db.execute(
                 """
                 INSERT INTO afk_state (id, is_afk, reason, auto_return_at, updated_at)
-                VALUES (1, ?, ?, NULL, ?)
+                VALUES (1, ?, ?, ?, ?)
                 """,
-                [enabled, reason, datetime.now(timezone.utc)],
+                [enabled, reason, auto_return_at, now],
             )
             return {"status": "success"}
         except Exception as e:
             logger.error(f"Failed to set AFK state: {e}")
             return {"status": "error", "error": str(e)}
+
+    # Listener state persistence
+    def save_listener_state(
+        self, queue_id: str, last_event_id: int | None
+    ) -> dict[str, Any]:
+        try:
+            self._db.execute("DELETE FROM listener_state")
+            self._db.execute(
+                """
+                INSERT INTO listener_state (id, queue_id, last_event_id, updated_at)
+                VALUES (1, ?, ?, ?)
+                """,
+                [queue_id, last_event_id, datetime.now(timezone.utc)],
+            )
+            return {"status": "success"}
+        except Exception as e:
+            logger.error(f"Failed to save listener state: {e}")
+            return {"status": "error", "error": str(e)}
+
+    def get_listener_state(self) -> dict[str, Any] | None:
+        try:
+            return self._db.query_one_as_dict(
+                "SELECT * FROM listener_state WHERE id = 1"
+            )
+        except Exception as e:
+            logger.error(f"Failed to get listener state: {e}")
+            return None
 
     # Agent status audit trail
     def create_agent_status(

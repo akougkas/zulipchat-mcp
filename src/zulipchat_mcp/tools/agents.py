@@ -7,8 +7,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from ..config import get_config_manager
+from ..config import get_client, get_config_manager
 from ..core.agent_tracker import AgentTracker
+from ..core.cache import user_cache
 from ..core.client import ZulipClientWrapper
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
@@ -534,7 +535,140 @@ def poll_agent_events(
             return {"status": "error", "error": str(e)}
 
 
+def teleport_chat(
+    to: str,
+    message: str,
+    wait_for_reply: bool = False,
+    reply_timeout: int = 300,
+    channel: str | None = None,
+    topic: str | None = None,
+) -> dict[str, Any]:
+    """Send a message to a Zulip user or channel.
+
+    Supports fuzzy name resolution. Uses bot identity only for private
+    bot<->user DMs; all public/org-facing messages sent as user identity.
+    Optionally waits for reply.
+    """
+    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "teleport_chat"}):
+        track_tool_call("teleport_chat")
+        try:
+            config = get_config_manager()
+            target = to.strip()
+
+            # Determine if target is a channel
+            is_channel = target.startswith("#") or channel is not None
+            resolved_channel = channel or (target.lstrip("#") if target.startswith("#") else None)
+
+            if is_channel:
+                # Public channel — always user identity
+                client = get_client()
+                result = client.send_message(
+                    message_type="stream",
+                    to=resolved_channel,
+                    content=message,
+                    topic=topic or "general",
+                )
+                identity_used = "user"
+            else:
+                # DM target — resolve name to email
+                target_email = target
+                if "@" not in target:
+                    resolution = user_cache.resolve_user(target)
+                    if not resolution.get("email"):
+                        # Try warming cache
+                        import asyncio
+
+                        from .users import get_users as _get_users
+
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
+                        if loop and loop.is_running():
+                            # Already in async context — can't await sync
+                            pass
+                        else:
+                            result = asyncio.run(_get_users())
+                            if result.get("status") == "success":
+                                user_cache.set_users(result.get("users", []))
+                        resolution = user_cache.resolve_user(target)
+                    if not resolution.get("email"):
+                        return {
+                            "status": "error",
+                            "error": f"Could not resolve user: {target}",
+                        }
+                    target_email = resolution["email"]
+
+                # Identity logic: bot only for self-DM (teleport back-channel)
+                # Force lazy client init so current_email is populated from zuliprc
+                user_client = get_client()
+                _ = user_client.client  # triggers connection + email backfill
+                user_email = user_client.current_email
+                # Compare via cache — handles display vs delivery email mismatch
+                is_self_dm = user_cache.is_same_user(target_email, user_email or "")
+
+                if is_self_dm and config.has_bot_credentials():
+                    # Teleport back-channel: bot → user DM
+                    client = _get_client_bot()
+                    identity_used = "bot"
+                else:
+                    # Org-facing DM: user identity
+                    client = user_client
+                    identity_used = "user"
+
+                result = client.send_message(
+                    message_type="private",
+                    to=[target_email],
+                    content=message,
+                )
+
+            if result.get("result") != "success":
+                return {"status": "error", "error": result.get("msg", "Failed to send")}
+
+            response: dict[str, Any] = {
+                "status": "success",
+                "message_id": result.get("id"),
+                "identity": identity_used,
+                "target": resolved_channel if is_channel else target_email,
+            }
+
+            # Wait for reply if requested
+            if wait_for_reply:
+                db = DatabaseManager()
+                start = time.time()
+                while time.time() - start < reply_timeout:
+                    events = db.get_unacked_events(limit=10)
+                    for ev in events:
+                        # Match by sender for DMs, or topic for channels
+                        if is_channel:
+                            if ev.get("topic") == (topic or "general"):
+                                db.ack_events([ev["id"]])
+                                response["reply"] = ev.get("content")
+                                response["reply_from"] = ev.get("sender_email")
+                                return response
+                        else:
+                            sender = ev.get("sender_email", "")
+                            if not is_channel and sender == (target_email if not is_self_dm else user_email):
+                                db.ack_events([ev["id"]])
+                                response["reply"] = ev.get("content")
+                                response["reply_from"] = sender
+                                return response
+                    time.sleep(2)
+                response["reply"] = None
+                response["reply_timeout"] = True
+
+            return response
+
+        except Exception as e:
+            track_tool_error("teleport_chat", type(e).__name__)
+            return {"status": "error", "error": str(e)}
+
+
 def register_agent_tools(mcp: Any) -> None:
+    mcp.tool(
+        description="Send a message to a Zulip user or channel. Supports fuzzy name resolution ('Jaime' -> jaime@org.zulipchat.com). Uses bot identity only for private bot<->user DMs (teleport back-channel); all public/org-facing messages sent as user identity. Set wait_for_reply=True to block until a response arrives. Use '#channel' syntax or channel param for stream messages. Not gated by AFK mode."
+    )(teleport_chat)
+
     mcp.tool(
         description="Register AI agent instance and create database records: generates unique agent_id and instance_id, stores agent metadata (type, session, project directory, hostname), initializes AFK state (disabled by default), validates Agents-Channel stream existence, and returns registration details. Essential first step for agent communication system. Creates persistent tracking across sessions with automatic UUID generation. Stores agent type (default: claude-code) and session information for multi-agent coordination."
     )(register_agent)

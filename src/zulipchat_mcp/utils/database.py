@@ -243,6 +243,18 @@ class DatabaseManager:
         """
         )
 
+        # Persist message listener queue state across restarts
+        conn.execute(
+            """
+          CREATE TABLE IF NOT EXISTS listener_state(
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            queue_id TEXT,
+            last_event_id INTEGER,
+            updated_at TIMESTAMP NOT NULL
+          );
+        """
+        )
+
     def execute(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> None:

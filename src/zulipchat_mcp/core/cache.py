@@ -1,5 +1,6 @@
 """Caching implementation for ZulipChat MCP Server."""
 
+import difflib
 import hashlib
 import time
 from collections.abc import Callable as TypingCallable
@@ -96,7 +97,7 @@ class StreamCache:
 
 
 class UserCache:
-    """Cache for user information."""
+    """Cache for user information with fuzzy name resolution."""
 
     def __init__(self, ttl: int = 900) -> None:
         """Initialize user cache.
@@ -105,14 +106,63 @@ class UserCache:
             ttl: Time to live in seconds (default: 15 minutes)
         """
         self.cache = MessageCache(ttl)
+        self._name_index: dict[str, str] = {}  # lowercase name → email
 
     def get_users(self) -> list[Any] | None:
         """Get cached users list."""
         return self.cache.get("users_list")
 
     def set_users(self, users: list[Any]) -> None:
-        """Cache users list."""
+        """Cache users list and build name index."""
         self.cache.set("users_list", users)
+        self._name_index.clear()
+        self._email_to_delivery: dict[str, str] = {}  # display email → delivery email
+        for user in users:
+            if not user.get("is_active", True):
+                continue
+            email = user.get("email", "")
+            delivery = user.get("delivery_email", "")
+            full_name = user.get("full_name", "")
+            # Map display email to delivery email for identity matching
+            if email and delivery and email != delivery:
+                self._email_to_delivery[email] = delivery
+            if full_name and email:
+                self._name_index[full_name.lower()] = email
+                # Index first name too
+                first = full_name.split()[0]
+                if first.lower() not in self._name_index:
+                    self._name_index[first.lower()] = email
+
+    def resolve_user(self, query: str) -> dict[str, Any]:
+        """Resolve a display name to email via fuzzy matching.
+
+        Returns dict with email, full_name, matched, and confidence.
+        """
+        q = query.lower().strip()
+
+        # Exact match first
+        if q in self._name_index:
+            email = self._name_index[q]
+            return {"email": email, "matched": q, "confidence": 1.0}
+
+        # Fuzzy match
+        matches = difflib.get_close_matches(q, self._name_index.keys(), n=1, cutoff=0.6)
+        if matches:
+            matched = matches[0]
+            email = self._name_index[matched]
+            score = difflib.SequenceMatcher(None, q, matched).ratio()
+            return {"email": email, "matched": matched, "confidence": round(score, 2)}
+
+        return {"email": None, "matched": None, "confidence": 0.0}
+
+    def is_same_user(self, email_a: str, email_b: str) -> bool:
+        """Check if two emails (display or delivery) belong to the same user."""
+        if email_a == email_b:
+            return True
+        # Check cross-mapping: a's delivery == b, or b's delivery == a
+        delivery_a = self._email_to_delivery.get(email_a, email_a)
+        delivery_b = self._email_to_delivery.get(email_b, email_b)
+        return delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
 
     def get_user_info(self, email: str) -> dict[str, Any] | None:
         """Get cached user information."""

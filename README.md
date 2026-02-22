@@ -35,27 +35,28 @@ uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 
 Your AI assistant becomes a **Zulip superuser**, capable of:
 
+- **Teleport-Chat** - Private back-channel DMs (bot identity) + public messaging as you (user identity)
+- **Fuzzy User Resolution** - "text Jaime" just works — no hunting for formal Zulip emails
 - **Intelligent Messaging** - Send, schedule, search, and manage messages with context awareness
-- **Stream Management** - Create, configure, and analyze streams with engagement metrics
-- **Real-time Monitoring** - React to events, track activity, and automate responses
+- **Real-time Monitoring** - Always-on listener receives DMs + all streams automatically
 - **Advanced Analytics** - Generate insights, sentiment analysis, and participation reports
 - **File Operations** - Upload, share, and manage files with automatic distribution
 - **Workflow Automation** - Chain complex operations with conditional logic
 
 ## Available Tools
 
-40+ tools across 8 categories:
+67 tools across 8 categories:
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Messaging** | 12 | Send, edit, schedule, cross-post, reactions |
-| **Streams** | 2 | List and query stream details |
-| **Topics** | 2 | List topics, cross-stream operations |
-| **Users** | 12 | Profiles, presence, groups, muting |
-| **Search & Analytics** | 6 | Narrow filters, AI insights, summaries |
+| **Messaging** | 15 | Send, edit, schedule, cross-post, reactions |
+| **Streams & Topics** | 4 | Stream info, topic management |
+| **Users & Identity** | 14 | Fuzzy name resolution, presence, groups, dual identity |
+| **Agent Communication** | 14 | **Teleport-chat**, bidirectional DMs, task tracking, AFK mode |
+| **Search & Analytics** | 8 | Narrow filters, AI insights, summaries |
 | **Events** | 4 | Queues, long-polling, webhooks |
-| **Files** | 2 | Upload, share, manage |
-| **System** | 6+ | Identity switching, workflows, chains |
+| **Files** | 2 | Upload, share, download, manage |
+| **System & Workflows** | 6 | Identity switching, command chains |
 
 <details>
 <summary>View all tools by category</summary>
@@ -78,6 +79,7 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 - `manage_topics` - Cross-stream transfers with propagation
 
 ### User Tools
+- `resolve_user` - **NEW** Fuzzy name-to-email resolution ("Jaime" → email)
 - `manage_users` - Multi-identity support (user/bot contexts)
 - `switch_identity` - Session continuity with validation
 - `manage_user_groups` - Group lifecycle and membership
@@ -100,12 +102,16 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 - `upload_file` - Progress tracking with auto-sharing
 - `manage_files` - File lifecycle with metadata extraction
 
-### System & Workflow Tools
-- `server_info` - Server metadata with routing hints
-- `tool_help` - On-demand documentation
-- `execute_chain` - Workflow automation with branching logic
+### Agent & Communication Tools
+- `teleport_chat` - **NEW** Send message to user/channel with identity-aware routing
 - `register_agent` - Agent session tracking
 - `agent_message` - Bot identity messaging
+- `poll_agent_events` - Receive user replies (DMs + streams)
+- `enable_afk_mode` / `disable_afk_mode` - AFK notifications with auto-return
+
+### System & Workflow Tools
+- `server_info` - Server metadata with routing hints
+- `execute_chain` - Workflow automation with branching logic
 
 </details>
 
@@ -174,7 +180,6 @@ Download from Zulip: **Settings** > **Personal settings** > **Account & privacy*
 | `--zulip-bot-config-file PATH` | Optional bot zuliprc for dual identity |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging (outputs to stderr) |
-| `--enable-listener` | Enable background message listener service |
 </details>
 
 ## Documentation

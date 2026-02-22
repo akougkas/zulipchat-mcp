@@ -10,6 +10,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.cache import user_cache
 
 
 def validate_email(email: str) -> bool:
@@ -404,8 +405,26 @@ async def unmute_user(muted_user_id: int) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
+async def resolve_user(name: str) -> dict[str, Any]:
+    """Resolve a display name to Zulip email. Fuzzy: 'Jaime' -> jaime@org.zulipchat.com"""
+    # Warm cache if empty
+    if user_cache.get_users() is None:
+        result = await get_users()
+        if result.get("status") == "success":
+            user_cache.set_users(result.get("users", []))
+
+    resolution = user_cache.resolve_user(name)
+    if resolution.get("email"):
+        return {"status": "success", **resolution}
+    return {"status": "not_found", "query": name, "suggestion": "Try full name or email"}
+
+
 def register_users_tools(mcp: FastMCP) -> None:
     """Register clean READ-ONLY user tools with the MCP server."""
+    mcp.tool(
+        name="resolve_user",
+        description="Resolve display name to Zulip email with fuzzy matching. 'Jaime' -> jaime@org.zulipchat.com",
+    )(resolve_user)
     mcp.tool(name="get_users", description="Get all users in organization")(get_users)
     mcp.tool(name="get_user_by_id", description="Get specific user by ID")(
         get_user_by_id

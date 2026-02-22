@@ -1,14 +1,14 @@
 # Roadmap
 
-## v0.5.1 (Current)
+## v0.5.2 (Current)
 
 Released 2026-02-22 - [PyPI](https://pypi.org/project/zulipchat-mcp/)
 
 **Highlights:**
-- ConfigManager singleton pattern for consistent CLI arg handling
-- All logging outputs to stderr (no stdout pollution for MCP STDIO)
-- SECURITY.md with responsible disclosure policy
-- CLI arguments now respected by all tools
+- Teleport-Chat: bidirectional agent-human DMs with identity-aware routing
+- Fuzzy user resolution (`resolve_user` tool)
+- Always-on message listener (DMs + streams)
+- AFK auto-return enforcement
 
 ## v0.6.0 (Next)
 
