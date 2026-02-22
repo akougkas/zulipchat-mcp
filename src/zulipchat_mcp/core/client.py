@@ -4,6 +4,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from zulip import Client
 
@@ -83,11 +84,27 @@ class ZulipClientWrapper:
         # Lazy loading: client created on first API call
         self._client: Client | None = None
         self.current_email = self._client_config.get("email")
-        self._base_url = (
-            self._client_config["site"].rstrip("/")
-            if self._client_config.get("site")
-            else ""
-        )
+        site = self._client_config.get("site")
+        self._base_url = self._normalize_site_base_url(site) if site else ""
+
+    @staticmethod
+    def _normalize_site_base_url(base_url: str) -> str:
+        """Normalize a site URL so it points to the realm root, not API endpoints."""
+        parsed = urlparse(base_url.strip())
+        path = parsed.path.rstrip("/")
+        if path.endswith("/api"):
+            path = path[: -len("/api")]
+        elif path.startswith("/api/v") and path[6:].isdigit():
+            path = ""
+        elif "/api/v" in path:
+            path_prefix, _, version_suffix = path.rpartition("/api/v")
+            if version_suffix.isdigit():
+                path = path_prefix
+
+        if parsed.scheme and parsed.netloc:
+            return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+        return path or parsed.netloc or base_url.strip().rstrip("/")
 
     @property
     def client(self) -> Client:
@@ -109,7 +126,7 @@ class ZulipClientWrapper:
                         self.identity_name = self.current_email.split("@")[0]
 
                 if not self._base_url and hasattr(client, "base_url"):
-                    self._base_url = client.base_url.rstrip("/")
+                    self._base_url = self._normalize_site_base_url(client.base_url)
 
                 return client
             else:
@@ -128,7 +145,9 @@ class ZulipClientWrapper:
 
     @property
     def base_url(self) -> str:
-        """Get the base URL for API calls."""
+        """Get the base URL for API calls. Ensures client is initialized to load config."""
+        if not self._base_url and self._client is None:
+            _ = self.client
         return self._base_url
 
     def send_message(

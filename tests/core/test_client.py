@@ -69,6 +69,25 @@ class TestZulipClientWrapper:
         assert wrapper.identity_name == "Bot"
         assert wrapper.current_email == "bot@example.com"
 
+    def test_base_url_normalized_from_config_file_client(self, mock_zulip_client):
+        """Test config-file client base_url strips API suffixes."""
+        manager = MagicMock(spec=ConfigManager)
+        manager.validate_config.return_value = True
+        manager.has_bot_credentials.return_value = False
+        manager.get_zulip_client_config.return_value = {
+            "email": None,
+            "api_key": None,
+            "site": None,
+            "config_file": "/tmp/zuliprc",
+        }
+
+        mock_zulip_client.base_url = "https://ai4hpc.zulipchat.com/api/v1"
+        mock_zulip_client.email = "test@example.com"
+
+        wrapper = ZulipClientWrapper(config_manager=manager)
+
+        assert wrapper.base_url == "https://ai4hpc.zulipchat.com"
+
     def test_lazy_loading(self, mock_config_manager, mock_zulip_client):
         """Test client is created only when accessed."""
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)

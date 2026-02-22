@@ -7,12 +7,135 @@ All functionality from the complex v25 architecture preserved in minimal code.
 import hashlib
 import mimetypes
 import os
+from base64 import b64encode
 from datetime import datetime
 from typing import Any, Literal
+from urllib.parse import urlparse, urlunparse
 
 from fastmcp import FastMCP
 
 from ..config import get_client
+
+
+def _coerce_nonempty_str(value: Any) -> str | None:
+    """Return value only when it is a non-empty string."""
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _normalize_site_url(base_url: str) -> str:
+    """Normalize a Zulip site URL to avoid API endpoint suffixes."""
+    parsed = urlparse(base_url.strip())
+    path = parsed.path.rstrip("/")
+    if path.endswith("/api"):
+        path = path[: -len("/api")]
+    elif path.startswith("/api/v") and path[6:].isdigit():
+        path = ""
+    elif "/api/v" in path:
+        path_prefix, _, version_suffix = path.rpartition("/api/v")
+        if version_suffix.isdigit():
+            path = path_prefix
+
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+    return path or parsed.netloc or base_url.strip().rstrip("/")
+
+
+def _normalize_upload_path(path: str) -> str:
+    """Normalize a file identifier path to Zulip /user_uploads format."""
+    normalized_path = path.strip()
+    if normalized_path.startswith("/api/user_uploads/"):
+        return normalized_path[len("/api") :]
+    if normalized_path.startswith("api/user_uploads/"):
+        return f"/{normalized_path[len('api/'):]}"
+    if normalized_path.startswith("/user_uploads/"):
+        return normalized_path
+    if normalized_path.startswith("user_uploads/"):
+        return f"/{normalized_path}"
+    return f"/user_uploads/{normalized_path.lstrip('/')}"
+
+
+def _resolve_file_url(client: Any, file_id: str) -> str:
+    """Resolve file identifiers into absolute Zulip file URLs."""
+    normalized_file_id = file_id.strip()
+    if not normalized_file_id:
+        raise ValueError("file_id cannot be empty")
+
+    parsed = urlparse(normalized_file_id)
+    if parsed.scheme in {"http", "https"} and parsed.netloc:
+        absolute_path = parsed.path
+        if absolute_path.startswith("/api/user_uploads/"):
+            absolute_path = absolute_path[len("/api") :]
+        return urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                absolute_path,
+                "",
+                parsed.query,
+                parsed.fragment,
+            )
+        )
+
+    file_path = _normalize_upload_path(parsed.path or normalized_file_id)
+    if parsed.query:
+        file_path = f"{file_path}?{parsed.query}"
+    if parsed.fragment:
+        file_path = f"{file_path}#{parsed.fragment}"
+
+    base_url = _coerce_nonempty_str(getattr(client, "base_url", None))
+    if base_url:
+        return f"{_normalize_site_url(base_url).rstrip('/')}{file_path}"
+
+    sdk_client = getattr(client, "client", None)
+    sdk_base_url = _coerce_nonempty_str(getattr(sdk_client, "base_url", None))
+    if sdk_base_url:
+        return f"{_normalize_site_url(sdk_base_url).rstrip('/')}{file_path}"
+
+    raise ValueError("Unable to determine Zulip site URL for file operations")
+
+
+def _resolve_download_credentials(client: Any) -> tuple[str, str]:
+    """Resolve credentials used for authenticated file downloads."""
+    sdk_client = getattr(client, "client", None)
+    email = _coerce_nonempty_str(getattr(sdk_client, "email", None)) or _coerce_nonempty_str(
+        getattr(client, "current_email", None)
+    )
+    api_key = _coerce_nonempty_str(getattr(sdk_client, "api_key", None))
+
+    config_manager = getattr(client, "config_manager", None)
+    config = getattr(config_manager, "config", None)
+    identity = _coerce_nonempty_str(getattr(client, "identity", None)) or "user"
+
+    if config:
+        preferred_email_key = "bot_email" if identity == "bot" else "email"
+        preferred_api_key = "bot_api_key" if identity == "bot" else "api_key"
+
+        # If identity is bot and bot credentials exist in config, prefer them
+        # over what the SDK client might have loaded from a generic config file.
+        if identity == "bot":
+            config_bot_email = _coerce_nonempty_str(getattr(config, "bot_email", None))
+            config_bot_api_key = _coerce_nonempty_str(getattr(config, "bot_api_key", None))
+            if config_bot_email and config_bot_api_key:
+                email = config_bot_email
+                api_key = config_bot_api_key
+
+        if not email:
+            email = _coerce_nonempty_str(getattr(config, preferred_email_key, None))
+        if not api_key:
+            api_key = _coerce_nonempty_str(getattr(config, preferred_api_key, None))
+
+        if not email:
+            email = _coerce_nonempty_str(getattr(config, "email", None))
+        if not api_key:
+            api_key = _coerce_nonempty_str(getattr(config, "api_key", None))
+
+    if not email or not api_key:
+        raise ValueError("Missing Zulip credentials for authenticated file download")
+
+    return email, api_key
 
 
 def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]:
@@ -127,11 +250,11 @@ async def upload_file(
             # Optionally share in stream
             if stream and file_url:
                 share_content = message or f"📎 Uploaded file: **{filename}**"
-                if file_url.startswith("/"):
-                    # Make URL absolute
-                    share_content += f"\n{client.base_url}{file_url}"
-                else:
-                    share_content += f"\n{file_url}"
+                try:
+                    shared_file_url = _resolve_file_url(client, file_url)
+                except ValueError:
+                    shared_file_url = file_url
+                share_content += f"\n{shared_file_url}"
 
                 # Add file metadata to share message
                 size_mb = validation["metadata"]["size"] / (1024 * 1024)
@@ -244,8 +367,11 @@ async def manage_files(
                     "error": "share_in_stream required for share operation",
                 }
 
-            # Construct file URL and share
-            file_url = f"{client.base_url}/user_uploads/{file_id}"
+            try:
+                file_url = _resolve_file_url(client, file_id)
+            except ValueError as e:
+                return {"status": "error", "error": str(e)}
+
             share_content = f"📎 Shared file: {file_url}"
 
             result = client.send_message(
@@ -274,20 +400,17 @@ async def manage_files(
                     "error": "file_id required for download operation",
                 }
 
-            # Construct download URL
-            download_url = f"{client.base_url}/user_uploads/{file_id}"
+            try:
+                download_url = _resolve_file_url(client, file_id)
+            except ValueError as e:
+                return {"status": "error", "error": str(e)}
 
             if download_path:
                 try:
-                    import base64
-
                     import httpx
 
-                    # Download file
-                    auth_string = (
-                        f"{client.current_email}:{client.config_manager.config.api_key}"
-                    )
-                    auth_bytes = base64.b64encode(auth_string.encode()).decode()
+                    email, api_key = _resolve_download_credentials(client)
+                    auth_bytes = b64encode(f"{email}:{api_key}".encode()).decode()
                     headers = {"Authorization": f"Basic {auth_bytes}"}
 
                     async with httpx.AsyncClient() as http_client:
