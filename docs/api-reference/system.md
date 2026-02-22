@@ -14,7 +14,7 @@ Comprehensive server metadata and capabilities.
 ```python
 {
     "name": "ZulipChat MCP",
-    "version": "0.5.2",
+    "version": "0.5.3",
     "features": ["tools"],
     "identities": {
         "available": ["user", "bot"],  # Available identity types

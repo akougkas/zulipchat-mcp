@@ -113,7 +113,7 @@ class TestServerInfo(TestSystemTools):
 
         assert result["status"] == "success"
         assert result["server_name"] == "ZulipChat MCP"
-        assert result["version"] == "0.5.2"
+        assert result["version"] == "0.5.3"
         assert result["zulip_site"] == "https://test.zulipchat.com"
 
         # Check user identity info

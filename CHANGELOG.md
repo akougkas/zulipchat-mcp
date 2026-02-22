@@ -2,6 +2,29 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.5.3] - 2026-02-22
+
+### Fixed
+- **CI fully green**: Resolved all CI failures across Python 3.10/3.11/3.12 — 10 mypy errors, 1 test failure, 2 ruff lint errors
+- **Null credential guards**: Added validation in `identity.py` and `scheduler.py` to fail fast on missing credentials instead of passing `None`
+- **Test compatibility**: Fixed enum `str()` rendering difference between Python 3.10 and 3.11+ in narrow filter tests
+- **Type annotations**: Added missing return types in `config.py`, type annotation for `database.py` singleton flag
+
+### Added
+- **Auto-publish workflow**: `publish.yml` builds and uploads to PyPI via trusted publisher when a GitHub release is published
+- **Issue templates**: Bug report and feature request templates with structured fields
+- **PR template**: Checklist matching CONTRIBUTING.md standards
+- **Release checklist**: `RELEASING.md` with step-by-step release runbook
+- **Repo discoverability**: GitHub Discussions enabled, topics added, homepage set to PyPI
+
+### Changed
+- **Agent guides updated**: CLAUDE.md and AGENTS.md now codify release process, open-source community practices, and correct coverage gate (60%, not 85%)
+- **Tool counts corrected**: README and RELEASE.md now match actual registered tools (Messaging: 16, System: 5, Total: 67)
+- **Labels**: Added project-specific labels (`community`, `fastmcp`, `mcp-tools`, `dependencies`, `breaking-change`, `needs-triage`) and retroactively labeled all issues/PRs
+- **bump_version.py**: Fixed stale POLISHING.md reference, now targets RELEASE.md
+
+---
+
 ## [0.5.2] - 2026-02-22
 
 ### Added
