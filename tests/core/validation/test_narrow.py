@@ -41,7 +41,7 @@ class TestNarrowFilter:
         """Test that STREAM operator requires string operand."""
         with pytest.raises(
             PydanticValidationError,
-            match="NarrowOperator.STREAM operator requires string operand",
+            match="STREAM operator requires string operand",
         ):
             NarrowFilter(NarrowOperator.STREAM, 123)
 

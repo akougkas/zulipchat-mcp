@@ -178,9 +178,12 @@ class IdentityManager:
     def _initialize_identities(self) -> None:
         """Initialize available identities from configuration."""
         config_data = self.config.config
-        email = getattr(self.config, "email", config_data.email)
-        api_key = getattr(self.config, "api_key", config_data.api_key)
-        site = getattr(self.config, "site", config_data.site)
+        email: str | None = getattr(self.config, "email", config_data.email)
+        api_key: str | None = getattr(self.config, "api_key", config_data.api_key)
+        site: str | None = getattr(self.config, "site", config_data.site)
+
+        if not email or not api_key or not site:
+            raise ValueError("User credentials (email, api_key, site) are required")
 
         has_bot_credentials = self.config.has_bot_credentials()
         bot_email = (

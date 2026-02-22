@@ -3,8 +3,14 @@
 Environment-first configuration following MCP standards.
 """
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .core.client import ZulipClientWrapper
 
 try:
     from pathlib import Path
@@ -222,7 +228,7 @@ def set_current_identity(identity: str) -> None:
     _current_identity = identity
 
 
-def get_client():
+def get_client() -> ZulipClientWrapper:
     """Get a ZulipClientWrapper with the current identity.
 
     This is the canonical way to get a client - it respects the
@@ -235,7 +241,7 @@ def get_client():
     return ZulipClientWrapper(config, use_bot_identity=use_bot)
 
 
-def get_bot_client():
+def get_bot_client() -> ZulipClientWrapper:
     """Get a ZulipClientWrapper that ALWAYS uses bot identity.
 
     Use this for operations that must always run as bot regardless

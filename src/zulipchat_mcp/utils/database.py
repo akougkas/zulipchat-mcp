@@ -60,7 +60,7 @@ class DatabaseManager:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self._write_lock = threading.RLock()  # Thread safety within process
-        self._initialized = False
+        self._initialized: bool = False
 
         dirname = os.path.dirname(db_path)
         if dirname:

@@ -559,7 +559,7 @@ def teleport_chat(
             is_channel = target.startswith("#") or channel is not None
             resolved_channel = channel or (target.lstrip("#") if target.startswith("#") else None)
 
-            if is_channel:
+            if is_channel and resolved_channel:
                 # Public channel — always user identity
                 client = get_client()
                 result = client.send_message(

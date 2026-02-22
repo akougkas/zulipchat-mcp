@@ -36,7 +36,9 @@ class MessageScheduler:
         """
         self.config = config
         self.base_url = f"{config.site}/api/v1"
-        self.auth = (config.email, config.api_key)
+        if not config.email or not config.api_key:
+            raise ValueError("Scheduler requires email and api_key")
+        self.auth: tuple[str, str] = (config.email, config.api_key)
         self.client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "MessageScheduler":
