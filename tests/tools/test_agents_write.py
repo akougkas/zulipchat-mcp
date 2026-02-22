@@ -38,14 +38,12 @@ class TestAgentOperations:
         """Patch dependencies."""
         with (
             patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls,
-            patch("src.zulipchat_mcp.tools.agents.get_client") as mock_get_client:
-
+            patch("src.zulipchat_mcp.tools.agents._get_client_bot") as mock_get_bot,
+            patch("src.zulipchat_mcp.tools.agents._client", None),
+        ):
             mock_db_cls.return_value = mock_db
-            mock_get_client.return_value = mock_client
-
-            # Reset global client cache for clean tests
-            with patch("src.zulipchat_mcp.tools.agents._client", None):
-                yield {"db": mock_db, "client": mock_client}
+            mock_get_bot.return_value = mock_client
+            yield {"db": mock_db, "client": mock_client}
 
     @pytest.mark.asyncio
     async def test_register_agent_success(self, mock_deps):

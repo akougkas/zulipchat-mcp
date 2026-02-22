@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zulipchat-mcp"
-version = "0.5.0"
+version = "0.5.1"
 description = "MCP server for Zulip Chat integration with comprehensive tool support"
 authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},
@@ -28,7 +28,7 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "fastmcp[anthropic]>=2.14.0",
+    "fastmcp[anthropic]>=3.0.0,<4.0.0",
     "httpx>=0.28.0",
     "pydantic>=2.11.0",
     "python-dotenv>=1.1.0",

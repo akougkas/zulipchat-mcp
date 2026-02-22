@@ -21,7 +21,6 @@ class TestDatabaseManagerWrapper:
         """Test initialization."""
         manager = DatabaseManager()
         assert manager._db == mock_db
-        assert manager.conn == mock_db.conn
 
     def test_create_agent_instance(self, mock_db):
         """Test create_agent_instance."""
@@ -39,15 +38,11 @@ class TestDatabaseManagerWrapper:
         """Test get_agent_instance."""
         manager = DatabaseManager()
 
-        # Setup mock cursor
-        cursor = MagicMock()
-        cursor.fetchone.return_value = ("inst1", "agent1")
-        cursor.description = [("instance_id",), ("agent_id",)]
-        manager.conn.execute.return_value = cursor
+        mock_db.query_one_as_dict.return_value = {"instance_id": "inst1", "agent_id": "agent1"}
 
         result = manager.get_agent_instance("agent1")
         assert result["instance_id"] == "inst1"
-        manager.conn.execute.assert_called()
+        mock_db.query_one_as_dict.assert_called()
 
     def test_create_input_request(self, mock_db):
         """Test create_input_request."""
@@ -59,10 +54,7 @@ class TestDatabaseManagerWrapper:
     def test_get_input_request(self, mock_db):
         """Test get_input_request."""
         manager = DatabaseManager()
-        cursor = MagicMock()
-        cursor.fetchone.return_value = ("req1", "Q")
-        cursor.description = [("request_id",), ("question",)]
-        manager.conn.execute.return_value = cursor
+        mock_db.query_one_as_dict.return_value = {"request_id": "req1", "question": "Q"}
 
         result = manager.get_input_request("req1")
         assert result["request_id"] == "req1"
@@ -96,10 +88,7 @@ class TestDatabaseManagerWrapper:
         mock_db.execute.assert_called()  # Actually called twice (DELETE then INSERT)
 
         # Get
-        cursor = MagicMock()
-        cursor.fetchone.return_value = (1, True)
-        cursor.description = [("id",), ("is_afk",)]
-        manager.conn.execute.return_value = cursor
+        mock_db.query_one_as_dict.return_value = {"id": 1, "is_afk": True}
 
         state = manager.get_afk_state()
         assert state["is_afk"] is True
@@ -119,10 +108,7 @@ class TestDatabaseManagerWrapper:
         mock_db.execute.assert_called()
 
         # Get unacked
-        cursor = MagicMock()
-        cursor.fetchall.return_value = [("e1",)]
-        cursor.description = [("id",)]
-        manager.conn.execute.return_value = cursor
+        mock_db.query_as_dicts.return_value = [{"id": "e1"}]
 
         events = manager.get_unacked_events()
         assert len(events) == 1

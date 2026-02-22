@@ -41,6 +41,9 @@ class TestSystemTools:
             patch(
                 "src.zulipchat_mcp.tools.system.get_config_manager"
             ) as mock_config_cls,
+            patch(
+                "src.zulipchat_mcp.tools.system.get_client"
+            ) as mock_get_client,
         ):
             mock_config_cls.return_value = mock_config
             mock_get_client.return_value = mock_client
@@ -84,15 +87,15 @@ class TestSwitchIdentity(TestSystemTools):
         assert result["status"] == "error"
         assert "Bot credentials not configured" in result["error"]
         assert "suggestion" in result
-        assert "ZULIP_BOT_EMAIL" in result["suggestion"]
+        assert "--zulip-bot-config-file" in result["suggestion"]
 
     @pytest.mark.asyncio
     async def test_switch_identity_exception(self, mock_deps):
         """Test switch_identity handles exceptions."""
         with patch(
-            "src.zulipchat_mcp.tools.system.ZulipClientWrapper"
-        ) as mock_client_cls:
-            mock_client_cls.side_effect = Exception("Connection failed")
+            "src.zulipchat_mcp.tools.system.get_client"
+        ) as mock_get_client:
+            mock_get_client.side_effect = Exception("Connection failed")
 
             result = await switch_identity("user")
 
@@ -110,7 +113,7 @@ class TestServerInfo(TestSystemTools):
 
         assert result["status"] == "success"
         assert result["server_name"] == "ZulipChat MCP"
-        assert result["version"] == "0.5.0"
+        assert result["version"] == "0.5.1"
         assert result["zulip_site"] == "https://test.zulipchat.com"
 
         # Check user identity info

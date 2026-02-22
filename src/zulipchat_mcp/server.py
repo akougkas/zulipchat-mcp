@@ -128,10 +128,7 @@ def main() -> None:
     # Initialize MCP with modern configuration
     mcp = FastMCP(
         "ZulipChat MCP",
-        on_duplicate_tools="warn",
-        on_duplicate_resources="error",
-        on_duplicate_prompts="replace",
-        include_fastmcp_meta=True,
+        on_duplicate="warn",
         sampling_handler=sampling_handler,
         sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
     )
@@ -140,7 +137,7 @@ def main() -> None:
 
     # Register all tools
     # Safety mode is enforced at the tool level via @require_unsafe_mode decorator
-    logger.info("Registering v0.5.0 tools...")
+    logger.info("Registering v0.5.1 tools...")
 
     # Core messaging
     register_messaging_tools(mcp)  # Send/Edit messages

@@ -35,14 +35,16 @@ class TestTopicOperations:
             patch(
                 "src.zulipchat_mcp.tools.topic_management.is_unsafe_mode"
             ) as mock_unsafe,
+            patch(
+                "src.zulipchat_mcp.tools.topic_management.get_bot_client"
+            ) as mock_get_bot_client,
         ):
-
             # Setup ConfigManager
             mock_config = mock_config_cls.return_value
             mock_config.has_bot_credentials.return_value = True
 
             # Setup ZulipClientWrapper
-            mock_get_client.return_value = mock_client
+            mock_get_bot_client.return_value = mock_client
 
             # Default safe mode
             mock_unsafe.return_value = False
