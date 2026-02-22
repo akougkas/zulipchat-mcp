@@ -134,7 +134,7 @@ def register_*_tools(mcp: FastMCP) -> None:
 - Tests in `tests/` directory following pytest conventions
 - Mark slow tests with `@pytest.mark.slow`, integration tests with `@pytest.mark.integration`
 - Mock Zulip API calls to keep tests network-free
-- 85% coverage requirement enforced
+- 60% coverage gate enforced (`--cov-fail-under=60` in pyproject.toml)
 - Use `uv run pytest` exclusively (no direct Python)
 
 ### File Operations
@@ -253,23 +253,58 @@ If you see "Client does not support sampling":
 - FastMCP handles injection automatically
 - Client (Claude Code, Gemini) must have sampling capability enabled
 
+## Release Process
+
+Full checklist in [RELEASING.md](RELEASING.md). Summary:
+
+```bash
+# 1. Bump version across all 13 files
+uv run python scripts/bump_version.py X.Y.Z
+
+# 2. Update CHANGELOG.md with new section (manual)
+
+# 3. Run full checks
+uv run pytest -q && uv run ruff check . && uv run mypy src
+
+# 4. Commit, tag, push
+git add -A && git commit -m "chore: bump version to X.Y.Z"
+git tag vX.Y.Z && git push && git push --tags
+
+# 5. Create GitHub release (auto-publishes to PyPI via publish.yml)
+gh release create vX.Y.Z --title "vX.Y.Z — Title" --notes "..." --latest
+```
+
+**Critical rules:**
+- Version must match across pyproject.toml, `__init__.py`, server.py, system.py, CLAUDE.md, AGENTS.md, RELEASE.md, and docs. The bump script handles this.
+- **Never** create a GitHub release as draft and forget to publish it. The `publish.yml` workflow only triggers on `published` releases.
+- Tag must match pyproject.toml version exactly (`v0.6.0` tag ↔ `version = "0.6.0"`).
+- After publishing, verify: GitHub release shows "Latest", PyPI shows new version, `uvx zulipchat-mcp` installs it.
+
+## Open Source & Community Practices
+
+This is a public open-source project. Follow these practices when handling community interactions:
+
+### Responding to Issues
+- Acknowledge new issues within 48 hours, even if just "Looking into this."
+- Apply labels on triage: `bug`, `enhancement`, `good first issue`, `help wanted`, `needs-triage`, `community`, `dependencies`, `fastmcp`, `mcp-tools`, `breaking-change`.
+- When closing, explain what was fixed and which version contains the fix.
+- Credit the reporter in release notes.
+
+### Responding to Pull Requests
+- **Respond within 48 hours.** Silence kills contributor motivation.
+- Prefer merging community PRs over reimplementing the same fix independently. Contributors get credit in their GitHub contribution graph.
+- If changes are needed, request them on the PR — don't close and reimplement.
+- If a fix was already applied independently, close the PR with explicit credit and acknowledgment. Explain what happened.
+- Label community PRs with `community`.
+
+### Release Notifications
+- After publishing a release, comment on all issues fixed in that release.
+- Mention the version number, what was fixed, and how to upgrade.
+- Invite reporters to try the new version and provide feedback.
+
 ## GSD Integration (Get Shit Done)
 
 This project uses GSD for structured development workflows with Claude Code.
-
-### Setup for New Session
-
-```bash
-# 1. Map existing codebase (brownfield project)
-/gsd:map-codebase
-
-# 2. Initialize GSD project structure
-/gsd:new-project
-# Point to POLISHING.md when asked about requirements
-
-# 3. Set Opus 4.5 for maximum quality
-/gsd:set-profile quality
-```
 
 ### Core Workflow
 
@@ -280,14 +315,6 @@ This project uses GSD for structured development workflows with Claude Code.
 /clear               → Reset context between phases
 ```
 
-### Model Profiles
-
-| Profile | Use Case |
-|---------|----------|
-| `quality` | Opus everywhere - critical architecture work |
-| `balanced` | Opus planning, Sonnet execution (default) |
-| `budget` | Sonnet writing, Haiku research - high volume |
-
 ### Key Commands
 
 | Command | Purpose |
@@ -297,24 +324,3 @@ This project uses GSD for structured development workflows with Claude Code.
 | `/gsd:pause-work` | Create handoff mid-phase |
 | `/gsd:resume-work` | Continue from previous session |
 | `/gsd:debug` | Persistent debug sessions |
-
-### GSD File Structure
-
-```
-.planning/
-├── PROJECT.md      # Vision and requirements
-├── ROADMAP.md      # Phase breakdown
-├── STATE.md        # Project memory
-├── config.json     # Workflow mode, model profile
-└── phases/
-    └── 01-name/
-        ├── 01-01-PLAN.md
-        └── 01-01-SUMMARY.md
-```
-
-### Tips
-
-- Run `/clear` between major phases to reset context
-- Use `/gsd:quick` for ad-hoc fixes outside planned phases
-- Check `/gsd:progress` to see where you left off
-- Set `planning.commit_docs: false` in config.json to keep .planning/ local-only

@@ -26,7 +26,7 @@
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.
 - Mark long/external tests with `@pytest.mark.slow` or `@pytest.mark.integration` and gate in CI via markers.
 - Prefer fast, deterministic unit tests; mock Zulip API calls. Aim for meaningful coverage with `pytest --cov=src`.
-- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache && uv sync --reinstall`), and maintain the coverage gate at 85% while adding minimal, targeted tests without altering functionality.
+- Testing strategy: always use `uv` (no direct Python invocations), keep tests isolated and network-free by mocking clients, aggressively clean caches/venv before major coverage pushes (`rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache && uv sync --reinstall`), and maintain the coverage gate at 60% while adding minimal, targeted tests without altering functionality.
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
@@ -69,6 +69,7 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `release:` (see `git log`).
 - PRs should include: clear summary/motivation, linked issues, tests (or rationale), and example CLI invocation/output when relevant.
 - Keep changes minimal and focused; update `README.md`/`AGENTS.md` when behavior or commands change.
+- Community PRs are labeled `community`. Prefer merging over reimplementing.
 
 ## Distribution & Installation Testing
 - **Installation Methods**: Three primary distribution channels:
@@ -85,7 +86,7 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 
 ## Security & Configuration Tips
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
-- Prefer CLI flags for credentials in MCP clients. For background features, `--enable-listener` is available.
+- Prefer CLI flags for credentials in MCP clients. Message listener is always-on since v0.5.2 (`--enable-listener` kept for backward compat).
 - Optional checks before release: `uv run bandit -q -r src` and `uv run safety check`.
 
 ## Documentation Resources
@@ -111,5 +112,30 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 - [File Tools](docs/api-reference/files.md) - File operations
 
 ### Release Documentation
+- [Release Checklist](RELEASING.md) - Step-by-step release process
 - [Full Documentation Index](docs/README.md)
 - [Changelog](CHANGELOG.md)
+
+## Release Process
+
+Full checklist: [RELEASING.md](RELEASING.md)
+
+```bash
+uv run python scripts/bump_version.py X.Y.Z   # Bump 13 files
+# Update CHANGELOG.md manually
+uv run pytest -q && uv run ruff check . && uv run mypy src
+git add -A && git commit -m "chore: bump version to X.Y.Z"
+git tag vX.Y.Z && git push && git push --tags
+gh release create vX.Y.Z --title "vX.Y.Z — Title" --notes "..." --latest
+```
+
+Publishing a GitHub release auto-triggers `.github/workflows/publish.yml` which builds and uploads to PyPI via trusted publisher (OIDC). Never leave releases as drafts.
+
+After publishing: comment on fixed issues with version number, credit reporters, invite them to try the update.
+
+## Open Source Community Practices
+
+- **Respond to issues and PRs within 48 hours.** Even "Looking into this" is enough.
+- **Label on triage**: `bug`, `enhancement`, `good first issue`, `help wanted`, `community`, `needs-triage`, `dependencies`, `fastmcp`, `mcp-tools`, `breaking-change`.
+- **Prefer merging community PRs** over reimplementing the same fix. If already fixed independently, close with explicit credit.
+- **After each release**, notify reporters on fixed issues with version and upgrade instructions.
