@@ -58,18 +58,18 @@ ZulipChat MCP provides **67 tools** organized into **8 functional categories**, 
 
 | Category | Tools | What It Enables |
 |----------|-------|-----------------|
-| **Messaging** | 15 | Send, edit, schedule, reactions, bulk mark read/unread |
+| **Messaging** | 16 | Send, edit, schedule, reactions, bulk mark read/unread |
 | **Search & Analytics** | 8 | Advanced search, AI-powered insights, daily summaries |
 | **Users & Identity** | 14 | User management, fuzzy name resolution, presence, groups |
 | **Agent Communication** | 14 | Teleport-chat, register agents, bidirectional messaging, task tracking |
 | **Events** | 4 | Real-time event streams, webhooks, long-polling |
 | **Streams & Topics** | 4 | Stream info, topic management, cross-stream ops |
 | **Files** | 2 | Upload with progress, share, metadata extraction |
-| **System & Workflows** | 6 | Server info, command chains, workflow automation |
+| **System & Workflows** | 5 | Server info, command chains, workflow automation |
 
 ---
 
-### Messaging (15 tools)
+### Messaging (16 tools)
 
 Full message lifecycle management with scheduling and bulk operations.
 
@@ -206,7 +206,7 @@ Secure file operations with progress tracking.
 
 ---
 
-### System & Workflows (6 tools)
+### System & Workflows (5 tools)
 
 Server info, workflow automation, and command chains.
 
@@ -247,7 +247,7 @@ execute_chain([
 ```
 src/zulipchat_mcp/
 ├── core/           # Client, identity, commands, batch processing
-├── tools/          # 65 MCP tools across 8 categories
+├── tools/          # 67 MCP tools across 8 categories
 ├── utils/          # Logging, database, health, metrics
 ├── services/       # Background services (scheduler, listener)
 ├── integrations/   # AI client integrations

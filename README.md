@@ -49,28 +49,29 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 | Category | Count | Highlights |
 |----------|-------|------------|
-| **Messaging** | 15 | Send, edit, schedule, cross-post, reactions |
+| **Messaging** | 16 | Send, edit, schedule, cross-post, reactions |
 | **Streams & Topics** | 4 | Stream info, topic management |
 | **Users & Identity** | 14 | Fuzzy name resolution, presence, groups, dual identity |
 | **Agent Communication** | 14 | **Teleport-chat**, bidirectional DMs, task tracking, AFK mode |
 | **Search & Analytics** | 8 | Narrow filters, AI insights, summaries |
 | **Events** | 4 | Queues, long-polling, webhooks |
 | **Files** | 2 | Upload, share, download, manage |
-| **System & Workflows** | 6 | Identity switching, command chains |
+| **System & Workflows** | 5 | Identity switching, command chains |
 
 <details>
 <summary>View all tools by category</summary>
 
 ### Messaging Tools
-- `message` - Send, schedule, or draft messages with smart formatting
-- `search_messages` - Token-limited results with narrow filters
+- `send_message` - Send to streams or DMs with smart formatting
 - `edit_message` - Edit content and topics with propagation modes
-- `bulk_operations` - Progress tracking for bulk actions
-- `message_history` - Audit trail with edit timestamps
+- `get_message` - Retrieve message by ID
 - `cross_post_message` - Attribution-aware sharing across streams
-- `add_reaction` / `remove_reaction` - Emoji support (Unicode, custom, Zulip)
-- `mark_read` / `mark_unread` - Read state management
-- `schedule_message` / `cancel_scheduled` - Delayed delivery
+- `add_reaction` / `remove_reaction` - Emoji reactions (Unicode, custom, Zulip)
+- `mark_all_as_read` / `mark_stream_as_read` / `mark_topic_as_read` - Mark read
+- `mark_messages_unread` - Mark messages as unread
+- `star_messages` / `unstar_messages` - Star/unstar messages
+- `get_scheduled_messages` / `create_scheduled_message` - Scheduled delivery
+- `update_scheduled_message` / `delete_scheduled_message` - Manage scheduled messages
 
 ### Stream & Topic Tools
 - `get_stream_info` - Stream details with subscriber lists
@@ -111,7 +112,10 @@ Your AI assistant becomes a **Zulip superuser**, capable of:
 
 ### System & Workflow Tools
 - `server_info` - Server metadata with routing hints
+- `switch_identity` - Switch between user/bot contexts
 - `execute_chain` - Workflow automation with branching logic
+- `list_command_types` - Available chain command types
+- `update_message_flags_for_narrow` - Bulk flag updates by narrow
 
 </details>
 
