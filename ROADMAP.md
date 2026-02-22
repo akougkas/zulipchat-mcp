@@ -1,8 +1,8 @@
 # Roadmap
 
-## v0.5.0 (Current)
+## v0.5.1 (Current)
 
-Released 2026-01-22 - [PyPI](https://pypi.org/project/zulipchat-mcp/)
+Released 2026-02-22 - [PyPI](https://pypi.org/project/zulipchat-mcp/)
 
 **Highlights:**
 - ConfigManager singleton pattern for consistent CLI arg handling

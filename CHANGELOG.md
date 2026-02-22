@@ -2,6 +2,18 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.5.1] - 2026-02-22
+
+### Fixed
+- **FastMCP 3.0 Upgrade**: Replaced removed `on_duplicate_tools/resources/prompts` and `include_fastmcp_meta` constructor kwargs with `on_duplicate="warn"` (Issue #4)
+- **File Download URLs**: Normalized `/user_uploads/` paths to full `https://` URLs and resolved auth by identity (Issue #3)
+- **Broken Test Suite**: Fixed 5 test files with missing mock patches, stale DB API references, and syntax errors (520 tests passing)
+
+### Changed
+- Pinned `fastmcp[anthropic]>=3.0.0,<4.0.0`
+
+---
+
 ## [0.5.0] - 2026-01-22
 
 ### Changed

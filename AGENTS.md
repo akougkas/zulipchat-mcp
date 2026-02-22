@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-## Current Status (v0.5.0)
+## Current Status (v0.5.1)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
 
