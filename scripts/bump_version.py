@@ -70,9 +70,9 @@ VERSION_FILES = [
         "ZulipChat MCP v{version}",
     ),
     (
-        "POLISHING.md",
-        r"v[0-9]+\.[0-9]+\.[0-9]+ Release Preparation",
-        "v{version} Release Preparation",
+        "RELEASE.md",
+        r"# ZulipChat MCP v[0-9]+\.[0-9]+\.[0-9]+",
+        "# ZulipChat MCP v{version}",
     ),
 ]
 
