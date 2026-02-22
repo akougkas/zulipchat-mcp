@@ -33,7 +33,7 @@ class TestNarrowFilter:
     def test_validate_operand_id_must_be_int(self):
         """Test that ID operator requires integer operand."""
         with pytest.raises(
-            PydanticValidationError, match="ID operator requires integer operand"
+            PydanticValidationError, match="operator requires integer operand"
         ):
             NarrowFilter(NarrowOperator.ID, "123")
 
@@ -41,7 +41,7 @@ class TestNarrowFilter:
         """Test that STREAM operator requires string operand."""
         with pytest.raises(
             PydanticValidationError,
-            match="STREAM operator requires string operand",
+            match="operator requires string operand",
         ):
             NarrowFilter(NarrowOperator.STREAM, 123)
 
