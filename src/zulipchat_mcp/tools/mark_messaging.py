@@ -249,6 +249,88 @@ async def unstar_messages(
         return {"status": "error", "error": str(e)}
 
 
+async def manage_message_flags(
+    flag: Literal["read", "starred"],
+    action: Literal["add", "remove"],
+    scope: Literal["all", "stream", "topic", "narrow"] = "narrow",
+    stream_id: int | None = None,
+    topic_name: str | None = None,
+    sender_email: str | None = None,
+    narrow: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Mark messages as read/unread or star/unstar."""
+    if scope == "all":
+        return await update_message_flags_for_narrow(
+            narrow=[],
+            op=action,
+            flag=flag,
+            anchor="first_unread" if action == "add" else "newest",
+            num_before=0 if action == "add" else 100,
+            num_after=1000 if action == "add" else 0,
+        )
+    elif scope == "stream":
+        if not stream_id:
+            return {"status": "error", "error": "stream_id required for scope='stream'"}
+        try:
+            stream_name = _resolve_stream_name(stream_id)
+        except ValueError as e:
+            return {"status": "error", "error": str(e)}
+        return await update_message_flags_for_narrow(
+            narrow=[{"operator": "stream", "operand": stream_name}],
+            op=action,
+            flag=flag,
+            anchor="first_unread" if action == "add" else "newest",
+            num_before=0 if action == "add" else 100,
+            num_after=1000 if action == "add" else 0,
+        )
+    elif scope == "topic":
+        if not stream_id:
+            return {"status": "error", "error": "stream_id required for scope='topic'"}
+        if not topic_name:
+            return {"status": "error", "error": "topic_name required for scope='topic'"}
+        try:
+            stream_name = _resolve_stream_name(stream_id)
+        except ValueError as e:
+            return {"status": "error", "error": str(e)}
+        return await update_message_flags_for_narrow(
+            narrow=[
+                {"operator": "stream", "operand": stream_name},
+                {"operator": "topic", "operand": topic_name},
+            ],
+            op=action,
+            flag=flag,
+            anchor="first_unread" if action == "add" else "newest",
+            num_before=0 if action == "add" else 100,
+            num_after=1000 if action == "add" else 0,
+        )
+    else:  # scope == "narrow"
+        built_narrow: list[dict[str, Any]] = narrow or []
+        if not built_narrow:
+            if stream_id:
+                try:
+                    stream_name = _resolve_stream_name(stream_id)
+                    built_narrow.append({"operator": "stream", "operand": stream_name})
+                except ValueError as e:
+                    return {"status": "error", "error": str(e)}
+            if topic_name:
+                built_narrow.append({"operator": "topic", "operand": topic_name})
+            if sender_email:
+                built_narrow.append({"operator": "sender", "operand": sender_email})
+        if not built_narrow:
+            return {
+                "status": "error",
+                "error": "Must provide narrow, stream_id, topic_name, or sender_email",
+            }
+        return await update_message_flags_for_narrow(
+            narrow=built_narrow,
+            op=action,
+            flag=flag,
+            anchor="newest",
+            num_before=100,
+            num_after=0,
+        )
+
+
 def register_mark_messaging_tools(mcp: FastMCP) -> None:
     """Register message marking tools with the MCP server."""
     mcp.tool(

@@ -2,6 +2,24 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [0.6.0] - 2026-02-22
+
+### Changed
+- **Two-tier tool registration**: Default mode registers 19 core tools (~87% token reduction); `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` enables full set (~55 tools)
+- **7 merged tools**: `manage_message_flags` (replaces 7 flag tools), `get_user` (replaces by-id + by-email), `manage_user_mute`, `toggle_reaction`, `manage_task`, `afk_mode`, `manage_scheduled_message`
+- **CLI**: Added `--extended-tools` argument to `server.py`
+- **Concise descriptions**: Core and extended tool descriptions optimized for token efficiency
+
+### Removed
+- **events.py stub**: Dead code that delegated to agents.py removed
+- **Legacy registration path**: `server.py` no longer calls individual `register_*_tools()` functions; uses `register_core_tools()` / `register_extended_tools()` instead
+
+### Added
+- `register_core_tools()` and `register_extended_tools()` in `tools/__init__.py`
+- `tests/tools/test_tool_tiers.py`: 36 tests covering registration counts, merged tool dispatch, error paths
+
+---
+
 ## [0.5.3] - 2026-02-22
 
 ### Fixed

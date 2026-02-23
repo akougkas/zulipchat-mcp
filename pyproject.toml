@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zulipchat-mcp"
-version = "0.5.3"
+version = "0.6.0"
 description = "MCP server for Zulip Chat integration with comprehensive tool support"
 authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},

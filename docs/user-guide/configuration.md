@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Complete configuration guide for ZulipChat MCP v0.5.3.
+Complete configuration guide for ZulipChat MCP v0.6.0.
 
 ## Quick Start
 

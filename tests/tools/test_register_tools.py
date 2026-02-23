@@ -21,7 +21,6 @@ def test_register_all_tools():
         register_ai_analytics_tools,
         register_emoji_messaging_tools,
         register_event_management_tools,
-        register_events_tools,
         register_files_tools,
         register_mark_messaging_tools,
         register_messaging_tools,
@@ -42,7 +41,6 @@ def test_register_all_tools():
     register_stream_management_tools(mcp)
     register_topic_management_tools(mcp)
     register_event_management_tools(mcp)
-    register_events_tools(mcp)
     register_ai_analytics_tools(mcp)
     register_users_tools(mcp)
     register_files_tools(mcp)

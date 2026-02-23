@@ -419,6 +419,31 @@ async def resolve_user(name: str) -> dict[str, Any]:
     return {"status": "not_found", "query": name, "suggestion": "Try full name or email"}
 
 
+async def get_user(
+    user_id: int | None = None,
+    email: str | None = None,
+    include_custom_profile_fields: bool = False,
+) -> dict[str, Any]:
+    """Look up a user by ID or email."""
+    if user_id is not None:
+        return await get_user_by_id(user_id, include_custom_profile_fields=include_custom_profile_fields)
+    elif email is not None:
+        return await get_user_by_email(email, include_custom_profile_fields=include_custom_profile_fields)
+    else:
+        return {"status": "error", "error": "Provide user_id or email"}
+
+
+async def manage_user_mute(
+    muted_user_id: int,
+    action: Literal["mute", "unmute"] = "mute",
+) -> dict[str, Any]:
+    """Mute or unmute a user."""
+    if action == "mute":
+        return await mute_user(muted_user_id)
+    else:
+        return await unmute_user(muted_user_id)
+
+
 def register_users_tools(mcp: FastMCP) -> None:
     """Register clean READ-ONLY user tools with the MCP server."""
     mcp.tool(

@@ -121,6 +121,22 @@ async def remove_reaction(
         return {"status": "error", "error": str(e)}
 
 
+async def toggle_reaction(
+    message_id: int,
+    emoji_name: str,
+    action: Literal["add", "remove"] = "add",
+    emoji_code: str | None = None,
+    reaction_type: Literal[
+        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    ] = "unicode_emoji",
+) -> dict[str, Any]:
+    """Add or remove an emoji reaction."""
+    if action == "add":
+        return await add_reaction(message_id, emoji_name, emoji_code, reaction_type)
+    else:
+        return await remove_reaction(message_id, emoji_name, emoji_code, reaction_type)
+
+
 def register_emoji_messaging_tools(mcp: FastMCP) -> None:
     """Register emoji reaction tools with the MCP server."""
     mcp.tool(

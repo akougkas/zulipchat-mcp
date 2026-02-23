@@ -173,6 +173,46 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
+async def manage_scheduled_message(
+    action: Literal["create", "update", "delete"],
+    # Create/update params
+    type: Literal["stream", "private", "channel", "direct"] | None = None,
+    to: int | list[int] | None = None,
+    content: str | None = None,
+    topic: str | None = None,
+    scheduled_delivery_timestamp: int | None = None,
+    read_by_sender: bool = True,
+    # Update/delete params
+    scheduled_message_id: int | None = None,
+) -> dict[str, Any]:
+    """Create, update, or delete a scheduled message."""
+    if action == "create":
+        if not type or to is None or not content or not scheduled_delivery_timestamp:
+            return {
+                "status": "error",
+                "error": "type, to, content, and scheduled_delivery_timestamp required for create",
+            }
+        return await create_scheduled_message(
+            type=type, to=to, content=content,
+            scheduled_delivery_timestamp=scheduled_delivery_timestamp,
+            topic=topic, read_by_sender=read_by_sender,
+        )
+    elif action == "update":
+        if not scheduled_message_id:
+            return {"status": "error", "error": "scheduled_message_id required for update"}
+        return await update_scheduled_message(
+            scheduled_message_id=scheduled_message_id,
+            type=type, to=to, content=content,
+            topic=topic, scheduled_delivery_timestamp=scheduled_delivery_timestamp,
+        )
+    elif action == "delete":
+        if not scheduled_message_id:
+            return {"status": "error", "error": "scheduled_message_id required for delete"}
+        return await delete_scheduled_message(scheduled_message_id)
+    else:
+        return {"status": "error", "error": f"Unknown action: {action}"}
+
+
 def register_schedule_messaging_tools(mcp: FastMCP) -> None:
     """Register scheduled messaging tools with the MCP server."""
     mcp.tool(

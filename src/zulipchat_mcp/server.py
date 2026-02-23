@@ -24,21 +24,7 @@ try:
 except ImportError:
     service_manager_available = False
 
-from .tools import (
-    register_ai_analytics_tools,
-    register_emoji_messaging_tools,
-    register_event_management_tools,
-    register_events_tools,  # Now agent communication
-    register_files_tools,
-    register_mark_messaging_tools,
-    register_messaging_tools,
-    register_schedule_messaging_tools,
-    register_search_tools,
-    register_stream_management_tools,
-    register_system_tools,
-    register_topic_management_tools,
-    register_users_tools,
-)
+from .tools import register_core_tools, register_extended_tools
 
 try:
     from .utils.database import init_database
@@ -76,6 +62,11 @@ def main() -> None:
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument(
         "--enable-listener", action="store_true", help="Enable message listener service"
+    )
+    parser.add_argument(
+        "--extended-tools",
+        action="store_true",
+        help="Register all tools (~55) instead of core set (19).",
     )
 
     args = parser.parse_args()
@@ -135,50 +126,21 @@ def main() -> None:
 
     logger.info("FastMCP initialized successfully")
 
-    # Register all tools
-    # Safety mode is enforced at the tool level via @require_unsafe_mode decorator
-    logger.info("Registering v0.5.3 tools...")
+    # Determine tool mode
+    extended = args.extended_tools or os.getenv("ZULIPCHAT_EXTENDED_TOOLS", "0") in (
+        "1",
+        "true",
+        "True",
+    )
 
-    # Core messaging
-    register_messaging_tools(mcp)  # Send/Edit messages
-    register_emoji_messaging_tools(mcp)  # Reactions
-    register_schedule_messaging_tools(mcp)  # Scheduled messages
-    register_mark_messaging_tools(mcp)  # Read receipts
+    # Register tools
+    register_core_tools(mcp)
 
-    # Discovery & Search (read-only)
-    register_search_tools(mcp)  # Message search
-    register_stream_management_tools(mcp)  # Stream info
-    register_topic_management_tools(mcp)  # Topic operations
-    register_users_tools(mcp)  # User info
-    register_ai_analytics_tools(mcp)  # Analytics
-
-    # System & Events
-    register_system_tools(mcp)  # Identity management
-    register_events_tools(mcp)  # Agent communication
-    register_event_management_tools(mcp)  # Event queue management
-    register_files_tools(mcp)  # File uploads
-
-    # Optional: Register agent tools if available
-    try:
-        from .tools import agents
-
-        agents.register_agent_tools(mcp)
-        logger.info("Agent tools registered")
-    except ImportError:
-        logger.debug("Agent tools not available (optional)")
-
-    try:
-        from .tools import commands
-
-        commands.register_command_tools(mcp)
-        logger.info("Command tools registered")
-    except ImportError:
-        logger.debug("Command tools not available (optional)")
-
-    # Server capabilities are handled by the underlying MCP protocol
-    # FastMCP 2.12.3 handles capability negotiation automatically
-
-    logger.info("Tool registration complete: Simplified tools across 7 categories")
+    if extended:
+        register_extended_tools(mcp)
+        logger.info("Registered extended tool set (~55 tools)")
+    else:
+        logger.info("Registered core tool set (19 tools)")
 
     # Warm user/stream caches for fast fuzzy resolution
     try:

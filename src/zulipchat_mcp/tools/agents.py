@@ -664,6 +664,50 @@ def teleport_chat(
             return {"status": "error", "error": str(e)}
 
 
+def manage_task(
+    action: str,
+    agent_id: str | None = None,
+    task_id: str | None = None,
+    name: str = "",
+    description: str = "",
+    progress: int = 0,
+    status: str = "",
+    outputs: str = "",
+    metrics: str = "",
+) -> dict[str, Any]:
+    """Start, update, or complete a task."""
+    if action == "start":
+        if not agent_id:
+            return {"status": "error", "error": "agent_id required to start a task"}
+        return start_task(agent_id, name, description)
+    elif action == "update":
+        if not task_id:
+            return {"status": "error", "error": "task_id required to update a task"}
+        return update_task_progress(task_id, progress, status)
+    elif action == "complete":
+        if not task_id:
+            return {"status": "error", "error": "task_id required to complete a task"}
+        return complete_task(task_id, outputs, metrics)
+    else:
+        return {"status": "error", "error": f"Unknown action: {action}"}
+
+
+def afk_mode(
+    action: str,
+    hours: int = 8,
+    reason: str = "Away from computer",
+) -> dict[str, Any]:
+    """Enable, disable, or check AFK mode status."""
+    if action == "enable":
+        return enable_afk_mode(hours, reason)
+    elif action == "disable":
+        return disable_afk_mode()
+    elif action == "status":
+        return get_afk_status()
+    else:
+        return {"status": "error", "error": f"Unknown action: {action}"}
+
+
 def register_agent_tools(mcp: Any) -> None:
     mcp.tool(
         description="Send a message to a Zulip user or channel. Supports fuzzy name resolution ('Jaime' -> jaime@org.zulipchat.com). Uses bot identity only for private bot<->user DMs (teleport back-channel); all public/org-facing messages sent as user identity. Set wait_for_reply=True to block until a response arrives. Use '#channel' syntax or channel param for stream messages. Not gated by AFK mode."
