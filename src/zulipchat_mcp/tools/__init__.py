@@ -1,5 +1,7 @@
 """MCP tool registrars for ZulipChat MCP."""
 
+from fastmcp import FastMCP
+
 from .ai_analytics import register_ai_analytics_tools
 from .emoji_messaging import register_emoji_messaging_tools
 from .event_management import register_event_management_tools
@@ -31,7 +33,7 @@ __all__ = [
 ]
 
 
-def register_core_tools(mcp) -> None:
+def register_core_tools(mcp: FastMCP) -> None:
     """Register 19 core tools for default mode."""
     from .agents import (
         agent_message,
@@ -128,7 +130,7 @@ def register_core_tools(mcp) -> None:
     )(manage_message_flags)
 
 
-def register_extended_tools(mcp) -> None:
+def register_extended_tools(mcp: FastMCP) -> None:
     """Register extended tools (merged + remaining originals).
 
     Call after register_core_tools() to add the full tool set.
