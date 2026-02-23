@@ -34,7 +34,7 @@ jobs:
       - name: Check server.py version
         run: |
           EXPECTED="${{ steps.version.outputs.version }}"
-          if grep -q "version.*=.*\"$EXPECTED\"" src/zulipchat_mcp/tools/system.py; then
+          if grep -q "\"version\".*\"$EXPECTED\"" src/zulipchat_mcp/tools/system.py; then
             echo "src/zulipchat_mcp/server.py version check: v$EXPECTED (OK via system.py)"
           else
             echo "::error::Version mismatch: expected v$EXPECTED in system.py server_info"
