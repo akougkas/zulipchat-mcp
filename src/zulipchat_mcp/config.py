@@ -1,6 +1,6 @@
 """Configuration management for ZulipChat MCP Server.
 
-Environment-first configuration following MCP standards.
+Supports zuliprc files and environment-variable credentials.
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ class ConfigManager:
         cli_bot_config_file: str | None = None,
         cli_debug: bool | None = None,
     ) -> ZulipConfig:
-        """Load configuration - zuliprc files only."""
+        """Load configuration from env/CLI/defaults with zuliprc + env support."""
         # Check environment for config file paths
         final_config_file = self._get_config_file() or cli_config_file
         final_bot_config_file = self._get_bot_config_file() or cli_bot_config_file

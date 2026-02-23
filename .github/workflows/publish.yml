@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish:
-    name: Build & Publish
+    name: Build, Verify & Publish
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -27,25 +27,87 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Verify versions match release tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          INIT=$(grep '__version__ = ' src/zulipchat_mcp/__init__.py | sed 's/__version__ = "\(.*\)"/\1/')
+          echo "Git tag: $TAG"
+          echo "pyproject.toml: $PKG"
+          echo "__init__.py: $INIT"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match pyproject.toml version $PKG"
+            exit 1
+          fi
+          if [ "$TAG" != "$INIT" ]; then
+            echo "::error::Tag v$TAG does not match __init__.py version $INIT"
+            exit 1
+          fi
+
+      - name: Verify system.py and server.json versions
+        run: |
+          export EXPECTED="${GITHUB_REF#refs/tags/v}"
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          expected = os.environ["EXPECTED"]
+
+          system_content = Path("src/zulipchat_mcp/tools/system.py").read_text()
+          if not re.search(rf'"version":\s*"{re.escape(expected)}"', system_content):
+            print(
+              "::error::Version mismatch in src/zulipchat_mcp/tools/system.py "
+              f"(expected {expected})"
+            )
+            sys.exit(1)
+
+          data = json.loads(Path("server.json").read_text())
+          if data.get("version") != expected:
+            print(
+              "::error::server.json top-level version mismatch: "
+              f"expected {expected}, got {data.get('version')}"
+            )
+            sys.exit(1)
+
+          pkg_versions = {
+            pkg.get("version") for pkg in data.get("packages", []) if pkg.get("version")
+          }
+          if pkg_versions != {expected}:
+            print(
+              "::error::server.json package version mismatch: "
+              f"expected only {expected}, got {sorted(pkg_versions)}"
+            )
+            sys.exit(1)
+
+          print(f"Version checks passed for {expected}")
+          PY
+
       - name: Run tests
         run: uv run pytest -q -m "not slow and not integration"
 
       - name: Lint
         run: uv run ruff check .
 
-      - name: Verify version matches tag
-        run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          PKG=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          echo "Git tag: $TAG"
-          echo "Package: $PKG"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::Tag v$TAG does not match pyproject.toml version $PKG"
-            exit 1
-          fi
+      - name: Type check
+        run: uv run mypy src
 
       - name: Build package
         run: uv build
+
+      - name: Install built wheel in clean venv
+        run: |
+          uv venv .pkg-smoke --python 3.12
+          uv pip install --python .pkg-smoke/bin/python dist/*.whl
+
+      - name: Smoke test installed entrypoints
+        run: |
+          .pkg-smoke/bin/zulipchat-mcp --version
+          .pkg-smoke/bin/zulipchat-mcp-setup --version
+          .pkg-smoke/bin/zulipchat-mcp-integrate --version
+          .pkg-smoke/bin/zulipchat-mcp-integrate list
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

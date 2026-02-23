@@ -1,0 +1,10 @@
+{
+  "id": "zulipchat-mcp-antigravity",
+  "name": "ZulipChat MCP for Antigravity",
+  "platform": "antigravity",
+  "category": ["communication", "mcp", "zulip"],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Antigravity-compatible MCP JSON template for ZulipChat MCP.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/antigravity.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp"
+}

@@ -5,6 +5,7 @@ import os
 
 from fastmcp import FastMCP
 
+from . import __version__
 from .config import init_config_manager
 from .core.security import set_unsafe_mode
 
@@ -40,7 +41,14 @@ def main() -> None:
     """Main entry point for the MCP server."""
     parser = argparse.ArgumentParser(
         description="ZulipChat MCP Server - Integrates Zulip Chat with AI assistants",
-        epilog="Configuration via zuliprc files is required.",
+        epilog=(
+            "Configuration requires either a zuliprc file "
+            "(explicit or auto-discovered) or environment variables "
+            "(ZULIP_EMAIL, ZULIP_API_KEY, ZULIP_SITE)."
+        ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
 
     # Configuration Files
@@ -72,10 +80,10 @@ def main() -> None:
     args = parser.parse_args()
 
     # Setup logging
-    setup_structured_logging()
+    setup_structured_logging("DEBUG" if args.debug else "INFO")
     logger = get_logger(__name__)
 
-    # Initialize configuration (zuliprc only)
+    # Initialize configuration (zuliprc files and/or env credentials)
     config_manager = init_config_manager(
         config_file=args.zulip_config_file,
         bot_config_file=args.zulip_bot_config_file,
@@ -114,7 +122,9 @@ def main() -> None:
         )
         logger.info("Anthropic sampling handler configured (fallback mode)")
     elif anthropic_available:
-        logger.debug("ANTHROPIC_API_KEY not set - LLM analytics will require client sampling support")
+        logger.debug(
+            "ANTHROPIC_API_KEY not set - LLM analytics will require client sampling support"
+        )
 
     # Initialize MCP with modern configuration
     mcp = FastMCP(
@@ -156,9 +166,7 @@ def main() -> None:
     # Start background services (message listener always on, AFK watcher)
     if service_manager_available:
         try:
-            service_manager = ServiceManager(
-                config_manager, enable_listener=True
-            )
+            service_manager = ServiceManager(config_manager, enable_listener=True)
             service_manager.start()
             logger.info("Background services started (listener always on)")
         except Exception as e:

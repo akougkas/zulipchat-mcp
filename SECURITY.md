@@ -1,52 +1,67 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.5.x   | :white_check_mark: |
-| < 0.5   | :x:                |
+| Version | Status |
+| --- | --- |
+| 0.6.x | Supported |
+| < 0.6.0 | Security fixes are not guaranteed |
 
-## Reporting a Vulnerability
+## Responsible disclosure
 
-We take security seriously. If you discover a security vulnerability, please follow responsible disclosure:
+Do not post vulnerabilities in public issues.
 
-1. **Do not** open a public GitHub issue
-2. Email security concerns to: a.kougkas@gmail.com
-3. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Any suggested fixes (optional)
+Report privately to: `a.kougkas@gmail.com`
 
-## Response Timeline
+Include:
 
-- **Acknowledgment**: Within 48 hours
-- **Initial assessment**: Within 1 week
-- **Resolution target**: Within 30 days for critical issues
+- Impact
+- Reproduction steps
+- Affected version
+- Suggested fix (optional)
 
-## Scope
+Target response times:
 
-Security issues we're interested in:
-- Authentication/authorization bypasses
-- Credential exposure
-- Remote code execution
-- Data leakage
+- Acknowledgement: within 48 hours
+- Initial assessment: within 7 days
+- Critical fix target: within 30 days
 
-Out of scope:
-- Issues in dependencies (report to upstream)
-- Social engineering
-- Physical attacks
+## Security model
 
-## Security Best Practices
+### Safe-by-default runtime
 
-When using ZulipChat MCP:
+`zulipchat-mcp` starts in safe mode.
 
-- **Never commit credentials** - Use environment variables or zuliprc files
-- **Use `--unsafe` flag carefully** - It enables administrative tools
-- **Review bot permissions** - Grant minimum required Zulip permissions
-- **Keep updated** - Security fixes are only applied to latest version
+`--unsafe` must be explicitly enabled for guarded destructive flows. In current code, this includes destructive topic operations through `agents_channel_topic_ops`.
 
-## Acknowledgments
+### Identity boundaries
 
-We thank security researchers who responsibly disclose vulnerabilities.
+- Default identity is user identity.
+- Bot identity is optional and requires separate credentials.
+- `switch_identity` fails for bot mode if bot credentials are missing.
+- `agents_channel_topic_ops` is restricted to bot identity and `Agents-Channel`.
+
+### Credential handling
+
+- Credentials are read from `zuliprc` and/or environment variables.
+- `.env` is loaded from current working directory only.
+- Credentials are used only for authenticated Zulip API calls.
+- Credentials are not intentionally transmitted to third-party endpoints by the server.
+
+### Validation and sanitization
+
+- Message content is length-limited before send/edit operations.
+- Tool inputs have explicit validation in core/user/search/topic/file paths.
+- Agent reaction emoji is restricted to an approved registry.
+
+### Rate limiting and retries
+
+- The codebase includes rate-limiter and retry primitives (`core/error_handling.py`, `core/security.py`) used for controlled API behavior.
+- Zulip server-side limits still apply.
+
+## Operator guidance
+
+- Keep `--unsafe` off unless needed.
+- Use least-privilege bot accounts.
+- Store `zuliprc` with restrictive file permissions.
+- Rotate API keys regularly.

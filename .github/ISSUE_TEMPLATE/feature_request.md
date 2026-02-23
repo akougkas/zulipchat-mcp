@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest a new tool, enhancement, or improvement
+about: Suggest an improvement
 title: ""
 labels: enhancement, needs-triage
 assignees: ""
@@ -8,23 +8,16 @@ assignees: ""
 
 ## Problem
 
-What limitation or pain point does this address?
+What problem should this solve?
 
-## Proposed Solution
+## Proposed Change
 
-Describe the feature or change you'd like to see.
+Describe the expected behavior.
 
-## Example Usage
+## Alternatives
 
-How would this look from the MCP client side? Example tool call:
+What alternatives did you consider?
 
-```json
-{
-  "tool": "proposed_tool_name",
-  "params": {}
-}
-```
+## Additional Context
 
-## Alternatives Considered
-
-Any other approaches you've thought about.
+Links, examples, or prior discussions.

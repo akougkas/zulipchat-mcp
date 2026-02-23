@@ -1,0 +1,7 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ZulipChat MCP">
+  <rect width="256" height="256" rx="36" fill="#1f2937"/>
+  <rect x="32" y="40" width="192" height="176" rx="18" fill="#0ea5a6"/>
+  <path d="M64 88h128v16H64zM64 120h96v16H64zM64 152h72v16H64z" fill="#e5e7eb"/>
+  <circle cx="188" cy="160" r="20" fill="#111827"/>
+  <path d="M188 148v24M176 160h24" stroke="#22c55e" stroke-width="6" stroke-linecap="round"/>
+</svg>

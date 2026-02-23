@@ -1,0 +1,3 @@
+[mcp_servers.zulipchat]
+command = "uvx"
+args = ["zulipchat-mcp", "--zulip-config-file", "/home/you/.zuliprc"]

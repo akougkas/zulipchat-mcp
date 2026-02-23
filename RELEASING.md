@@ -25,7 +25,7 @@ Follow semver: `MAJOR.MINOR.PATCH`
 uv run python scripts/bump_version.py X.Y.Z
 ```
 
-This updates 12 files. Verify with `--dry-run` first if unsure.
+This updates all scripted version locations. Verify with `--dry-run` first if unsure.
 
 ### 3. Update CHANGELOG.md
 
@@ -48,7 +48,27 @@ Add a new section at the top of CHANGELOG.md:
 
 Update the version in the title and the "What's New" section.
 
-### 5. Run full quality checks
+### 5. Run automated tag checklist (preflight)
+
+```bash
+uv run python scripts/release_preflight.py --version X.Y.Z
+```
+
+This verifies version alignment, changelog presence, required entrypoints, clean git tree, and that `vX.Y.Z` is still available before tagging.
+
+### 6. Run pre-release smoke script
+
+```bash
+scripts/pre_release_smoke.sh --version X.Y.Z
+```
+
+Optional network distribution smoke:
+
+```bash
+scripts/pre_release_smoke.sh --version X.Y.Z --with-git --git-ref main --with-testpypi
+```
+
+### 7. Run full quality checks
 
 ```bash
 uv run pytest -q
@@ -59,21 +79,21 @@ uv run mypy src
 
 All must pass before proceeding.
 
-### 6. Commit version bump
+### 8. Commit version bump
 
 ```bash
 git add -A
 git commit -m "chore: bump version to X.Y.Z"
 ```
 
-### 7. Tag the release
+### 9. Tag the release
 
 ```bash
 git tag vX.Y.Z
 git push && git push --tags
 ```
 
-### 8. Create GitHub release
+### 10. Create GitHub release
 
 ```bash
 gh release create vX.Y.Z \
@@ -93,14 +113,14 @@ EOF
 Publishing the release triggers `.github/workflows/publish.yml` which
 automatically builds and uploads to PyPI via trusted publisher (OIDC).
 
-### 9. Verify
+### 11. Verify
 
 - [ ] GitHub release shows as "Latest": https://github.com/akougkas/zulipchat-mcp/releases
 - [ ] PyPI shows new version: https://pypi.org/project/zulipchat-mcp/
 - [ ] Install works: `uvx zulipchat-mcp --version` (or equivalent check)
 - [ ] CI passed on the release commit
 
-### 10. Notify community (if applicable)
+### 12. Notify community (if applicable)
 
 - Comment on any issues fixed in this release
 - Credit community contributors in release notes and issue comments
@@ -110,7 +130,7 @@ automatically builds and uploads to PyPI via trusted publisher (OIDC).
 
 **Publish workflow failed?**
 - Check the Actions tab for error details
-- Most common: version mismatch between tag and pyproject.toml
+- Most common: version mismatch across versioned files
 - Fix the issue, delete the tag, re-tag, and re-create the release
 
 **Forgot to bump version before tagging?**

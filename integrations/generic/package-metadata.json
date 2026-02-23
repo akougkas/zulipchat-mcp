@@ -1,0 +1,10 @@
+{
+  "id": "zulipchat-mcp-generic",
+  "name": "ZulipChat MCP Generic Template",
+  "platform": "generic",
+  "category": ["communication", "mcp", "zulip"],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Generic MCP stdio server template for clients using mcpServers.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/generic.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp"
+}

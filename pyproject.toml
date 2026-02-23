@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zulipchat-mcp"
-version = "0.6.0"
-description = "MCP server for Zulip Chat integration with comprehensive tool support"
+version = "0.6.1"
+description = "Model Context Protocol (MCP) server that connects AI assistants to Zulip Chat with a 19-tool core mode and 55-tool extended mode"
 authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},
 ]
@@ -13,7 +13,19 @@ readme = "README.md"
 license = {text = "MIT"}
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
-keywords = ["mcp", "zulip", "chat", "ai", "assistant"]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "zulip",
+    "ai-assistant",
+    "chatops",
+    "automation",
+    "claude-code",
+    "gemini-cli",
+    "codex",
+    "cursor",
+    "windsurf",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

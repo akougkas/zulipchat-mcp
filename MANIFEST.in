@@ -1,7 +1,10 @@
 # Include essential project files
 include README.md
 include LICENSE
-include .env.example
+include SECURITY.md
+include SUPPORT.md
+include CODE_OF_CONDUCT.md
+include CHANGELOG.md
 
 # Include configuration files
 include pyproject.toml
@@ -9,17 +12,22 @@ include pyproject.toml
 # Include source code
 recursive-include src *.py
 recursive-include src *.pyi
+recursive-include integrations *.md
+recursive-include integrations *.json
+recursive-include integrations *.jsonc
+recursive-include integrations *.toml
+recursive-include integrations *.sh
+recursive-include docs/integrations *.md
+recursive-include docs/assets *.svg
 
 # Exclude test files and development artifacts
 recursive-exclude tests *
-recursive-exclude docs *
 recursive-exclude .github *
 recursive-exclude .claude *
 recursive-exclude .gemini *
 recursive-exclude .cursor *
 exclude AGENTS.md
 exclude CLAUDE.md
-exclude CHANGELOG.md
 exclude .gitignore
 exclude .env
 exclude .env.*

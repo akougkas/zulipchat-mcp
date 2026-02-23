@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.6.0)
+## Current Status (v0.6.1)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/)
 
@@ -10,7 +10,7 @@ Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
 ## Project Overview
 
-ZulipChat MCP Server v0.6.0 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.6.1 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -258,24 +258,28 @@ If you see "Client does not support sampling":
 Full checklist in [RELEASING.md](RELEASING.md). Summary:
 
 ```bash
-# 1. Bump version across all 13 files
+# 1. Bump version across scripted version locations
 uv run python scripts/bump_version.py X.Y.Z
 
 # 2. Update CHANGELOG.md with new section (manual)
 
-# 3. Run full checks
+# 3. Run automated release preflight and smoke
+uv run python scripts/release_preflight.py --version X.Y.Z
+scripts/pre_release_smoke.sh --version X.Y.Z
+
+# 4. Run full checks
 uv run pytest -q && uv run ruff check . && uv run mypy src
 
-# 4. Commit, tag, push
+# 5. Commit, tag, push
 git add -A && git commit -m "chore: bump version to X.Y.Z"
 git tag vX.Y.Z && git push && git push --tags
 
-# 5. Create GitHub release (auto-publishes to PyPI via publish.yml)
+# 6. Create GitHub release (auto-publishes to PyPI via publish.yml)
 gh release create vX.Y.Z --title "vX.Y.Z — Title" --notes "..." --latest
 ```
 
 **Critical rules:**
-- Version must match across pyproject.toml, `__init__.py`, server.py, system.py, CLAUDE.md, AGENTS.md, RELEASE.md, and docs. The bump script handles this.
+- Version must match across pyproject.toml, `__init__.py`, system.py, `server.json`, and release docs. Use `scripts/release_preflight.py` to verify before tagging.
 - **Never** create a GitHub release as draft and forget to publish it. The `publish.yml` workflow only triggers on `published` releases.
 - Tag must match pyproject.toml version exactly (`v0.6.0` tag ↔ `version = "0.6.0"`).
 - After publishing, verify: GitHub release shows "Latest", PyPI shows new version, `uvx zulipchat-mcp` installs it.

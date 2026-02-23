@@ -1,79 +1,82 @@
 #!/usr/bin/env python3
 """Version bump script for ZulipChat MCP.
 
-Updates version strings across all 12 files that contain version references.
+Updates version strings across maintained files and reports any missing patterns.
 Usage: python scripts/bump_version.py [--dry-run] VERSION
 """
+
+from __future__ import annotations
 
 import argparse
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
-# All files containing version strings and their patterns
-VERSION_FILES = [
-    # (file_path, pattern, replacement_template)
-    ("pyproject.toml", r'version = "[0-9]+\.[0-9]+\.[0-9]+"', 'version = "{version}"'),
-    (
+
+@dataclass(frozen=True)
+class VersionUpdate:
+    file_path: str
+    pattern: str
+    replacement_template: str
+
+
+# Files containing version strings and their replacement patterns.
+VERSION_UPDATES: list[VersionUpdate] = [
+    VersionUpdate(
+        "pyproject.toml",
+        r'version = "[0-9]+\.[0-9]+\.[0-9]+"',
+        'version = "{version}"',
+    ),
+    VersionUpdate(
         "src/zulipchat_mcp/__init__.py",
         r'__version__ = "[0-9]+\.[0-9]+\.[0-9]+"',
         '__version__ = "{version}"',
     ),
-    (
-        "src/zulipchat_mcp/server.py",
-        r'Registering v[0-9]+\.[0-9]+\.[0-9]+ tools',
-        "Registering v{version} tools",
-    ),
-    (
+    VersionUpdate(
         "src/zulipchat_mcp/tools/system.py",
         r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
         '"version": "{version}"',
     ),
-    (
+    VersionUpdate(
         "tests/tools/test_system.py",
         r'result\["version"\] == "[0-9]+\.[0-9]+\.[0-9]+"',
         'result["version"] == "{version}"',
     ),
-    (
+    VersionUpdate(
         "CLAUDE.md",
         r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+\)",
         "## Current Status (v{version})",
     ),
-    (
+    VersionUpdate(
         "CLAUDE.md",
         r"ZulipChat MCP Server v[0-9]+\.[0-9]+\.[0-9]+",
         "ZulipChat MCP Server v{version}",
     ),
-    (
+    VersionUpdate(
         "AGENTS.md",
         r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+\)",
         "## Current Status (v{version})",
     ),
-    (
-        "CHANGELOG.md",
-        r"## \[[0-9]+\.[0-9]+\.[0-9]+\] - [0-9]{4}-[0-9]{2}-[0-9]{2}",
-        None,  # Special handling - add new section, don't replace
-    ),
-    (
+    VersionUpdate(
         "ROADMAP.md",
         r"## v[0-9]+\.[0-9]+\.[0-9]+ \(Current\)",
         "## v{version} (Current)",
     ),
-    (
-        "docs/api-reference/system.md",
-        r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
-        '"version": "{version}"',
-    ),
-    (
-        "docs/user-guide/configuration.md",
-        r"ZulipChat MCP v[0-9]+\.[0-9]+\.[0-9]+",
-        "ZulipChat MCP v{version}",
-    ),
-    (
+    VersionUpdate(
         "RELEASE.md",
         r"# ZulipChat MCP v[0-9]+\.[0-9]+\.[0-9]+",
         "# ZulipChat MCP v{version}",
     ),
+    VersionUpdate(
+        "server.json",
+        r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
+        '"version": "{version}"',
+    ),
+]
+
+MANUAL_FILES = [
+    "CHANGELOG.md",
 ]
 
 
@@ -84,36 +87,36 @@ def validate_version(version: str) -> bool:
 
 def update_file(
     filepath: Path, pattern: str, replacement: str, dry_run: bool = False
-) -> bool:
+) -> tuple[bool, int]:
     """Update a single file with the new version.
 
-    Returns True if file was updated (or would be), False if pattern not found.
+    Returns:
+        tuple: (success, replacement_count)
     """
     if not filepath.exists():
         print(f"  ERROR: File not found: {filepath}")
-        return False
+        return False, 0
 
     content = filepath.read_text()
-    if not re.search(pattern, content):
+    new_content, count = re.subn(pattern, replacement, content)
+    if count == 0:
         print(f"  ERROR: Pattern not found in {filepath}")
         print(f"         Pattern: {pattern}")
-        return False
-
-    new_content = re.sub(pattern, replacement, content)
+        return False, 0
 
     if dry_run:
-        print(f"  [DRY RUN] Would update: {filepath}")
+        print(f"  [DRY RUN] Would update: {filepath} ({count} replacement(s))")
     else:
         filepath.write_text(new_content)
-        print(f"  Updated: {filepath}")
+        print(f"  Updated: {filepath} ({count} replacement(s))")
 
-    return True
+    return True, count
 
 
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Bump version across all ZulipChat MCP files"
+        description="Bump version across ZulipChat MCP versioned files"
     )
     parser.add_argument("version", help="New version (e.g., 0.6.0)")
     parser.add_argument(
@@ -139,38 +142,35 @@ def main() -> int:
     success_count = 0
     error_count = 0
 
-    for file_rel, pattern, replacement_template in VERSION_FILES:
-        filepath = root / file_rel
+    for item in VERSION_UPDATES:
+        filepath = root / item.file_path
+        replacement = item.replacement_template.format(version=version)
 
-        # Special handling for CHANGELOG.md - skip if no replacement template
-        if replacement_template is None:
-            # For CHANGELOG, we just verify the file exists and has version entries
-            if filepath.exists():
-                print(f"  SKIPPED (manual): {filepath} - update changelog manually")
-                success_count += 1
-            else:
-                print(f"  ERROR: File not found: {filepath}")
-                error_count += 1
-            continue
-
-        replacement = replacement_template.format(version=version)
-
-        if update_file(filepath, pattern, replacement, args.dry_run):
+        ok, _ = update_file(filepath, item.pattern, replacement, args.dry_run)
+        if ok:
             success_count += 1
         else:
             error_count += 1
 
-    print()
-    print(f"Summary: {success_count} files updated, {error_count} errors")
+    for file_rel in MANUAL_FILES:
+        filepath = root / file_rel
+        if filepath.exists():
+            print(f"  SKIPPED (manual): {filepath}")
+            success_count += 1
+        else:
+            print(f"  ERROR: File not found: {filepath}")
+            error_count += 1
 
-    # We expect 12 files total (13 entries but CHANGELOG is manual)
-    expected = len(VERSION_FILES)
+    print()
+    print(f"Summary: {success_count} files processed, {error_count} errors")
+
+    expected = len(VERSION_UPDATES) + len(MANUAL_FILES)
     if success_count == expected:
         print(f"All {expected} version locations processed successfully!")
         return 0
-    else:
-        print(f"WARNING: Expected {expected} files, but processed {success_count}")
-        return 1
+
+    print(f"WARNING: Expected {expected} processed locations, got {success_count}")
+    return 1
 
 
 if __name__ == "__main__":

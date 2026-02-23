@@ -1,0 +1,10 @@
+{
+  "id": "zulipchat-mcp-opencode",
+  "name": "ZulipChat MCP for OpenCode",
+  "platform": "opencode",
+  "category": ["communication", "mcp", "zulip"],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Adds ZulipChat MCP in OpenCode local MCP configuration.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/opencode.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp"
+}

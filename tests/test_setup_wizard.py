@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.zulipchat_mcp import __version__
 from src.zulipchat_mcp.setup_wizard import (
     generate_claude_code_command,
     generate_mcp_config,
@@ -14,6 +15,9 @@ from src.zulipchat_mcp.setup_wizard import (
     select_identity,
     validate_zuliprc,
     write_config_to_file,
+)
+from src.zulipchat_mcp.setup_wizard import (
+    main as setup_main,
 )
 
 
@@ -234,3 +238,51 @@ class TestHelpers:
             result = select_identity([], "User")
             assert result == {"valid": True}
             mock_validate.assert_called()
+
+
+class TestSetupWizardCli:
+    """CLI behavior tests for setup wizard."""
+
+    def test_version_flag(self, capsys):
+        """Test --version exits cleanly and prints package version."""
+        with pytest.raises(SystemExit) as exc:
+            setup_main(["--version"])
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert __version__ in out
+
+
+class TestIdentitySelectionHeuristics:
+    """Tests for identity ordering heuristics in selection."""
+
+    def test_user_selection_prefers_non_bot_like_zuliprc(self, tmp_path, monkeypatch):
+        """User identity should default to non-bot-looking config."""
+        bot_cfg = tmp_path / ".zuliprc-bot"
+        bot_cfg.write_text("[api]\nemail=assistant-bot@example.com\n", encoding="utf-8")
+        user_cfg = tmp_path / ".zuliprc-user"
+        user_cfg.write_text("[api]\nemail=human@example.com\n", encoding="utf-8")
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+
+        with patch("src.zulipchat_mcp.setup_wizard.validate_zuliprc") as mock_validate:
+            mock_validate.return_value = {"ok": True}
+
+            result = select_identity([bot_cfg, user_cfg], "User")
+            assert result == {"ok": True}
+            mock_validate.assert_called_once_with(user_cfg)
+
+    def test_bot_selection_prefers_bot_like_zuliprc(self, tmp_path, monkeypatch):
+        """Bot identity should default to bot-looking config."""
+        user_cfg = tmp_path / ".zuliprc-user"
+        user_cfg.write_text("[api]\nemail=human@example.com\n", encoding="utf-8")
+        bot_cfg = tmp_path / ".zuliprc-bot"
+        bot_cfg.write_text("[api]\nemail=assistant-bot@example.com\n", encoding="utf-8")
+
+        monkeypatch.setattr("builtins.input", lambda _: "")
+
+        with patch("src.zulipchat_mcp.setup_wizard.validate_zuliprc") as mock_validate:
+            mock_validate.return_value = {"ok": True}
+
+            result = select_identity([user_cfg, bot_cfg], "Bot")
+            assert result == {"ok": True}
+            mock_validate.assert_called_once_with(bot_cfg)

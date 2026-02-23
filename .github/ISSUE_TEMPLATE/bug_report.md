@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Something isn't working as expected
+about: Report an issue in behavior, docs, packaging, or integrations
 title: ""
 labels: bug, needs-triage
 assignees: ""
@@ -8,34 +8,25 @@ assignees: ""
 
 ## Summary
 
-A clear description of the bug.
+Describe the bug clearly.
 
 ## Steps to Reproduce
 
-1. Install via `uvx zulipchat-mcp` (version: X.Y.Z)
-2. Configure with `--zulip-config-file ~/.zuliprc`
-3. Call tool `...` with parameters:
+1. Command/config used:
+2. Tool call or action:
+3. Observed result:
 
-```json
-{
-  "example": "params"
-}
-```
-
-4. Observe error
-
-## Expected Behavior
+## Expected Result
 
 What should happen.
 
-## Actual Behavior
-
-What happens instead. Include the full error message/traceback if available.
-
 ## Environment
 
-- **zulipchat-mcp version**: (run `uvx zulipchat-mcp --version` or check PyPI)
-- **Python version**:
-- **OS**:
-- **MCP client**: (Claude Code / Cursor / other)
-- **Zulip server version**: (Settings → Organization → Zulip version)
+- `zulipchat-mcp` version:
+- MCP client (Claude Code, Gemini CLI, Codex, Cursor, etc.):
+- OS:
+- Python version:
+
+## Logs / Errors
+
+Paste the exact error output.

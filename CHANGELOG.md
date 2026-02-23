@@ -2,6 +2,28 @@
 
 All notable changes to ZulipChat MCP are documented in this file.
 
+## [Unreleased]
+
+## [0.6.1] - 2026-02-23
+
+### Added
+- `zulipchat-mcp-integrate` CLI for generating copy-paste integration snippets across MCP clients.
+- Integration package templates under `integrations/` for Claude Code, Gemini CLI, Codex, OpenCode, VS Code/Copilot, Cursor, Windsurf, Antigravity, and generic MCP clients.
+- Automated release preflight checklist: `scripts/release_preflight.py`.
+- Automated pre-release smoke runner: `scripts/pre_release_smoke.sh`.
+- New setup wizard and integration docs: `docs/user-guide/setup-wizard.md`, `docs/integrations/*`.
+
+### Changed
+- Setup wizard (`zulipchat-mcp-setup`) now supports core vs extended tool mode, additional client targets, and config-file output paths.
+- Publish workflow hardened with stricter version checks and wheel-installed entrypoint smoke tests before PyPI publish.
+- Documentation refreshed and expanded for v0.6.x across user guide, API reference, integration pages, security/support/community docs, and contributor guides.
+- Packaging metadata and source distribution contents aligned with public docs/integrations assets.
+
+### Fixed
+- `--debug` now correctly enables DEBUG-level structured logging in `zulipchat-mcp`.
+- Setup wizard exits cleanly in non-interactive terminals and better prioritizes user vs bot zuliprc selection defaults.
+- Release smoke script now installs the exact wheel for the target version, avoiding multi-wheel conflicts in `dist/`.
+
 ## [0.6.0] - 2026-02-22
 
 ### Changed

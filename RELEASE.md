@@ -1,4 +1,4 @@
-# ZulipChat MCP v0.6.0
+# ZulipChat MCP v0.6.1
 
 > A Model Context Protocol server that transforms AI assistants into Zulip power users.
 

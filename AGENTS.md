@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-## Current Status (v0.6.0)
+## Current Status (v0.6.1)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
 
@@ -76,7 +76,7 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
   - `uvx zulipchat-mcp` (PyPI - fastest, pre-built wheels)
   - `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
   - `uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp` (TestPyPI - for pre-release testing)
-- **Credential Loading**: Environment-first config with optional `.env` in the current directory. Priority: environment variables (including `.env`) > CLI args.
+- **Credential Loading**: Supports both zuliprc files and env vars. For config-file paths, environment variables (`ZULIP_CONFIG_FILE`, `ZULIP_BOT_CONFIG_FILE`) are checked before CLI flags; Zulip credentials can be loaded from either zuliprc or env.
 - **Claude Code Integration**: Use `--` separator for proper argument passing:
   ```bash
   # Correct syntax (tested)
@@ -121,8 +121,10 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 Full checklist: [RELEASING.md](RELEASING.md)
 
 ```bash
-uv run python scripts/bump_version.py X.Y.Z   # Bump 13 files
+uv run python scripts/bump_version.py X.Y.Z   # Bump scripted version locations
 # Update CHANGELOG.md manually
+uv run python scripts/release_preflight.py --version X.Y.Z
+scripts/pre_release_smoke.sh --version X.Y.Z
 uv run pytest -q && uv run ruff check . && uv run mypy src
 git add -A && git commit -m "chore: bump version to X.Y.Z"
 git tag vX.Y.Z && git push && git push --tags

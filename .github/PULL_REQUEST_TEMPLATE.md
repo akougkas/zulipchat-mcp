@@ -1,20 +1,22 @@
-## What does this PR do?
+## Summary
 
-<!-- Brief description of the change and motivation -->
+What changed and why?
 
-Closes #<!-- issue number -->
+## Scope
 
-## Changes
+- [ ] Code change
+- [ ] Docs change
+- [ ] Packaging/integration change
 
--
+## Validation
 
-## How to test
+- [ ] `uv run pytest -q`
+- [ ] `uv run ruff check .`
+- [ ] `uv run black --check .`
+- [ ] `uv run mypy src`
 
-1.
+## Notes
 
-## Checklist
-
-- [ ] Tests added/updated and passing (`uv run pytest -q`)
-- [ ] Lint and format pass (`uv run ruff check . && uv run black --check .`)
-- [ ] Docs updated if behavior changed
-- [ ] No secrets or credentials in code
+- Linked issue(s):
+- Breaking changes:
+- Follow-up work:

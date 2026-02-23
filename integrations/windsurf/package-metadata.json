@@ -1,0 +1,10 @@
+{
+  "id": "zulipchat-mcp-windsurf",
+  "name": "ZulipChat MCP for Windsurf",
+  "platform": "windsurf",
+  "category": ["communication", "mcp", "zulip"],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Windsurf mcp_config.json template for ZulipChat MCP.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/windsurf.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp"
+}

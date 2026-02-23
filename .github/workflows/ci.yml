@@ -31,11 +31,11 @@ jobs:
             exit 1
           fi
 
-      - name: Check server.py version
+      - name: Check system.py version field exists
         run: |
           EXPECTED="${{ steps.version.outputs.version }}"
           if grep -q "\"version\".*\"$EXPECTED\"" src/zulipchat_mcp/tools/system.py; then
-            echo "src/zulipchat_mcp/server.py version check: v$EXPECTED (OK via system.py)"
+            echo "src/zulipchat_mcp/tools/system.py contains version $EXPECTED"
           else
             echo "::error::Version mismatch: expected v$EXPECTED in system.py server_info"
             exit 1
@@ -51,12 +51,72 @@ jobs:
             exit 1
           fi
 
+      - name: Check server.json versions
+        run: |
+          export EXPECTED="${{ steps.version.outputs.version }}"
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          expected = os.environ["EXPECTED"]
+          data = json.loads(Path("server.json").read_text())
+
+          top = data.get("version")
+          if top != expected:
+              print(f"::error::server.json top-level version mismatch: expected {expected}, got {top}")
+              sys.exit(1)
+
+          packages = data.get("packages", [])
+          pkg_versions = {pkg.get("version") for pkg in packages if pkg.get("version")}
+          if pkg_versions != {expected}:
+              print(
+                  "::error::server.json package version mismatch: "
+                  f"expected only {expected}, got {sorted(pkg_versions)}"
+              )
+              sys.exit(1)
+
+          print(f"server.json versions OK: {expected}")
+          PY
+
       - name: Version check passed
         run: echo "All version strings are consistent at ${{ steps.version.outputs.version }}"
 
+  package-smoke:
+    name: Package Build & Entrypoint Smoke
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Build package artifacts
+        run: uv build
+
+      - name: Install wheel into clean venv
+        run: |
+          uv venv .pkg-smoke --python 3.12
+          uv pip install --python .pkg-smoke/bin/python dist/*.whl
+
+      - name: Run installed entrypoint smoke checks
+        run: |
+          .pkg-smoke/bin/zulipchat-mcp --version
+          .pkg-smoke/bin/zulipchat-mcp-setup --version
+          .pkg-smoke/bin/zulipchat-mcp-integrate --version
+          .pkg-smoke/bin/zulipchat-mcp-integrate list
+
   test:
     name: Test (Python ${{ matrix.python-version }})
-    needs: version-check
+    needs: [version-check, package-smoke]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -77,6 +137,13 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --python ${{ matrix.python-version }}
+
+      - name: Entrypoint smoke checks
+        run: |
+          uv run zulipchat-mcp --version
+          uv run zulipchat-mcp-setup --version
+          uv run zulipchat-mcp-integrate --version
+          uv run zulipchat-mcp-integrate list
 
       - name: Run tests
         run: uv run pytest -q -m "not slow and not integration"

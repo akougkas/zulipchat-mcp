@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.akougkas/zulipchat",
   "title": "ZulipChat MCP Server",
-  "description": "ZulipChat MCP: Connect AI to Zulip with 60+ tools for messaging, streams, events, and analytics",
+  "description": "ZulipChat MCP: connect AI assistants to Zulip with a 19-tool core mode and 55-tool extended mode",
   "repository": {
     "url": "https://github.com/akougkas/zulipchat-mcp",
     "source": "github"
   },
-  "version": "0.4.3",
+  "version": "0.6.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "zulipchat-mcp",
-      "version": "0.4.3",
+      "version": "0.6.1",
       "transport": {
         "type": "stdio"
       },

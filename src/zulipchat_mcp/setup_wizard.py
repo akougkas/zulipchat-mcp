@@ -1,9 +1,12 @@
 """Interactive setup wizard for ZulipChat MCP.
 
 Scans system for zuliprc files, validates credentials, and generates
-MCP client configuration for Claude Desktop, Gemini CLI, or Claude Code.
+MCP client configuration for major clients.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
 import shutil
 import sys
@@ -11,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from zulip import Client
+
+from . import __version__
 
 # ANSI colors for terminal output
 BLUE = "\033[94m"
@@ -22,15 +27,29 @@ DIM = "\033[2m"
 RESET = "\033[0m"
 
 
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse setup wizard CLI arguments."""
+    parser = argparse.ArgumentParser(
+        description="Interactive setup wizard for ZulipChat MCP."
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    return parser.parse_args(argv)
+
+
 def print_header() -> None:
     """Print the wizard header."""
     print(f"\n{BLUE}{BOLD}ZulipChat MCP Setup Wizard{RESET}")
-    print("=" * 40)
+    print("=" * 48)
     print("This wizard will:")
     print("  1. Find zuliprc files on your system")
     print("  2. Validate your Zulip credentials")
-    print("  3. Generate MCP client configuration")
-    print("=" * 40 + "\n")
+    print("  3. Choose core (19) or extended (55) tool mode")
+    print("  4. Generate MCP client configuration")
+    print("=" * 48 + "\n")
 
 
 def prompt(question: str, default: str | None = None) -> str:
@@ -71,7 +90,6 @@ def scan_for_zuliprc_files() -> list[Path]:
             try:
                 for match in base_dir.glob(pattern):
                     if match.is_file() and match not in found:
-                        # Validate it looks like a zuliprc (has [api] section)
                         try:
                             content = match.read_text(errors="ignore")[:500]
                             if "[api]" in content.lower():
@@ -115,10 +133,10 @@ def validate_zuliprc(path: Path, silent: bool = False) -> dict[str, Any] | None:
                 "name": user_name,
                 "is_bot": is_bot,
             }
-        else:
-            if not silent:
-                print(f"{RED}Failed{RESET} - {result.get('msg', 'Unknown error')}")
-            return None
+
+        if not silent:
+            print(f"{RED}Failed{RESET} - {result.get('msg', 'Unknown error')}")
+        return None
 
     except Exception as e:
         if not silent:
@@ -130,14 +148,41 @@ def display_found_files(files: list[Path]) -> None:
     """Display found zuliprc files with indices."""
     print(f"\n{BOLD}Found {len(files)} zuliprc file(s):{RESET}\n")
     for i, path in enumerate(files, 1):
-        # Show relative path if under home
-        display_path = path
+        display_path: Path = path
         try:
-            display_path = path.relative_to(Path.home())
-            display_path = Path("~") / display_path
+            display_path = Path("~") / path.relative_to(Path.home())
         except ValueError:
             pass
         print(f"  {BOLD}{i}.{RESET} {display_path}")
+
+
+def _is_bot_like_zuliprc(path: Path) -> bool:
+    """Heuristic: detect if a zuliprc appears bot-oriented."""
+    if "bot" in path.name.lower():
+        return True
+
+    try:
+        content = path.read_text(errors="ignore")
+    except (OSError, PermissionError):
+        return False
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.lower().startswith("email="):
+            email = line.split("=", 1)[1].strip().lower()
+            return "bot" in email
+
+    return False
+
+
+def _identity_rank(path: Path, identity_type: str) -> int:
+    """Lower rank is preferred for default selection."""
+    bot_like = _is_bot_like_zuliprc(path)
+    if identity_type.lower() == "user":
+        return 0 if not bot_like else 1
+    if identity_type.lower() == "bot":
+        return 0 if bot_like else 1
+    return 0
 
 
 def select_identity(
@@ -145,6 +190,7 @@ def select_identity(
 ) -> dict[str, Any] | None:
     """Let user select and validate a zuliprc for the given identity type."""
     available = [f for f in files if f != exclude]
+    available.sort(key=lambda p: _identity_rank(p, identity_type))
 
     if not available:
         print(
@@ -205,14 +251,13 @@ def get_mcp_client_config_path(client_type: str) -> Path | None:
                 / "Claude"
                 / "claude_desktop_config.json"
             )
-        elif sys.platform == "win32":
+        if sys.platform == "win32":
             return (
                 home / "AppData" / "Roaming" / "Claude" / "claude_desktop_config.json"
             )
-        else:
-            return home / ".config" / "Claude" / "claude_desktop_config.json"
+        return home / ".config" / "Claude" / "claude_desktop_config.json"
 
-    elif client_type == "gemini":
+    if client_type == "gemini":
         paths = [
             home / ".gemini" / "settings.json",
             home / ".config" / "google-gemini-cli" / "settings.json",
@@ -220,11 +265,9 @@ def get_mcp_client_config_path(client_type: str) -> Path | None:
         for p in paths:
             if p.exists():
                 return p
-        # Return default if none exist
         return home / ".gemini" / "settings.json"
 
-    elif client_type == "claude-code":
-        # Claude Code uses ~/.claude/claude_code_config.json or settings
+    if client_type == "claude-code":
         paths = [
             home / ".claude.json",
             home / ".config" / "claude-code" / "settings.json",
@@ -234,24 +277,73 @@ def get_mcp_client_config_path(client_type: str) -> Path | None:
                 return p
         return None
 
+    if client_type == "codex":
+        return home / ".codex" / "config.toml"
+
+    if client_type == "cursor":
+        return home / ".cursor" / "mcp.json"
+
+    if client_type == "windsurf":
+        return home / ".codeium" / "windsurf" / "mcp_config.json"
+
+    if client_type == "vscode":
+        return Path.cwd() / ".vscode" / "mcp.json"
+
+    if client_type == "opencode":
+        paths = [
+            home / ".config" / "opencode" / "opencode.json",
+            home / ".opencode" / "opencode.json",
+        ]
+        for p in paths:
+            if p.exists():
+                return p
+        return home / ".config" / "opencode" / "opencode.json"
+
+    if client_type == "antigravity":
+        return home / ".gemini" / "antigravity" / "mcp_config.json"
+
     return None
+
+
+def _build_args(
+    user_config: dict[str, Any],
+    bot_config: dict[str, Any] | None,
+    *,
+    extended_tools: bool,
+    use_uvx: bool,
+) -> list[str]:
+    """Build MCP server command args."""
+    if use_uvx:
+        args = ["zulipchat-mcp", "--zulip-config-file", user_config["path"]]
+    else:
+        args = ["run", "zulipchat-mcp", "--zulip-config-file", user_config["path"]]
+
+    if bot_config:
+        args.extend(["--zulip-bot-config-file", bot_config["path"]])
+
+    if extended_tools:
+        args.append("--extended-tools")
+
+    return args
 
 
 def generate_mcp_config(
     user_config: dict[str, Any],
     bot_config: dict[str, Any] | None = None,
+    *,
+    extended_tools: bool = False,
+    use_uvx: bool = False,
 ) -> dict[str, Any]:
     """Generate MCP server configuration."""
-    # Find uv path
-    uv_path = shutil.which("uv") or "uv"
-
-    args = ["run", "zulipchat-mcp", "--zulip-config-file", user_config["path"]]
-
-    if bot_config:
-        args.extend(["--zulip-bot-config-file", bot_config["path"]])
-
+    command = shutil.which("uv") or "uv"
+    args = _build_args(
+        user_config,
+        bot_config,
+        extended_tools=extended_tools,
+        use_uvx=use_uvx,
+    )
     return {
-        "command": uv_path,
+        "command": command,
         "args": args,
     }
 
@@ -259,17 +351,20 @@ def generate_mcp_config(
 def generate_claude_code_command(
     user_config: dict[str, Any],
     bot_config: dict[str, Any] | None = None,
+    *,
+    extended_tools: bool = False,
 ) -> str:
-    """Generate claude mcp add command for Claude Code."""
+    """Generate `claude mcp add` command for Claude Code."""
     parts = ["claude mcp add zulipchat"]
-
-    # Add environment variables pointing to config files
     parts.append(f"-e ZULIP_CONFIG_FILE={user_config['path']}")
 
     if bot_config:
         parts.append(f"-e ZULIP_BOT_CONFIG_FILE={bot_config['path']}")
 
-    parts.append("-- uvx zulipchat-mcp")
+    cmd_tail = "-- uvx zulipchat-mcp"
+    if extended_tools:
+        cmd_tail += " --extended-tools"
+    parts.append(cmd_tail)
 
     return " \\\n  ".join(parts)
 
@@ -278,27 +373,24 @@ def write_config_to_file(
     config_path: Path,
     server_key: str,
     mcp_config: dict[str, Any],
+    root_key: str = "mcpServers",
 ) -> bool:
     """Write MCP config to client configuration file."""
     try:
-        # Create backup
         if config_path.exists():
-            backup = config_path.with_suffix(".json.bak")
+            backup = config_path.with_suffix(config_path.suffix + ".bak")
             shutil.copy2(config_path, backup)
             print(f"{DIM}Backup created: {backup}{RESET}")
-
             with open(config_path) as f:
                 settings = json.load(f)
         else:
-            # Create parent directories
             config_path.parent.mkdir(parents=True, exist_ok=True)
             settings = {}
 
-        # Ensure mcpServers exists
-        if "mcpServers" not in settings:
-            settings["mcpServers"] = {}
+        if root_key not in settings:
+            settings[root_key] = {}
 
-        settings["mcpServers"][server_key] = mcp_config
+        settings[root_key][server_key] = mcp_config
 
         with open(config_path, "w") as f:
             json.dump(settings, f, indent=2)
@@ -311,8 +403,42 @@ def write_config_to_file(
         return False
 
 
-def main() -> None:
+def _render_vscode_config(base: dict[str, Any]) -> dict[str, Any]:
+    """Render VS Code/Copilot config shape."""
+    return {
+        "type": "stdio",
+        "command": base["command"],
+        "args": base["args"],
+    }
+
+
+def _render_opencode_config(base: dict[str, Any]) -> dict[str, Any]:
+    """Render OpenCode config shape."""
+    return {
+        "type": "local",
+        "enabled": True,
+        "command": [base["command"], *base["args"]],
+    }
+
+
+def _print_config_block(title: str, payload: dict[str, Any]) -> None:
+    """Print a formatted JSON block."""
+    print(f"\n{BOLD}{title}{RESET}")
+    print(json.dumps(payload, indent=2))
+
+
+def _select_tool_mode() -> bool:
+    """Prompt for core vs extended tool mode."""
+    print(f"\n{BOLD}Step 4: Tool Mode{RESET}")
+    print("  1. Core mode (19 tools, default)")
+    print("  2. Extended mode (55 tools)")
+    choice = prompt("Choice", default="1")
+    return choice.strip() == "2"
+
+
+def main(argv: list[str] | None = None) -> None:
     """Run the setup wizard."""
+    _parse_args(argv)
     print_header()
 
     # Step 1: Scan for zuliprc files
@@ -351,65 +477,136 @@ def main() -> None:
             found_files, "Bot", exclude=Path(user_config["path"])
         )
 
-    # Step 4: Generate configuration
-    print(f"\n{BOLD}Step 4: Generate Configuration{RESET}")
+    # Step 4: Core vs extended
+    extended_tools = _select_tool_mode()
+
+    # Step 5: Generate configuration
+    print(f"\n{BOLD}Step 5: Generate Configuration{RESET}")
     print("Which MCP client are you configuring?")
     print("  1. Claude Code (CLI)")
     print("  2. Claude Desktop")
     print("  3. Gemini CLI")
-    print("  4. Show JSON only")
+    print("  4. Codex")
+    print("  5. Cursor")
+    print("  6. Windsurf")
+    print("  7. VS Code / GitHub Copilot")
+    print("  8. OpenCode")
+    print("  9. Antigravity")
+    print(" 10. Show generic JSON only")
 
     client_choice = prompt("Choice", default="1")
 
-    mcp_config = generate_mcp_config(user_config, bot_config)
+    # Use uvx-style args for generated snippets for easier distribution
+    mcp_config = generate_mcp_config(
+        user_config,
+        bot_config,
+        extended_tools=extended_tools,
+        use_uvx=True,
+    )
 
     if client_choice == "1":
-        # Claude Code - show claude mcp add command
         print(f"\n{BOLD}Run this command to add the MCP server:{RESET}\n")
-        print(generate_claude_code_command(user_config, bot_config))
+        print(
+            generate_claude_code_command(
+                user_config,
+                bot_config,
+                extended_tools=extended_tools,
+            )
+        )
         print()
 
     elif client_choice == "2":
-        # Claude Desktop
         config_path = get_mcp_client_config_path("claude-desktop")
+        payload = {"zulipchat": mcp_config}
+        _print_config_block("Claude Desktop configuration", payload)
         if config_path:
-            print(f"\n{BOLD}Configuration:{RESET}")
-            print(json.dumps({"zulipchat": mcp_config}, indent=2))
             write_to_file = prompt(f"\nWrite to {config_path}? [y/N]", default="n")
             if write_to_file.lower() == "y":
                 write_config_to_file(config_path, "zulipchat", mcp_config)
-        else:
-            print(f"\n{YELLOW}Could not determine Claude Desktop config path.{RESET}")
-            print(json.dumps({"zulipchat": mcp_config}, indent=2))
 
     elif client_choice == "3":
-        # Gemini CLI
         config_path = get_mcp_client_config_path("gemini")
+        payload = {"mcpServers": {"zulipchat": mcp_config}}
+        _print_config_block("Gemini CLI configuration", payload)
         if config_path:
-            print(f"\n{BOLD}Configuration:{RESET}")
-            print(json.dumps({"zulip": mcp_config}, indent=2))
             write_to_file = prompt(f"\nWrite to {config_path}? [y/N]", default="n")
             if write_to_file.lower() == "y":
-                write_config_to_file(config_path, "zulip", mcp_config)
-        else:
-            print(json.dumps({"zulip": mcp_config}, indent=2))
+                write_config_to_file(config_path, "zulipchat", mcp_config)
+
+    elif client_choice == "4":
+        config_path = get_mcp_client_config_path("codex")
+        print(f"\n{BOLD}Codex configuration (config.toml){RESET}")
+        args = ", ".join(f'"{arg}"' for arg in mcp_config["args"])
+        print(
+            f"\n[mcp_servers.zulipchat]\ncommand = \"{mcp_config['command']}\"\nargs = [{args}]\n"
+        )
+        if config_path:
+            print(f"Suggested path: {config_path}")
+
+    elif client_choice == "5":
+        config_path = get_mcp_client_config_path("cursor")
+        payload = {"mcpServers": {"zulipchat": mcp_config}}
+        _print_config_block("Cursor configuration", payload)
+        if config_path:
+            print(f"Suggested path: {config_path}")
+
+    elif client_choice == "6":
+        config_path = get_mcp_client_config_path("windsurf")
+        payload = {"mcpServers": {"zulipchat": mcp_config}}
+        _print_config_block("Windsurf configuration", payload)
+        if config_path:
+            print(f"Suggested path: {config_path}")
+
+    elif client_choice == "7":
+        config_path = get_mcp_client_config_path("vscode")
+        vscode_server = _render_vscode_config(mcp_config)
+        payload = {"servers": {"zulipchat": vscode_server}}
+        _print_config_block("VS Code / Copilot configuration", payload)
+        if config_path:
+            print(f"Suggested path: {config_path}")
+            write_to_file = prompt(f"\nWrite to {config_path}? [y/N]", default="n")
+            if write_to_file.lower() == "y":
+                write_config_to_file(
+                    config_path,
+                    "zulipchat",
+                    vscode_server,
+                    root_key="servers",
+                )
+
+    elif client_choice == "8":
+        config_path = get_mcp_client_config_path("opencode")
+        opencode_server = _render_opencode_config(mcp_config)
+        payload = {"mcp": {"zulipchat": opencode_server}}
+        _print_config_block("OpenCode configuration", payload)
+        if config_path:
+            print(f"Suggested path: {config_path}")
+
+    elif client_choice == "9":
+        config_path = get_mcp_client_config_path("antigravity")
+        payload = {"mcpServers": {"zulipchat": mcp_config}}
+        _print_config_block("Antigravity configuration", payload)
+        if config_path:
+            print(f"Suggested path: {config_path}")
 
     else:
-        # Just show JSON
-        print(f"\n{BOLD}MCP Server Configuration:{RESET}")
-        print(json.dumps({"zulipchat": mcp_config}, indent=2))
+        payload = {"mcpServers": {"zulipchat": mcp_config}}
+        _print_config_block("Generic MCP server configuration", payload)
 
-    # Summary
     print(f"\n{GREEN}{BOLD}Setup Complete!{RESET}")
     print(f"\nUser: {user_config['name']} ({user_config['email']})")
     if bot_config:
         print(f"Bot:  {bot_config['name']} ({bot_config['email']})")
+    print(f"Tool mode: {'Extended (55)' if extended_tools else 'Core (19)'}")
     print("\nRestart your MCP client to apply changes.")
 
 
 if __name__ == "__main__":
     try:
         main()
+    except EOFError:
+        print("\n\nSetup wizard requires an interactive terminal.")
+        print("Run it directly, not through piped stdin.")
+        sys.exit(1)
     except KeyboardInterrupt:
         print("\n\nSetup cancelled.")
         sys.exit(1)

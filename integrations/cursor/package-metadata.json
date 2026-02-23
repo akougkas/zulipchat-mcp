@@ -1,0 +1,10 @@
+{
+  "id": "zulipchat-mcp-cursor",
+  "name": "ZulipChat MCP for Cursor",
+  "platform": "cursor",
+  "category": ["communication", "mcp", "zulip"],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Cursor MCP config template for ZulipChat MCP.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/cursor.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp"
+}

@@ -2,16 +2,19 @@
 
 <div align="center">
 
-  <h3>Give your AI assistant a Zulip account. Read messages, send replies, search history — through the Model Context Protocol.</h3>
+  <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Gemini CLI, Codex, Cursor, Windsurf, VS Code Copilot, and other MCP clients to Zulip.</h3>
 
   [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
+  [![CI](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
+  [![Publish](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml)
+  [![Coverage](https://img.shields.io/badge/coverage-67%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
   [![Downloads](https://img.shields.io/pypi/dm/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![GitHub stars](https://img.shields.io/github/stars/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/stargazers)
   [![Python](https://img.shields.io/pypi/pyversions/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![License](https://img.shields.io/github/license/akougkas/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 
-  [Quick Start](#quick-start) · [Installation](#installation) · [Two-Tier Tools](#two-tier-tool-architecture) · [Examples](#real-world-examples) · [Contributing](CONTRIBUTING.md)
+  [Quick Start](#quick-start) · [Setup Wizard](docs/user-guide/setup-wizard.md) · [Integrations](docs/integrations/README.md) · [Two-Tier Tools](#two-tier-tool-architecture) · [Contributing](CONTRIBUTING.md)
 </div>
 
 ---
@@ -25,6 +28,12 @@ uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 That's it. Your AI assistant can now read and write Zulip messages.
 
 Need a zuliprc? **Zulip Settings > Personal > Account & privacy > API key** — download the file, save it as `~/.zuliprc`.
+
+Interactive onboarding:
+
+```bash
+uvx zulipchat-mcp-setup
+```
 
 ## What This Does
 
@@ -70,6 +79,8 @@ ZULIPCHAT_EXTENDED_TOOLS=1 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 Extended mode adds: `toggle_reaction`, `cross_post_message`, `advanced_search`, `construct_narrow`, `get_scheduled_messages`, `manage_scheduled_message`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
 
 ## Installation
+
+Full per-client setup guide: [docs/integrations/README.md](docs/integrations/README.md)
 
 ### Claude Code
 
@@ -122,6 +133,19 @@ Add to your MCP configuration:
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
 
+### More clients
+
+Dedicated setup pages:
+
+- [Gemini CLI](docs/integrations/gemini-cli.md)
+- [Codex](docs/integrations/codex.md)
+- [OpenCode](docs/integrations/opencode.md)
+- [VS Code + GitHub Copilot](docs/integrations/vscode-copilot.md)
+- [Cursor](docs/integrations/cursor.md)
+- [Windsurf](docs/integrations/windsurf.md)
+- [Antigravity](docs/integrations/antigravity.md)
+- [Generic MCP](docs/integrations/generic.md)
+
 ## Dual Identity
 
 Configure both a user and a bot zuliprc to let your assistant switch between identities mid-session:
@@ -162,7 +186,7 @@ uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
 
 Run checks:
 ```bash
-uv run pytest -q              # 556 tests, 60% coverage gate
+uv run pytest -q              # 566 tests, 60% coverage gate
 uv run ruff check .           # Linting
 uv run mypy src               # Type checking
 ```
@@ -177,7 +201,7 @@ src/zulipchat_mcp/
 ├── tools/          # MCP tool implementations (two-tier registration)
 ├── services/       # Background listener, AFK watcher
 ├── utils/          # Logging, DuckDB persistence, metrics
-└── config.py       # zuliprc-first configuration
+└── config.py       # config loading (zuliprc + environment fallback)
 ```
 
 Built on [FastMCP](https://github.com/jlowin/fastmcp) with async-first design, [DuckDB](https://duckdb.org) for agent state persistence, and smart user/stream caching for fast fuzzy resolution.
@@ -197,6 +221,9 @@ MIT — See [LICENSE](LICENSE)
 
 ## Links
 
+- [Documentation Index](docs/README.md)
+- [Support](SUPPORT.md)
+- [Security Policy](SECURITY.md)
 - [Zulip API Documentation](https://zulip.com/api/)
 - [Model Context Protocol](https://modelcontextprotocol.io)
 - [Report Issues](https://github.com/akougkas/zulipchat-mcp/issues)

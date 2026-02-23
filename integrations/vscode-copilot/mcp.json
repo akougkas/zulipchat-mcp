@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "zulipchat": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["zulipchat-mcp", "--zulip-config-file", "/home/you/.zuliprc"]
+    }
+  }
+}
