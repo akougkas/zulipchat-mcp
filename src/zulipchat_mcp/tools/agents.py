@@ -11,6 +11,7 @@ from ..config import get_client, get_config_manager
 from ..core.agent_tracker import AgentTracker
 from ..core.cache import user_cache
 from ..core.client import ZulipClientWrapper
+from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
@@ -193,6 +194,7 @@ def wait_for_response(request_id: str) -> dict[str, Any]:
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
+            ensure_listener()
             db = DatabaseManager()
             timeout_seconds = 300
             start = time.time()
@@ -524,6 +526,7 @@ def poll_agent_events(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
         track_tool_call("poll_agent_events")
         try:
+            ensure_listener()
             db = DatabaseManager()
             events = db.get_unacked_events(limit=limit, topic_prefix=topic_prefix)
             ids = [e["id"] for e in events]
@@ -634,6 +637,7 @@ def teleport_chat(
 
             # Wait for reply if requested
             if wait_for_reply:
+                ensure_listener()
                 db = DatabaseManager()
                 start = time.time()
                 while time.time() - start < reply_timeout:
