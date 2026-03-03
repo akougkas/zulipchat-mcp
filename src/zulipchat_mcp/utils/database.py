@@ -5,13 +5,17 @@ from multiple MCP server instances. Each write operation opens a connection,
 executes, and closes it immediately to release the file lock.
 """
 
+import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 import duckdb
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseLockedError(Exception):
@@ -74,6 +78,44 @@ class DatabaseManager:
         """Create a new database connection."""
         return duckdb.connect(self.db_path, config={"access_mode": "READ_WRITE"})
 
+    def _try_clear_stale_lock(self, error: duckdb.IOException) -> bool:
+        """Check if the lock is held by a dead process and clear it if so.
+
+        DuckDB error messages include the locking PID, e.g.:
+        'Conflicting lock is held in ... (PID 12345)'
+
+        Returns True if a stale lock was cleared and the caller should retry.
+        """
+        match = re.search(r"\(PID\s+(\d+)\)", str(error))
+        if not match:
+            return False
+
+        pid = int(match.group(1))
+        try:
+            os.kill(pid, 0)  # signal 0 checks if process exists
+            # Process is alive; lock is legitimate
+            return False
+        except ProcessLookupError:
+            pass  # PID doesn't exist
+        except PermissionError:
+            # Process exists but we can't signal it; lock is legitimate
+            return False
+
+        # Stale lock: the locking process is dead
+        wal_path = self.db_path + ".wal"
+        if os.path.exists(wal_path):
+            try:
+                os.remove(wal_path)
+                logger.warning(
+                    f"Removed stale WAL file from dead process (PID {pid}): {wal_path}"
+                )
+            except OSError as rm_err:
+                logger.error(f"Failed to remove stale WAL file: {rm_err}")
+                return False
+        else:
+            logger.info(f"Locking process (PID {pid}) is dead; retrying connect")
+        return True
+
     def _run_migrations_with_retry(self) -> None:
         """Run migrations with retry logic for lock contention."""
         last_error: Exception | None = None
@@ -85,9 +127,12 @@ class DatabaseManager:
                 return
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (2**attempt))  # Exponential backoff
-                    continue
+                if "lock" in str(e).lower():
+                    if self._try_clear_stale_lock(e):
+                        continue  # Retry immediately after clearing stale lock
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
                 raise DatabaseLockedError(self.db_path, e) from e
             finally:
                 if conn:
@@ -279,9 +324,12 @@ class DatabaseManager:
                     return
                 except duckdb.IOException as e:
                     last_error = e
-                    if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                        time.sleep(self.retry_delay * (2**attempt))
-                        continue
+                    if "lock" in str(e).lower():
+                        if self._try_clear_stale_lock(e):
+                            continue
+                        if attempt < self.max_retries - 1:
+                            time.sleep(self.retry_delay * (2**attempt))
+                            continue
                     raise DatabaseLockedError(self.db_path, e) from e
                 except Exception:
                     if conn:
@@ -319,9 +367,12 @@ class DatabaseManager:
                     return
                 except duckdb.IOException as e:
                     last_error = e
-                    if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                        time.sleep(self.retry_delay * (2**attempt))
-                        continue
+                    if "lock" in str(e).lower():
+                        if self._try_clear_stale_lock(e):
+                            continue
+                        if attempt < self.max_retries - 1:
+                            time.sleep(self.retry_delay * (2**attempt))
+                            continue
                     raise DatabaseLockedError(self.db_path, e) from e
                 except Exception:
                     if conn:
@@ -360,9 +411,12 @@ class DatabaseManager:
                 return cursor.fetchall()
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (2**attempt))
-                    continue
+                if "lock" in str(e).lower():
+                    if self._try_clear_stale_lock(e):
+                        continue
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
                 raise DatabaseLockedError(self.db_path, e) from e
             finally:
                 if conn:
@@ -375,17 +429,7 @@ class DatabaseManager:
     def query_one(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> tuple[Any, ...] | None:
-        """Execute a read query and return the first result.
-
-        Uses short-lived connection with retry for lock contention.
-
-        Args:
-            sql: SQL query to execute
-            params: Parameters for the SQL query
-
-        Returns:
-            First result tuple or None if no results
-        """
+        """Execute a read query and return the first result."""
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             conn = None
@@ -395,9 +439,12 @@ class DatabaseManager:
                 return cursor.fetchone()
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (2**attempt))
-                    continue
+                if "lock" in str(e).lower():
+                    if self._try_clear_stale_lock(e):
+                        continue
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
                 raise DatabaseLockedError(self.db_path, e) from e
             finally:
                 if conn:
@@ -410,17 +457,7 @@ class DatabaseManager:
     def query_as_dicts(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a read query and return results as dictionaries.
-
-        Uses short-lived connection with retry for lock contention.
-
-        Args:
-            sql: SQL query to execute
-            params: Parameters for the SQL query
-
-        Returns:
-            List of result dictionaries with column names as keys
-        """
+        """Execute a read query and return results as dictionaries."""
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             conn = None
@@ -435,9 +472,12 @@ class DatabaseManager:
                 return [dict(zip(columns, row, strict=False)) for row in rows]
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (2**attempt))
-                    continue
+                if "lock" in str(e).lower():
+                    if self._try_clear_stale_lock(e):
+                        continue
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
                 raise DatabaseLockedError(self.db_path, e) from e
             finally:
                 if conn:
@@ -450,17 +490,7 @@ class DatabaseManager:
     def query_one_as_dict(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> dict[str, Any] | None:
-        """Execute a read query and return the first result as a dictionary.
-
-        Uses short-lived connection with retry for lock contention.
-
-        Args:
-            sql: SQL query to execute
-            params: Parameters for the SQL query
-
-        Returns:
-            First result as dictionary or None if no results
-        """
+        """Execute a read query and return the first result as a dictionary."""
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             conn = None
@@ -475,9 +505,12 @@ class DatabaseManager:
                 return dict(zip(columns, row, strict=False))
             except duckdb.IOException as e:
                 last_error = e
-                if "lock" in str(e).lower() and attempt < self.max_retries - 1:
-                    time.sleep(self.retry_delay * (2**attempt))
-                    continue
+                if "lock" in str(e).lower():
+                    if self._try_clear_stale_lock(e):
+                        continue
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay * (2**attempt))
+                        continue
                 raise DatabaseLockedError(self.db_path, e) from e
             finally:
                 if conn:
