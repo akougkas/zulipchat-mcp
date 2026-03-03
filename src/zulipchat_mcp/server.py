@@ -19,7 +19,7 @@ except ImportError:
 
 # Optional service manager for background services
 try:
-    from .core.service_manager import ServiceManager
+    from .core.service_manager import init_service_manager
 
     service_manager_available = True
 except ImportError:
@@ -163,14 +163,19 @@ def main() -> None:
     except Exception as e:
         logger.debug(f"Cache warmup skipped: {e}")
 
-    # Start background services (message listener always on, AFK watcher)
+    # Initialize background services singleton. The listener starts eagerly only with
+    # --enable-listener; otherwise it lazy-starts on first agent tool call via ensure_listener().
     if service_manager_available:
         try:
-            service_manager = ServiceManager(config_manager, enable_listener=True)
-            service_manager.start()
-            logger.info("Background services started (listener always on)")
+            svc = init_service_manager(config_manager, enable_listener=args.enable_listener)
+            if args.enable_listener:
+                svc.start()
+            logger.info(
+                "Background services %s",
+                "started (listener enabled)" if args.enable_listener else "ready (listener lazy)",
+            )
         except Exception as e:
-            logger.warning(f"Could not start background services: {e}")
+            logger.warning(f"Could not initialize background services: {e}")
 
     logger.info("Starting ZulipChat MCP server...")
     mcp.run()

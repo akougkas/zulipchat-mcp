@@ -24,6 +24,11 @@ from src.zulipchat_mcp.tools.agents import (
 class TestAgentTools:
     """Tests for agent tools."""
 
+    @pytest.fixture(autouse=True)
+    def mock_ensure_listener(self):
+        with patch("src.zulipchat_mcp.tools.agents.ensure_listener"):
+            yield
+
     @pytest.fixture
     def mock_db(self):
         with patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls:
