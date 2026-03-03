@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.6.1)
+## Current Status (v0.6.2)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/)
 
@@ -10,7 +10,7 @@ Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
 ## Project Overview
 
-ZulipChat MCP Server v0.6.1 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.6.2 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -306,25 +306,3 @@ This is a public open-source project. Follow these practices when handling commu
 - Mention the version number, what was fixed, and how to upgrade.
 - Invite reporters to try the new version and provide feedback.
 
-## GSD Integration (Get Shit Done)
-
-This project uses GSD for structured development workflows with Claude Code.
-
-### Core Workflow
-
-```
-/gsd:plan-phase N    → Create detailed plan
-/gsd:execute-phase N → Execute with parallel agents
-/gsd:verify-work N   → UAT validation
-/clear               → Reset context between phases
-```
-
-### Key Commands
-
-| Command | Purpose |
-|---------|---------|
-| `/gsd:progress` | Check status, route to next action |
-| `/gsd:quick` | Small tasks (skip researcher/verifier) |
-| `/gsd:pause-work` | Create handoff mid-phase |
-| `/gsd:resume-work` | Continue from previous session |
-| `/gsd:debug` | Persistent debug sessions |

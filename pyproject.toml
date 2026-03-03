@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zulipchat-mcp"
-version = "0.6.1"
+version = "0.6.2"
 description = "Model Context Protocol (MCP) server that connects AI assistants to Zulip Chat with a 19-tool core mode and 55-tool extended mode"
 authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},

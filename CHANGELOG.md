@@ -4,6 +4,13 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-03-03
+
+### Fixed
+- **Critical: Rate limit exhaustion** — Message listener was hardcoded to start on every server boot, long-polling Zulip's `/events` endpoint regardless of the `--enable-listener` flag. Multiple MCP client sessions would all poll simultaneously, exhausting the per-user rate limit. Listener is now off by default and lazy-started only when an agent tool that needs it is invoked. (PR #8, credit: @klutchell)
+- **Tight-loop on API errors** — When the listener received a 429 or other error response, it returned an empty list and immediately retried with no delay, generating thousands of requests per minute. Now returns a sentinel on error and applies exponential backoff (2s base, 120s cap).
+- **Stale DuckDB lock after unclean shutdown** — When a server process died without closing the database, the WAL file persisted and blocked all new connections permanently. The database layer now extracts the locking PID from DuckDB's error message, checks if the process is alive, and removes the stale WAL file if the process is dead. (Fixes #7, reported by: @JaimeCernuda)
+
 ## [0.6.1] - 2026-02-23
 
 ### Added
