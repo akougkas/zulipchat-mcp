@@ -22,6 +22,9 @@ logger = get_logger(__name__)
 class MessageListener:
     """Listens to Zulip event stream and processes responses."""
 
+    _BACKOFF_BASE = 2.0
+    _BACKOFF_MAX = 120.0
+
     def __init__(
         self,
         client: ZulipClientWrapper,
@@ -34,6 +37,7 @@ class MessageListener:
         self.stream_name = stream_name
         self._queue_id: str | None = None
         self._last_event_id: int | None = None
+        self._consecutive_errors: int = 0
 
     async def start(self) -> None:
         """Start listening to Zulip events."""
@@ -43,28 +47,44 @@ class MessageListener:
         while self.running:
             try:
                 events = await self._get_events()
+                if events is None:
+                    # Error response (429, etc.); backoff before retrying
+                    self._consecutive_errors += 1
+                    delay = min(
+                        self._BACKOFF_BASE ** self._consecutive_errors,
+                        self._BACKOFF_MAX,
+                    )
+                    logger.warning(
+                        f"Backing off {delay:.0f}s (attempt {self._consecutive_errors})"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                self._consecutive_errors = 0
                 for event in events:
                     if event.get("type") == "message":
                         await self._process_message(event.get("message", {}))
             except Exception as e:
                 logger.error(f"Listener error: {e}")
-                await asyncio.sleep(5)
+                self._consecutive_errors += 1
+                delay = min(
+                    self._BACKOFF_BASE ** self._consecutive_errors,
+                    self._BACKOFF_MAX,
+                )
+                await asyncio.sleep(delay)
 
     async def stop(self) -> None:
         """Stop listener loop."""
         self.running = False
 
-    async def _get_events(self) -> list[dict[str, Any]]:
+    async def _get_events(self) -> list[dict[str, Any]] | None:
         """Fetch events from Zulip using a shared event queue.
 
-        Registers a queue on first use (messages only) narrowed to the
-        `Agents-Channel` stream so we can process replies across topics.
+        Returns a list of events on success, empty list when there are no new
+        events, or None on error (triggering backoff in the caller).
         """
-        # Ensure queue registration
         await self._ensure_queue()
 
         try:
-            # Long-poll events; keep the timeout short to keep loop responsive
             params = {
                 "queue_id": self._queue_id,
                 "last_event_id": self._last_event_id,
@@ -77,13 +97,12 @@ class MessageListener:
             if resp.get("result") != "success":
                 code = resp.get("code") or resp.get("msg")
                 logger.warning(f"get_events returned error: {code}")
-                # If queue is invalid/expired, re-register and try once
                 if code and "BAD_EVENT_QUEUE_ID" in str(code):
                     await self._reset_queue()
-                return []
+                # Return None to signal error and trigger backoff
+                return None
 
             events = resp.get("events", [])
-            # Track last_event_id to resume correctly
             for ev in events:
                 if isinstance(ev.get("id"), int):
                     self._last_event_id = ev["id"]
@@ -92,12 +111,11 @@ class MessageListener:
             return events
         except Exception as e:
             logger.error(f"Failed to fetch events: {e}")
-            return []
+            return None
 
     async def _ensure_queue(self) -> None:
         if self._queue_id is not None:
             return
-        # Try restoring from persisted state first
         state = self.db.get_listener_state()
         if state and state.get("queue_id"):
             self._queue_id = state["queue_id"]
