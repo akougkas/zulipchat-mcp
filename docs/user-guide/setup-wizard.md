@@ -5,7 +5,7 @@
 ## Run
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 ## What it does

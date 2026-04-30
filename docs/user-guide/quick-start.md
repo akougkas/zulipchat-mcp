@@ -31,7 +31,7 @@ Then ask the assistant to call `server_info`.
 If you want an interactive flow:
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 The wizard scans for `zuliprc` files, validates credentials against Zulip, and prints client config snippets.

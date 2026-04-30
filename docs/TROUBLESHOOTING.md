@@ -16,7 +16,7 @@
 - Re-test by running setup wizard validation:
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 ## Bot identity cannot be selected
@@ -49,7 +49,7 @@ uvx zulipchat-mcp-setup
 The wizard is interactive. Run it directly in a terminal (no piped stdin):
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 ## More help
