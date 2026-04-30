@@ -32,7 +32,7 @@ Need a zuliprc? **Zulip Settings > Personal > Account & privacy > API key** — 
 Interactive onboarding:
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 ## What This Does

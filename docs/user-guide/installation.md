@@ -11,7 +11,7 @@ uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 Interactive onboarding:
 
 ```bash
-uvx zulipchat-mcp-setup
+uvx --from zulipchat-mcp zulipchat-mcp-setup
 ```
 
 ## Install from GitHub
