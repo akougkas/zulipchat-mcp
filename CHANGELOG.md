@@ -15,6 +15,11 @@ All notable changes to ZulipChat MCP are documented in this file.
 ### Tests
 - Added real FastMCP registration coverage for core and extended tools, including a regression guard that prevents reintroducing server-wide `tasks=True`.
 
+### Docs
+- Modernized `CLAUDE.md`: removed stale v0.4 import patterns, fixed the local connection-test snippet to use installed-package imports, documented the `register_tool` / `optional_background_task` pattern from `tools/registration.py`, the 20-core / 56-extended tool modes (`--extended-tools` / `ZULIPCHAT_EXTENDED_TOOLS=1`), and the three project skills under `.claude/skills/`.
+- Switched GitHub releases to `gh release create --generate-notes`. `RELEASE.md` removed; `CHANGELOG.md` is the single source of release notes.
+- `ROADMAP.md` v0.7.1 date corrected to 2026-05-11 to match `CHANGELOG.md`.
+
 ## [0.7.0] - 2026-05-01
 
 ### Added

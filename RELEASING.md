@@ -81,7 +81,8 @@ metadata for stale version references that are intentionally not scripted.
 Update:
 
 - `CHANGELOG.md`: new top section with date, user-visible fixes, and credits.
-- `RELEASE.md`: release title and notes used by GitHub release publishing.
+  This is the source of truth for release notes; the GitHub release itself is
+  generated automatically with `gh release create --generate-notes`.
 - Any user or integration docs affected by behavior, install commands, or tool
   counts.
 
@@ -136,7 +137,7 @@ Generated artifacts must not be staged: `dist/`, `htmlcov/`, `.coverage*`, and
 ```bash
 git diff --stat
 git status --short
-git add AGENTS.md CHANGELOG.md CLAUDE.md RELEASE.md ROADMAP.md pyproject.toml \
+git add AGENTS.md CHANGELOG.md CLAUDE.md ROADMAP.md pyproject.toml \
   server.json uv.lock src/zulipchat_mcp tests scripts .github docs README.md \
   CONTRIBUTING.md RELEASING.md
 git status --short
@@ -164,12 +165,15 @@ git tag vX.Y.Z
 git push --tags
 gh release create vX.Y.Z \
   --title "vX.Y.Z - Short Description" \
-  --notes-file RELEASE.md \
+  --generate-notes \
   --latest
 ```
 
-Publishing the GitHub release triggers `.github/workflows/publish.yml`, which
-builds and uploads to PyPI through trusted publisher OIDC.
+`--generate-notes` builds the GitHub release body from merged PRs and commits
+since the previous tag. The detailed user-facing changelog lives in
+`CHANGELOG.md`. Publishing the GitHub release triggers
+`.github/workflows/publish.yml`, which builds and uploads to PyPI through
+trusted publisher OIDC.
 
 ### 10. Verify Published Artifacts
 

@@ -64,11 +64,6 @@ VERSION_UPDATES: list[VersionUpdate] = [
         "## v{version} (Current)",
     ),
     VersionUpdate(
-        "RELEASE.md",
-        r"# ZulipChat MCP v[0-9]+\.[0-9]+\.[0-9]+",
-        "# ZulipChat MCP v{version}",
-    ),
-    VersionUpdate(
         "server.json",
         r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
         '"version": "{version}"',

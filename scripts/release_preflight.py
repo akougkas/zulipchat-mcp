@@ -124,21 +124,6 @@ def _check_changelog(version: str) -> CheckResult:
     return CheckResult("CHANGELOG entry exists", found, detail)
 
 
-def _check_release_md(version: str) -> CheckResult:
-    release_file = ROOT / "RELEASE.md"
-    if not release_file.exists():
-        return CheckResult("RELEASE.md exists", False, "Missing RELEASE.md")
-
-    content = _read_text(release_file)
-    found = bool(re.search(rf"^# .*v{re.escape(version)}\b", content, re.MULTILINE))
-    detail = (
-        "RELEASE.md title includes version"
-        if found
-        else "RELEASE.md title is not updated"
-    )
-    return CheckResult("RELEASE.md updated", found, detail)
-
-
 def _check_required_scripts() -> CheckResult:
     content = _read_text(ROOT / "pyproject.toml")
     expected = ["zulipchat-mcp", "zulipchat-mcp-setup", "zulipchat-mcp-integrate"]
@@ -192,11 +177,6 @@ def main() -> None:
         action="store_true",
         help="Skip failure if git tag vX.Y.Z already exists.",
     )
-    parser.add_argument(
-        "--skip-release-md",
-        action="store_true",
-        help="Skip checking RELEASE.md title version.",
-    )
     args = parser.parse_args()
 
     results: list[CheckResult] = []
@@ -206,8 +186,6 @@ def main() -> None:
     results.append(_check_system_tool_version(args.version))
     results.extend(_check_server_json(args.version))
     results.append(_check_changelog(args.version))
-    if not args.skip_release_md:
-        results.append(_check_release_md(args.version))
     results.append(_check_required_scripts())
 
     if args.allow_dirty:

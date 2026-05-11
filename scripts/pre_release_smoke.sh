@@ -9,7 +9,6 @@ Options:
   --python VERSION       Python version for wheel smoke venv (default: 3.12)
   --allow-dirty          Skip clean working tree enforcement in preflight
   --allow-existing-tag   Skip local tag-availability enforcement in preflight
-  --skip-release-md      Skip RELEASE.md version-title check in preflight
   --with-git             Also smoke-test GitHub install via uvx --from git+...
   --git-ref REF          Git ref for --with-git (default: main)
   --with-testpypi        Also smoke-test TestPyPI install for this version
@@ -21,7 +20,6 @@ VERSION=""
 PYTHON_VERSION="3.12"
 ALLOW_DIRTY=0
 ALLOW_EXISTING_TAG=0
-SKIP_RELEASE_MD=0
 WITH_GIT=0
 GIT_REF="main"
 WITH_TESTPYPI=0
@@ -42,10 +40,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-existing-tag)
       ALLOW_EXISTING_TAG=1
-      shift
-      ;;
-    --skip-release-md)
-      SKIP_RELEASE_MD=1
       shift
       ;;
     --with-git)
@@ -87,9 +81,6 @@ if [[ "$ALLOW_DIRTY" -eq 1 ]]; then
 fi
 if [[ "$ALLOW_EXISTING_TAG" -eq 1 ]]; then
   PREFLIGHT_ARGS+=(--allow-existing-tag)
-fi
-if [[ "$SKIP_RELEASE_MD" -eq 1 ]]; then
-  PREFLIGHT_ARGS+=(--skip-release-md)
 fi
 
 echo "==> Release preflight checklist"

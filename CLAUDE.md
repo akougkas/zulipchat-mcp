@@ -16,7 +16,7 @@ ZulipChat MCP Server v0.7.1 - A Model Context Protocol (MCP) server that enables
 
 ### Environment Setup
 ```bash
-# Install dependencies (NEVER use pip - always use uv)
+# Install dependencies. Never use pip; this project uses uv.
 uv sync
 
 # Run the MCP server locally
@@ -39,7 +39,8 @@ uv run pytest --cov=src
 
 # Linting and formatting
 uv run ruff check .
-uv run black .
+changed_py=$(git diff --name-only -- '*.py')
+[ -z "$changed_py" ] || uv run black --check $changed_py
 uv run mypy src
 
 # Security checks (optional)
@@ -49,17 +50,11 @@ uv run safety check
 
 ### Development Testing
 ```bash
-# Test connection to Zulip
-uv run python -c "
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.config import ConfigManager
-config = ConfigManager()
-client = ZulipClientWrapper(config)
-print(f'Connected! Identity: {client.identity_name}')
-"
+# Test connection to Zulip (uses installed package; safe inside or outside the repo)
+uv run python -c "from zulipchat_mcp.config import ConfigManager; from zulipchat_mcp.core.client import ZulipClientWrapper; c = ZulipClientWrapper(ConfigManager()); print('Connected:', c.identity_name)"
 
 # Import validation
-uv run python -c "from src.zulipchat_mcp.server import main; print('OK')"
+uv run python -c "from zulipchat_mcp.server import main; print('OK')"
 ```
 
 ## Architecture Overview
@@ -89,24 +84,36 @@ The client supports both user and bot credentials:
 - Bot identity for posting messages and administrative tasks
 - Identity switching via `switch_identity` tool
 
-### Import Patterns (v0.4)
-All imports follow the new modular structure:
+### Imports
+Production code under `src/zulipchat_mcp/` uses package-relative imports:
 ```python
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-from src.zulipchat_mcp.tools.messaging import register_messaging_tools
+from .core.client import ZulipClientWrapper
+from .tools.messaging import register_messaging_tools
 ```
+Tests use `from src.zulipchat_mcp.*` because pytest runs with the repo root on `sys.path`. Never write `from src.zulipchat_mcp.*` inside `src/`.
 
-**Important**: The codebase underwent complete v0.4 architectural refactor. Previous flat imports like `from zulipchat_mcp.client import` are deprecated.
+## Tool Registration
 
-## Tool Registration Pattern
-
-Each tool module exports a registration function:
+Register tools through `tools/registration.py`, not bare `@mcp.tool`:
 ```python
-# Pattern used across tool modules
-def register_*_tools(mcp: FastMCP) -> None:
-    """Register tools with the MCP server."""
-    # Tool implementations here
+from .registration import register_tool, optional_background_task
+
+register_tool(
+    mcp,
+    my_tool_fn,
+    name="my_tool",
+    description="One-line, action-oriented.",
+    task=optional_background_task(),  # only for long-running tools
+)
 ```
+Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `teleport_chat`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
+
+## Tool Modes
+
+- **Default**: 20 core tools registered via `register_core_tools(mcp)`.
+- **Extended (56 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+
+The split shipped in v0.6.0 to keep token overhead low for the common case.
 
 ## Development Guidelines
 
@@ -118,7 +125,7 @@ def register_*_tools(mcp: FastMCP) -> None:
 - If a solution feels complicated, it probably is - find a simpler way
 
 ### Python Environment
-- **Critical**: NEVER use pip - always use `uv run` for all Python operations
+- **Critical**: never use pip. Use `uv run` for all Python operations.
 - Python 3.10+ required
 - Use `uv add <package>` for dependencies, `uv sync` to synchronize
 
@@ -172,7 +179,7 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 ## Security Notes
 - Never commit credentials to repository
 - Use `.env` file (gitignored) for local development
-- Administrative tools removed from AI access in v0.4 for security
+- Administrative tools are not exposed to AI clients
 - All credentials handled via environment variables or CLI arguments
 
 ## MCP Sampling & LLM Analytics
@@ -228,25 +235,12 @@ execute_chain([
 
 ## Common Issues
 
-### Import Errors
-Ensure using v0.4 import paths:
-```python
-# Correct (v0.4)
-from src.zulipchat_mcp.core.client import ZulipClientWrapper
-
-# Incorrect (legacy)
-from zulipchat_mcp.client import ZulipClientWrapper
-```
-
-### Coverage Issues
+### Coverage / cache contamination
 Clean environment before major test runs:
 ```bash
 rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache
 uv sync --reinstall
 ```
-
-### Connection Testing
-Always test Zulip connection with provided test snippet before implementing features.
 
 ### LLM Analytics Not Working
 If you see "Client does not support sampling":
@@ -255,36 +249,29 @@ If you see "Client does not support sampling":
 - FastMCP handles injection automatically
 - Client (Claude Code, Gemini) must have sampling capability enabled
 
+### DuckDB lock after unclean shutdown
+Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the file in `.mcp/zulipchat/zulipchat.duckdb`.
+
+## Project Skills (`.claude/skills/`)
+
+Three project-specific skills extend the Zulip control plane. They activate when a Claude Code session is bound to a Zulip topic via `zulipchat-mcp-hook` and read `ZULIPCHAT_SESSION_ID`, `ZULIPCHAT_SESSION_STREAM`, `ZULIPCHAT_SESSION_TOPIC` from the shell:
+
+- **`zulipchat-session-operator`**: treats Zulip as the owner control plane. Polls `poll_agent_events`, handles `/status`, `/pause`, `/resume`, `/cancel`, `/handoff`, enforces lifecycle-only posting discipline.
+- **`zulipchat-loop`**: per-cycle policy for `/loop` runs. Each turn polls events, applies steering, emits at most one lifecycle message, does one unit of work.
+- **`zulipchat-notifyme`**: explicit post into the bound topic with category (`message`/`started`/`blocked`/`waiting`/`completed`/`failed`).
+
+If a session is not bound, these skills stop and explain rather than calling MCP tools blind.
+
 ## Release Process
 
-Full checklist in [RELEASING.md](RELEASING.md). Summary:
+Full checklist and rationale in [RELEASING.md](RELEASING.md). Key invariants:
 
-```bash
-# 1. Bump version across scripted version locations
-uv run python scripts/bump_version.py X.Y.Z
-
-# 2. Update CHANGELOG.md with new section (manual)
-
-# 3. Run automated release preflight and smoke
-uv run python scripts/release_preflight.py --version X.Y.Z
-scripts/pre_release_smoke.sh --version X.Y.Z
-
-# 4. Run full checks
-uv run pytest -q && uv run ruff check . && uv run mypy src
-
-# 5. Commit, tag, push
-git add -A && git commit -m "chore: bump version to X.Y.Z"
-git tag vX.Y.Z && git push && git push --tags
-
-# 6. Create GitHub release (auto-publishes to PyPI via publish.yml)
-gh release create vX.Y.Z --title "vX.Y.Z — Title" --notes "..." --latest
-```
-
-**Critical rules:**
-- Version must match across pyproject.toml, `__init__.py`, system.py, `server.json`, and release docs. Use `scripts/release_preflight.py` to verify before tagging.
-- **Never** create a GitHub release as draft and forget to publish it. The `publish.yml` workflow only triggers on `published` releases.
-- Tag must match pyproject.toml version exactly (`v0.6.0` tag ↔ `version = "0.6.0"`).
-- After publishing, verify: GitHub release shows "Latest", PyPI shows new version, `uvx zulipchat-mcp` installs it.
+- Tag must match `pyproject.toml` version exactly (`v0.7.1` ↔ `version = "0.7.1"`).
+- Version must be in sync across `pyproject.toml`, `src/zulipchat_mcp/__init__.py`, `src/zulipchat_mcp/tools/system.py`, `server.json`, and release docs. Run `uv run python scripts/release_preflight.py --version X.Y.Z` to verify.
+- `scripts/pre_release_smoke.sh` is a blocking gate. It installs the built wheel and starts the MCP stdio server with fake credentials, catching startup-only failures that `--version` cannot.
+- FastMCP feature changes require real-registration tests and the MCP stdio smoke. Pay special attention to optional extras, `task` support, async task functions, and lifespan-managed services.
+- GitHub release must be published, not draft. `publish.yml` only triggers on `published`.
+- After publishing, verify: GitHub release shows "Latest", PyPI shows new version, `uvx --refresh-package zulipchat-mcp zulipchat-mcp --version` installs it.
 
 ## Open Source & Community Practices
 

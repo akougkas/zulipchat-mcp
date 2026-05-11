@@ -129,11 +129,11 @@ changed_py=$(git diff --name-only -- '*.py')
 uv build
 scripts/pre_release_smoke.sh --version X.Y.Z --allow-dirty
 uv run python scripts/release_preflight.py --version X.Y.Z --allow-dirty
-git add AGENTS.md CHANGELOG.md CLAUDE.md RELEASE.md ROADMAP.md pyproject.toml server.json uv.lock src/zulipchat_mcp tests scripts .github docs README.md CONTRIBUTING.md RELEASING.md
+git add AGENTS.md CHANGELOG.md CLAUDE.md ROADMAP.md pyproject.toml server.json uv.lock src/zulipchat_mcp tests scripts .github docs README.md CONTRIBUTING.md RELEASING.md
 git commit -m "chore: bump version to X.Y.Z"
 uv run python scripts/release_preflight.py --version X.Y.Z
 git tag vX.Y.Z && git push && git push --tags
-gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes-file RELEASE.md --latest
+gh release create vX.Y.Z --title "vX.Y.Z - Title" --generate-notes --latest
 ```
 
 Publishing a GitHub release auto-triggers `.github/workflows/publish.yml` which builds and uploads to PyPI via trusted publisher (OIDC). Never leave releases as drafts.
