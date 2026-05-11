@@ -97,7 +97,7 @@ def main() -> None:
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all tools (~55) instead of core set (19).",
+        help="Register all tools (56) instead of the core set (20).",
     )
 
     args = parser.parse_args()
@@ -182,9 +182,9 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (~55 tools)")
+        logger.info("Registered extended tool set (56 tools)")
     else:
-        logger.info("Registered core tool set (19 tools)")
+        logger.info("Registered core tool set (20 tools)")
 
     # Warm user/stream caches for fast fuzzy resolution
     try:

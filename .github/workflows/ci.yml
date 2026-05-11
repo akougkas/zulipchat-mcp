@@ -114,6 +114,13 @@ jobs:
           .pkg-smoke/bin/zulipchat-mcp-integrate --version
           .pkg-smoke/bin/zulipchat-mcp-integrate list
 
+      - name: Run installed MCP stdio smoke
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          .pkg-smoke/bin/python scripts/mcp_stdio_smoke.py \
+            --expected-version "$VERSION" \
+            -- "$PWD/.pkg-smoke/bin/zulipchat-mcp"
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     needs: [version-check, package-smoke]
@@ -144,6 +151,13 @@ jobs:
           uv run zulipchat-mcp-setup --version
           uv run zulipchat-mcp-integrate --version
           uv run zulipchat-mcp-integrate list
+
+      - name: MCP stdio smoke
+        run: |
+          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          uv run python scripts/mcp_stdio_smoke.py \
+            --expected-version "$VERSION" \
+            -- uv run zulipchat-mcp
 
       - name: Run tests
         run: uv run pytest -q -m "not slow and not integration"

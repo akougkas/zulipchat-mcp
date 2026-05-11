@@ -1,6 +1,6 @@
 # ZulipChat MCP Documentation
 
-ZulipChat MCP v0.6.0 is a Model Context Protocol server for Zulip Chat.
+ZulipChat MCP v0.7.1 is a Model Context Protocol server for Zulip Chat.
 
 ## Start Here
 
@@ -42,10 +42,10 @@ ZulipChat MCP v0.6.0 is a Model Context Protocol server for Zulip Chat.
 - [Foundation Components](developer-guide/foundation-components.md)
 - [Testing Guide](testing/README.md)
 
-## Tool Modes (v0.6.0)
+## Tool Modes (v0.7.1)
 
-- Default mode: 19 core tools.
-- Extended mode: 55 tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
+- Default mode: 20 core tools.
+- Extended mode: 56 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
 
 ## Community and Security
 

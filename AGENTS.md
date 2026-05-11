@@ -15,7 +15,7 @@
 - `uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
 - `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
-- `uv run ruff check .` — lint; `uv run black .` — format; `uv run mypy src` — type-check.
+- `uv run ruff check .` — lint; use Black on changed Python files; `uv run mypy src` — type-check.
 
 ## Coding Style & Naming Conventions
 - Python 3.10+, 4‑space indent, Black line length 88, Ruff configured (pycodestyle, pyflakes, isort, bugbear, pyupgrade). Keep imports sorted.
@@ -81,11 +81,11 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
   # Correct syntax (tested)
   claude mcp add zulipchat -e ZULIP_EMAIL=bot@org.com -e ZULIP_API_KEY=key -e ZULIP_SITE=https://org.zulipchat.com -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
   ```
-- **Testing Before Release**: Always test all three installation methods with real credentials in clean environments to ensure packaging works correctly.
+- **Testing Before Release**: Always run the fake-credential MCP stdio smoke from both the project environment and the built wheel. Use real Zulip credentials only for targeted manual checks of behavior that actually requires Zulip API access.
 
 ## Security & Configuration Tips
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
-- Prefer CLI flags for credentials in MCP clients. Message listener is always-on since v0.5.2 (`--enable-listener` kept for backward compat).
+- Prefer CLI flags for credentials in MCP clients. Message listener startup is lazy by default; `--enable-listener` starts it eagerly for backward compatibility.
 - Optional checks before release: `uv run bandit -q -r src` and `uv run safety check`.
 
 ## Documentation Resources
@@ -122,12 +122,18 @@ Full checklist: [RELEASING.md](RELEASING.md)
 ```bash
 uv run python scripts/bump_version.py X.Y.Z   # Bump scripted version locations
 # Update CHANGELOG.md manually
+uv sync
+uv run pytest -q && uv run mypy src && uv run ruff check .
+changed_py=$(git diff --name-only -- '*.py')
+[ -z "$changed_py" ] || uv run black --check $changed_py
+uv build
+scripts/pre_release_smoke.sh --version X.Y.Z --allow-dirty
+uv run python scripts/release_preflight.py --version X.Y.Z --allow-dirty
+git add AGENTS.md CHANGELOG.md CLAUDE.md RELEASE.md ROADMAP.md pyproject.toml server.json uv.lock src/zulipchat_mcp tests scripts .github docs README.md CONTRIBUTING.md RELEASING.md
+git commit -m "chore: bump version to X.Y.Z"
 uv run python scripts/release_preflight.py --version X.Y.Z
-scripts/pre_release_smoke.sh --version X.Y.Z
-uv run pytest -q && uv run ruff check . && uv run mypy src
-git add -A && git commit -m "chore: bump version to X.Y.Z"
 git tag vX.Y.Z && git push && git push --tags
-gh release create vX.Y.Z --title "vX.Y.Z — Title" --notes "..." --latest
+gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes-file RELEASE.md --latest
 ```
 
 Publishing a GitHub release auto-triggers `.github/workflows/publish.yml` which builds and uploads to PyPI via trusted publisher (OIDC). Never leave releases as drafts.

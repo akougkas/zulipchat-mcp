@@ -7,7 +7,7 @@
   [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![CI](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
   [![Publish](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml)
-  [![Coverage](https://img.shields.io/badge/coverage-67%25-brightgreen)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
+  [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-60%25-blue)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
   [![Downloads](https://img.shields.io/pypi/dm/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![GitHub stars](https://img.shields.io/github/stars/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/stargazers)
   [![Python](https://img.shields.io/pypi/pyversions/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
@@ -148,7 +148,7 @@ Add to your MCP configuration:
 |--------|-------------|
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
-| `--extended-tools` | Register all ~55 tools instead of 19 |
+| `--extended-tools` | Register all 56 tools instead of the 20-tool core set |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
 
@@ -205,9 +205,16 @@ uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
 
 Run checks:
 ```bash
-uv run pytest -q              # 566 tests, 60% coverage gate
+uv run pytest -q              # full test suite, 60% coverage gate
 uv run ruff check .           # Linting
 uv run mypy src               # Type checking
+```
+
+For packaging, dependency, FastMCP, or startup changes, run the release smoke:
+
+```bash
+uv build
+scripts/pre_release_smoke.sh --version X.Y.Z --allow-dirty
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, and [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) for AI agent instructions.

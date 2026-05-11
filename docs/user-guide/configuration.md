@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents all runtime configuration for ZulipChat MCP v0.6.0.
+This page documents all runtime configuration for ZulipChat MCP v0.7.1.
 
 ## Recommended setup
 
@@ -33,12 +33,14 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 55 tools instead of the 19-tool core set
+- `--extended-tools`: Register all 56 tools instead of the 20-tool core set
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
 - `--enable-listener`: Backward-compatibility flag
 
-Note: listener services are started automatically in v0.6.0. The `--enable-listener` flag remains for compatibility.
+Note: listener services are lazy-started by tools that need them. The
+`--enable-listener` flag starts the listener eagerly and remains for
+compatibility.
 
 ## Environment variables
 

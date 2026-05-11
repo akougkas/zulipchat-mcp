@@ -430,8 +430,8 @@ def _print_config_block(title: str, payload: dict[str, Any]) -> None:
 def _select_tool_mode() -> bool:
     """Prompt for core vs extended tool mode."""
     print(f"\n{BOLD}Step 4: Tool Mode{RESET}")
-    print("  1. Core mode (19 tools, default)")
-    print("  2. Extended mode (55 tools)")
+    print("  1. Core mode (20 tools, default)")
+    print("  2. Extended mode (56 tools)")
     choice = prompt("Choice", default="1")
     return choice.strip() == "2"
 

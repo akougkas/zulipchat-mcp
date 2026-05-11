@@ -101,6 +101,9 @@ uv run zulipchat-mcp-setup --version
 uv run zulipchat-mcp-integrate --version
 uv run zulipchat-mcp-integrate list
 
+echo "==> MCP stdio smoke (project env, fake credentials)"
+uv run python scripts/mcp_stdio_smoke.py --expected-version "$VERSION" -- uv run zulipchat-mcp
+
 echo "==> Build package artifacts"
 uv build
 
@@ -125,6 +128,11 @@ echo "==> Installed-wheel entrypoint smoke"
 "$SMOKE_VENV/bin/zulipchat-mcp-setup" --version
 "$SMOKE_VENV/bin/zulipchat-mcp-integrate" --version
 "$SMOKE_VENV/bin/zulipchat-mcp-integrate" list
+
+echo "==> Installed-wheel MCP stdio smoke (fake credentials)"
+"$SMOKE_VENV/bin/python" scripts/mcp_stdio_smoke.py \
+  --expected-version "$VERSION" \
+  -- "$SMOKE_VENV/bin/zulipchat-mcp"
 
 if [[ "$WITH_GIT" -eq 1 ]]; then
   echo "==> GitHub install smoke (ref: $GIT_REF)"

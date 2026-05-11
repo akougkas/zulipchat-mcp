@@ -5,9 +5,26 @@
 ```bash
 uv run pytest -q
 uv run ruff check .
-uv run black .
+changed_py=$(git diff --name-only -- '*.py')
+[ -z "$changed_py" ] || uv run black --check $changed_py
 uv run mypy src
 ```
+
+## MCP startup smoke
+
+Run this whenever a change touches dependencies, packaging, FastMCP server
+construction, tool registration, background tasks, lifespan management, or CLI
+startup:
+
+```bash
+uv build
+scripts/pre_release_smoke.sh --version X.Y.Z --allow-dirty
+```
+
+The smoke script starts the MCP stdio server with fake credentials, runs
+`ping`, lists tools, calls `server_info`, and repeats that check from the built
+wheel installed into a temporary virtual environment. It should not contact a
+real Zulip server.
 
 ## Coverage gate
 

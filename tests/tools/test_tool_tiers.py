@@ -94,9 +94,7 @@ class TestToolRegistration:
         total = mcp.tool_count
 
         assert total > core_count
-        # Extended adds ~38 tools on top of 19 core = ~57 total
-        assert total >= 50, f"Expected ~55+ total tools, got {total}"
-        assert total <= 65, f"Expected ~55-60 total tools, got {total}"
+        assert total == 56, f"Expected 56 total tools, got {total}"
 
     def test_no_duplicate_tool_names(self):
         """Core and extended should not register the same tool name."""

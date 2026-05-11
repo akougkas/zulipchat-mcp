@@ -109,5 +109,12 @@ jobs:
           .pkg-smoke/bin/zulipchat-mcp-integrate --version
           .pkg-smoke/bin/zulipchat-mcp-integrate list
 
+      - name: Smoke test installed MCP stdio server
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          .pkg-smoke/bin/python scripts/mcp_stdio_smoke.py \
+            --expected-version "$VERSION" \
+            -- "$PWD/.pkg-smoke/bin/zulipchat-mcp"
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
