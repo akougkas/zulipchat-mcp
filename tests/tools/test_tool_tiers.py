@@ -15,10 +15,14 @@ class ToolCountingMCP:
     def __init__(self):
         self._tools: dict[str, Any] = {}
 
-    def tool(self, name: str | None = None, description: str | None = None):
+    def tool(self, name: str | None = None, description: str | None = None, **kwargs):
         def _wrap(fn):
             tool_name = name or fn.__name__
-            self._tools[tool_name] = {"fn": fn, "description": description}
+            self._tools[tool_name] = {
+                "fn": fn,
+                "description": description,
+                "kwargs": kwargs,
+            }
             return fn
 
         return _wrap
@@ -41,9 +45,9 @@ class TestToolRegistration:
 
         mcp = ToolCountingMCP()
         register_core_tools(mcp)
-        assert mcp.tool_count == 20, (
-            f"Expected 20 core tools, got {mcp.tool_count}: {sorted(mcp.tool_names)}"
-        )
+        assert (
+            mcp.tool_count == 20
+        ), f"Expected 20 core tools, got {mcp.tool_count}: {sorted(mcp.tool_names)}"
 
     def test_core_tool_names(self):
         from zulipchat_mcp.tools import register_core_tools
@@ -120,9 +124,9 @@ class TestToolRegistration:
             "manage_task",
             "manage_scheduled_message",
         }
-        assert merged_tools.issubset(mcp.tool_names), (
-            f"Missing merged tools: {merged_tools - mcp.tool_names}"
-        )
+        assert merged_tools.issubset(
+            mcp.tool_names
+        ), f"Missing merged tools: {merged_tools - mcp.tool_names}"
 
     def test_extended_includes_raw_flag_api(self):
         from zulipchat_mcp.tools import register_extended_tools

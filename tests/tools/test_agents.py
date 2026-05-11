@@ -1,7 +1,7 @@
 """Tests for the session-oriented agent tools."""
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -71,12 +71,14 @@ class TestAgentTools:
             "session_id": "sess-1",
             "message_id": 101,
         }
-        coordinator.wait_for_request.return_value = {
-            "status": "success",
-            "request_status": "answered",
-            "response": "approve",
-            "responded_at": "2026-03-21T10:00:00+00:00",
-        }
+        coordinator.wait_for_request_async = AsyncMock(
+            return_value={
+                "status": "success",
+                "request_status": "answered",
+                "response": "approve",
+                "responded_at": "2026-03-21T10:00:00+00:00",
+            }
+        )
         with patch(
             "src.zulipchat_mcp.tools.agents._get_coordinator",
             return_value=coordinator,
@@ -119,11 +121,12 @@ class TestAgentTools:
             metadata=None,
         )
 
-    def test_wait_for_response_success(self, mock_coordinator):
-        result = wait_for_response("req-1", timeout_seconds=5)
+    @pytest.mark.asyncio
+    async def test_wait_for_response_success(self, mock_coordinator):
+        result = await wait_for_response("req-1", timeout_seconds=5)
         assert result["status"] == "success"
         assert result["response"] == "approve"
-        mock_coordinator.wait_for_request.assert_called_once_with(
+        mock_coordinator.wait_for_request_async.assert_called_once_with(
             "req-1", timeout_seconds=5
         )
 

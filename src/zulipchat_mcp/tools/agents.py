@@ -16,6 +16,7 @@ from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
+from .registration import optional_background_task
 
 logger = get_logger(__name__)
 
@@ -136,13 +137,15 @@ def agent_message(
                 return {"status": "error", "error": str(e)}
 
 
-def wait_for_response(request_id: str, timeout_seconds: int = 300) -> dict[str, Any]:
+async def wait_for_response(
+    request_id: str, timeout_seconds: int = 300
+) -> dict[str, Any]:
     """Wait for a persisted agent request response."""
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
-            ensure_listener()
-            return _get_coordinator().wait_for_request(
+            await asyncio.to_thread(ensure_listener)
+            return await _get_coordinator().wait_for_request_async(
                 request_id, timeout_seconds=timeout_seconds
             )
         except Exception as e:
@@ -358,7 +361,7 @@ def poll_agent_events(
             return {"status": "error", "error": str(e)}
 
 
-def teleport_chat(
+async def teleport_chat(
     to: str,
     message: str,
     wait_for_reply: bool = False,
@@ -380,7 +383,8 @@ def teleport_chat(
 
             if is_channel and resolved_channel:
                 client = get_client()
-                result = client.send_message(
+                result = await asyncio.to_thread(
+                    client.send_message,
                     message_type="stream",
                     to=resolved_channel,
                     content=message,
@@ -400,7 +404,9 @@ def teleport_chat(
                         except RuntimeError:
                             loop = None
                         if loop and loop.is_running():
-                            pass
+                            result = await _get_users()
+                            if result.get("status") == "success":
+                                user_cache.set_users(result.get("users", []))
                         else:
                             result = asyncio.run(_get_users())
                             if result.get("status") == "success":
@@ -425,7 +431,8 @@ def teleport_chat(
                     client = user_client
                     identity_used = "user"
 
-                result = client.send_message(
+                result = await asyncio.to_thread(
+                    client.send_message,
                     message_type="private",
                     to=[target_email],
                     content=message,
@@ -442,25 +449,25 @@ def teleport_chat(
             }
 
             if wait_for_reply:
-                ensure_listener()
+                await asyncio.to_thread(ensure_listener)
                 db = DatabaseManager()
                 start = time.time()
                 while time.time() - start < reply_timeout:
-                    events = db.get_unacked_events(limit=10)
+                    events = await asyncio.to_thread(db.get_unacked_events, limit=10)
                     for event in events:
                         sender = event.get("sender_email", "")
                         if is_channel:
                             if event.get("topic") == (topic or "general"):
-                                db.ack_events([event["id"]])
+                                await asyncio.to_thread(db.ack_events, [event["id"]])
                                 response["reply"] = event.get("content")
                                 response["reply_from"] = sender
                                 return response
                         elif sender == target_email:
-                            db.ack_events([event["id"]])
+                            await asyncio.to_thread(db.ack_events, [event["id"]])
                             response["reply"] = event.get("content")
                             response["reply_from"] = sender
                             return response
-                    time.sleep(2)
+                    await asyncio.sleep(2)
                 response["reply"] = None
                 response["reply_timeout"] = True
 
@@ -499,13 +506,12 @@ def manage_task(
 
 def register_agent_tools(mcp: Any) -> None:
     """Compatibility registrar for direct agent-tool registration."""
+    interactive_task = optional_background_task(poll_seconds=2)
     for tool in (
-        teleport_chat,
         register_agent,
         ensure_agent_session,
         agent_message,
         request_user_input,
-        wait_for_response,
         send_agent_status,
         start_task,
         update_task_progress,
@@ -516,6 +522,8 @@ def register_agent_tools(mcp: Any) -> None:
         poll_agent_events,
     ):
         mcp.tool()(tool)
+    mcp.tool(task=interactive_task)(teleport_chat)
+    mcp.tool(task=interactive_task)(wait_for_response)
 
 
 __all__ = [

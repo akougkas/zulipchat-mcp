@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -364,6 +365,37 @@ class AgentCoordinator:
             time.sleep(1)
 
         self.db.update_agent_request(request_id, status="timeout")
+        return {"status": "error", "error": "Response timeout"}
+
+    async def wait_for_request_async(
+        self, request_id: str, timeout_seconds: int = 300
+    ) -> dict[str, Any]:
+        """Poll the database asynchronously for a session request response."""
+        start = time.time()
+        while time.time() - start < timeout_seconds:
+            request = await asyncio.to_thread(self.db.get_agent_request, request_id)
+            if request is None:
+                return {"status": "error", "error": "Request not found"}
+            if request.get("status") in {
+                "answered",
+                "cancelled",
+                "declined",
+                "timeout",
+            }:
+                responded_at = request.get("responded_at")
+                if isinstance(responded_at, datetime):
+                    responded_at = responded_at.isoformat()
+                return {
+                    "status": "success",
+                    "request_status": request.get("status"),
+                    "response": request.get("response"),
+                    "responded_at": responded_at,
+                }
+            await asyncio.sleep(1)
+
+        await asyncio.to_thread(
+            self.db.update_agent_request, request_id, status="timeout"
+        )
         return {"status": "error", "error": "Response timeout"}
 
     def record_inbound_message(self, message: dict[str, Any]) -> dict[str, Any]:

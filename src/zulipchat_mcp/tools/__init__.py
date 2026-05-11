@@ -8,6 +8,7 @@ from .event_management import register_event_management_tools
 from .files import register_files_tools
 from .mark_messaging import register_mark_messaging_tools
 from .messaging import register_messaging_tools
+from .registration import optional_background_task, register_tool
 from .schedule_messaging import register_schedule_messaging_tools
 from .search import register_search_tools
 from .stream_management import register_stream_management_tools
@@ -51,6 +52,8 @@ def register_core_tools(mcp: FastMCP) -> None:
     from .system import server_info, switch_identity
     from .topic_management import get_stream_topics
     from .users import get_own_user, get_users, resolve_user
+
+    interactive_task = optional_background_task(poll_seconds=2)
 
     # Messaging (4)
     mcp.tool(name="send_message", description="Send a message to a stream or user.")(
@@ -96,10 +99,13 @@ def register_core_tools(mcp: FastMCP) -> None:
     )(get_own_user)
 
     # Agent Communication (6)
-    mcp.tool(
+    register_tool(
+        mcp,
+        teleport_chat,
         name="teleport_chat",
         description="Send message to user or channel with fuzzy name resolution.",
-    )(teleport_chat)
+        task=interactive_task,
+    )
     mcp.tool(
         name="register_agent",
         description="Register or update a stable agent profile for Zulip control.",
@@ -116,10 +122,13 @@ def register_core_tools(mcp: FastMCP) -> None:
         name="request_user_input",
         description="Request a question or approval response from the owner in-topic.",
     )(request_user_input)
-    mcp.tool(
+    register_tool(
+        mcp,
+        wait_for_response,
         name="wait_for_response",
         description="Wait for a persisted agent request response.",
-    )(wait_for_response)
+        task=interactive_task,
+    )
 
     # System & Flags (3)
     mcp.tool(
@@ -183,6 +192,8 @@ def register_extended_tools(mcp: FastMCP) -> None:
         manage_user_mute,
         update_status,
     )
+
+    listener_task = optional_background_task(poll_seconds=5)
 
     # Users — merged + remaining (9)
     mcp.tool(name="get_user", description="Look up a user by ID or email.")(get_user)
@@ -248,10 +259,13 @@ def register_extended_tools(mcp: FastMCP) -> None:
     mcp.tool(name="get_events", description="Poll events from a registered queue.")(
         get_events
     )
-    mcp.tool(
+    register_tool(
+        mcp,
+        listen_events,
         name="listen_events",
         description="Listen for events with auto queue management.",
-    )(listen_events)
+        task=listener_task,
+    )
     mcp.tool(name="deregister_events", description="Deregister an event queue.")(
         deregister_events
     )

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 
-def _dummy_tool_decorator(name: str | None = None, description: str | None = None):
+def _dummy_tool_decorator(
+    name: str | None = None, description: str | None = None, **kwargs
+):
     def _wrap(fn):
         return fn
 
@@ -11,8 +13,8 @@ def _dummy_tool_decorator(name: str | None = None, description: str | None = Non
 
 
 class DummyMCP:
-    def tool(self, name: str | None = None, description: str | None = None):
-        return _dummy_tool_decorator(name, description)
+    def tool(self, name: str | None = None, description: str | None = None, **kwargs):
+        return _dummy_tool_decorator(name, description, **kwargs)
 
 
 def test_register_all_tools():

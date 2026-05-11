@@ -4,6 +4,17 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-05-11
+
+### Fixed
+- Restored v0.7.x startup under FastMCP 3 by installing the task extra (`fastmcp[anthropic,tasks]`) and disabling accidental server-wide task advertisement. Reported by @jessealama in #10 and addressed by @jessealama's PR #11, with additional confirmation from @peteWT and @jpuritz in #12.
+- Made MCP task support explicit and opt-in for long-running tools only: `teleport_chat`, `wait_for_response`, and `listen_events` now advertise optional background-task support while normal fast tools remain standard calls.
+- Converted `teleport_chat(wait_for_reply=True)` and `wait_for_response` to async-safe implementations so task-enabled calls do not block the server event loop.
+- Moved background service startup and shutdown into the FastMCP lifespan, giving the Zulip listener a managed teardown path instead of process-lifetime threads.
+
+### Tests
+- Added real FastMCP registration coverage for core and extended tools, including a regression guard that prevents reintroducing server-wide `tasks=True`.
+
 ## [0.7.0] - 2026-05-01
 
 ### Added

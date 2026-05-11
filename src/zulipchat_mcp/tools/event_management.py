@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import get_client
+from .registration import optional_background_task, register_tool
 
 
 async def register_events(
@@ -235,6 +236,7 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
 
 def register_event_management_tools(mcp: FastMCP) -> None:
     """Register event management tools with the MCP server."""
+    listener_task = optional_background_task(poll_seconds=5)
     mcp.tool(
         name="register_events",
         description="Register for comprehensive real-time event streams",
@@ -243,10 +245,13 @@ def register_event_management_tools(mcp: FastMCP) -> None:
         name="get_events",
         description="Poll events from registered queue with long-polling",
     )(get_events)
-    mcp.tool(
+    register_tool(
+        mcp,
+        listen_events,
         name="listen_events",
         description="Comprehensive stateless event listener with webhook integration",
-    )(listen_events)
+        task=listener_task,
+    )
     mcp.tool(name="deregister_events", description="Deregister event queue")(
         deregister_events
     )

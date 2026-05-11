@@ -75,6 +75,10 @@ class MessageListener:
 
     async def stop(self) -> None:
         """Stop listener loop."""
+        self.request_stop()
+
+    def request_stop(self) -> None:
+        """Request listener shutdown from any thread."""
         self.running = False
 
     async def _get_events(self) -> list[dict[str, Any]] | None:

@@ -2,11 +2,14 @@
 
 import argparse
 import os
+from collections.abc import AsyncIterator
+from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.server.lifespan import lifespan
 
 from . import __version__
-from .config import init_config_manager
+from .config import ConfigManager, init_config_manager
 from .core.security import set_unsafe_mode
 
 # Optional: Anthropic sampling handler for LLM analytics fallback
@@ -19,7 +22,7 @@ except ImportError:
 
 # Optional service manager for background services
 try:
-    from .core.service_manager import init_service_manager
+    from .core.service_manager import init_service_manager, shutdown_service_manager
 
     service_manager_available = True
 except ImportError:
@@ -35,6 +38,26 @@ except ImportError:
     database_available = False
 
 from .utils.logging import get_logger, setup_structured_logging
+
+
+def _build_server_lifespan(config_manager: ConfigManager, enable_listener: bool) -> Any:
+    """Build a FastMCP lifespan for ZulipChat background services."""
+
+    @lifespan
+    async def server_lifespan(server: FastMCP[Any]) -> AsyncIterator[dict[str, Any]]:
+        if not service_manager_available:
+            yield {}
+            return
+
+        svc = init_service_manager(config_manager, enable_listener=enable_listener)
+        if enable_listener:
+            svc.start()
+        try:
+            yield {"service_manager": svc}
+        finally:
+            shutdown_service_manager()
+
+    return server_lifespan
 
 
 def main() -> None:
@@ -136,7 +159,11 @@ def main() -> None:
             "updates, request approvals, and read steering commands from the topic owner."
         ),
         on_duplicate="warn",
-        tasks=True,
+        # FastMCP protocol tasks are enabled per long-running tool. Keeping the
+        # server default forbidden prevents sync/fast tools from being advertised
+        # as task-capable by accident.
+        tasks=False,
+        lifespan=_build_server_lifespan(config_manager, args.enable_listener),
         sampling_handler=sampling_handler,
         sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
     )
@@ -169,24 +196,6 @@ def main() -> None:
         logger.info("User and stream caches warmed")
     except Exception as e:
         logger.debug(f"Cache warmup skipped: {e}")
-
-    # Initialize background services singleton. The listener starts eagerly only with
-    # --enable-listener; otherwise it lazy-starts on first agent tool call via ensure_listener().
-    if service_manager_available:
-        try:
-            svc = init_service_manager(
-                config_manager, enable_listener=args.enable_listener
-            )
-            if args.enable_listener:
-                svc.start()
-            logger.info(
-                "Background services %s",
-                "started (listener enabled)"
-                if args.enable_listener
-                else "ready (listener lazy)",
-            )
-        except Exception as e:
-            logger.warning(f"Could not initialize background services: {e}")
 
     logger.info("Starting ZulipChat MCP server...")
     mcp.run()

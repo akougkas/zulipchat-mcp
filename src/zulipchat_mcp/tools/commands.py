@@ -7,6 +7,8 @@ Cleanup (v0.4):
 
 import asyncio
 import json
+import threading
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 from ..config import get_config_manager
@@ -24,6 +26,36 @@ from ..core.commands.engine import (
     SendMessageCommand,
 )
 from ..core.commands.workflows import ChainBuilder
+
+
+def _run_async_from_sync(
+    coro_factory: Callable[[], Coroutine[Any, Any, dict[str, Any]]],
+) -> dict[str, Any]:
+    """Run an async command implementation from the sync command engine."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro_factory())
+
+    result: dict[str, Any] | None = None
+    error: BaseException | None = None
+
+    def _worker() -> None:
+        nonlocal result, error
+        try:
+            result = asyncio.run(coro_factory())
+        except BaseException as e:
+            error = e
+
+    thread = threading.Thread(target=_worker, name="command-async-runner")
+    thread.start()
+    thread.join()
+
+    if error is not None:
+        raise error
+    if result is None:
+        raise RuntimeError("Async command completed without a result")
+    return result
 
 
 def _get_command_format_example(cmd_type: str = "send_message") -> dict[str, Any]:
@@ -74,7 +106,12 @@ class WaitForResponseCommand(Command):
         request_id = context.get(self.request_id_key)
         if not request_id:
             raise ValueError("request_id required in context")
-        result = wait_for_response(request_id)
+
+        async def _run() -> dict[str, Any]:
+            return await wait_for_response(request_id)
+
+        result = _run_async_from_sync(_run)
+
         context.set("response", result.get("response"))
         return result
 
@@ -117,15 +154,7 @@ class SearchMessagesCommand(Command):
             msgs = res.get("results", {}).get("messages", {}).get("messages", [])
             return {"status": res.get("status", "success"), "messages": msgs}
 
-        # Prefer asyncio.run, fallback to a dedicated loop if already inside one
-        try:
-            result = asyncio.run(_run())
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            try:
-                result = loop.run_until_complete(_run())
-            finally:
-                loop.close()
+        result = _run_async_from_sync(_run)
 
         context.set("search_results", result.get("messages", []))
         return result
