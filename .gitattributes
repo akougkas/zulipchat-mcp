@@ -1,0 +1,5 @@
+# Default: detect text files automatically and normalize to LF on checkout.
+# Binary files (images, archives, fonts) are left untouched by Git's auto
+# detection. Add explicit `binary` rules below if a particular file is
+# misclassified.
+* text=auto eol=lf
