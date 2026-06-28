@@ -96,8 +96,13 @@ class MessageListener:
                 "dont_block": False,
                 "timeout": 30,
             }
+            # zulip-py uses a 15s HTTP read timeout by default. With
+            # `longpolling=True` it switches to a 90s timeout, which is
+            # what /events long-polling needs — without it, every poll
+            # fails with `Read timed out` after 15s before the server
+            # has a chance to return from its (timeout=30) long-poll.
             resp = self.client.client.call_endpoint(
-                "events", method="GET", request=params
+                "events", method="GET", request=params, longpolling=True
             )
             if resp.get("result") != "success":
                 code = resp.get("code") or resp.get("msg")
