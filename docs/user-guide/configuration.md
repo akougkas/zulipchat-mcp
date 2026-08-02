@@ -33,7 +33,7 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 56 tools instead of the 20-tool core set
+- `--extended-tools`: Register all 60 tools instead of the 20-tool core set
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
 - `--enable-listener`: Backward-compatibility flag

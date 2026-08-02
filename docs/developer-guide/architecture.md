@@ -25,7 +25,7 @@ src/zulipchat_mcp/
 This produces:
 
 - Core mode: 20 tools
-- Extended mode: 56 tools
+- Extended mode: 60 tools
 
 ## Identity model
 

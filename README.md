@@ -49,7 +49,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 
 ## Two-Tier Tool Architecture
 
-v0.6.0 introduced a deliberate split: **20 core tools** by default, **56 tools** when you need more.
+v0.6.0 introduced a deliberate split: **20 core tools** by default, **60 tools** when you need more.
 
 ### Core Mode (default)
 
@@ -78,7 +78,7 @@ Or via environment variable:
 ZULIPCHAT_EXTENDED_TOOLS=1 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-Extended mode adds: `toggle_reaction`, `cross_post_message`, `advanced_search`, `construct_narrow`, `get_scheduled_messages`, `manage_scheduled_message`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
+Extended mode adds: `toggle_reaction`, `cross_post_message`, `advanced_search`, `construct_narrow`, `get_scheduled_messages`, `manage_scheduled_message`, `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
 
 ## Installation
 
@@ -148,7 +148,7 @@ Add to your MCP configuration:
 |--------|-------------|
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
-| `--extended-tools` | Register all 56 tools instead of the 20-tool core set |
+| `--extended-tools` | Register all 60 tools instead of the 20-tool core set |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
 
