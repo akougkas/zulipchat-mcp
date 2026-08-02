@@ -63,7 +63,7 @@ The 20 tools that cover most daily use:
 | **Agent Comms** | `teleport_chat`, `register_agent`, `ensure_agent_session`, `agent_message`, `request_user_input`, `wait_for_response` |
 | **System** | `switch_identity`, `server_info`, `manage_message_flags` |
 
-Why 20 instead of 56? Fewer tools means faster tool selection, lower token overhead, and less confusion for the AI. Most tasks — sending messages, searching, reacting, and binding an agent session to Zulip — only need the core set.
+Why 20 instead of 60? Fewer tools means faster tool selection, lower token overhead, and less confusion for the AI. Most tasks — sending messages, searching, reacting, and binding an agent session to Zulip — only need the core set.
 
 ### Extended Mode
 
