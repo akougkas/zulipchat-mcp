@@ -4,6 +4,9 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added extended tools for listing, creating, editing, and deleting drafts through Zulip's native drafts API.
+
 ## [0.7.1] - 2026-05-11
 
 ### Fixed

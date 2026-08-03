@@ -111,7 +111,7 @@ Server-wide task advertisement is intentionally disabled in `server.py` (commit 
 ## Tool Modes
 
 - **Default**: 20 core tools registered via `register_core_tools(mcp)`.
-- **Extended (56 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Extended (60 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
 
 The split shipped in v0.6.0 to keep token overhead low for the common case.
 

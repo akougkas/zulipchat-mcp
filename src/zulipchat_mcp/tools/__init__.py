@@ -3,6 +3,7 @@
 from fastmcp import FastMCP
 
 from .ai_analytics import register_ai_analytics_tools
+from .drafts import register_drafts_tools
 from .emoji_messaging import register_emoji_messaging_tools
 from .event_management import register_event_management_tools
 from .files import register_files_tools
@@ -19,6 +20,7 @@ from .users import register_users_tools
 __all__ = [
     "register_messaging_tools",
     "register_schedule_messaging_tools",
+    "register_drafts_tools",
     "register_emoji_messaging_tools",
     "register_mark_messaging_tools",
     "register_search_tools",
@@ -165,6 +167,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
         intelligent_report_generator,
     )
     from .commands import execute_chain, list_command_types
+    from .drafts import create_draft, delete_draft, edit_draft, get_drafts
     from .emoji_messaging import toggle_reaction
     from .event_management import (
         deregister_events,
@@ -251,6 +254,12 @@ def register_extended_tools(mcp: FastMCP) -> None:
         name="manage_scheduled_message",
         description="Create, update, or delete a scheduled message.",
     )(manage_scheduled_message)
+
+    # Drafts (4)
+    mcp.tool(name="get_drafts", description="Get all drafts.")(get_drafts)
+    mcp.tool(name="create_draft", description="Create a draft.")(create_draft)
+    mcp.tool(name="edit_draft", description="Edit a draft.")(edit_draft)
+    mcp.tool(name="delete_draft", description="Delete a draft.")(delete_draft)
 
     # Events (4)
     mcp.tool(
