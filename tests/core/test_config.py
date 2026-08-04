@@ -88,8 +88,11 @@ class TestConfigManager:
             manager = ConfigManager()
             assert manager.validate_config() is True
 
-    def test_has_bot_credentials(self):
+    def test_has_bot_credentials(self, monkeypatch):
         """Test checking bot credentials."""
+        monkeypatch.delenv("ZULIP_BOT_EMAIL", raising=False)
+        monkeypatch.delenv("ZULIP_BOT_API_KEY", raising=False)
+        monkeypatch.delenv("ZULIP_BOT_CONFIG_FILE", raising=False)
         # File based
         with patch("os.path.exists", return_value=True):
             manager = ConfigManager(bot_config_file="/bot/path")
@@ -106,8 +109,12 @@ class TestConfigManager:
             manager = ConfigManager()
             assert manager.has_bot_credentials() is True
 
-    def test_get_zulip_client_config(self):
+    def test_get_zulip_client_config(self, monkeypatch):
         """Test getting client config dict."""
+        monkeypatch.delenv("ZULIP_CONFIG_FILE", raising=False)
+        monkeypatch.delenv("ZULIP_BOT_CONFIG_FILE", raising=False)
+        monkeypatch.delenv("ZULIP_BOT_EMAIL", raising=False)
+        monkeypatch.delenv("ZULIP_BOT_API_KEY", raising=False)
         # User config
         manager = ConfigManager(config_file="/user/path")
         cfg = manager.get_zulip_client_config(use_bot=False)
@@ -122,9 +129,10 @@ class TestConfigManager:
             assert cfg["config_file"] == "/bot/path"
 
         # Fallback to user config if bot requested but not available
-        manager = ConfigManager(config_file="/user/path")
-        cfg = manager.get_zulip_client_config(use_bot=True)
-        assert cfg["config_file"] == "/user/path"
+        with patch("os.path.exists", return_value=False):
+            manager = ConfigManager(config_file="/user/path")
+            cfg = manager.get_zulip_client_config(use_bot=True)
+            assert cfg["config_file"] == "/user/path"
         # Wait, code says:
         # if use_bot and self.has_bot_credentials(): return bot_config
         # return user_config
