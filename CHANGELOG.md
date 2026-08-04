@@ -4,7 +4,16 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-05-11
+## [0.7.2] - 2026-08-04
+
+### Added
+- **Native Zulip Drafts Tools**: Added extended tools for listing (`get_drafts`), creating (`create_draft`), editing (`edit_draft`), and deleting (`delete_draft`) drafts through Zulip's native drafts API (`/drafts`), bringing the extended tool count to 60. (PR #15, credit: @aurelien-eveil)
+
+### Fixed
+- **Listener Long-polling Read Timeout**: Enabled `longpolling=True` on Zulip `/events` listener requests to set the HTTP timeout to 90s, matching the server's 30s long-poll hold timeout and preventing spurious 15s `Read timed out` crashes and exponential backoff loops during idle periods. (PR #14, credit: @lloydhazlett)
+
+### Chore
+- **Repo-wide Line Ending Normalization**: Added `.gitattributes` (`* text=auto eol=lf`) and normalized line endings from CRLF to LF across 25 repository files to prevent noisy line-ending diffs across platforms. (PR #13, credit: @lloydhazlett)
 
 ### Fixed
 - Restored v0.7.x startup under FastMCP 3 by installing the task extra (`fastmcp[anthropic,tasks]`) and disabling accidental server-wide task advertisement. Reported by @jessealama in #10 and addressed by @jessealama's PR #11, with additional confirmation from @peteWT and @jpuritz in #12.

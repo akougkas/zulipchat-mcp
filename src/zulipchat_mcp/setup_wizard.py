@@ -431,7 +431,7 @@ def _select_tool_mode() -> bool:
     """Prompt for core vs extended tool mode."""
     print(f"\n{BOLD}Step 4: Tool Mode{RESET}")
     print("  1. Core mode (20 tools, default)")
-    print("  2. Extended mode (56 tools)")
+    print("  2. Extended mode (60 tools)")
     choice = prompt("Choice", default="1")
     return choice.strip() == "2"
 

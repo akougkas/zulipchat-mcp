@@ -21,6 +21,7 @@ def test_register_all_tools():
     """Test that all tool registration functions work without errors."""
     from zulipchat_mcp.tools import (
         register_ai_analytics_tools,
+        register_drafts_tools,
         register_emoji_messaging_tools,
         register_event_management_tools,
         register_files_tools,
@@ -37,6 +38,7 @@ def test_register_all_tools():
     mcp = DummyMCP()
     register_messaging_tools(mcp)
     register_schedule_messaging_tools(mcp)
+    register_drafts_tools(mcp)
     register_emoji_messaging_tools(mcp)
     register_mark_messaging_tools(mcp)
     register_search_tools(mcp)
