@@ -160,14 +160,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
         poll_agent_events,
         send_agent_status,
     )
-    from .ai_analytics import (
-        analyze_stream_with_llm,
-        analyze_team_activity_with_llm,
-        get_daily_summary,
-        intelligent_report_generator,
-    )
     from .commands import execute_chain, list_command_types
-    from .drafts import create_draft, delete_draft, edit_draft, get_drafts
     from .emoji_messaging import toggle_reaction
     from .event_management import (
         deregister_events,
@@ -256,10 +249,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
     )(manage_scheduled_message)
 
     # Drafts (4)
-    mcp.tool(name="get_drafts", description="Get all drafts.")(get_drafts)
-    mcp.tool(name="create_draft", description="Create a draft.")(create_draft)
-    mcp.tool(name="edit_draft", description="Edit a draft.")(edit_draft)
-    mcp.tool(name="delete_draft", description="Delete a draft.")(delete_draft)
+    register_drafts_tools(mcp)
 
     # Events (4)
     mcp.tool(
@@ -280,21 +270,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
     )
 
     # AI Analytics (4)
-    mcp.tool(name="get_daily_summary", description="Get daily message summary.")(
-        get_daily_summary
-    )
-    mcp.tool(
-        name="analyze_stream_with_llm",
-        description="Analyze stream data with LLM insights.",
-    )(analyze_stream_with_llm)
-    mcp.tool(
-        name="analyze_team_activity_with_llm",
-        description="Analyze team activity across streams with LLM.",
-    )(analyze_team_activity_with_llm)
-    mcp.tool(
-        name="intelligent_report_generator",
-        description="Generate reports using LLM analysis.",
-    )(intelligent_report_generator)
+    register_ai_analytics_tools(mcp)
 
     # Agent Extended
     mcp.tool(name="send_agent_status", description="Send agent status update.")(

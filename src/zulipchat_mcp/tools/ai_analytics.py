@@ -14,6 +14,7 @@ from fastmcp import FastMCP
 
 from ..config import get_client
 from ..core.llm import LLMUnavailableError, generate
+from .registration import register_tool
 
 
 async def get_daily_summary(
@@ -370,18 +371,27 @@ Provide relevant insights and actionable information."""
 
 def register_ai_analytics_tools(mcp: FastMCP) -> None:
     """Register AI-powered analytics tools with the MCP server."""
-    mcp.tool(name="get_daily_summary", description="Get basic daily message summary")(
-        get_daily_summary
+    register_tool(
+        mcp,
+        get_daily_summary,
+        name="get_daily_summary",
+        description="Get basic daily message summary",
     )
-    mcp.tool(
+    register_tool(
+        mcp,
+        analyze_stream_with_llm,
         name="analyze_stream_with_llm",
         description="Fetch stream data and analyze with LLM for sophisticated insights",
-    )(analyze_stream_with_llm)
-    mcp.tool(
+    )
+    register_tool(
+        mcp,
+        analyze_team_activity_with_llm,
         name="analyze_team_activity_with_llm",
         description="Analyze team activity across multiple streams with LLM insights",
-    )(analyze_team_activity_with_llm)
-    mcp.tool(
+    )
+    register_tool(
+        mcp,
+        intelligent_report_generator,
         name="intelligent_report_generator",
         description="Generate intelligent reports using LLM analysis of team data",
-    )(intelligent_report_generator)
+    )

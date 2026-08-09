@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.zulipchat_mcp.core import llm
-from src.zulipchat_mcp.core.llm import LLMUnavailableError, generate, llm_available
+from src.zulipchat_mcp.core.llm import (
+    LLMResponseError,
+    LLMUnavailableError,
+    generate,
+    llm_available,
+)
 
 
 class TestLLMAvailability:
@@ -19,6 +24,12 @@ class TestLLMAvailability:
 
 
 class TestGenerate:
+    @pytest.fixture(autouse=True)
+    def clear_client_cache(self):
+        llm._get_client.cache_clear()
+        yield
+        llm._get_client.cache_clear()
+
     @pytest.mark.asyncio
     async def test_uses_default_model_and_budget(self, monkeypatch):
         """Guards against the default rotting into a retired model ID."""
@@ -41,6 +52,7 @@ class TestGenerate:
         assert kwargs["model"] == "claude-opus-5"
         # Current models think by default; the budget covers thinking + text.
         assert kwargs["max_tokens"] >= 8192
+        assert kwargs["output_config"] == {"effort": "low"}
 
     @pytest.mark.asyncio
     async def test_raises_when_unavailable(self, monkeypatch):
@@ -91,26 +103,67 @@ class TestGenerate:
         )
 
     @pytest.mark.asyncio
-    async def test_empty_text_raises(self, monkeypatch):
+    async def test_empty_text_raises_response_error(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
 
         message = MagicMock()
         message.content = []
+        message.stop_reason = "end_turn"
 
         mock_client = MagicMock()
         mock_client.messages.create = AsyncMock(return_value=message)
 
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
-            with pytest.raises(LLMUnavailableError, match="no text content"):
+            with pytest.raises(LLMResponseError, match="no text content") as exc_info:
+                await generate("hi")
+
+        assert not isinstance(exc_info.value, LLMUnavailableError)
+
+    @pytest.mark.asyncio
+    async def test_max_tokens_without_text_reports_truncation(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+        message = MagicMock(content=[], stop_reason="max_tokens")
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            with pytest.raises(LLMResponseError, match="max_tokens"):
+                await generate("hi")
+
+    @pytest.mark.asyncio
+    async def test_max_tokens_with_partial_text_reports_truncation(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+        text_block = MagicMock(type="text", text="partial answer")
+        message = MagicMock(content=[text_block], stop_reason="max_tokens")
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            with pytest.raises(LLMResponseError, match="max_tokens"):
                 await generate("hi")
 
     def test_extract_text_skips_non_text_blocks(self):
-        tool_block = MagicMock()
-        tool_block.type = "tool_use"
-        text_block = MagicMock()
-        text_block.type = "text"
-        text_block.text = "real text"
+        tool_block = MagicMock(type="thinking")
+        first_text_block = MagicMock(type="text", text="real ")
+        second_text_block = MagicMock(type="text", text="text")
         message = MagicMock()
-        message.content = [tool_block, text_block]
+        message.content = [first_text_block, tool_block, second_text_block]
 
         assert llm._extract_text(message) == "real text"
+
+    @pytest.mark.asyncio
+    async def test_reuses_anthropic_client(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+
+        text_block = MagicMock(type="text", text="ok")
+        message = MagicMock(content=[text_block])
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client) as constructor:
+            await generate("first")
+            await generate("second")
+
+        constructor.assert_called_once_with(api_key="sk-ant-test")

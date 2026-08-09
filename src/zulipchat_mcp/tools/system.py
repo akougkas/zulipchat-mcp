@@ -49,7 +49,7 @@ async def server_info() -> dict[str, Any]:
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.7.3-beta",
+        "version": "0.7.3-beta.1",
         "available_identities": {
             "user": {"available": True, "email": config.config.email},
             "bot": {

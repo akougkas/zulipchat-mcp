@@ -11,7 +11,6 @@ from fastmcp_tasks import TasksExtension
 
 from . import __version__
 from .config import ConfigManager, init_config_manager
-from .core import compat
 from .core.security import set_unsafe_mode
 
 # Optional service manager for background services
@@ -56,11 +55,6 @@ def _build_server_lifespan(config_manager: ConfigManager, enable_listener: bool)
 
 def main() -> None:
     """Main entry point for the MCP server."""
-    # Temporary patch: restore ping for 2026-07-28 connections. Must run
-    # before any MCP traffic. Remove when upstream (python-sdk #3273) ships
-    # a fix and our mcp floor includes it.
-    compat.apply()
-
     parser = argparse.ArgumentParser(
         description="ZulipChat MCP Server - Integrates Zulip Chat with AI assistants",
         epilog=(

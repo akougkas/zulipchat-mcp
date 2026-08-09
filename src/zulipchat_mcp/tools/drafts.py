@@ -10,6 +10,10 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from .registration import register_tool
+from .search import resolve_user_identifier
+
+DraftRecipient = str | int
 
 
 def _build_draft(
@@ -38,8 +42,36 @@ def _validate_draft(
     if type == "stream" and not topic:
         return "Topic required for stream drafts"
     if type == "stream" and len(to) != 1:
-        return "Stream drafts must specify exactly one channel ID"
+        return "Stream drafts must specify exactly one channel"
     return None
+
+
+async def _resolve_recipients(
+    type: Literal["stream", "private"],
+    to: DraftRecipient | list[DraftRecipient],
+    client: Any,
+) -> list[int]:
+    """Resolve draft recipient names while preserving raw IDs."""
+    recipients = to if isinstance(to, list) else [to]
+    resolved: list[int] = []
+
+    for recipient in recipients:
+        if isinstance(recipient, int):
+            resolved.append(recipient)
+        elif type == "stream":
+            result = client.get_stream_id(recipient)
+            stream_id = result.get("stream_id")
+            if result.get("result") != "success" or not isinstance(stream_id, int):
+                raise ValueError(result.get("msg", f"No stream matching '{recipient}'"))
+            resolved.append(stream_id)
+        else:
+            user = await resolve_user_identifier(recipient, client)
+            user_id = user.get("user_id")
+            if not isinstance(user_id, int):
+                raise ValueError(f"No user ID available for '{recipient}'")
+            resolved.append(user_id)
+
+    return resolved
 
 
 async def get_drafts() -> dict[str, Any]:
@@ -68,7 +100,7 @@ async def get_drafts() -> dict[str, Any]:
 
 async def create_draft(
     type: Literal["stream", "private"],
-    to: list[int],
+    to: DraftRecipient | list[DraftRecipient],
     content: str,
     topic: str = "",
     timestamp: int | None = None,
@@ -77,11 +109,12 @@ async def create_draft(
     client = get_client()
 
     try:
-        validation_error = _validate_draft(type, to, topic)
+        resolved_to = await _resolve_recipients(type, to, client)
+        validation_error = _validate_draft(type, resolved_to, topic)
         if validation_error:
             return {"status": "error", "error": validation_error}
 
-        draft = _build_draft(type, to, topic, content, timestamp)
+        draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"drafts": json.dumps([draft])}
 
         result = client.client.call_endpoint(
@@ -107,7 +140,7 @@ async def create_draft(
 async def edit_draft(
     draft_id: int,
     type: Literal["stream", "private"],
-    to: list[int],
+    to: DraftRecipient | list[DraftRecipient],
     content: str,
     topic: str = "",
     timestamp: int | None = None,
@@ -116,11 +149,12 @@ async def edit_draft(
     client = get_client()
 
     try:
-        validation_error = _validate_draft(type, to, topic)
+        resolved_to = await _resolve_recipients(type, to, client)
+        validation_error = _validate_draft(type, resolved_to, topic)
         if validation_error:
             return {"status": "error", "error": validation_error}
 
-        draft = _build_draft(type, to, topic, content, timestamp)
+        draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"draft": json.dumps(draft)}
 
         result = client.client.call_endpoint(
@@ -170,12 +204,22 @@ async def delete_draft(draft_id: int) -> dict[str, Any]:
 
 def register_drafts_tools(mcp: FastMCP) -> None:
     """Register draft tools with the MCP server."""
-    mcp.tool(name="get_drafts", description="Get all drafts for current user")(
-        get_drafts
+    register_tool(
+        mcp,
+        get_drafts,
+        name="get_drafts",
+        description="Get all drafts for current user",
     )
-    mcp.tool(
+    register_tool(
+        mcp,
+        create_draft,
         name="create_draft",
         description="Create a draft using Zulip's native API",
-    )(create_draft)
-    mcp.tool(name="edit_draft", description="Edit a draft's attributes")(edit_draft)
-    mcp.tool(name="delete_draft", description="Delete a draft")(delete_draft)
+    )
+    register_tool(
+        mcp,
+        edit_draft,
+        name="edit_draft",
+        description="Edit a draft's attributes",
+    )
+    register_tool(mcp, delete_draft, name="delete_draft", description="Delete a draft")
