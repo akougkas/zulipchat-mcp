@@ -20,6 +20,29 @@ class TestLLMAvailability:
 
 class TestGenerate:
     @pytest.mark.asyncio
+    async def test_uses_default_model_and_budget(self, monkeypatch):
+        """Guards against the default rotting into a retired model ID."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
+
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "ok"
+        message = MagicMock()
+        message.content = [text_block]
+
+        mock_client = MagicMock()
+        mock_client.messages.create = AsyncMock(return_value=message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            await generate("hi")
+
+        kwargs = mock_client.messages.create.call_args.kwargs
+        assert kwargs["model"] == "claude-opus-5"
+        # Current models think by default; the budget covers thinking + text.
+        assert kwargs["max_tokens"] >= 8192
+
+    @pytest.mark.asyncio
     async def test_raises_when_unavailable(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         with pytest.raises(LLMUnavailableError, match="ANTHROPIC_API_KEY"):

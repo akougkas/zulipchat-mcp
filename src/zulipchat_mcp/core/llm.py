@@ -19,7 +19,7 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_MODEL = "claude-3-5-sonnet-latest"
+DEFAULT_MODEL = "claude-opus-5"
 MODEL_ENV_VAR = "ANTHROPIC_MODEL"
 API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
 
@@ -43,11 +43,15 @@ def llm_available() -> bool:
     return True
 
 
-async def generate(prompt: str, *, max_tokens: int = 2048) -> str:
+async def generate(prompt: str, *, max_tokens: int = 8192) -> str:
     """Generate a text completion for an analytics prompt.
 
     Raises LLMUnavailableError if no provider is configured; provider/network
     errors propagate as-is so callers can wrap them in their tool responses.
+
+    Current models think by default and max_tokens caps thinking plus response
+    text together, so the budget is sized well above the length of an analytics
+    summary to avoid truncating the answer mid-sentence.
     """
     if not llm_available():
         raise LLMUnavailableError(

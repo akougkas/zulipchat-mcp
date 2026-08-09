@@ -179,7 +179,7 @@ uvx zulipchat-mcp-integrate print --client claude-code --remote-url http://mcp.i
 AI-powered analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) execute using a server-side Anthropic LLM provider:
 
 - Set `ANTHROPIC_API_KEY` on the server process for LLM generation.
-- Optionally set `ANTHROPIC_MODEL` to override the default model (`claude-3-5-sonnet-latest`).
+- Optionally set `ANTHROPIC_MODEL` to override the default model (`claude-opus-5`).
 - Without an API key, analytics tools return structured data summaries with `llm_unavailable: true` so your client assistant can analyze the data directly.
 
 ### More clients

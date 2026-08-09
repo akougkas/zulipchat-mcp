@@ -102,13 +102,14 @@ def test_print_remote_vscode_without_token(monkeypatch, capsys):
     assert "headers" not in server
 
 
-def test_print_remote_rejects_unsupported_client(monkeypatch):
-    """Clients without a known remote format should fail with a clear error."""
-    with pytest.raises(ValueError, match="Remote HTTP snippets"):
+def test_print_remote_rejects_unsupported_client(monkeypatch, capsys):
+    """Clients without a known remote format exit with a CLI error, not a traceback."""
+    with pytest.raises(SystemExit):
         _run_main(
             monkeypatch,
             ["print", "--client", "cursor", "--remote-url", "http://x:8000/mcp"],
         )
+    assert "Remote HTTP snippets" in capsys.readouterr().err
 
 
 def test_print_requires_config_file_for_local(monkeypatch):

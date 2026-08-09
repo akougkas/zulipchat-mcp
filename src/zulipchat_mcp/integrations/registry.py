@@ -186,11 +186,13 @@ def main() -> None:
 
     if args.command == "print":
         if args.remote_url:
-            print(
-                _render_remote_for_client(
+            try:
+                snippet = _render_remote_for_client(
                     args.client, args.remote_url, args.remote_token
                 )
-            )
+            except ValueError as e:
+                print_parser.error(str(e))
+            print(snippet)
             return
         if not args.zulip_config_file:
             print_parser.error(

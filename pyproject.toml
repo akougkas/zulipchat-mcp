@@ -40,7 +40,8 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "fastmcp[anthropic,tasks]==4.0.0b2",
+    "fastmcp[tasks]==4.0.0b2",
+    "anthropic>=0.76.0",
     "httpx>=0.28.0",
     "pydantic>=2.11.0",
     "python-dotenv>=1.1.0",

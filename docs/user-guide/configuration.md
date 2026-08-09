@@ -64,7 +64,7 @@ compatibility.
 ### Server-side LLM Provider
 
 - `ANTHROPIC_API_KEY`: API key for server-side AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`)
-- `ANTHROPIC_MODEL`: Optional model override (default: `claude-3-5-sonnet-latest`)
+- `ANTHROPIC_MODEL`: Optional model override (default: `claude-opus-5`)
 
 ### HTTP Transport & Security
 

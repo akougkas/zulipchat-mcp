@@ -60,7 +60,7 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 
 - In the 2026-07-28 protocol, MCP sampling was replaced with a server-side Anthropic LLM provider (`core/llm.py`).
 - Set `ANTHROPIC_API_KEY` in the environment of the server process to enable LLM generation.
-- Optionally set `ANTHROPIC_MODEL` to override the model (default: `claude-3-5-sonnet-latest`).
+- Optionally set `ANTHROPIC_MODEL` to override the model (default: `claude-opus-5`).
 - Without an API key, analytics tools return raw structured summaries so calling agents can process data directly.
 
 ## HTTP transport returns 401 Unauthorized

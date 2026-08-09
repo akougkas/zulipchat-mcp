@@ -36,7 +36,7 @@
 In the 2026-07-28 stateless protocol (FastMCP 4+), MCP sampling was removed from the server API. AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) call a server-side Anthropic provider (`src/zulipchat_mcp/core/llm.py`) directly:
 
 - `ANTHROPIC_API_KEY`: Required on the server process for LLM generation.
-- `ANTHROPIC_MODEL`: Optional model override (defaults to `claude-3-5-sonnet-latest`).
+- `ANTHROPIC_MODEL`: Optional model override (defaults to `claude-opus-5`).
 - **Graceful degradation**: Without an API key, tools return `status="success"` with `llm_unavailable=True`, `analysis=None`, and raw `data_summary` so calling agents can analyze data directly.
 - **No `ctx` parameter**: Analytics tools do not take a `Context` parameter.
 

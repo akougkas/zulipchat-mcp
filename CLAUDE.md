@@ -197,7 +197,7 @@ summary = await generate(prompt)
 **Key Points:**
 - Tools do **NOT** take a `Context` parameter (`ctx`).
 - Server process requires `ANTHROPIC_API_KEY` for generation.
-- Model override via `ANTHROPIC_MODEL` (defaults to `claude-3-5-sonnet-latest`).
+- Model override via `ANTHROPIC_MODEL` (defaults to `claude-opus-5`).
 - Without `ANTHROPIC_API_KEY`, tools degrade gracefully returning `status="success"` with `llm_unavailable=True` and structured `data_summary`.
 
 ### Approved Emoji for Agent Reactions
