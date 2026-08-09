@@ -12,14 +12,6 @@ from . import __version__
 from .config import ConfigManager, init_config_manager
 from .core.security import set_unsafe_mode
 
-# Optional: Anthropic sampling handler for LLM analytics fallback
-try:
-    from fastmcp.client.sampling.handlers.anthropic import AnthropicSamplingHandler
-
-    anthropic_available = True
-except ImportError:
-    anthropic_available = False
-
 # Optional service manager for background services
 try:
     from .core.service_manager import init_service_manager, shutdown_service_manager
@@ -137,16 +129,12 @@ def main() -> None:
     else:
         logger.info("Database not available (agent features disabled)")
 
-    # Configure sampling handler for LLM analytics (fallback when client doesn't support)
-    sampling_handler = None
-    if anthropic_available and os.getenv("ANTHROPIC_API_KEY"):
-        sampling_handler = AnthropicSamplingHandler(
-            default_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-        )
-        logger.info("Anthropic sampling handler configured (fallback mode)")
-    elif anthropic_available:
+    # Server-side LLM analytics: MCP sampling was removed in the 2026-07-28
+    # protocol, so analytics tools call a provider owned by this server
+    # (see src/zulipchat_mcp/core/llm.py) instead of delegating to the client.
+    if not os.getenv("ANTHROPIC_API_KEY"):
         logger.debug(
-            "ANTHROPIC_API_KEY not set - LLM analytics will require client sampling support"
+            "ANTHROPIC_API_KEY not set - AI analytics tools return structured data only"
         )
 
     # Initialize MCP with modern configuration
@@ -164,8 +152,6 @@ def main() -> None:
         # as task-capable by accident.
         tasks=False,
         lifespan=_build_server_lifespan(config_manager, args.enable_listener),
-        sampling_handler=sampling_handler,
-        sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
     )
 
     logger.info("FastMCP initialized successfully")
