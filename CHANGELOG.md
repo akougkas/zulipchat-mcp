@@ -4,6 +4,22 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.3-beta.1] (2026-08-09)
+
+### Fixed
+- AI analytics now distinguish an unconfigured provider from a configured provider that returns no usable text. Empty responses surface as errors, while responses stopped at `max_tokens` report truncation explicitly.
+- Anthropic responses retain every text block while continuing to exclude thinking and tool blocks.
+- Draft creation and editing now accept stream names and user names in addition to raw IDs. Stream names resolve through the Zulip client, and private recipients use the existing cached fuzzy user resolution. The draft tools were originally contributed in PR #15 by @aurelien-eveil.
+- The temporary 2026-07-28 ping compatibility patch now runs at package import so embedded ASGI and framework runner entry points cannot bypass it.
+
+### Changed
+- AI analytics use low provider effort to reduce latency and cost while retaining the 8192 token response budget. The Anthropic dependency floor is now 0.78.0, the first SDK release that supports `output_config.effort`.
+- The Anthropic client is reused across analytics calls in the server process.
+
+### Maintenance
+- Added issue #17 to track the FastMCP 4.0.0 final migration checks.
+- Added issue #18 to track removal of the temporary mcp-types ping compatibility patch.
+
 ## [0.7.3-beta] - 2026-08-08
 
 ### Added

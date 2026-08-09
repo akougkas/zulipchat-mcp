@@ -13,6 +13,7 @@ themselves unavailable so callers can degrade gracefully.
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from typing import Any
 
 from ..utils.logging import get_logger
@@ -28,6 +29,10 @@ class LLMUnavailableError(RuntimeError):
     """Raised when no LLM provider is configured for server-side analytics."""
 
 
+class LLMResponseError(RuntimeError):
+    """Raised when an LLM provider returns no usable response text."""
+
+
 def _get_model() -> str:
     return os.getenv(MODEL_ENV_VAR, DEFAULT_MODEL)
 
@@ -41,6 +46,14 @@ def llm_available() -> bool:
     except ImportError:
         return False
     return True
+
+
+@lru_cache(maxsize=1)
+def _get_client(api_key: str) -> Any:
+    """Build the shared Anthropic client."""
+    import anthropic
+
+    return anthropic.AsyncAnthropic(api_key=api_key)
 
 
 async def generate(prompt: str, *, max_tokens: int = 8192) -> str:
@@ -59,24 +72,26 @@ async def generate(prompt: str, *, max_tokens: int = 8192) -> str:
             "(MCP sampling was removed in the 2026-07-28 protocol)."
         )
 
-    import anthropic
-
-    client = anthropic.AsyncAnthropic()
+    client = _get_client(os.environ[API_KEY_ENV_VAR])
     message = await client.messages.create(
         model=_get_model(),
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
+        output_config={"effort": "low"},
     )
 
     text = _extract_text(message)
-    if not text:
-        raise LLMUnavailableError("LLM response contained no text content")
-    return text.strip()
+    if getattr(message, "stop_reason", None) == "max_tokens":
+        raise LLMResponseError("LLM response was truncated at max_tokens")
+    if text.strip():
+        return text.strip()
+    raise LLMResponseError("LLM response contained no text content")
 
 
 def _extract_text(message: Any) -> str:
-    """Extract the first text block from an Anthropic Messages response."""
-    for block in getattr(message, "content", []) or []:
-        if getattr(block, "type", None) == "text":
-            return block.text
-    return ""
+    """Join text blocks from an Anthropic Messages response."""
+    return "".join(
+        block.text
+        for block in getattr(message, "content", []) or []
+        if getattr(block, "type", None) == "text"
+    )

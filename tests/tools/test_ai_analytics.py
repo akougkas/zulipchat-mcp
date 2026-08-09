@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.zulipchat_mcp.core.llm import LLMUnavailableError
+from src.zulipchat_mcp.core.llm import LLMResponseError, LLMUnavailableError
 from src.zulipchat_mcp.tools.ai_analytics import (
     analyze_stream_with_llm,
     analyze_team_activity_with_llm,
@@ -96,6 +96,21 @@ class TestAIAnalytics:
         assert "Anthropic API unreachable" in result["error"]
 
     @pytest.mark.asyncio
+    async def test_analyze_stream_with_llm_empty_response_is_error(self, mock_deps):
+        _, mock_search, mock_generate = mock_deps
+        mock_search.return_value = {
+            "status": "success",
+            "messages": [{"sender": "Alice", "content": "Hello"}],
+        }
+        mock_generate.side_effect = LLMResponseError("no text content")
+
+        result = await analyze_stream_with_llm("general", "summary")
+
+        assert result["status"] == "error"
+        assert "no text content" in result["error"]
+        assert "llm_unavailable" not in result
+
+    @pytest.mark.asyncio
     async def test_analyze_stream_with_llm_unavailable_degrades(self, mock_deps):
         """Without a configured provider, return structured data, not an error."""
         _, mock_search, mock_generate = mock_deps
@@ -130,6 +145,21 @@ class TestAIAnalytics:
         assert result["status"] == "success"
         assert result["analysis"] == "Team analysis"
         assert result["total_messages"] == 2  # 1 per stream * 2 streams
+
+    @pytest.mark.asyncio
+    async def test_analyze_team_empty_response_is_error(self, mock_deps):
+        _, mock_search, mock_generate = mock_deps
+        mock_search.return_value = {
+            "status": "success",
+            "messages": [{"sender": "Alice", "content": "Work"}],
+        }
+        mock_generate.side_effect = LLMResponseError("no text content")
+
+        result = await analyze_team_activity_with_llm(["s1"], "productivity")
+
+        assert result["status"] == "error"
+        assert "no text content" in result["error"]
+        assert "llm_unavailable" not in result
 
     @pytest.mark.asyncio
     async def test_intelligent_report_generator(self, mock_deps):
@@ -174,3 +204,21 @@ class TestAIAnalytics:
         # The analysis call failed with LLMUnavailableError, so the report
         # generation call must not be attempted.
         assert mock_generate.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_report_empty_response_is_error(self, mock_deps):
+        _, mock_search, mock_generate = mock_deps
+        mock_search.return_value = {
+            "status": "success",
+            "messages": [{"sender": "Alice", "content": "Work"}],
+        }
+        mock_generate.side_effect = [
+            "Analysis",
+            LLMResponseError("no text content"),
+        ]
+
+        result = await intelligent_report_generator("weekly", ["s1"])
+
+        assert result["status"] == "error"
+        assert "no text content" in result["error"]
+        assert "llm_unavailable" not in result

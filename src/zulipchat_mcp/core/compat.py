@@ -24,10 +24,6 @@ from __future__ import annotations
 from types import ModuleType
 from typing import Any
 
-from ..utils.logging import get_logger
-
-logger = get_logger(__name__)
-
 _METHOD = "ping"
 _VERSION = "2026-07-28"
 
@@ -56,11 +52,9 @@ def apply() -> None:
         import mcp_types.methods as methods
         from mcp_types import EmptyResult, PingRequest
     except ImportError:  # pragma: no cover - mcp-types always ships with mcp 2.x
-        logger.debug("mcp_types not importable; ping patch skipped")
         return
 
     _patch_surface(methods, "CLIENT_REQUESTS", PingRequest)
     _patch_surface(methods, "SERVER_REQUESTS", PingRequest)
     _patch_surface(methods, "SERVER_RESULTS", EmptyResult)
     _patch_surface(methods, "CLIENT_RESULTS", EmptyResult)
-    logger.debug("Applied ping surface patch for protocol %s", _VERSION)

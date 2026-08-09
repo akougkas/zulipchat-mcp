@@ -5,14 +5,31 @@ when an mcp/mcp-types release ships the fix, the "already present" path covers
 it and this module (and file) should be deleted.
 """
 
+import subprocess
+import sys
+
 from src.zulipchat_mcp.core import compat
 
 
-def test_patch_registers_ping_for_modern_era():
-    compat.apply()
+def test_upstream_still_requires_patch():
+    """Fail when the installed mcp-types release makes this patch obsolete."""
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import mcp_types.methods as methods; "
+                "assert ('ping', '2026-07-28') not in methods.CLIENT_REQUESTS"
+            ),
+        ],
+        check=True,
+    )
 
+
+def test_patch_registers_ping_for_modern_era():
     import mcp_types.methods as methods
 
+    # Importing the package must apply the patch for embedded server entry points.
     assert ("ping", "2026-07-28") in methods.CLIENT_REQUESTS
     assert ("ping", "2026-07-28") in methods.SERVER_REQUESTS
     assert ("ping", "2026-07-28") in methods.SERVER_RESULTS
@@ -46,6 +63,12 @@ def test_patch_is_idempotent():
     import mcp_types.methods as methods
 
     assert list(methods.CLIENT_REQUESTS).count(("ping", "2026-07-28")) == 1
+
+
+def test_patch_does_not_write_protocol_stdout(capsys):
+    compat.apply()
+
+    assert capsys.readouterr().out == ""
 
 
 def test_patch_preserves_other_methods():
