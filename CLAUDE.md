@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.7.1)
+## Current Status (v0.7.3-beta)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/)
 
@@ -10,7 +10,7 @@ Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
 ## Project Overview
 
-ZulipChat MCP Server v0.7.1 - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.7.3-beta - A Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -182,27 +182,23 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 - Administrative tools are not exposed to AI clients
 - All credentials handled via environment variables or CLI arguments
 
-## MCP Sampling & LLM Analytics
+## Server-Side LLM Analytics
 
-### Context Parameter (Required, Not Optional)
-All LLM-powered tools require the `Context` parameter injected by FastMCP. Do NOT make it optional:
+### Server-Side LLM Provider (`src/zulipchat_mcp/core/llm.py`)
+MCP sampling was removed in the 2026-07-28 stateless protocol. LLM-powered analytics tools call a server-side Anthropic provider directly:
 
 ```python
-from fastmcp import Context, FastMCP
+from zulipchat_mcp.core.llm import generate, LLMUnavailableError
 
-@mcp.tool
-async def analyze_with_llm(query: str, ctx: Context) -> dict[str, Any]:
-    """LLM analysis tool - Context is REQUIRED, not optional."""
-    # FastMCP automatically injects ctx when called
-    result = await ctx.sample(f"Analyze: {query}")
-    return {"analysis": result.text}
+# Direct server-side generation:
+summary = await generate(prompt)
 ```
 
 **Key Points:**
-- ✅ `ctx: Context` (required) - FastMCP auto-injects
-- ❌ `ctx: Context | None = None` (optional) - breaks sampling
-- Use `await ctx.sample(prompt)` to request LLM completions
-- Client controls model selection and permissions
+- Tools do **NOT** take a `Context` parameter (`ctx`).
+- Server process requires `ANTHROPIC_API_KEY` for generation.
+- Model override via `ANTHROPIC_MODEL` (defaults to `claude-3-5-sonnet-latest`).
+- Without `ANTHROPIC_API_KEY`, tools degrade gracefully returning `status="success"` with `llm_unavailable=True` and structured `data_summary`.
 
 ### Approved Emoji for Agent Reactions
 Agents should use only these 12 emoji for consistency and quick responses:
@@ -242,12 +238,11 @@ rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_ca
 uv sync --reinstall
 ```
 
-### LLM Analytics Not Working
-If you see "Client does not support sampling":
-- Ensure `ctx: Context` is REQUIRED (not optional with `| None`)
-- Remove null checks that guard against None context
-- FastMCP handles injection automatically
-- Client (Claude Code, Gemini) must have sampling capability enabled
+### LLM Analytics Returns `llm_unavailable`
+If analytics tools return `llm_unavailable=True`:
+- Set `ANTHROPIC_API_KEY` in the environment of the `zulipchat-mcp` server process.
+- Optional: set `ANTHROPIC_MODEL` to override the model.
+- Calling agents can process the returned `data_summary` field directly when server-side LLM is unconfigured.
 
 ### DuckDB lock after unclean shutdown
 Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the file in `.mcp/zulipchat/zulipchat.duckdb`.

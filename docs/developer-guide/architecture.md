@@ -36,14 +36,26 @@ This produces:
 
 ## Startup flow
 
-1. Parse CLI flags.
-2. Initialize config manager.
-3. Validate credentials (`zuliprc` or env fallback).
-4. Set unsafe-mode context.
-5. Initialize optional database/services.
-6. Register tools.
-7. Warm user/stream caches.
-8. Run FastMCP stdio server.
+1. Apply protocol compatibility patch (`core/compat.py`).
+2. Parse CLI flags (`--transport stdio|http`, `--host`, `--port`, `--auth-token`).
+3. Initialize config manager.
+4. Validate credentials (`zuliprc` or env fallback).
+5. Set unsafe-mode context.
+6. Initialize optional database/services.
+7. Register FastMCP instance with SEP-2663 `TasksExtension`.
+8. Register tools (core 20 or extended 56).
+9. Warm user/stream caches.
+10. Run FastMCP server (`stdio` or streamable `http`).
+
+## Server-Side LLM Provider (`core/llm.py`)
+
+Under the 2026-07-28 stateless protocol, MCP sampling is removed from the server API. AI analytics tools execute via a server-side Anthropic provider (`core/llm.py`) configured with `ANTHROPIC_API_KEY`. When unconfigured, tools report `llm_unavailable: true` and return raw structured summaries so calling agents can reason over data directly.
+
+## Stateless HTTP Transport & Multi-Replica Caveat
+
+`--transport http` enables streamable-HTTP serving. Requests are stateless and self-contained under the 2026-07-28 protocol, permitting round-robin load balancing.
+
+> **Single-Writer DB Caveat**: DuckDB storage (`zulipchat.duckdb`) is single-writer. Multi-replica HTTP deployments must either assign distinct DB file paths per worker or operate as a single instance.
 
 ## Service behavior
 
@@ -61,5 +73,6 @@ This produces:
 ## Security-related boundaries
 
 - `--unsafe` is off by default.
+- Bearer token authentication required on non-loopback HTTP binds (`--auth-token` / `ZULIPCHAT_HTTP_AUTH_TOKEN`).
 - Destructive topic delete path is guarded in `agents_channel_topic_ops`.
 - Agent emoji usage is validated against a fixed approved list.

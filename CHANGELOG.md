@@ -4,6 +4,20 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.3-beta] - 2026-08-08
+
+### Added
+- **MCP 2026-07-28 Stateless Protocol Support**: Upgraded to FastMCP 4 (`fastmcp[anthropic,tasks]==4.0.0b2`), migrating the server to the 2026-07-28 stateless protocol. Includes dual-era protocol compatibility (serving both 2025-11-25 and 2026-07-28 clients).
+- **Stateless HTTP Transport (`--transport http`)**: Added `--transport http`, `--host`, `--port`, and `--auth-token` CLI flags (supported via `ZULIPCHAT_HTTP_AUTH_TOKEN` environment variable). Exposes streamable-HTTP with bearer token authentication for centralized or remote MCP deployments.
+- **Remote Integration Snippets**: Extended `zulipchat-mcp-integrate print` with `--remote-url` and `--remote-token` options for `claude-code`, `vscode`, and `generic` clients. Updated `server.json` manifest with a `streamable-http` remote template.
+- **SEP-2663 Tasks Extension**: Registered `TasksExtension` (`fastmcp-tasks`) on the FastMCP server, preserving background task execution (`teleport_chat`, `wait_for_response`, `listen_events`) under FastMCP 4.
+- **Protocol Compatibility Patch (`core/compat.py`)**: Added a temporary compatibility patch for upstream [python-sdk#3273](https://github.com/modelcontextprotocol/python-sdk/issues/3273) to restore ping keepalives on 2026-07-28 connections.
+
+### Breaking Changes & Migration
+- **Server-Side LLM Analytics (`core/llm.py`)**: Removed MCP client-side sampling (`ctx.sample`, removed in FastMCP 4). AI-powered analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) now execute via a server-side Anthropic LLM provider directly using `ANTHROPIC_API_KEY`.
+- **Migration Note**: If you use AI analytics tools, set `ANTHROPIC_API_KEY` on the `zulipchat-mcp` server process. Without an API key, analytics tools degrade gracefully returning `status="success"` with `llm_unavailable=True` and structured `data_summary` so calling agents can process the data directly.
+- **Parameter Changes**: Removed injected `ctx: Context` parameter from analytics tool signatures.
+
 ## [0.7.1] - 2026-05-11
 
 ### Fixed

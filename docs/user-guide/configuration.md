@@ -34,6 +34,10 @@ zulipchat-mcp [options]
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
 - `--extended-tools`: Register all 56 tools instead of the 20-tool core set
+- `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
+- `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
+- `--port PORT`: Bind port for `--transport http` (default: `8000`)
+- `--auth-token TOKEN`: Bearer authentication token for HTTP transport
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
 - `--enable-listener`: Backward-compatibility flag
@@ -56,6 +60,15 @@ compatibility.
 
 - `ZULIP_CONFIG_FILE`
 - `ZULIP_BOT_CONFIG_FILE`
+
+### Server-side LLM Provider
+
+- `ANTHROPIC_API_KEY`: API key for server-side AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`)
+- `ANTHROPIC_MODEL`: Optional model override (default: `claude-3-5-sonnet-latest`)
+
+### HTTP Transport & Security
+
+- `ZULIPCHAT_HTTP_AUTH_TOKEN`: Bearer token required for `--transport http` requests
 
 ### Runtime
 

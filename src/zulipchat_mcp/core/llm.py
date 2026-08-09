@@ -19,7 +19,7 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = "claude-3-5-sonnet-latest"
 MODEL_ENV_VAR = "ANTHROPIC_MODEL"
 API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
 

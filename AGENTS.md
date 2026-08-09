@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-## Current Status (v0.7.1)
+## Current Status (v0.7.3-beta)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
 
@@ -30,22 +30,20 @@
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
-## MCP Sampling & LLM Analytics (v0.4+)
+## Server-Side LLM Analytics & Protocol (v0.7.3+)
 
-### Context Parameter Requirements
-All LLM-powered analytics tools in v0.4 use MCP Sampling via `Context` injection:
+### LLM Analytics Provider Requirements
+In the 2026-07-28 stateless protocol (FastMCP 4+), MCP sampling was removed from the server API. AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) call a server-side Anthropic provider (`src/zulipchat_mcp/core/llm.py`) directly:
 
-**CORRECT** (Required parameter):
-```python
-async def analyze_stream_with_llm(stream_name: str, ctx: Context) -> dict:
-    result = await ctx.sample(f"Analyze stream {stream_name}")
-```
+- `ANTHROPIC_API_KEY`: Required on the server process for LLM generation.
+- `ANTHROPIC_MODEL`: Optional model override (defaults to `claude-3-5-sonnet-latest`).
+- **Graceful degradation**: Without an API key, tools return `status="success"` with `llm_unavailable=True`, `analysis=None`, and raw `data_summary` so calling agents can analyze data directly.
+- **No `ctx` parameter**: Analytics tools do not take a `Context` parameter.
 
-**INCORRECT** (Optional parameter breaks sampling):
-```python
-async def analyze_stream_with_llm(stream_name: str, ctx: Context | None = None) -> dict:
-    if not ctx: return {...}  # This defeats sampling!
-```
+### Stateless HTTP Transport
+- `--transport http` serves on streamable-HTTP (port 8000 by default).
+- Authentication: Set `--auth-token` or `ZULIPCHAT_HTTP_AUTH_TOKEN` (Bearer token auth). Required when binding beyond `127.0.0.1`.
+- **Multi-replica note**: DuckDB persistence is single-writer. In multi-replica HTTP deployments, ensure each replica points to a distinct DuckDB path or use stdio/single-instance mode.
 
 ### Bidirectional Agent Communication (v0.4+)
 Full agent-to-user messaging pipeline available in `src/zulipchat_mcp/tools/agents.py`:

@@ -56,6 +56,24 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 - Verify the file identifier is a valid upload path or full URL.
 - Ensure the active identity has access to the underlying stream/DM context.
 
+## AI analytics tools return `llm_unavailable: true`
+
+- In the 2026-07-28 protocol, MCP sampling was replaced with a server-side Anthropic LLM provider (`core/llm.py`).
+- Set `ANTHROPIC_API_KEY` in the environment of the server process to enable LLM generation.
+- Optionally set `ANTHROPIC_MODEL` to override the model (default: `claude-3-5-sonnet-latest`).
+- Without an API key, analytics tools return raw structured summaries so calling agents can process data directly.
+
+## HTTP transport returns 401 Unauthorized
+
+- When binding `--transport http` beyond `127.0.0.1`, bearer token authentication is enabled.
+- Ensure requests include `Authorization: Bearer <token>` matching `--auth-token` or `ZULIPCHAT_HTTP_AUTH_TOKEN`.
+
+## Multi-replica HTTP database locking
+
+- DuckDB storage (`zulipchat.duckdb`) is single-writer.
+- In multi-replica HTTP deployments, running multiple server processes accessing the same DuckDB path will fail with database lock errors.
+- Ensure each HTTP replica uses a distinct database file path or run as a single-instance deployment.
+
 ## Setup wizard EOF in non-interactive shells
 
 The wizard is interactive. Run it directly in a terminal (no piped stdin):

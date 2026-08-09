@@ -107,12 +107,12 @@ trap cleanup EXIT
 SMOKE_VENV="$SMOKE_TMP_DIR/venv"
 uv venv "$SMOKE_VENV" --python "$PYTHON_VERSION"
 
-WHEEL_PATH="dist/zulipchat_mcp-${VERSION}-py3-none-any.whl"
-if [[ ! -f "$WHEEL_PATH" ]]; then
-  echo "ERROR: Expected wheel not found: $WHEEL_PATH" >&2
+WHEEL_PATH="$(ls -t dist/zulipchat_mcp-*.whl 2>/dev/null | head -n1 || true)"
+if [[ -z "$WHEEL_PATH" || ! -f "$WHEEL_PATH" ]]; then
+  echo "ERROR: Expected wheel not found in dist/" >&2
   exit 1
 fi
-uv pip install --python "$SMOKE_VENV/bin/python" "$WHEEL_PATH"
+uv pip install --prerelease=allow --python "$SMOKE_VENV/bin/python" "$WHEEL_PATH"
 
 echo "==> Installed-wheel entrypoint smoke"
 "$SMOKE_VENV/bin/zulipchat-mcp" --version
