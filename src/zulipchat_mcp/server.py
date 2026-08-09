@@ -7,6 +7,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
+from fastmcp_tasks import TasksExtension
 
 from . import __version__
 from .config import ConfigManager, init_config_manager
@@ -153,6 +154,11 @@ def main() -> None:
         tasks=False,
         lifespan=_build_server_lifespan(config_manager, args.enable_listener),
     )
+
+    # Register the SEP-2663 Tasks extension: in FastMCP 4, tools declared with
+    # task=TaskConfig(...) are rejected at startup unless this extension is
+    # present. Defaults read FASTMCP_DOCKET_* env vars, unchanged from v3.
+    mcp.add_extension(TasksExtension())
 
     logger.info("FastMCP initialized successfully")
 
