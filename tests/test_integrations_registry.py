@@ -68,6 +68,55 @@ def test_version_flag(monkeypatch, capsys):
     assert __version__ in out
 
 
+def test_print_remote_generic_with_token(monkeypatch, capsys):
+    """Remote generic snippet should carry the HTTP url and bearer header."""
+    _run_main(
+        monkeypatch,
+        [
+            "print",
+            "--client",
+            "generic",
+            "--remote-url",
+            "http://mcp.internal:8000/mcp",
+            "--remote-token",
+            "tok123",
+        ],
+    )
+    payload = json.loads(capsys.readouterr().out)
+    server = payload["mcpServers"]["zulipchat"]
+    assert server["type"] == "http"
+    assert server["url"] == "http://mcp.internal:8000/mcp"
+    assert server["headers"]["Authorization"] == "Bearer tok123"
+
+
+def test_print_remote_vscode_without_token(monkeypatch, capsys):
+    """Remote snippets omit the Authorization header when no token is set."""
+    monkeypatch.delenv("ZULIPCHAT_HTTP_AUTH_TOKEN", raising=False)
+    _run_main(
+        monkeypatch,
+        ["print", "--client", "vscode", "--remote-url", "http://mcp.internal:8000/mcp"],
+    )
+    payload = json.loads(capsys.readouterr().out)
+    server = payload["servers"]["zulipchat"]
+    assert server["type"] == "http"
+    assert "headers" not in server
+
+
+def test_print_remote_rejects_unsupported_client(monkeypatch):
+    """Clients without a known remote format should fail with a clear error."""
+    with pytest.raises(ValueError, match="Remote HTTP snippets"):
+        _run_main(
+            monkeypatch,
+            ["print", "--client", "cursor", "--remote-url", "http://x:8000/mcp"],
+        )
+
+
+def test_print_requires_config_file_for_local(monkeypatch):
+    """Local stdio snippets still require --zulip-config-file."""
+    with pytest.raises(SystemExit):
+        _run_main(monkeypatch, ["print", "--client", "generic"])
+
+
 def test_export_claude_code_standalone_merges_settings(monkeypatch, capsys, tmp_path):
     """Standalone export should merge hooks and write `.claude` assets."""
     settings_dir = tmp_path / ".claude"
