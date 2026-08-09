@@ -43,7 +43,7 @@ Use this checklist in GitHub repository settings.
 
 ## Search-optimized project description
 
-`ZulipChat MCP is a production-ready Model Context Protocol server that connects AI assistants to Zulip workspaces for messaging, search, reactions, events, files, and dual user/bot identity workflows with a 20-tool core mode and 56-tool extended mode.`
+`ZulipChat MCP is a production-ready Model Context Protocol server that connects AI assistants to Zulip workspaces for messaging, search, reactions, events, files, and dual user/bot identity workflows with a 20-tool core mode and 60-tool extended mode.`
 
 ## Optional discoverability assets
 

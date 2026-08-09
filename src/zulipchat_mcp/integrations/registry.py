@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,34 @@ def _build_base_config(
         "command": "uvx",
         "args": args,
     }
+
+
+def _render_remote_for_client(client: str, url: str, token: str | None) -> str:
+    """Render a snippet pointing a client at a remote HTTP server."""
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+
+    if client == "claude-code":
+        cmd = f"claude mcp add --transport http zulipchat {url}"
+        if token:
+            cmd += f' --header "Authorization: Bearer {token}"'
+        return cmd
+
+    if client == "generic":
+        payload: dict[str, Any] = {"zulipchat": {"type": "http", "url": url}}
+        if headers:
+            payload["zulipchat"]["headers"] = headers
+        return json.dumps({"mcpServers": payload}, indent=2)
+
+    if client == "vscode":
+        server: dict[str, Any] = {"type": "http", "url": url}
+        if headers:
+            server["headers"] = headers
+        return json.dumps({"servers": {"zulipchat": server}}, indent=2)
+
+    raise ValueError(
+        f"Remote HTTP snippets are supported for: claude-code, vscode, generic. "
+        f"Got: {client}"
+    )
 
 
 def _render_for_client(client: str, base: dict[str, Any]) -> str:
@@ -113,9 +142,25 @@ def main() -> None:
 
     print_parser = sub.add_parser("print", help="Print integration snippet")
     print_parser.add_argument("--client", choices=CLIENTS, required=True)
-    print_parser.add_argument("--zulip-config-file", required=True)
+    print_parser.add_argument(
+        "--zulip-config-file",
+        help="Required for local stdio snippets (not used with --remote-url)",
+    )
     print_parser.add_argument("--zulip-bot-config-file")
     print_parser.add_argument("--extended-tools", action="store_true")
+    print_parser.add_argument(
+        "--remote-url",
+        help=(
+            "Point the client at a remote ZulipChat server instead of a local "
+            "stdio process (e.g. http://mcp.internal:8000/mcp). Requires the "
+            "server to run with --transport http."
+        ),
+    )
+    print_parser.add_argument(
+        "--remote-token",
+        default=os.environ.get("ZULIPCHAT_HTTP_AUTH_TOKEN"),
+        help="Bearer token for --remote-url (default: ZULIPCHAT_HTTP_AUTH_TOKEN)",
+    )
 
     export_parser = sub.add_parser(
         "export",
@@ -140,6 +185,19 @@ def main() -> None:
         return
 
     if args.command == "print":
+        if args.remote_url:
+            try:
+                snippet = _render_remote_for_client(
+                    args.client, args.remote_url, args.remote_token
+                )
+            except ValueError as e:
+                print_parser.error(str(e))
+            print(snippet)
+            return
+        if not args.zulip_config_file:
+            print_parser.error(
+                "--zulip-config-file is required unless --remote-url is given"
+            )
         base = _build_base_config(
             args.zulip_config_file,
             args.zulip_bot_config_file,

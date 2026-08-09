@@ -1,16 +1,19 @@
-"""AI-powered analytics tools for ZulipChat MCP v0.4.0.
+"""AI-powered analytics tools for ZulipChat MCP.
 
-High-level analytical tools that use LLM elicitation for sophisticated insights.
-Fetches raw Zulip data and processes with LLM reasoning instead of built-in complexity.
+High-level analytical tools that generate insights with a server-side LLM
+provider (src/zulipchat_mcp/core/llm.py). MCP sampling was removed in the
+2026-07-28 stateless protocol, so analytics run against a provider owned by
+this server (ANTHROPIC_API_KEY) instead of delegating generation to the
+client.
 """
 
 from datetime import datetime
 from typing import Any, Literal
 
-from fastmcp import Context, FastMCP
-from mcp.types import TextContent
+from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.llm import LLMUnavailableError, generate
 
 
 async def get_daily_summary(
@@ -33,24 +36,17 @@ async def get_daily_summary(
         return {"status": "error", "error": str(e)}
 
 
-def _extract_llm_text(response: Any) -> str:
-    """Extract text content from an MCP sampling response."""
-    content = getattr(response, "content", [])
-    if content:
-        first = content[0]
-        if isinstance(first, TextContent):
-            return first.text
-    return ""
-
-
 async def analyze_stream_with_llm(
     stream_name: str,
     analysis_type: str,
-    ctx: Context,
     time_period: Literal["day", "week", "month"] = "week",
     custom_prompt: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch stream data and analyze with LLM for sophisticated insights."""
+    """Fetch stream data and analyze with LLM for sophisticated insights.
+
+    Requires a server-side LLM provider (ANTHROPIC_API_KEY); MCP sampling was
+    removed in the 2026-07-28 protocol.
+    """
     get_client()  # Validate client is available
 
     try:
@@ -96,28 +92,40 @@ async def analyze_stream_with_llm(
                 f"Analyze this stream data for {analysis_type}:\n\n{data_summary}",
             )
 
-        # Use LLM for analysis
+        # Use server-side LLM provider for analysis
         try:
-            llm_response = await ctx.sample(analysis_prompt)
-            analysis_result = _extract_llm_text(llm_response).strip()
-            if not analysis_result:
-                return {
-                    "status": "error",
-                    "error": "LLM response missing text content",
-                }
-
+            analysis_result = await generate(analysis_prompt)
+        except LLMUnavailableError as e:
             return {
                 "status": "success",
                 "stream": stream_name,
                 "analysis_type": analysis_type,
                 "time_period": time_period,
                 "message_count": len(messages),
-                "analysis": analysis_result,
+                "analysis": None,
+                "llm_unavailable": True,
+                "data_summary": data_summary,
+                "note": str(e),
                 "generated_at": datetime.now().isoformat(),
             }
-
         except Exception as e:
             return {"status": "error", "error": f"LLM analysis failed: {str(e)}"}
+
+        if not analysis_result:
+            return {
+                "status": "error",
+                "error": "LLM response missing text content",
+            }
+
+        return {
+            "status": "success",
+            "stream": stream_name,
+            "analysis_type": analysis_type,
+            "time_period": time_period,
+            "message_count": len(messages),
+            "analysis": analysis_result,
+            "generated_at": datetime.now().isoformat(),
+        }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -126,11 +134,13 @@ async def analyze_stream_with_llm(
 async def analyze_team_activity_with_llm(
     team_streams: list[str],
     analysis_focus: str,
-    ctx: Context,
     days_back: int = 7,
     custom_prompt: str | None = None,
 ) -> dict[str, Any]:
-    """Analyze team activity across multiple streams with LLM insights."""
+    """Analyze team activity across multiple streams with LLM insights.
+
+    Requires a server-side LLM provider (ANTHROPIC_API_KEY).
+    """
     get_client()  # Validate client is available
 
     try:
@@ -188,16 +198,10 @@ async def analyze_team_activity_with_llm(
                 f"Analyze team activity for {analysis_focus}:\n\n{data_summary}",
             )
 
-        # Use LLM for analysis
+        # Use server-side LLM provider for analysis
         try:
-            llm_response = await ctx.sample(analysis_prompt)
-            analysis_result = _extract_llm_text(llm_response).strip()
-            if not analysis_result:
-                return {
-                    "status": "error",
-                    "error": "LLM response missing text content",
-                }
-
+            analysis_result = await generate(analysis_prompt)
+        except LLMUnavailableError as e:
             return {
                 "status": "success",
                 "team_streams": team_streams,
@@ -205,12 +209,31 @@ async def analyze_team_activity_with_llm(
                 "days_back": days_back,
                 "total_messages": len(all_messages),
                 "streams_analyzed": len(team_streams),
-                "analysis": analysis_result,
+                "analysis": None,
+                "llm_unavailable": True,
+                "data_summary": data_summary,
+                "note": str(e),
                 "generated_at": datetime.now().isoformat(),
             }
-
         except Exception as e:
             return {"status": "error", "error": f"LLM analysis failed: {str(e)}"}
+
+        if not analysis_result:
+            return {
+                "status": "error",
+                "error": "LLM response missing text content",
+            }
+
+        return {
+            "status": "success",
+            "team_streams": team_streams,
+            "analysis_focus": analysis_focus,
+            "days_back": days_back,
+            "total_messages": len(all_messages),
+            "streams_analyzed": len(team_streams),
+            "analysis": analysis_result,
+            "generated_at": datetime.now().isoformat(),
+        }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -219,23 +242,41 @@ async def analyze_team_activity_with_llm(
 async def intelligent_report_generator(
     report_type: Literal["standup", "weekly", "retrospective", "custom"],
     target_streams: list[str],
-    ctx: Context,
     custom_focus: str | None = None,
 ) -> dict[str, Any]:
-    """Generate intelligent reports using LLM analysis of team data."""
+    """Generate intelligent reports using LLM analysis of team data.
+
+    Requires a server-side LLM provider (ANTHROPIC_API_KEY).
+    """
     try:
         # Fetch recent team activity
         team_activity = await analyze_team_activity_with_llm(
             team_streams=target_streams,
             analysis_focus=custom_focus or report_type,
             days_back=1 if report_type == "standup" else 7,
-            ctx=ctx,
         )
 
         if team_activity.get("status") != "success":
             return {
                 "status": "error",
-                "error": team_activity.get("error", "Failed to gather team activity data"),
+                "error": team_activity.get(
+                    "error", "Failed to gather team activity data"
+                ),
+            }
+
+        # If the LLM was unavailable for the underlying analysis, a second LLM
+        # call to format a report cannot succeed either. Surface the structured
+        # data so the caller can present it directly.
+        if team_activity.get("llm_unavailable"):
+            return {
+                "status": "success",
+                "report_type": report_type,
+                "target_streams": target_streams,
+                "report_content": None,
+                "llm_unavailable": True,
+                "team_activity": team_activity,
+                "note": team_activity.get("note", ""),
+                "generated_at": datetime.now().isoformat(),
             }
 
         analysis = team_activity.get("analysis", "")
@@ -291,27 +332,37 @@ Based on this team analysis:
 
 Provide relevant insights and actionable information."""
 
-        # Generate report with LLM
+        # Generate report with server-side LLM provider
         try:
-            llm_response = await ctx.sample(report_prompt)
-            report_content = _extract_llm_text(llm_response).strip()
-            if not report_content:
-                return {
-                    "status": "error",
-                    "error": "LLM response missing text content",
-                }
-
+            report_content = await generate(report_prompt)
+        except LLMUnavailableError as e:
             return {
                 "status": "success",
                 "report_type": report_type,
                 "target_streams": target_streams,
-                "report_content": report_content,
-                "data_analyzed": team_activity.get("total_messages", 0),
+                "report_content": None,
+                "llm_unavailable": True,
+                "team_activity": team_activity,
+                "note": str(e),
                 "generated_at": datetime.now().isoformat(),
             }
-
         except Exception as e:
             return {"status": "error", "error": f"Report generation failed: {str(e)}"}
+
+        if not report_content:
+            return {
+                "status": "error",
+                "error": "LLM response missing text content",
+            }
+
+        return {
+            "status": "success",
+            "report_type": report_type,
+            "target_streams": target_streams,
+            "report_content": report_content,
+            "data_analyzed": team_activity.get("total_messages", 0),
+            "generated_at": datetime.now().isoformat(),
+        }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

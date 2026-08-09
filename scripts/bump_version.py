@@ -25,47 +25,47 @@ class VersionUpdate:
 VERSION_UPDATES: list[VersionUpdate] = [
     VersionUpdate(
         "pyproject.toml",
-        r'version = "[0-9]+\.[0-9]+\.[0-9]+"',
+        r'version = "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
         'version = "{version}"',
     ),
     VersionUpdate(
         "src/zulipchat_mcp/__init__.py",
-        r'__version__ = "[0-9]+\.[0-9]+\.[0-9]+"',
+        r'__version__ = "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
         '__version__ = "{version}"',
     ),
     VersionUpdate(
         "src/zulipchat_mcp/tools/system.py",
-        r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
+        r'"version": "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
         '"version": "{version}"',
     ),
     VersionUpdate(
         "tests/tools/test_system.py",
-        r'result\["version"\] == "[0-9]+\.[0-9]+\.[0-9]+"',
+        r'result\["version"\] == "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
         'result["version"] == "{version}"',
     ),
     VersionUpdate(
         "CLAUDE.md",
-        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+\)",
+        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?\)",
         "## Current Status (v{version})",
     ),
     VersionUpdate(
         "CLAUDE.md",
-        r"ZulipChat MCP Server v[0-9]+\.[0-9]+\.[0-9]+",
+        r"ZulipChat MCP Server v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?",
         "ZulipChat MCP Server v{version}",
     ),
     VersionUpdate(
         "AGENTS.md",
-        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+\)",
+        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?\)",
         "## Current Status (v{version})",
     ),
     VersionUpdate(
         "ROADMAP.md",
-        r"## v[0-9]+\.[0-9]+\.[0-9]+ \(Current\)",
+        r"## v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)? \(Current\)",
         "## v{version} (Current)",
     ),
     VersionUpdate(
         "server.json",
-        r'"version": "[0-9]+\.[0-9]+\.[0-9]+"',
+        r'"version": "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
         '"version": "{version}"',
     ),
 ]
@@ -76,8 +76,8 @@ MANUAL_FILES = [
 
 
 def validate_version(version: str) -> bool:
-    """Validate version string is semver format."""
-    return bool(re.match(r"^[0-9]+\.[0-9]+\.[0-9]+$", version))
+    """Validate version string is semver format (including prerelease tags)."""
+    return bool(re.match(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?$", version))
 
 
 def update_file(

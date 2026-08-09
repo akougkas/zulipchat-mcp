@@ -7,18 +7,12 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
+from fastmcp_tasks import TasksExtension
 
 from . import __version__
 from .config import ConfigManager, init_config_manager
+from .core import compat
 from .core.security import set_unsafe_mode
-
-# Optional: Anthropic sampling handler for LLM analytics fallback
-try:
-    from fastmcp.client.sampling.handlers.anthropic import AnthropicSamplingHandler
-
-    anthropic_available = True
-except ImportError:
-    anthropic_available = False
 
 # Optional service manager for background services
 try:
@@ -62,6 +56,11 @@ def _build_server_lifespan(config_manager: ConfigManager, enable_listener: bool)
 
 def main() -> None:
     """Main entry point for the MCP server."""
+    # Temporary patch: restore ping for 2026-07-28 connections. Must run
+    # before any MCP traffic. Remove when upstream (python-sdk #3273) ships
+    # a fix and our mcp floor includes it.
+    compat.apply()
+
     parser = argparse.ArgumentParser(
         description="ZulipChat MCP Server - Integrates Zulip Chat with AI assistants",
         epilog=(
@@ -98,6 +97,39 @@ def main() -> None:
         "--extended-tools",
         action="store_true",
         help="Register all tools (60) instead of the core set (20).",
+    )
+
+    # Transport Options
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help=(
+            "Transport to serve on (default: stdio). 'http' runs the "
+            "streamable-HTTP transport; on the 2026-07-28 protocol each "
+            "request is self-contained, so replicas sit behind a plain "
+            "round-robin load balancer with no sticky sessions."
+        ),
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind for --transport http (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind for --transport http (default: 8000)",
+    )
+    parser.add_argument(
+        "--auth-token",
+        default=os.getenv("ZULIPCHAT_HTTP_AUTH_TOKEN"),
+        help=(
+            "Bearer token required on HTTP requests (or set "
+            "ZULIPCHAT_HTTP_AUTH_TOKEN). Strongly recommended for any "
+            "non-localhost bind."
+        ),
     )
 
     args = parser.parse_args()
@@ -137,17 +169,32 @@ def main() -> None:
     else:
         logger.info("Database not available (agent features disabled)")
 
-    # Configure sampling handler for LLM analytics (fallback when client doesn't support)
-    sampling_handler = None
-    if anthropic_available and os.getenv("ANTHROPIC_API_KEY"):
-        sampling_handler = AnthropicSamplingHandler(
-            default_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-        )
-        logger.info("Anthropic sampling handler configured (fallback mode)")
-    elif anthropic_available:
+    # Server-side LLM analytics: MCP sampling was removed in the 2026-07-28
+    # protocol, so analytics tools call a provider owned by this server
+    # (see src/zulipchat_mcp/core/llm.py) instead of delegating to the client.
+    if not os.getenv("ANTHROPIC_API_KEY"):
         logger.debug(
-            "ANTHROPIC_API_KEY not set - LLM analytics will require client sampling support"
+            "ANTHROPIC_API_KEY not set - AI analytics tools return structured data only"
         )
+
+    # HTTP transport auth: require an explicit bearer token when binding
+    # beyond localhost unless the operator opts out with a loopback bind.
+    auth = None
+    if args.transport == "http":
+        if args.auth_token:
+            from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+
+            auth = StaticTokenVerifier(
+                tokens={args.auth_token: {"client_id": "zulipchat-http", "scopes": []}}
+            )
+            logger.info("HTTP transport: bearer token auth enabled")
+        elif args.host not in ("127.0.0.1", "localhost", "::1"):
+            logger.warning(
+                "HTTP transport binding to %s WITHOUT --auth-token - any client "
+                "that can reach this port can call tools. Set "
+                "ZULIPCHAT_HTTP_AUTH_TOKEN or pass --auth-token.",
+                args.host,
+            )
 
     # Initialize MCP with modern configuration
     mcp = FastMCP(
@@ -159,14 +206,18 @@ def main() -> None:
             "updates, request approvals, and read steering commands from the topic owner."
         ),
         on_duplicate="warn",
+        auth=auth,
         # FastMCP protocol tasks are enabled per long-running tool. Keeping the
         # server default forbidden prevents sync/fast tools from being advertised
         # as task-capable by accident.
         tasks=False,
         lifespan=_build_server_lifespan(config_manager, args.enable_listener),
-        sampling_handler=sampling_handler,
-        sampling_handler_behavior="fallback",  # Use only when client doesn't support sampling
     )
+
+    # Register the SEP-2663 Tasks extension: in FastMCP 4, tools declared with
+    # task=TaskConfig(...) are rejected at startup unless this extension is
+    # present. Defaults read FASTMCP_DOCKET_* env vars, unchanged from v3.
+    mcp.add_extension(TasksExtension())
 
     logger.info("FastMCP initialized successfully")
 
@@ -197,8 +248,11 @@ def main() -> None:
     except Exception as e:
         logger.debug(f"Cache warmup skipped: {e}")
 
-    logger.info("Starting ZulipChat MCP server...")
-    mcp.run()
+    logger.info("Starting ZulipChat MCP server (transport=%s)...", args.transport)
+    if args.transport == "http":
+        mcp.run(transport="http", host=args.host, port=args.port)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

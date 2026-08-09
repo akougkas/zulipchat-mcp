@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from fastmcp import FastMCP
-from fastmcp.server.tasks import TaskConfig
+from fastmcp.utilities.tasks import TaskConfig
 
 
 def optional_background_task(poll_seconds: int = 5) -> TaskConfig:

@@ -149,8 +149,38 @@ Add to your MCP configuration:
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
 | `--extended-tools` | Register all 60 tools instead of the 20-tool core set |
+| `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
+| `--host HOST` | Bind host for HTTP transport (default: `127.0.0.1`) |
+| `--port PORT` | Bind port for HTTP transport (default: `8000`) |
+| `--auth-token TOKEN` | Bearer auth token for HTTP transport (or `ZULIPCHAT_HTTP_AUTH_TOKEN`) |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
+
+### Remote HTTP Transport
+
+ZulipChat MCP supports stateless HTTP deployments under the MCP 2026-07-28 protocol:
+
+```bash
+# Run server over HTTP with bearer authentication
+ZULIPCHAT_HTTP_AUTH_TOKEN=your-secret-token \
+  uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --transport http --host 0.0.0.0 --port 8000
+```
+
+Generate client integration snippets for remote HTTP connections:
+
+```bash
+uvx zulipchat-mcp-integrate print --client claude-code --remote-url http://mcp.internal:8000/mcp --remote-token your-secret-token
+```
+
+> **Note on Multi-Replica Deployments**: DuckDB state persistence is single-writer. When deploying multiple HTTP replicas, ensure each instance points to a distinct DuckDB path or run a single-instance deployment.
+
+### AI Analytics & LLM Provider
+
+AI-powered analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) execute using a server-side Anthropic LLM provider:
+
+- Set `ANTHROPIC_API_KEY` on the server process for LLM generation.
+- Optionally set `ANTHROPIC_MODEL` to override the default model (`claude-opus-5`).
+- Without an API key, analytics tools return structured data summaries with `llm_unavailable: true` so your client assistant can analyze the data directly.
 
 ### More clients
 

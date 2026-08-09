@@ -15,12 +15,20 @@ if TYPE_CHECKING:
 try:
     from pathlib import Path
 
-    from dotenv import load_dotenv
+    from dotenv import dotenv_values
 
-    # Load .env file for development (only current directory)
+    # Load .env file for development (only current directory).
+    # Blank entries are skipped rather than exported. A templated .env leaves
+    # keys like `ZULIP_SITE=` present but empty, and the Zulip SDK reads those
+    # variables whenever its constructor arg is None, so exporting "" would
+    # shadow an explicit --zulip-config-file and fail with an opaque
+    # "No host supplied" URL error. Existing environment values still win,
+    # matching load_dotenv's default override=False behaviour.
     env_path = Path.cwd() / ".env"
     if env_path.exists():
-        load_dotenv(env_path)
+        for _key, _value in dotenv_values(env_path).items():
+            if _value and _value.strip() and _key not in os.environ:
+                os.environ[_key] = _value
 except ImportError:
     # python-dotenv not available, skip loading .env
     pass
@@ -79,14 +87,14 @@ class ConfigManager:
         final_port = self._get_port()
 
         return ZulipConfig(
-            email=os.getenv("ZULIP_EMAIL"),
-            api_key=os.getenv("ZULIP_API_KEY"),
-            site=os.getenv("ZULIP_SITE"),
+            email=self._env("ZULIP_EMAIL"),
+            api_key=self._env("ZULIP_API_KEY"),
+            site=self._env("ZULIP_SITE"),
             config_file=final_config_file,
             debug=final_debug,
             port=final_port,
-            bot_email=os.getenv("ZULIP_BOT_EMAIL"),
-            bot_api_key=os.getenv("ZULIP_BOT_API_KEY"),
+            bot_email=self._env("ZULIP_BOT_EMAIL"),
+            bot_api_key=self._env("ZULIP_BOT_API_KEY"),
             bot_config_file=final_bot_config_file,
         )
 
@@ -107,13 +115,27 @@ class ConfigManager:
                 return path
         return None
 
+    @staticmethod
+    def _env(name: str) -> str | None:
+        """Read an environment variable, treating blank values as unset.
+
+        A templated `.env` leaves keys like `ZULIP_SITE=` present but empty.
+        Returning "" here would shadow an explicitly passed --zulip-config-file
+        and surface later as an opaque "No host supplied" URL error, because the
+        Zulip SDK also honours these variables over the config file.
+        """
+        value = os.getenv(name)
+        if value is None:
+            return None
+        return value.strip() or None
+
     def _get_config_file(self) -> str | None:
         """Get Zulip config file path from environment variable."""
-        return os.getenv("ZULIP_CONFIG_FILE")
+        return self._env("ZULIP_CONFIG_FILE")
 
     def _get_bot_config_file(self) -> str | None:
         """Get bot config file path."""
-        return os.getenv("ZULIP_BOT_CONFIG_FILE")
+        return self._env("ZULIP_BOT_CONFIG_FILE")
 
     def _get_debug(self) -> bool:
         """Get debug mode setting."""

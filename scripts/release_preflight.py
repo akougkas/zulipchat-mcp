@@ -53,8 +53,8 @@ def _run_git(args: list[str]) -> str:
 
 
 def _check_semver(version: str) -> CheckResult:
-    passed = bool(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version))
-    detail = version if passed else "Expected format MAJOR.MINOR.PATCH"
+    passed = bool(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?", version))
+    detail = version if passed else "Expected format MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE"
     return CheckResult("Version is valid semver", passed, detail)
 
 
