@@ -24,6 +24,17 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Raised the analytics generation budget to 8192 tokens. Current models think by default and `max_tokens` bounds thinking plus response text together, so the previous 2048 truncated summaries mid-sentence.
 - `zulipchat-mcp-integrate print --remote-url` now reports an argparse error for clients without a remote snippet instead of raising an uncaught `ValueError`.
 
+## [0.7.2] - 2026-08-04
+
+### Added
+- **Native Zulip Drafts Tools**: Added extended tools for listing (`get_drafts`), creating (`create_draft`), editing (`edit_draft`), and deleting (`delete_draft`) drafts through Zulip's native drafts API (`/drafts`), bringing the extended tool count to 60. (PR #15, credit: @aurelien-eveil)
+
+### Fixed
+- **Listener Long-polling Read Timeout**: Enabled `longpolling=True` on Zulip `/events` listener requests to set the HTTP timeout to 90s, matching the server's 30s long-poll hold timeout and preventing spurious 15s `Read timed out` crashes and exponential backoff loops during idle periods. (PR #14, credit: @lloydhazlett)
+
+### Chore
+- **Repo-wide Line Ending Normalization**: Added `.gitattributes` (`* text=auto eol=lf`) and normalized line endings from CRLF to LF across 25 repository files to prevent noisy line-ending diffs across platforms. (PR #13, credit: @lloydhazlett)
+
 ## [0.7.1] - 2026-05-11
 
 ### Fixed

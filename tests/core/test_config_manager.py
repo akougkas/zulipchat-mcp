@@ -30,6 +30,7 @@ def test_config_manager_errors_and_defaults(monkeypatch) -> None:
     # Clear env to trigger validation failure
     for k in ["ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE", "ZULIP_CONFIG_FILE"]:
         os.environ.pop(k, None)
+    monkeypatch.setattr(ConfigManager, "_find_default_config", lambda _: None)
 
     # Without credentials, validation should fail (not raise)
     cm_no_creds = ConfigManager()

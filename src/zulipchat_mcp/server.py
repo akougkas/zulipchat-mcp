@@ -96,7 +96,7 @@ def main() -> None:
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all tools (56) instead of the core set (20).",
+        help="Register all tools (60) instead of the core set (20).",
     )
 
     # Transport Options
@@ -233,7 +233,7 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (56 tools)")
+        logger.info("Registered extended tool set (60 tools)")
     else:
         logger.info("Registered core tool set (20 tools)")
 

@@ -33,7 +33,7 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 56 tools instead of the 20-tool core set
+- `--extended-tools`: Register all 60 tools instead of the 20-tool core set
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)

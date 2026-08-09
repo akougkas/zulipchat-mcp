@@ -25,7 +25,7 @@ src/zulipchat_mcp/
 This produces:
 
 - Core mode: 20 tools
-- Extended mode: 56 tools
+- Extended mode: 60 tools
 
 ## Identity model
 
@@ -43,7 +43,7 @@ This produces:
 5. Set unsafe-mode context.
 6. Initialize optional database/services.
 7. Register FastMCP instance with SEP-2663 `TasksExtension`.
-8. Register tools (core 20 or extended 56).
+8. Register tools (core 20 or extended 60).
 9. Warm user/stream caches.
 10. Run FastMCP server (`stdio` or streamable `http`).
 
