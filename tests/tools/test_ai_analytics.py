@@ -23,9 +23,15 @@ class TestAIAnalytics:
 
     @pytest.fixture
     def mock_deps(self):
-        with patch("src.zulipchat_mcp.tools.ai_analytics.get_client") as mock_get_client, \
-             patch("src.zulipchat_mcp.tools.search.search_messages", new_callable=AsyncMock) as mock_search, \
-             patch("src.zulipchat_mcp.tools.ai_analytics.generate", new_callable=AsyncMock) as mock_generate:
+        with (
+            patch("src.zulipchat_mcp.tools.ai_analytics.get_client") as mock_get_client,
+            patch(
+                "src.zulipchat_mcp.tools.search.search_messages", new_callable=AsyncMock
+            ) as mock_search,
+            patch(
+                "src.zulipchat_mcp.tools.ai_analytics.generate", new_callable=AsyncMock
+            ) as mock_generate,
+        ):
 
             client = MagicMock()
             mock_get_client.return_value = client
@@ -49,7 +55,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Hello"}]
+            "messages": [{"sender": "Alice", "content": "Hello"}],
         }
         mock_generate.return_value = "Analysis result"
 
@@ -79,7 +85,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Hello"}]
+            "messages": [{"sender": "Alice", "content": "Hello"}],
         }
         mock_generate.side_effect = Exception("Anthropic API unreachable")
 
@@ -95,7 +101,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Hello"}]
+            "messages": [{"sender": "Alice", "content": "Hello"}],
         }
         mock_generate.side_effect = LLMUnavailableError("ANTHROPIC_API_KEY not set")
 
@@ -112,7 +118,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Work"}]
+            "messages": [{"sender": "Alice", "content": "Work"}],
         }
         mock_generate.return_value = "Team analysis"
 
@@ -133,7 +139,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Work"}]
+            "messages": [{"sender": "Alice", "content": "Work"}],
         }
         mock_generate.side_effect = ["Analysis", "Final Report"]
 
@@ -152,7 +158,7 @@ class TestAIAnalytics:
         _, mock_search, mock_generate = mock_deps
         mock_search.return_value = {
             "status": "success",
-            "messages": [{"sender": "Alice", "content": "Work"}]
+            "messages": [{"sender": "Alice", "content": "Work"}],
         }
         mock_generate.side_effect = LLMUnavailableError("ANTHROPIC_API_KEY not set")
 

@@ -49,4 +49,3 @@ def test_server_registers_tasks_extension() -> None:
     # Guard against the import disappearing from server.py (removed kwargs or
     # a future refactor could silently drop task support for long-running tools).
     assert server_mod.TasksExtension is TasksExtension
-

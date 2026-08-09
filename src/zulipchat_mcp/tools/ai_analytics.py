@@ -35,6 +35,7 @@ async def get_daily_summary(
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+
 async def analyze_stream_with_llm(
     stream_name: str,
     analysis_type: str,
@@ -258,7 +259,9 @@ async def intelligent_report_generator(
         if team_activity.get("status") != "success":
             return {
                 "status": "error",
-                "error": team_activity.get("error", "Failed to gather team activity data"),
+                "error": team_activity.get(
+                    "error", "Failed to gather team activity data"
+                ),
             }
 
         # If the LLM was unavailable for the underlying analysis, a second LLM

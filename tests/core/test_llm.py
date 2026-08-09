@@ -63,7 +63,9 @@ class TestGenerate:
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
             await generate("hi")
 
-        assert mock_client.messages.create.call_args.kwargs["model"] == "claude-haiku-4-5"
+        assert (
+            mock_client.messages.create.call_args.kwargs["model"] == "claude-haiku-4-5"
+        )
 
     @pytest.mark.asyncio
     async def test_empty_text_raises(self, monkeypatch):
