@@ -27,7 +27,8 @@ def test_debug_flag_sets_debug_logging_level(mock_config_manager):
         mock_get_logger.return_value = MagicMock()
         mock_init_cfg.return_value = mock_config_manager
 
-        server.main()
+        with pytest.raises(SystemExit, match="1"):
+            server.main()
 
         mock_setup.assert_called_once_with("DEBUG")
 
@@ -43,7 +44,8 @@ def test_default_logging_level_is_info(mock_config_manager):
         mock_get_logger.return_value = MagicMock()
         mock_init_cfg.return_value = mock_config_manager
 
-        server.main()
+        with pytest.raises(SystemExit, match="1"):
+            server.main()
 
         mock_setup.assert_called_once_with("INFO")
 
@@ -144,43 +146,38 @@ def test_http_transport_passes_host_port_and_registers_tasks_extension():
                 "0.0.0.0",
                 "--port",
                 "9000",
+                "--auth-token",
+                "test-token",
             ],
         ),
     ):
         server.main()
 
     mcp.add_extension.assert_called_once()
-    mcp.run.assert_called_once_with(transport="http", host="0.0.0.0", port=9000)
-
-
-def test_http_transport_non_localhost_without_token_warns():
-    """Binding HTTP beyond localhost without a token must warn loudly."""
-    cfg = MagicMock()
-    cfg.validate_config.return_value = True
-    logger = MagicMock()
-    mcp = MagicMock()
-
-    with (
-        patch("src.zulipchat_mcp.server.setup_structured_logging"),
-        patch("src.zulipchat_mcp.server.get_logger", return_value=logger),
-        patch("src.zulipchat_mcp.server.init_config_manager", return_value=cfg),
-        patch("src.zulipchat_mcp.server.init_database"),
-        patch("src.zulipchat_mcp.server.FastMCP", return_value=mcp),
-        patch("src.zulipchat_mcp.server.register_core_tools"),
-        patch.dict("os.environ", {}, clear=False),
-        patch.object(
-            sys, "argv", ["zulipchat-mcp", "--transport", "http", "--host", "0.0.0.0"]
-        ),
-    ):
-        # Ensure no token leaks in from the environment
-        import os
-
-        os.environ.pop("ZULIPCHAT_HTTP_AUTH_TOKEN", None)
-        server.main()
-
-    assert any(
-        "WITHOUT --auth-token" in str(call) for call in logger.warning.call_args_list
+    mcp.run.assert_called_once_with(
+        transport="http",
+        host="0.0.0.0",
+        port=9000,
+        host_origin_protection=True,
+        allowed_hosts=None,
+        allowed_origins=None,
     )
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.0.2.1", "public.example"])
+@pytest.mark.parametrize("token", [None, "", "   "])
+def test_http_transport_requires_token_before_initialization(monkeypatch, host, token):
+    monkeypatch.delenv("ZULIPCHAT_HTTP_AUTH_TOKEN", raising=False)
+    if token is not None:
+        monkeypatch.setenv("ZULIPCHAT_HTTP_AUTH_TOKEN", token)
+    monkeypatch.setattr(
+        sys, "argv", ["zulipchat-mcp", "--transport", "http", "--host", host]
+    )
+    with patch.object(server, "init_config_manager") as init:
+        with pytest.raises(SystemExit) as exc:
+            server.main()
+    assert exc.value.code == 2
+    init.assert_not_called()
 
 
 def test_http_transport_with_token_configures_auth():
@@ -207,3 +204,18 @@ def test_http_transport_with_token_configures_auth():
     auth = mock_fastmcp.call_args.kwargs["auth"]
     assert auth is not None
     assert "secret-token" in auth.tokens
+
+
+def test_startup_does_not_make_zulip_api_calls(monkeypatch):
+    cfg = MagicMock()
+    cfg.validate_config.return_value = True
+    monkeypatch.setattr(sys, "argv", ["zulipchat-mcp"])
+    with (
+        patch.object(server, "init_config_manager", return_value=cfg),
+        patch.object(server, "init_database"),
+        patch.object(server, "FastMCP"),
+        patch.object(server, "register_core_tools"),
+        patch("src.zulipchat_mcp.config.get_client") as get_client,
+    ):
+        server.main()
+    get_client.assert_not_called()

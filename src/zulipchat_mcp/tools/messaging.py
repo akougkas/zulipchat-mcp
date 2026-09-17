@@ -4,6 +4,7 @@ Clean implementation focused ONLY on core send/edit operations.
 Reactions moved to emoji_messaging.py, bulk ops moved to mark_messaging.py.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any, Literal
 
@@ -40,7 +41,7 @@ async def send_message(
     safe_content = sanitize_content(content)
 
     # Send immediate message
-    result = client.send_message(type, to, safe_content, topic)
+    result = await asyncio.to_thread(client.send_message, type, to, safe_content, topic)
 
     if result.get("result") == "success":
         return {
@@ -72,7 +73,9 @@ async def edit_message(
             },
         }
 
-    if not content and not topic and not stream_id:
+    if content is not None and not content.strip():
+        return {"status": "error", "error": "Message content cannot be empty"}
+    if content is None and topic is None and stream_id is None:
         return {
             "status": "error",
             "error": "Must provide content, topic, or stream_id to edit",
@@ -94,9 +97,10 @@ async def edit_message(
 
     client = get_client()
 
-    safe_content = sanitize_content(content) if content else None
+    safe_content = sanitize_content(content) if content is not None else None
 
-    result = client.edit_message(
+    result = await asyncio.to_thread(
+        client.edit_message,
         message_id=message_id,
         content=safe_content,
         topic=topic,
@@ -108,9 +112,9 @@ async def edit_message(
 
     if result.get("result") == "success":
         changes = []
-        if content:
+        if content is not None:
             changes.append("content")
-        if topic:
+        if topic is not None:
             changes.append("topic")
         if stream_id:
             changes.append("stream")
@@ -133,7 +137,7 @@ async def get_message(message_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.get_message(message_id)
+        result = await asyncio.to_thread(client.get_message, message_id)
 
         if result.get("result") == "success":
             return {

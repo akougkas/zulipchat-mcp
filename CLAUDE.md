@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.7.3-beta.1)
+## Current Status (v0.7.3)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/)
 
@@ -10,7 +10,7 @@ Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
 ## Project Overview
 
-ZulipChat MCP Server v0.7.3-beta.1 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.7.3 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -45,7 +45,7 @@ uv run mypy src
 
 # Security checks (optional)
 uv run bandit -q -r src
-uv run safety check
+uv run pip-audit
 ```
 
 ### Development Testing
@@ -185,7 +185,7 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 ## Server-Side LLM Analytics
 
 ### Server-Side LLM Provider (`src/zulipchat_mcp/core/llm.py`)
-MCP sampling was removed in the 2026-07-28 stateless protocol. LLM-powered analytics tools call a server-side Anthropic provider directly:
+MCP sampling is deprecated in the 2026-07-28 stateless protocol; this server uses direct provider integration. LLM-powered analytics tools call a server-side Anthropic provider directly:
 
 ```python
 from zulipchat_mcp.core.llm import generate, LLMUnavailableError

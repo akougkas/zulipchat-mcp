@@ -31,7 +31,7 @@ class TestMessageCache:
 
     def test_expiration(self, cache):
         """Test that values expire after TTL."""
-        with patch("time.time") as mock_time:
+        with patch("time.monotonic") as mock_time:
             mock_time.return_value = 1000.0
             cache.set("key", "value")
 
@@ -45,7 +45,7 @@ class TestMessageCache:
 
     def test_clear_expired(self, cache):
         """Test explicit clearing of expired items."""
-        with patch("time.time") as mock_time:
+        with patch("time.monotonic") as mock_time:
             mock_time.return_value = 1000.0
             cache.set("valid", "v")
             cache.set("expired", "e")

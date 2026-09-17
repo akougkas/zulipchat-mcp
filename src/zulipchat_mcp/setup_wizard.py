@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -16,6 +17,8 @@ from typing import Any
 from zulip import Client
 
 from . import __version__
+from .config import load_zuliprc_credentials
+from .integrations.registry import _render_for_client
 
 # ANSI colors for terminal output
 BLUE = "\033[94m"
@@ -47,7 +50,7 @@ def print_header() -> None:
     print("This wizard will:")
     print("  1. Find zuliprc files on your system")
     print("  2. Validate your Zulip credentials")
-    print("  3. Choose core (19) or extended (55) tool mode")
+    print("  3. Choose core (20) or extended (60) tool mode")
     print("  4. Generate MCP client configuration")
     print("=" * 48 + "\n")
 
@@ -115,7 +118,14 @@ def validate_zuliprc(path: Path, silent: bool = False) -> dict[str, Any] | None:
         print(f"{DIM}Testing {path}...{RESET}", end=" ", flush=True)
 
     try:
-        client = Client(config_file=str(path))
+        credentials = load_zuliprc_credentials(str(path))
+        client = Client(
+            email=credentials["email"],
+            api_key=credentials["api_key"],
+            site=credentials["site"],
+            config_file=credentials["config_file"],
+            retry_on_errors=False,
+        )
         result = client.get_profile()
 
         if result.get("result") == "success":
@@ -335,7 +345,9 @@ def generate_mcp_config(
     use_uvx: bool = False,
 ) -> dict[str, Any]:
     """Generate MCP server configuration."""
-    command = shutil.which("uv") or "uv"
+    command = (
+        (shutil.which("uvx") or "uvx") if use_uvx else (shutil.which("uv") or "uv")
+    )
     args = _build_args(
         user_config,
         bot_config,
@@ -356,10 +368,10 @@ def generate_claude_code_command(
 ) -> str:
     """Generate `claude mcp add` command for Claude Code."""
     parts = ["claude mcp add zulipchat"]
-    parts.append(f"-e ZULIP_CONFIG_FILE={user_config['path']}")
+    parts.append(shlex.join(["-e", f"ZULIP_CONFIG_FILE={user_config['path']}"]))
 
     if bot_config:
-        parts.append(f"-e ZULIP_BOT_CONFIG_FILE={bot_config['path']}")
+        parts.append(shlex.join(["-e", f"ZULIP_BOT_CONFIG_FILE={bot_config['path']}"]))
 
     cmd_tail = "-- uvx zulipchat-mcp"
     if extended_tools:
@@ -536,10 +548,7 @@ def main(argv: list[str] | None = None) -> None:
     elif client_choice == "4":
         config_path = get_mcp_client_config_path("codex")
         print(f"\n{BOLD}Codex configuration (config.toml){RESET}")
-        args = ", ".join(f'"{arg}"' for arg in mcp_config["args"])
-        print(
-            f"\n[mcp_servers.zulipchat]\ncommand = \"{mcp_config['command']}\"\nargs = [{args}]\n"
-        )
+        print(_render_for_client("codex", mcp_config))
         if config_path:
             print(f"Suggested path: {config_path}")
 
@@ -596,7 +605,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\nUser: {user_config['name']} ({user_config['email']})")
     if bot_config:
         print(f"Bot:  {bot_config['name']} ({bot_config['email']})")
-    print(f"Tool mode: {'Extended (55)' if extended_tools else 'Core (19)'}")
+    print(f"Tool mode: {'Extended (60)' if extended_tools else 'Core (20)'}")
     print("\nRestart your MCP client to apply changes.")
 
 

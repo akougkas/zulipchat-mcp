@@ -4,6 +4,7 @@ Clean implementation of Zulip's draft API endpoints.
 Direct mapping to API without unnecessary complexity.
 """
 
+import asyncio
 import json
 from typing import Any, Literal
 
@@ -59,7 +60,7 @@ async def _resolve_recipients(
         if isinstance(recipient, int):
             resolved.append(recipient)
         elif type == "stream":
-            result = client.get_stream_id(recipient)
+            result = await asyncio.to_thread(client.get_stream_id, recipient)
             stream_id = result.get("stream_id")
             if result.get("result") != "success" or not isinstance(stream_id, int):
                 raise ValueError(result.get("msg", f"No stream matching '{recipient}'"))
@@ -79,7 +80,9 @@ async def get_drafts() -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint("drafts", method="GET", request={})
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint("drafts", method="GET", request={})
+        )
 
         if result.get("result") == "success":
             drafts = result.get("drafts", [])
@@ -117,8 +120,10 @@ async def create_draft(
         draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"drafts": json.dumps([draft])}
 
-        result = client.client.call_endpoint(
-            "drafts", method="POST", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "drafts", method="POST", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -157,8 +162,10 @@ async def edit_draft(
         draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"draft": json.dumps(draft)}
 
-        result = client.client.call_endpoint(
-            f"drafts/{draft_id}", method="PATCH", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"drafts/{draft_id}", method="PATCH", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -182,8 +189,10 @@ async def delete_draft(draft_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"drafts/{draft_id}", method="DELETE", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"drafts/{draft_id}", method="DELETE", request={}
+            )
         )
 
         if result.get("result") == "success":

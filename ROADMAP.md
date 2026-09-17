@@ -1,10 +1,15 @@
 # Roadmap
 
-## v0.7.3-beta.1 (Current)
+## v0.7.3 (Current)
 
-See [PyPI](https://pypi.org/project/zulipchat-mcp/).
+Release preparation and audit evidence: [v0.7.3 audit](docs/releases/v0.7.3-audit.md).
 
-## v0.6.0 (Next)
+- FastMCP 4 final validation (#17): implemented and covered by protocol/task tests.
+- Ping compatibility patch (#18): removed after upstream confirmed modern ping is intentionally unsupported.
+- Publish v0.7.3 after reviewing the release artifact and audit.
+- Public stable release at audit time: v0.7.2; v0.7.3-beta.1 was tagged but not published.
+
+## Future work (not scheduled)
 
 ### Feature 1: Multi-Organization Support
 **Problem**: Users with multiple Zulip orgs (work, personal, open-source) can't switch contexts.

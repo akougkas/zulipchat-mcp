@@ -6,7 +6,10 @@ Supports zuliprc files and environment-variable credentials.
 from __future__ import annotations
 
 import os
+from configparser import ConfigParser
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -52,6 +55,23 @@ class ZulipConfig:
     bot_config_file: str | None = None
 
 
+def load_zuliprc_credentials(config_file: str) -> dict[str, str]:
+    """Resolve one file's credentials without SDK environment overrides."""
+    config_file = str(Path(config_file).expanduser())
+    parser = ConfigParser(interpolation=None)
+    with open(config_file, encoding="utf-8") as handle:
+        parser.read_file(handle)
+    credentials = {
+        "email": parser.get("api", "email").strip(),
+        "api_key": parser.get("api", "key").strip(),
+        "site": parser.get("api", "site").strip(),
+        "config_file": config_file,
+    }
+    if not all(credentials.values()):
+        raise ValueError("Zulip config file requires nonempty email, key, and site")
+    return credentials
+
+
 class ConfigManager:
     """Configuration manager - Zuliprc First."""
 
@@ -90,12 +110,18 @@ class ConfigManager:
             email=self._env("ZULIP_EMAIL"),
             api_key=self._env("ZULIP_API_KEY"),
             site=self._env("ZULIP_SITE"),
-            config_file=final_config_file,
+            config_file=(
+                str(Path(final_config_file).expanduser()) if final_config_file else None
+            ),
             debug=final_debug,
             port=final_port,
             bot_email=self._env("ZULIP_BOT_EMAIL"),
             bot_api_key=self._env("ZULIP_BOT_API_KEY"),
-            bot_config_file=final_bot_config_file,
+            bot_config_file=(
+                str(Path(final_bot_config_file).expanduser())
+                if final_bot_config_file
+                else None
+            ),
         )
 
     def _find_default_config(self) -> str | None:
@@ -171,11 +197,23 @@ class ConfigManager:
 
     def get_zulip_client_config(self, use_bot: bool = False) -> dict[str, str | None]:
         """Get configuration dict for Zulip client initialization."""
+        use_bot = use_bot and self.has_bot_credentials()
+        config_file = (
+            self.config.bot_config_file if use_bot else self.config.config_file
+        )
+        if config_file:
+            # Resolve all credentials from the selected file before constructing
+            # the SDK client: its own environment fallback can otherwise replace
+            # bot credentials with the user's ZULIP_EMAIL/ZULIP_API_KEY.
+            return dict(load_zuliprc_credentials(config_file))
         if use_bot and self.has_bot_credentials():
+            site = self.config.site
+            if not site and self.config.config_file:
+                site = self.get_zulip_client_config(use_bot=False)["site"]
             return {
                 "email": self.config.bot_email,
                 "api_key": self.config.bot_api_key,
-                "site": self.config.site,  # Bot uses same site
+                "site": site,  # Bot uses same site
                 "config_file": self.config.bot_config_file,
             }
 
@@ -212,12 +250,14 @@ def init_config_manager(
     Returns:
         The initialized ConfigManager instance
     """
-    global _config_manager
+    global _config_manager, _current_identity
     _config_manager = ConfigManager(
         config_file=config_file,
         bot_config_file=bot_config_file,
         debug=debug,
     )
+    _current_identity = "user"
+    _get_cached_client.cache_clear()
     return _config_manager
 
 
@@ -256,10 +296,16 @@ def get_client() -> ZulipClientWrapper:
     This is the canonical way to get a client - it respects the
     current identity setting from switch_identity().
     """
-    from .core.client import ZulipClientWrapper
-
     config = get_config_manager()
     use_bot = _current_identity == "bot" and config.has_bot_credentials()
+    return _get_cached_client(config, use_bot)
+
+
+@lru_cache(maxsize=8)
+def _get_cached_client(config: ConfigManager, use_bot: bool) -> ZulipClientWrapper:
+    """Reuse a client and its private caches until configuration is reinitialized."""
+    from .core.client import ZulipClientWrapper
+
     return ZulipClientWrapper(config, use_bot_identity=use_bot)
 
 
@@ -269,9 +315,7 @@ def get_bot_client() -> ZulipClientWrapper:
     Use this for operations that must always run as bot regardless
     of current identity setting (e.g., Agents-Channel operations).
     """
-    from .core.client import ZulipClientWrapper
-
     config = get_config_manager()
     if not config.has_bot_credentials():
         raise ValueError("Bot credentials not configured")
-    return ZulipClientWrapper(config, use_bot_identity=True)
+    return _get_cached_client(config, True)

@@ -85,7 +85,9 @@ class TestValidateZuliprc:
 
         # Create dummy file
         zuliprc = tmp_path / "zuliprc"
-        zuliprc.touch()
+        zuliprc.write_text(
+            "[api]\nemail=file@example.com\nkey=file-key\nsite=https://file.example.com\n"
+        )
 
         result = validate_zuliprc(zuliprc, silent=True)
 
@@ -107,7 +109,9 @@ class TestValidateZuliprc:
         mock_client_cls.return_value = client_instance
 
         zuliprc = tmp_path / "zuliprc"
-        zuliprc.touch()
+        zuliprc.write_text(
+            "[api]\nemail=file@example.com\nkey=file-key\nsite=https://file.example.com\n"
+        )
 
         result = validate_zuliprc(zuliprc, silent=True)
 
@@ -124,7 +128,9 @@ class TestValidateZuliprc:
         mock_client_cls.return_value = client_instance
 
         zuliprc = tmp_path / "zuliprc"
-        zuliprc.touch()
+        zuliprc.write_text(
+            "[api]\nemail=file@example.com\nkey=file-key\nsite=https://file.example.com\n"
+        )
 
         result = validate_zuliprc(zuliprc, silent=True)
         assert result is None

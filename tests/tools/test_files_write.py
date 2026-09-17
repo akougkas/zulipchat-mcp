@@ -28,7 +28,10 @@ class TestFileOperations:
         """Patch dependencies."""
         with patch("src.zulipchat_mcp.tools.files.get_client") as mock_get_client:
             mock_get_client.return_value = mock_client
-            yield mock_client
+            with patch(
+                "src.zulipchat_mcp.tools.files.is_unsafe_mode", return_value=True
+            ):
+                yield mock_client
 
     @pytest.mark.asyncio
     async def test_upload_valid_file(self, mock_deps):
@@ -53,9 +56,8 @@ class TestFileOperations:
     async def test_upload_empty_file(self, mock_deps):
         """Test uploading empty content."""
         result = await upload_file(file_content=b"", filename="empty.txt")
-        assert result["status"] == "error"
-        # It hits the first check `if not file_content and not file_path`
-        assert "Either file_content or file_path is required" in result["error"]
+        assert result["status"] == "success"
+        mock_deps.upload_file.assert_called_once_with(b"", "empty.txt")
 
     @pytest.mark.asyncio
     async def test_upload_large_file(self, mock_deps):

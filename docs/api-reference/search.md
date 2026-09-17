@@ -48,5 +48,17 @@ await advanced_search(
 ## Behavior notes
 
 - `search_messages` resolves non-email sender values with fuzzy user lookup.
-- Time filters are applied with a mix of anchor strategy and post-filtering.
-- `advanced_search` aggregates across messages/users/streams and can return basic counts.
+- Time filters use UTC; ISO timestamps with offsets are converted to UTC and
+  timestamps without a timezone are interpreted as UTC. Results are bounded
+  samples of 1–1000 messages, sorted at the requested end of the interval.
+  `sort_by="relevance"` currently uses newest-first ordering, not a relevance score.
+- Newest-first searches with a lower time bound work on older Zulip versions.
+  An upper bound, or oldest-first search with a lower bound, uses date anchors
+  and requires Zulip 12 / feature level 445 or later.
+- Zulip narrow filters cannot encode timestamps. `construct_narrow` rejects
+  `after_time`/`before_time` and directs callers to `search_messages`. The Python
+  narrow-helper time methods also raise an error instead of generating text
+  searches for strings such as `after:2026-09-01`.
+- `advanced_search` also supports topic-name search when `stream` is supplied.
+  Failed scopes are included in the results and produce `status="partial"` or
+  `status="error"`. Counts and aggregations describe the returned sample.

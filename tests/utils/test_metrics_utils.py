@@ -40,7 +40,9 @@ def test_metrics_counters_and_gauges_and_timer() -> None:
 
     # Basic assertions on exported metrics text
     assert "uptime_seconds" in text
-    assert "zulip_mcp_tool_calls_total{tool=demo.tool}" in text
-    assert "zulip_mcp_tool_errors_total{error_type=ValueError,tool=demo.tool}" in text
+    assert 'zulip_mcp_tool_calls_total{tool="demo.tool"}' in text
+    assert (
+        'zulip_mcp_tool_errors_total{error_type="ValueError",tool="demo.tool"}' in text
+    )
     assert "zulip_mcp_tool_duration_seconds" in text
     assert "zulip_mcp_active_connections" in text

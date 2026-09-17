@@ -101,8 +101,8 @@ def main() -> None:
         help=(
             "Transport to serve on (default: stdio). 'http' runs the "
             "streamable-HTTP transport; on the 2026-07-28 protocol each "
-            "request is self-contained, so replicas sit behind a plain "
-            "round-robin load balancer with no sticky sessions."
+            "request is self-contained. Agent sessions and tasks still "
+            "require a single server instance with local persistence."
         ),
     )
     parser.add_argument(
@@ -121,12 +121,33 @@ def main() -> None:
         default=os.getenv("ZULIPCHAT_HTTP_AUTH_TOKEN"),
         help=(
             "Bearer token required on HTTP requests (or set "
-            "ZULIPCHAT_HTTP_AUTH_TOKEN). Strongly recommended for any "
-            "non-localhost bind."
+            "ZULIPCHAT_HTTP_AUTH_TOKEN). Required for any non-loopback bind."
         ),
+    )
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        help="Additional trusted HTTP Host (repeatable)",
+    )
+    parser.add_argument(
+        "--allowed-origin",
+        action="append",
+        help="Additional trusted browser origin (repeatable)",
     )
 
     args = parser.parse_args()
+    if args.transport == "http":
+        if args.auth_token is not None and (
+            not args.auth_token.strip()
+            or any(char.isspace() for char in args.auth_token)
+        ):
+            parser.error("HTTP auth token must be non-empty and contain no whitespace")
+        if not args.auth_token and args.host not in ("127.0.0.1", "localhost", "::1"):
+            parser.error(
+                "Non-loopback HTTP requires --auth-token or ZULIPCHAT_HTTP_AUTH_TOKEN"
+            )
+        if not 1 <= args.port <= 65535:
+            parser.error("HTTP port must be between 1 and 65535")
 
     # Setup logging
     setup_structured_logging("DEBUG" if args.debug else "INFO")
@@ -144,7 +165,7 @@ def main() -> None:
         logger.error(
             "Invalid configuration. Please run 'uv run zulipchat-mcp-setup' first."
         )
-        return
+        raise SystemExit(1)
 
     logger.info("Configuration loaded successfully")
 
@@ -163,7 +184,7 @@ def main() -> None:
     else:
         logger.info("Database not available (agent features disabled)")
 
-    # Server-side LLM analytics: MCP sampling was removed in the 2026-07-28
+    # Server-side LLM analytics: MCP sampling is deprecated in the 2026-07-28
     # protocol, so analytics tools call a provider owned by this server
     # (see src/zulipchat_mcp/core/llm.py) instead of delegating to the client.
     if not os.getenv("ANTHROPIC_API_KEY"):
@@ -182,13 +203,6 @@ def main() -> None:
                 tokens={args.auth_token: {"client_id": "zulipchat-http", "scopes": []}}
             )
             logger.info("HTTP transport: bearer token auth enabled")
-        elif args.host not in ("127.0.0.1", "localhost", "::1"):
-            logger.warning(
-                "HTTP transport binding to %s WITHOUT --auth-token - any client "
-                "that can reach this port can call tools. Set "
-                "ZULIPCHAT_HTTP_AUTH_TOKEN or pass --auth-token.",
-                args.host,
-            )
 
     # Initialize MCP with modern configuration
     mcp = FastMCP(
@@ -231,20 +245,16 @@ def main() -> None:
     else:
         logger.info("Registered core tool set (20 tools)")
 
-    # Warm user/stream caches for fast fuzzy resolution
-    try:
-        from .config import get_client
-
-        _warmup_client = get_client()
-        _warmup_client.get_users()  # populates user_cache via client wrapper
-        _warmup_client.get_streams()  # populates stream_cache via client wrapper
-        logger.info("User and stream caches warmed")
-    except Exception as e:
-        logger.debug(f"Cache warmup skipped: {e}")
-
     logger.info("Starting ZulipChat MCP server (transport=%s)...", args.transport)
     if args.transport == "http":
-        mcp.run(transport="http", host=args.host, port=args.port)
+        mcp.run(
+            transport="http",
+            host=args.host,
+            port=args.port,
+            host_origin_protection=True,
+            allowed_hosts=args.allowed_host,
+            allowed_origins=args.allowed_origin,
+        )
     else:
         mcp.run()
 

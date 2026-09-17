@@ -4,6 +4,7 @@ READ-ONLY stream operations to protect organization from AI changes.
 Simple stream discovery and information retrieval only.
 """
 
+import asyncio
 from typing import Any
 
 from fastmcp import FastMCP
@@ -19,13 +20,13 @@ async def get_streams(
     client = get_client()
 
     try:
-        result = client.get_streams(include_subscribed=include_subscribed)
+        result = await asyncio.to_thread(
+            client.get_streams,
+            include_subscribed=include_subscribed,
+            include_public=include_public,
+        )
         if result.get("result") == "success":
             streams = result.get("streams", [])
-
-            # Apply filters
-            if not include_public:
-                streams = [s for s in streams if s.get("invite_only", False)]
 
             return {
                 "status": "success",
@@ -60,13 +61,13 @@ async def get_stream_info(
     try:
         # Get stream info
         if stream_name and not stream_id:
-            stream_result = client.get_stream_id(stream_name)
+            stream_result = await asyncio.to_thread(client.get_stream_id, stream_name)
             if stream_result.get("result") != "success":
                 return {"status": "error", "error": f"Stream '{stream_name}' not found"}
             stream_id = stream_result.get("stream_id")
 
         # Get basic stream information
-        streams_result = client.get_streams()
+        streams_result = await asyncio.to_thread(client.get_streams)
         if streams_result.get("result") == "success":
             streams = streams_result.get("streams", [])
             stream_info = next(
@@ -88,14 +89,14 @@ async def get_stream_info(
 
         # Get subscribers if requested
         if include_subscribers and stream_id:
-            sub_result = client.get_subscribers(stream_id)
+            sub_result = await asyncio.to_thread(client.get_subscribers, stream_id)
             if sub_result.get("result") == "success":
                 info["subscribers"] = sub_result.get("subscribers", [])
                 info["subscriber_count"] = len(sub_result.get("subscribers", []))
 
         # Get topics if requested
         if include_topics and stream_id:
-            topics_result = client.get_stream_topics(stream_id)
+            topics_result = await asyncio.to_thread(client.get_stream_topics, stream_id)
             if topics_result.get("result") == "success":
                 info["topics"] = topics_result.get("topics", [])
                 info["topic_count"] = len(topics_result.get("topics", []))

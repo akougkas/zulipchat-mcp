@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from zulipchat_mcp.utils.narrow_helpers import (
     NarrowHelper,
     build_basic_narrow,
@@ -40,16 +42,15 @@ def test_basic_builders_and_to_from_dict() -> None:
 
 def test_time_filters_and_ranges() -> None:
     now = datetime.now()
-    nf_after = NarrowHelper.after_time(now)
-    nf_before = NarrowHelper.before_time(now.isoformat())
-    assert "after:" in nf_after.operand and "before:" in nf_before.operand
-
-    last_h = NarrowHelper.last_hours(2)
-    last_d = NarrowHelper.last_days(1)
-    assert last_h.operator == last_d.operator
-
-    rng = NarrowHelper.time_range(now - timedelta(days=1), now)
-    assert len(rng) == 2
+    for operation, args in [
+        (NarrowHelper.after_time, (now,)),
+        (NarrowHelper.before_time, (now.isoformat(),)),
+        (NarrowHelper.last_hours, (2,)),
+        (NarrowHelper.last_days, (1,)),
+        (NarrowHelper.time_range, (now - timedelta(days=1), now)),
+    ]:
+        with pytest.raises(ValueError, match="search_messages"):
+            operation(*args)
 
 
 def test_build_basic_narrow_and_helpers() -> None:

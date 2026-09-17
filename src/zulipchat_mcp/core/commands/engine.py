@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Any
 
 from ..client import ZulipClientWrapper
+from ..emoji_registry import validate_emoji_for_agent
 from ..exceptions import (
     ValidationError,
     ZulipMCPError,
@@ -305,6 +306,8 @@ class GetMessagesCommand(Command):
                     stream_name, topic=topic, hours_back=hours_back, limit=limit
                 )
                 raw_messages = raw.get("messages", []) if isinstance(raw, dict) else []
+                if raw.get("result") != "success":
+                    raise ZulipMCPError(raw.get("msg", "Failed to fetch messages"))
             else:
                 typed = client.get_messages(num_before=limit)
                 raw_messages = [
@@ -376,6 +379,10 @@ class AddReactionCommand(Command):
             if not message_id or not emoji_name:
                 raise ValidationError("Missing message_id or emoji_name")
 
+            valid, error = validate_emoji_for_agent(emoji_name)
+            if not valid:
+                raise ValidationError(error)
+
             result = client.add_reaction(message_id, emoji_name)
 
             if result.get("result") == "success":
@@ -399,14 +406,11 @@ class AddReactionCommand(Command):
         rollback_key = f"{self.name}_reaction"
         if rollback_key in context.rollback_data:
             reaction_data = context.rollback_data[rollback_key]
-            try:
-                # Note: Zulip API would need a remove_reaction method for full rollback
-                logger.info(
-                    f"Would remove reaction {reaction_data['emoji_name']} "
-                    f"from message {reaction_data['message_id']}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to rollback reaction: {e}")
+            result = client.remove_reaction(
+                reaction_data["message_id"], reaction_data["emoji_name"]
+            )
+            if result.get("result") != "success":
+                raise ZulipMCPError(f"Failed to rollback reaction: {result.get('msg')}")
 
 
 class ProcessDataCommand(Command):
@@ -416,7 +420,7 @@ class ProcessDataCommand(Command):
         self,
         name: str,
         processor: Callable[[Any], Any],
-        input_key: str,
+        input_key: str | None,
         output_key: str,
         **kwargs: Any,
     ) -> None:
@@ -436,8 +440,10 @@ class ProcessDataCommand(Command):
     def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> Any:
         """Process data using the provided processor function."""
         try:
-            input_data = context.get(self.input_key)
-            if input_data is None:
+            input_data = (
+                context.get(self.input_key) if self.input_key is not None else None
+            )
+            if self.input_key is not None and input_data is None:
                 raise ValidationError(f"No data found for key: {self.input_key}")
 
             result = self.processor(input_data)
@@ -574,10 +580,6 @@ class CommandChain:
 
                     # Handle error based on chain configuration
                     if self.stop_on_error:
-                        if self.enable_rollback:
-                            self._rollback_chain(
-                                executed_commands, context, exec_client
-                            )
                         raise ZulipMCPError(
                             f"Chain execution failed at command {command.name}: {e}"
                         ) from None

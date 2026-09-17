@@ -70,6 +70,17 @@ class TestDatabaseManager:
 
         assert mock_duckdb.connect.call_count == 3
 
+    def test_dead_lock_holder_preserves_recovery_wal(self, mock_duckdb, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = DatabaseManager(str(db_path))
+        wal = tmp_path / "test.db.wal"
+        wal.write_bytes(b"committed writes awaiting checkpoint")
+        with patch("os.kill", side_effect=ProcessLookupError):
+            assert db._try_clear_stale_lock(
+                duckdb.IOException("Conflicting lock (PID 12345)")
+            )
+        assert wal.read_bytes() == b"committed writes awaiting checkpoint"
+
     def test_execute_opens_closes_connection(self, mock_duckdb, tmp_path):
         """Test execute opens and closes connection for each operation."""
         db_path = str(tmp_path / "test.db")

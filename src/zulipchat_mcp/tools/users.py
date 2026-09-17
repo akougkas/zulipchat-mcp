@@ -4,13 +4,13 @@ Clean READ-ONLY user operations based on Zulip API endpoints.
 No user creation/editing - just reading, searching, and matching users.
 """
 
+import asyncio
 import re
 from typing import Any, Literal
 
 from fastmcp import FastMCP
 
 from ..config import get_client
-from ..core.cache import user_cache
 
 
 def validate_email(email: str) -> bool:
@@ -28,13 +28,17 @@ async def get_users(
     client = get_client()
 
     try:
-        result = client.get_users()
+        result = await asyncio.to_thread(
+            client.get_users,
+            client_gravatar=client_gravatar,
+            include_custom_profile_fields=include_custom_profile_fields,
+        )
 
         if result.get("result") == "success":
             users = result.get("members", [])
 
             # Filter by user_ids if specified
-            if user_ids:
+            if user_ids is not None:
                 users = [user for user in users if user.get("user_id") in user_ids]
 
             return {
@@ -63,7 +67,9 @@ async def get_user_by_id(
     client = get_client()
 
     try:
-        result = client.get_user_by_id(user_id, include_custom_profile_fields)
+        result = await asyncio.to_thread(
+            client.get_user_by_id, user_id, include_custom_profile_fields
+        )
 
         if result.get("result") == "success":
             return {
@@ -89,7 +95,9 @@ async def get_user_by_email(
     client = get_client()
 
     try:
-        result = client.get_user_by_email(email, include_custom_profile_fields)
+        result = await asyncio.to_thread(
+            client.get_user_by_email, email, include_custom_profile_fields
+        )
 
         if result.get("result") == "success":
             return {
@@ -108,7 +116,9 @@ async def get_own_user() -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint("users/me", method="GET", request={})
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint("users/me", method="GET", request={})
+        )
 
         if result.get("result") == "success":
             return {
@@ -141,8 +151,10 @@ async def get_user_status(user_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"users/{user_id}/status", method="GET", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"users/{user_id}/status", method="GET", request={}
+            )
         )
 
         if result.get("result") == "success":
@@ -195,8 +207,10 @@ async def update_status(
                 "error": "Must provide status_text, emoji_name, or emoji_code",
             }
 
-        result = client.client.call_endpoint(
-            "users/me/status", method="POST", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "users/me/status", method="POST", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -219,8 +233,10 @@ async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"users/{user_id_or_email}/presence", method="GET", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"users/{user_id_or_email}/presence", method="GET", request={}
+            )
         )
 
         if result.get("result") == "success":
@@ -244,7 +260,11 @@ async def get_presence() -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint("realm/presence", method="GET", request={})
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "realm/presence", method="GET", request={}
+            )
+        )
 
         if result.get("result") == "success":
             return {
@@ -269,8 +289,10 @@ async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str,
 
     try:
         request_data = {"include_deactivated_groups": include_deactivated_groups}
-        result = client.client.call_endpoint(
-            "user_groups", method="GET", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "user_groups", method="GET", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -299,8 +321,12 @@ async def get_user_group_members(
 
     try:
         request_data = {"direct_member_only": direct_member_only}
-        result = client.client.call_endpoint(
-            f"user_groups/{user_group_id}/members", method="GET", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"user_groups/{user_group_id}/members",
+                method="GET",
+                request=request_data,
+            )
         )
 
         if result.get("result") == "success":
@@ -331,10 +357,12 @@ async def is_user_group_member(
 
     try:
         request_data = {"direct_member_only": direct_member_only}
-        result = client.client.call_endpoint(
-            f"user_groups/{user_group_id}/members/{user_id}",
-            method="GET",
-            request=request_data,
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"user_groups/{user_group_id}/members/{user_id}",
+                method="GET",
+                request=request_data,
+            )
         )
 
         if result.get("result") == "success":
@@ -360,8 +388,10 @@ async def mute_user(muted_user_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"users/me/muted_users/{muted_user_id}", method="POST", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"users/me/muted_users/{muted_user_id}", method="POST", request={}
+            )
         )
 
         if result.get("result") == "success":
@@ -385,8 +415,10 @@ async def unmute_user(muted_user_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"users/me/muted_users/{muted_user_id}", method="DELETE", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"users/me/muted_users/{muted_user_id}", method="DELETE", request={}
+            )
         )
 
         if result.get("result") == "success":
@@ -407,16 +439,25 @@ async def unmute_user(muted_user_id: int) -> dict[str, Any]:
 
 async def resolve_user(name: str) -> dict[str, Any]:
     """Resolve a display name to Zulip email. Fuzzy: 'Jaime' -> jaime@org.zulipchat.com"""
-    # Warm cache if empty
+    client = get_client()
+    user_cache = client.user_cache
+    # Warm only the current identity's cache.
     if user_cache.get_users() is None:
-        result = await get_users()
-        if result.get("status") == "success":
-            user_cache.set_users(result.get("users", []))
+        result = await asyncio.to_thread(client.get_users)
+        if result.get("result") != "success":
+            return {
+                "status": "error",
+                "error": result.get("msg", "Failed to fetch users"),
+            }
 
     resolution = user_cache.resolve_user(name)
     if resolution.get("email"):
         return {"status": "success", **resolution}
-    return {"status": "not_found", "query": name, "suggestion": "Try full name or email"}
+    return {
+        "status": "not_found",
+        "query": name,
+        "suggestion": "Try full name or email",
+    }
 
 
 async def get_user(
@@ -426,9 +467,13 @@ async def get_user(
 ) -> dict[str, Any]:
     """Look up a user by ID or email."""
     if user_id is not None:
-        return await get_user_by_id(user_id, include_custom_profile_fields=include_custom_profile_fields)
+        return await get_user_by_id(
+            user_id, include_custom_profile_fields=include_custom_profile_fields
+        )
     elif email is not None:
-        return await get_user_by_email(email, include_custom_profile_fields=include_custom_profile_fields)
+        return await get_user_by_email(
+            email, include_custom_profile_fields=include_custom_profile_fields
+        )
     else:
         return {"status": "error", "error": "Provide user_id or email"}
 

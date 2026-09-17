@@ -79,12 +79,14 @@ class DatabaseManager:
         return duckdb.connect(self.db_path, config={"access_mode": "READ_WRITE"})
 
     def _try_clear_stale_lock(self, error: duckdb.IOException) -> bool:
-        """Check if the lock is held by a dead process and clear it if so.
+        """Check whether a lock holder exited so the connection can be retried.
 
         DuckDB error messages include the locking PID, e.g.:
         'Conflicting lock is held in ... (PID 12345)'
 
-        Returns True if a stale lock was cleared and the caller should retry.
+        The OS releases process locks at exit. The WAL is recovery data, not a
+        lock file: deleting it can discard committed writes after a crash.
+        Returns True if the caller should retry and let DuckDB recover the WAL.
         """
         match = re.search(r"\(PID\s+(\d+)\)", str(error))
         if not match:
@@ -101,19 +103,7 @@ class DatabaseManager:
             # Process exists but we can't signal it; lock is legitimate
             return False
 
-        # Stale lock: the locking process is dead
-        wal_path = self.db_path + ".wal"
-        if os.path.exists(wal_path):
-            try:
-                os.remove(wal_path)
-                logger.warning(
-                    f"Removed stale WAL file from dead process (PID {pid}): {wal_path}"
-                )
-            except OSError as rm_err:
-                logger.error(f"Failed to remove stale WAL file: {rm_err}")
-                return False
-        else:
-            logger.info(f"Locking process (PID {pid}) is dead; retrying connect")
+        logger.info(f"Locking process (PID {pid}) is dead; retrying with WAL intact")
         return True
 
     def _run_migrations_with_retry(self) -> None:
@@ -148,18 +138,15 @@ class DatabaseManager:
             conn: Active database connection to use for migrations
         """
         # Create migrations table
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS schema_migrations(
             version INTEGER PRIMARY KEY,
             applied_at TIMESTAMP
           );
-        """
-        )
+        """)
 
         # Version 1 schema - Core tables for agent tracking and state
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS afk_state(
             id INTEGER PRIMARY KEY,
             is_afk BOOLEAN NOT NULL,
@@ -167,22 +154,18 @@ class DatabaseManager:
             auto_return_at TIMESTAMP,
             updated_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agents(
             agent_id TEXT PRIMARY KEY,
             agent_type TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL,
             metadata TEXT
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_instances(
             instance_id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -192,11 +175,9 @@ class DatabaseManager:
             started_at TIMESTAMP NOT NULL,
             FOREIGN KEY(agent_id) REFERENCES agents(agent_id)
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS user_input_requests(
             request_id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -208,11 +189,9 @@ class DatabaseManager:
             responded_at TIMESTAMP,
             response TEXT
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS tasks(
             task_id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -225,12 +204,10 @@ class DatabaseManager:
             outputs TEXT,
             metrics TEXT
           );
-        """
-        )
+        """)
 
         # Agent status audit trail (optional)
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_status(
             status_id TEXT PRIMARY KEY,
             agent_type TEXT NOT NULL,
@@ -238,29 +215,24 @@ class DatabaseManager:
             message TEXT,
             created_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
         # Optional cache tables
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS streams_cache(
             key TEXT PRIMARY KEY,
             payload TEXT NOT NULL,
             fetched_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS users_cache(
             key TEXT PRIMARY KEY,
             payload TEXT NOT NULL,
             fetched_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
         # Record schema version if not exists
         existing_version = conn.execute(
@@ -274,8 +246,7 @@ class DatabaseManager:
             )
 
         # Table for agent inbound chat events (from Zulip)
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_events(
             id TEXT PRIMARY KEY,
             zulip_message_id INTEGER,
@@ -285,24 +256,20 @@ class DatabaseManager:
             created_at TIMESTAMP,
             acked BOOLEAN DEFAULT FALSE
           );
-        """
-        )
+        """)
 
         # Persist message listener queue state across restarts
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS listener_state(
             id INTEGER PRIMARY KEY DEFAULT 1,
             queue_id TEXT,
             last_event_id INTEGER,
             updated_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
         # Agent control-plane tables used by the Zulip session architecture.
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_profiles(
             agent_id TEXT PRIMARY KEY,
             agent_name TEXT NOT NULL,
@@ -314,11 +281,9 @@ class DatabaseManager:
             created_at TIMESTAMP NOT NULL,
             updated_at TIMESTAMP NOT NULL
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_sessions(
             session_id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -336,11 +301,9 @@ class DatabaseManager:
             ended_at TIMESTAMP,
             FOREIGN KEY(agent_id) REFERENCES agent_profiles(agent_id)
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS agent_requests(
             request_id TEXT PRIMARY KEY,
             agent_id TEXT NOT NULL,
@@ -358,11 +321,9 @@ class DatabaseManager:
             FOREIGN KEY(agent_id) REFERENCES agent_profiles(agent_id),
             FOREIGN KEY(session_id) REFERENCES agent_sessions(session_id)
           );
-        """
-        )
+        """)
 
-        conn.execute(
-            """
+        conn.execute("""
           CREATE TABLE IF NOT EXISTS session_events(
             id TEXT PRIMARY KEY,
             agent_id TEXT,
@@ -383,8 +344,7 @@ class DatabaseManager:
             FOREIGN KEY(agent_id) REFERENCES agent_profiles(agent_id),
             FOREIGN KEY(session_id) REFERENCES agent_sessions(session_id)
           );
-        """
-        )
+        """)
 
     def execute(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None

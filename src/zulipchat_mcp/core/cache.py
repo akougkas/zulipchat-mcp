@@ -2,6 +2,7 @@
 
 import difflib
 import hashlib
+import threading
 import time
 from collections.abc import Callable as TypingCallable
 from functools import lru_cache, wraps
@@ -13,19 +14,23 @@ F = TypeVar("F", bound=TypingCallable[..., Any])
 class MessageCache:
     """Simple in-memory cache for messages."""
 
-    def __init__(self, ttl: int = 300) -> None:
+    def __init__(self, ttl: int = 300, max_entries: int = 1024) -> None:
         """Initialize cache.
 
         Args:
             ttl: Time to live in seconds (default: 5 minutes)
         """
+        if max_entries < 1:
+            raise ValueError("max_entries must be positive")
         self.cache: dict[str, tuple[Any, float]] = {}
         self.ttl = ttl
+        self.max_entries = max_entries
+        self._lock = threading.RLock()
 
     def _make_key(self, *args: Any, **kwargs: Any) -> str:
         """Create cache key from arguments."""
         key_data = str(args) + str(sorted(kwargs.items()))
-        return hashlib.md5(key_data.encode()).hexdigest()
+        return hashlib.sha256(key_data.encode()).hexdigest()
 
     def get(self, key: str) -> Any | None:
         """Get value from cache.
@@ -36,11 +41,12 @@ class MessageCache:
         Returns:
             Cached value or None if expired/not found
         """
-        if key in self.cache:
-            value, timestamp = self.cache[key]
-            if time.time() - timestamp < self.ttl:
-                return value
-            del self.cache[key]
+        with self._lock:
+            if key in self.cache:
+                value, timestamp = self.cache[key]
+                if time.monotonic() - timestamp < self.ttl:
+                    return value
+                del self.cache[key]
         return None
 
     def set(self, key: str, value: Any) -> None:
@@ -50,22 +56,29 @@ class MessageCache:
             key: Cache key
             value: Value to cache
         """
-        self.cache[key] = (value, time.time())
+        with self._lock:
+            self.clear_expired()
+            if key not in self.cache and len(self.cache) >= self.max_entries:
+                self.cache.pop(next(iter(self.cache)))
+            self.cache[key] = (value, time.monotonic())
 
     def clear_expired(self) -> None:
         """Clear expired entries from cache."""
-        now = time.time()
-        expired = [k for k, (_, t) in self.cache.items() if now - t >= self.ttl]
-        for key in expired:
-            del self.cache[key]
+        with self._lock:
+            now = time.monotonic()
+            expired = [k for k, (_, t) in self.cache.items() if now - t >= self.ttl]
+            for key in expired:
+                del self.cache[key]
 
     def clear(self) -> None:
         """Clear all cache entries."""
-        self.cache.clear()
+        with self._lock:
+            self.cache.clear()
 
     def size(self) -> int:
         """Get number of cached items."""
-        return len(self.cache)
+        with self._lock:
+            return len(self.cache)
 
 
 class StreamCache:
@@ -107,6 +120,8 @@ class UserCache:
         """
         self.cache = MessageCache(ttl)
         self._name_index: dict[str, str] = {}  # lowercase name → email
+        self._email_to_delivery: dict[str, str] = {}
+        self._ambiguous_names: set[str] = set()
 
     def get_users(self) -> list[Any] | None:
         """Get cached users list."""
@@ -116,22 +131,26 @@ class UserCache:
         """Cache users list and build name index."""
         self.cache.set("users_list", users)
         self._name_index.clear()
-        self._email_to_delivery: dict[str, str] = {}  # display email → delivery email
+        self._email_to_delivery.clear()
+        self._ambiguous_names.clear()
         for user in users:
             if not user.get("is_active", True):
                 continue
             email = user.get("email", "")
             delivery = user.get("delivery_email", "")
-            full_name = user.get("full_name", "")
+            full_name = user.get("full_name", "").strip()
             # Map display email to delivery email for identity matching
             if email and delivery and email != delivery:
-                self._email_to_delivery[email] = delivery
+                self._email_to_delivery[email.lower()] = delivery.lower()
             if full_name and email:
-                self._name_index[full_name.lower()] = email
-                # Index first name too
-                first = full_name.split()[0]
-                if first.lower() not in self._name_index:
-                    self._name_index[first.lower()] = email
+                for name in {full_name.lower().strip(), full_name.split()[0].lower()}:
+                    if name in self._ambiguous_names:
+                        continue
+                    if name in self._name_index and self._name_index[name] != email:
+                        self._ambiguous_names.add(name)
+                        del self._name_index[name]
+                    else:
+                        self._name_index[name] = email
 
     def resolve_user(self, query: str) -> dict[str, Any]:
         """Resolve a display name to email via fuzzy matching.
@@ -139,6 +158,8 @@ class UserCache:
         Returns dict with email, full_name, matched, and confidence.
         """
         q = query.lower().strip()
+        if self.get_users() is None or q in self._ambiguous_names:
+            return {"email": None, "matched": None, "confidence": 0.0}
 
         # Exact match first
         if q in self._name_index:
@@ -157,12 +178,17 @@ class UserCache:
 
     def is_same_user(self, email_a: str, email_b: str) -> bool:
         """Check if two emails (display or delivery) belong to the same user."""
+        email_a, email_b = email_a.lower(), email_b.lower()
         if email_a == email_b:
-            return True
+            return bool(email_a)
+        if self.get_users() is None:
+            return False
         # Check cross-mapping: a's delivery == b, or b's delivery == a
         delivery_a = self._email_to_delivery.get(email_a, email_a)
         delivery_b = self._email_to_delivery.get(email_b, email_b)
-        return delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
+        return (
+            delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
+        )
 
     def get_user_info(self, email: str) -> dict[str, Any] | None:
         """Get cached user information."""
@@ -243,8 +269,6 @@ def async_cache_decorator(
 
 # Global cache instances
 message_cache = MessageCache(ttl=300)
-stream_cache = StreamCache(ttl=600)
-user_cache = UserCache(ttl=900)
 
 
 # LRU cache for frequently accessed data

@@ -81,7 +81,7 @@ class ChainBuilder:
         topic: str,
         content: str,
         add_reaction: bool = True,
-        emoji: str = "white_check_mark",
+        emoji: str = "check_mark",
     ) -> CommandChain:
         """Create a workflow to send message and optionally add reaction.
 
@@ -107,7 +107,7 @@ class ChainBuilder:
                     "topic": topic,
                     "content": content,
                 },
-                input_key="dummy",
+                input_key=None,
                 output_key="message_params",
             )
         )
@@ -161,7 +161,7 @@ class ChainBuilder:
                 ProcessDataCommand(
                     name="set_emoji",
                     processor=lambda _: emoji,
-                    input_key="dummy",
+                    input_key=None,
                     output_key="emoji_name",
                 )
             )
@@ -207,7 +207,7 @@ class ChainBuilder:
                 ProcessDataCommand(
                     name=f"set_stream_{i}_params",
                     processor=_set_params,
-                    input_key="dummy",
+                    input_key=None,
                     output_key=f"stream_{i}_params",
                 )
             )
@@ -405,7 +405,7 @@ def create_simple_notification_chain(
 
 
 def create_monitored_message_chain(
-    stream: str, topic: str, message: str, reaction: str = "eyes"
+    stream: str, topic: str, message: str, reaction: str = "thinking"
 ) -> CommandChain:
     """Create a message chain with monitoring reaction."""
     return ChainBuilder.create_message_workflow(stream, topic, message, True, reaction)

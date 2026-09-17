@@ -2,14 +2,15 @@
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import quote, urlparse, urlunparse
 
 from zulip import Client
 
 from ..config import ConfigManager
-from .cache import cache_decorator, stream_cache, user_cache
+from .cache import StreamCache, UserCache
 
 
 @dataclass
@@ -83,9 +84,13 @@ class ZulipClientWrapper:
 
         # Lazy loading: client created on first API call
         self._client: Client | None = None
+        self._client_lock = Lock()
         self.current_email = self._client_config.get("email")
         site = self._client_config.get("site")
         self._base_url = self._normalize_site_base_url(site) if site else ""
+        # Cache data belongs to this authenticated client, never another identity.
+        self.user_cache = UserCache()
+        self.stream_cache = StreamCache()
 
     @staticmethod
     def _normalize_site_base_url(base_url: str) -> str:
@@ -110,22 +115,30 @@ class ZulipClientWrapper:
     def client(self) -> Client:
         """Lazy-loaded Zulip client. Creates connection on first access."""
         if self._client is None:
-            self._client = self._create_client()
+            with self._client_lock:
+                if self._client is None:
+                    self._client = self._create_client()
         return self._client
 
     def _create_client(self) -> Client:
         """Create and configure the Zulip client."""
         try:
             if self._client_config.get("config_file"):
-                client = Client(config_file=self._client_config["config_file"])
+                client = Client(
+                    email=self._client_config["email"],
+                    api_key=self._client_config["api_key"],
+                    site=self._client_config["site"],
+                    config_file=self._client_config["config_file"],
+                    retry_on_errors=False,
+                )
                 # Backfill properties from loaded client config
-                if not self.current_email and hasattr(client, "email"):
+                if hasattr(client, "email"):
                     self.current_email = client.email
                     # Update identity name if it was default "User"/Bot
                     if self.identity_name in ("User", "Bot") and self.current_email:
                         self.identity_name = self.current_email.split("@")[0]
 
-                if not self._base_url and hasattr(client, "base_url"):
+                if hasattr(client, "base_url"):
                     self._base_url = self._normalize_site_base_url(client.base_url)
 
                 return client
@@ -134,6 +147,7 @@ class ZulipClientWrapper:
                     email=self._client_config["email"],
                     api_key=self._client_config["api_key"],
                     site=self._client_config["site"],
+                    retry_on_errors=False,
                 )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
@@ -161,6 +175,8 @@ class ZulipClientWrapper:
         request: dict[str, Any] = {"type": message_type, "content": content}
 
         if message_type == "stream":
+            if isinstance(to, list) and len(to) != 1:
+                raise ValueError("Stream messages require exactly one stream")
             request["to"] = to if isinstance(to, str) else to[0]
             if topic:
                 request["topic"] = topic
@@ -229,6 +245,8 @@ class ZulipClientWrapper:
             client_gravatar=True,
             apply_markdown=True,
         )
+        if raw.get("result") != "success":
+            raise RuntimeError(raw.get("msg", "Failed to fetch messages"))
         messages: list[ZulipMessage] = []
         for m in raw.get("messages", []):
             try:
@@ -248,7 +266,6 @@ class ZulipClientWrapper:
                 continue
         return messages
 
-    @cache_decorator(ttl=300, key_prefix="messages_")
     def get_messages_from_stream(
         self,
         stream_name: str | None = None,
@@ -258,9 +275,13 @@ class ZulipClientWrapper:
     ) -> dict[str, Any]:
         """Get messages from a specific stream within time range.
 
-        Uses Zulip's anchor="date" + anchor_date parameter (Zulip 12.0+, feature level 445)
-        to position the anchor at the cutoff time, then fetches messages after that point.
+        Fetches a bounded sample of the newest messages and applies the UTC
+        cutoff locally, including on Zulip versions without date anchors.
         """
+        if not 1 <= limit <= 1000 or hours_back <= 0:
+            raise ValueError(
+                "limit must be between 1 and 1000; hours_back must be positive"
+            )
         narrow: list[dict[str, Any]] = []
         if stream_name:
             narrow.append({"operator": "stream", "operand": stream_name})
@@ -268,39 +289,35 @@ class ZulipClientWrapper:
             narrow.append({"operator": "topic", "operand": topic})
 
         # Calculate cutoff time for time-based filtering
-        cutoff_time = datetime.now() - timedelta(hours=hours_back)
-        anchor_date_str = cutoff_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        return self.get_messages_raw(
-            anchor="date",
-            anchor_date=anchor_date_str,
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+        result = self.get_messages_raw(
+            anchor="newest",
             narrow=narrow,
-            num_before=0,  # No messages before the cutoff
-            num_after=limit,  # Messages after the cutoff
+            num_before=limit,
+            num_after=0,
             include_anchor=True,
             client_gravatar=True,
             apply_markdown=True,
         )
+        if result.get("result") == "success":
+            result = dict(result)
+            result["messages"] = [
+                message
+                for message in result.get("messages", [])
+                if message.get("timestamp", 0) >= cutoff_time.timestamp()
+            ][-limit:]
+        return result
 
     def search_messages(self, query: str, num_results: int = 50) -> dict[str, Any]:
         """Search messages by content."""
         narrow = [{"operator": "search", "operand": query}]
-        try:
-            return self.get_messages_raw(
-                narrow=narrow,
-                num_before=num_results,
-                include_anchor=True,
-                client_gravatar=True,
-                apply_markdown=True,
-            )
-        except Exception:
-            # Fallback: try without narrow if search fails
-            return self.get_messages_raw(
-                num_before=num_results,
-                include_anchor=True,
-                client_gravatar=True,
-                apply_markdown=True,
-            )
+        return self.get_messages_raw(
+            narrow=narrow,
+            num_before=num_results,
+            include_anchor=True,
+            client_gravatar=True,
+            apply_markdown=True,
+        )
 
     def get_streams(
         self,
@@ -310,9 +327,12 @@ class ZulipClientWrapper:
         include_all_active: bool | None = None,
     ) -> dict[str, Any]:
         """Get list of streams."""
-        if not force_fresh and include_public is None and include_all_active is None:
+        default_filters = (
+            include_subscribed and include_public is None and include_all_active is None
+        )
+        if not force_fresh and default_filters:
             # Check cache first
-            cached_streams = stream_cache.get_streams()
+            cached_streams = self.stream_cache.get_streams()
             if cached_streams is not None:
                 return {"result": "success", "streams": cached_streams}
 
@@ -324,37 +344,49 @@ class ZulipClientWrapper:
             kwargs["include_all_active"] = include_all_active
 
         response = self.client.get_streams(**kwargs)
-        if response["result"] == "success":
-            stream_cache.set_streams(response["streams"])
+        if response["result"] == "success" and default_filters:
+            self.stream_cache.set_streams(response["streams"])
         return response
 
-    def get_users(self) -> dict[str, Any]:
+    def get_users(
+        self, client_gravatar: bool = True, include_custom_profile_fields: bool = False
+    ) -> dict[str, Any]:
         """Get list of users."""
         # Check cache first
-        cached_users = user_cache.get_users()
+        default_filters = client_gravatar and not include_custom_profile_fields
+        cached_users = self.user_cache.get_users() if default_filters else None
         if cached_users is not None:
             return {"result": "success", "members": cached_users}
 
         # Fetch from API
-        response = self.client.get_users()
-        if response["result"] == "success":
-            user_cache.set_users(response["members"])
+        response = self.client.get_users(
+            {
+                "client_gravatar": client_gravatar,
+                "include_custom_profile_fields": include_custom_profile_fields,
+            }
+        )
+        if response["result"] == "success" and default_filters:
+            self.user_cache.set_users(response["members"])
         return response
 
     def get_stream_topics(self, stream_id: int) -> dict[str, Any]:
         """Get recent topics for a stream."""
         return self.client.get_stream_topics(stream_id)
 
-    def add_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:
+    def add_reaction(
+        self, message_id: int, emoji_name: str, **kwargs: Any
+    ) -> dict[str, Any]:
         """Add reaction to a message."""
         return self.client.add_reaction(
-            {"message_id": message_id, "emoji_name": emoji_name}
+            {"message_id": message_id, "emoji_name": emoji_name, **kwargs}
         )
 
-    def remove_reaction(self, message_id: int, emoji_name: str) -> dict[str, Any]:
+    def remove_reaction(
+        self, message_id: int, emoji_name: str, **kwargs: Any
+    ) -> dict[str, Any]:
         """Remove reaction from a message."""
         return self.client.remove_reaction(
-            {"message_id": message_id, "emoji_name": emoji_name}
+            {"message_id": message_id, "emoji_name": emoji_name, **kwargs}
         )
 
     # Additional endpoints used by v0.4 tools
@@ -520,9 +552,9 @@ class ZulipClientWrapper:
     ) -> dict[str, Any]:
         """Edit a message."""
         request: dict[str, Any] = {"message_id": message_id}
-        if content:
+        if content is not None:
             request["content"] = content
-        if topic:
+        if topic is not None:
             request["topic"] = topic
         if stream_id:
             request["stream_id"] = stream_id
@@ -553,7 +585,7 @@ class ZulipClientWrapper:
                     }
                 )
         return self.client.call_endpoint(
-            f"users/{email}",
+            f"users/{quote(email, safe='')}",
             method="GET",
             request={"include_custom_profile_fields": include_custom_profile_fields},
         )
@@ -613,9 +645,12 @@ class ZulipClientWrapper:
 
     def get_events(self, **kwargs: Any) -> dict[str, Any]:
         """Poll events from a queue (long-poll capable)."""
-        if hasattr(self.client, "get_events"):
-            return self.client.get_events(**kwargs)
-        return self.client.call_endpoint("events", method="GET", request=kwargs)
+        timeout = kwargs.pop("timeout", 90)
+        # The SDK's longpolling=True retries read timeouts forever, ignoring
+        # retry_on_errors. Bound a poll and let the listener/caller decide retry.
+        return self.client.call_endpoint(
+            "events", method="GET", request=kwargs, timeout=timeout, longpolling=False
+        )
 
     # Convenience methods referenced by users_v25
     def update_user(self, user_id: int, **updates: Any) -> dict[str, Any]:
@@ -681,7 +716,7 @@ class ZulipClientWrapper:
         auth_bytes = base64.b64encode(auth_string.encode()).decode()
         headers = {"Authorization": f"Basic {auth_bytes}"}
 
-        response = requests.post(url, files=files, headers=headers)
+        response = requests.post(url, files=files, headers=headers, timeout=30)
         if response.status_code == 200:
             return {"result": "success", **response.json()}
         else:
@@ -701,7 +736,9 @@ class ZulipClientWrapper:
                     if not s.get("invite_only", False)
                 ]
             else:
-                return {"error": "Failed to fetch streams"}
+                raise RuntimeError(
+                    streams_response.get("msg", "Failed to fetch streams")
+                )
 
         summary: dict[str, Any] = {
             "total_messages": 0,
@@ -716,6 +753,7 @@ class ZulipClientWrapper:
             )
 
             if messages_response.get("result") != "success":
+                summary.setdefault("unavailable_streams", []).append(stream_name)
                 continue
 
             messages = messages_response.get("messages", [])

@@ -17,7 +17,9 @@ class TestGetStreams:
     @pytest.fixture
     def mock_deps(self):
         """Patch get_client to return mock client."""
-        with patch("src.zulipchat_mcp.tools.stream_management.get_client") as mock_get_client:
+        with patch(
+            "src.zulipchat_mcp.tools.stream_management.get_client"
+        ) as mock_get_client:
             client = MagicMock()
             mock_get_client.return_value = client
             yield client
@@ -38,11 +40,13 @@ class TestGetStreams:
         assert result["status"] == "success"
         assert result["count"] == 2
         assert len(result["streams"]) == 2
-        mock_deps.get_streams.assert_called_once_with(include_subscribed=True)
+        mock_deps.get_streams.assert_called_once_with(
+            include_subscribed=True, include_public=True
+        )
 
     @pytest.mark.asyncio
     async def test_get_streams_filter_public(self, mock_deps):
-        """Test filtering out public streams."""
+        """Subscribed public streams remain when discovery of other public streams is off."""
         mock_deps.get_streams.return_value = {
             "result": "success",
             "streams": [
@@ -54,8 +58,10 @@ class TestGetStreams:
         result = await get_streams(include_public=False)
 
         assert result["status"] == "success"
-        assert result["count"] == 1
-        assert result["streams"][0]["name"] == "private"
+        assert result["count"] == 2
+        mock_deps.get_streams.assert_called_once_with(
+            include_subscribed=True, include_public=False
+        )
 
     @pytest.mark.asyncio
     async def test_get_streams_not_subscribed(self, mock_deps):
@@ -68,7 +74,9 @@ class TestGetStreams:
         result = await get_streams(include_subscribed=False)
 
         assert result["status"] == "success"
-        mock_deps.get_streams.assert_called_once_with(include_subscribed=False)
+        mock_deps.get_streams.assert_called_once_with(
+            include_subscribed=False, include_public=True
+        )
 
     @pytest.mark.asyncio
     async def test_get_streams_api_error(self, mock_deps):
@@ -124,7 +132,9 @@ class TestGetStreamInfo:
     @pytest.fixture
     def mock_deps(self):
         """Patch get_client to return mock client."""
-        with patch("src.zulipchat_mcp.tools.stream_management.get_client") as mock_get_client:
+        with patch(
+            "src.zulipchat_mcp.tools.stream_management.get_client"
+        ) as mock_get_client:
             client = MagicMock()
             mock_get_client.return_value = client
             yield client

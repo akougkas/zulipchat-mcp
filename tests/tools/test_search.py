@@ -160,8 +160,8 @@ class TestSearchTools:
         assert args["anchor"] == "newest"
 
     @pytest.mark.asyncio
-    async def test_time_filter_with_stream_uses_anchor_date(self, mock_deps):
-        """Test that anchor='date' is used when a stream narrow is provided."""
+    async def test_newest_time_filter_with_stream_starts_at_newest(self, mock_deps):
+        """A lower time bound must not turn newest search into an oldest sample."""
         now = datetime.now()
         ts_now = now.timestamp()
 
@@ -181,15 +181,15 @@ class TestSearchTools:
             ],
         }
 
-        # Search with stream filter = anchor="date" is used
+        # Search the newest messages within the time window.
         result = await search_messages(stream="test-stream", last_hours=1)
 
         assert result["status"] == "success"
 
-        # With a narrow filter, anchor="date" is used efficiently
+        # The newest edge remains the anchor even with a stream filter.
         args = mock_deps.get_messages_raw.call_args[1]
-        assert args["anchor"] == "date"
-        assert args["anchor_date"] is not None
+        assert args["anchor"] == "newest"
+        assert args["anchor_date"] is None
 
     @pytest.mark.asyncio
     async def test_search_messages_fuzzy_user(self, mock_deps):

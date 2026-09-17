@@ -166,21 +166,10 @@ class NarrowBuilder:
     def time_range(
         self, after: datetime, before: datetime | None = None
     ) -> NarrowBuilder:
-        """Add time-based filters."""
-        self.filters.append(
-            NarrowFilter(
-                operator=NarrowOperator.SEARCH,
-                operand=f"after:{after.isoformat()}",
-            )
+        """Reject timestamp narrows, which Zulip does not support."""
+        raise ValueError(
+            "Zulip narrow filters cannot encode timestamps; use search_messages with after_time/before_time instead"
         )
-        if before:
-            self.filters.append(
-                NarrowFilter(
-                    operator=NarrowOperator.SEARCH,
-                    operand=f"before:{before.isoformat()}",
-                )
-            )
-        return self
 
     def build(self) -> list[dict[str, Any]]:
         """Build the narrow list for Zulip API."""

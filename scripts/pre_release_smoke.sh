@@ -107,9 +107,10 @@ trap cleanup EXIT
 SMOKE_VENV="$SMOKE_TMP_DIR/venv"
 uv venv "$SMOKE_VENV" --python "$PYTHON_VERSION"
 
-WHEEL_PATH="$(ls -t dist/zulipchat_mcp-*.whl 2>/dev/null | head -n1 || true)"
-if [[ -z "$WHEEL_PATH" || ! -f "$WHEEL_PATH" ]]; then
-  echo "ERROR: Expected wheel not found in dist/" >&2
+NORMALIZED_VERSION="$(uv run python -c 'import sys; from packaging.version import Version; print(Version(sys.argv[1]))' "$VERSION")"
+WHEEL_PATH="dist/zulipchat_mcp-${NORMALIZED_VERSION}-py3-none-any.whl"
+if [[ ! -f "$WHEEL_PATH" ]]; then
+  echo "ERROR: Expected wheel not found: $WHEEL_PATH" >&2
   exit 1
 fi
 uv pip install --prerelease=allow --python "$SMOKE_VENV/bin/python" "$WHEEL_PATH"

@@ -4,6 +4,7 @@ Clean implementation of Zulip's message flag update API endpoints.
 Uses modern "update personal message flags for narrow" instead of deprecated endpoints.
 """
 
+import asyncio
 from typing import Any, Literal
 
 from fastmcp import FastMCP
@@ -47,8 +48,10 @@ async def update_message_flags_for_narrow(
             "num_after": num_after,
         }
 
-        result = client.client.call_endpoint(
-            "messages/flags/narrow", method="POST", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "messages/flags/narrow", method="POST", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -76,14 +79,7 @@ async def mark_all_as_read() -> dict[str, Any]:
     """Mark all messages as read using modern narrow approach."""
     try:
         # Use empty narrow to match all messages
-        return await update_message_flags_for_narrow(
-            narrow=[],
-            op="add",
-            flag="read",
-            anchor="first_unread",
-            num_before=0,
-            num_after=1000,  # Large number to catch all unread
-        )
+        return await _mark_read_pages([])
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -91,18 +87,11 @@ async def mark_all_as_read() -> dict[str, Any]:
 async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
     """Mark all messages in a stream as read using modern narrow approach."""
     try:
-        stream_name = _resolve_stream_name(stream_id)
+        stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
         # Use stream narrow to match stream messages
         narrow = [{"operator": "stream", "operand": stream_name}]
 
-        return await update_message_flags_for_narrow(
-            narrow=narrow,
-            op="add",
-            flag="read",
-            anchor="first_unread",
-            num_before=0,
-            num_after=1000,
-        )
+        return await _mark_read_pages(narrow)
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -110,23 +99,49 @@ async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
 async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
     """Mark all messages in a topic as read using modern narrow approach."""
     try:
-        stream_name = _resolve_stream_name(stream_id)
+        stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
         # Use stream + topic narrow to match topic messages
         narrow = [
             {"operator": "stream", "operand": stream_name},
             {"operator": "topic", "operand": topic_name},
         ]
 
-        return await update_message_flags_for_narrow(
+        return await _mark_read_pages(narrow)
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+async def _mark_read_pages(narrow: list[dict[str, Any]]) -> dict[str, Any]:
+    """Finish the requested scope, advancing beyond each processed page."""
+    anchor: int | Literal["first_unread"] = "first_unread"
+    processed = updated = 0
+    while True:
+        result = await update_message_flags_for_narrow(
             narrow=narrow,
             op="add",
             flag="read",
-            anchor="first_unread",
+            anchor=anchor,
+            include_anchor=anchor == "first_unread",
             num_before=0,
             num_after=1000,
         )
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+        if result.get("status") != "success":
+            return {**result, "processed_count": processed, "updated_count": updated}
+        processed += result.get("processed_count", 0)
+        updated += result.get("updated_count", 0)
+        if result.get("found_newest") is not False:
+            return {**result, "processed_count": processed, "updated_count": updated}
+        cursor = result.get("last_processed_id")
+        if not isinstance(cursor, int) or (
+            isinstance(anchor, int) and cursor <= anchor
+        ):
+            return {
+                "status": "error",
+                "error": "Mark-read pagination made no progress",
+                "processed_count": processed,
+                "updated_count": updated,
+            }
+        anchor = cursor
 
 
 async def mark_messages_unread(
@@ -142,7 +157,9 @@ async def mark_messages_unread(
             narrow = []
             if stream_id:
                 try:
-                    stream_name = _resolve_stream_name(stream_id)
+                    stream_name = await asyncio.to_thread(
+                        _resolve_stream_name, stream_id
+                    )
                     narrow.append({"operator": "stream", "operand": stream_name})
                 except ValueError as e:
                     return {"status": "error", "error": str(e)}
@@ -182,7 +199,9 @@ async def star_messages(
             narrow = []
             if stream_id:
                 try:
-                    stream_name = _resolve_stream_name(stream_id)
+                    stream_name = await asyncio.to_thread(
+                        _resolve_stream_name, stream_id
+                    )
                     narrow.append({"operator": "stream", "operand": stream_name})
                 except ValueError as e:
                     return {"status": "error", "error": str(e)}
@@ -222,7 +241,9 @@ async def unstar_messages(
             narrow = []
             if stream_id:
                 try:
-                    stream_name = _resolve_stream_name(stream_id)
+                    stream_name = await asyncio.to_thread(
+                        _resolve_stream_name, stream_id
+                    )
                     narrow.append({"operator": "stream", "operand": stream_name})
                 except ValueError as e:
                     return {"status": "error", "error": str(e)}
@@ -272,7 +293,7 @@ async def manage_message_flags(
         if not stream_id:
             return {"status": "error", "error": "stream_id required for scope='stream'"}
         try:
-            stream_name = _resolve_stream_name(stream_id)
+            stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
         except ValueError as e:
             return {"status": "error", "error": str(e)}
         return await update_message_flags_for_narrow(
@@ -289,7 +310,7 @@ async def manage_message_flags(
         if not topic_name:
             return {"status": "error", "error": "topic_name required for scope='topic'"}
         try:
-            stream_name = _resolve_stream_name(stream_id)
+            stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
         except ValueError as e:
             return {"status": "error", "error": str(e)}
         return await update_message_flags_for_narrow(
@@ -308,7 +329,9 @@ async def manage_message_flags(
         if not built_narrow:
             if stream_id:
                 try:
-                    stream_name = _resolve_stream_name(stream_id)
+                    stream_name = await asyncio.to_thread(
+                        _resolve_stream_name, stream_id
+                    )
                     built_narrow.append({"operator": "stream", "operand": stream_name})
                 except ValueError as e:
                     return {"status": "error", "error": str(e)}

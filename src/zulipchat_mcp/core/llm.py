@@ -34,12 +34,12 @@ class LLMResponseError(RuntimeError):
 
 
 def _get_model() -> str:
-    return os.getenv(MODEL_ENV_VAR, DEFAULT_MODEL)
+    return os.getenv(MODEL_ENV_VAR, "").strip() or DEFAULT_MODEL
 
 
 def llm_available() -> bool:
     """Whether a server-side LLM provider is configured and importable."""
-    if not os.getenv(API_KEY_ENV_VAR):
+    if not os.getenv(API_KEY_ENV_VAR, "").strip():
         return False
     try:
         import anthropic  # noqa: F401
@@ -69,7 +69,7 @@ async def generate(prompt: str, *, max_tokens: int = 8192) -> str:
     if not llm_available():
         raise LLMUnavailableError(
             f"Server-side analytics require {API_KEY_ENV_VAR} to be set "
-            "(MCP sampling was removed in the 2026-07-28 protocol)."
+            "(MCP sampling is deprecated in the 2026-07-28 protocol)."
         )
 
     client = _get_client(os.environ[API_KEY_ENV_VAR])

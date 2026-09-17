@@ -7,12 +7,15 @@ import json
 import os
 import re
 import socket
+import threading
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from ..config import get_client, get_config_manager
+from ..config import get_config_manager
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import get_logger
 from .agent_protocol import (
@@ -26,6 +29,16 @@ from .agent_protocol import (
     strip_message_markup,
 )
 from .client import ZulipClientWrapper
+
+_session_binding_lock = threading.RLock()
+
+
+@contextmanager
+def _serialize_session_bindings() -> Iterator[None]:
+    """Keep the topic occupancy check and write atomic within this process."""
+    with _session_binding_lock:
+        yield
+
 
 logger = get_logger(__name__)
 
@@ -49,7 +62,9 @@ class AgentCoordinator:
     @property
     def user_client(self) -> ZulipClientWrapper:
         if self._user_client is None:
-            self._user_client = get_client()
+            self._user_client = ZulipClientWrapper(
+                get_config_manager(), use_bot_identity=False
+            )
         return self._user_client
 
     @property
@@ -68,7 +83,9 @@ class AgentCoordinator:
         if client.current_email:
             return client.current_email
         config = get_config_manager().config
-        return config.email or "owner@example.com"
+        if config.email:
+            return config.email
+        raise ValueError("Unable to resolve the owning Zulip account")
 
     def discover_agent_stream(self) -> str:
         """Resolve the primary control stream."""
@@ -145,6 +162,7 @@ class AgentCoordinator:
 
         return {"status": "success", "agent": profile}
 
+    @_serialize_session_bindings()
     def ensure_session(
         self,
         *,
@@ -173,26 +191,53 @@ class AgentCoordinator:
         elif project_dir:
             existing = self.db.get_latest_agent_session(agent_id, project_dir)
 
-        resolved_project = project_name or project_name_from_dir(project_dir)
-        resolved_topic = topic_name or make_session_topic(
-            resolved_project,
-            str(profile["agent_name"]),
-            external_session_id=external_session_id,
-            topic_prefix=str(profile["topic_prefix"]),
+        if existing and existing["agent_id"] != agent_id:
+            return {
+                "status": "error",
+                "error": "Topic is already bound to another agent",
+            }
+
+        resolved_project = (
+            project_name
+            or (existing or {}).get("project_name")
+            or project_name_from_dir(project_dir)
+        )
+        resolved_topic = (
+            topic_name
+            or (existing or {}).get("topic_name")
+            or make_session_topic(
+                resolved_project,
+                str(profile["agent_name"]),
+                external_session_id=external_session_id,
+                topic_prefix=str(profile["topic_prefix"]),
+            )
         )
 
+        occupied = self.db.get_agent_session_for_topic(
+            str(profile["stream_name"]), resolved_topic
+        )
+        if occupied and (
+            not existing or occupied["session_id"] != existing["session_id"]
+        ):
+            return {
+                "status": "error",
+                "error": "Topic is already bound to another session",
+            }
+
         if existing:
-            self.db.update_agent_session(
+            update_result = self.db.update_agent_session(
                 existing["session_id"],
                 external_session_id=external_session_id
                 or existing.get("external_session_id"),
                 topic_name=resolved_topic,
                 project_name=resolved_project,
-                project_dir=project_dir,
+                project_dir=project_dir or existing.get("project_dir"),
                 host=socket.gethostname(),
                 status=status,
                 metadata=self._json_blob(metadata or existing.get("metadata") or {}),
             )
+            if update_result.get("status") != "success":
+                return update_result
             session = self.db.get_agent_session(existing["session_id"])
             if session is None:
                 return {"status": "error", "error": "Session update failed"}
@@ -296,7 +341,7 @@ class AgentCoordinator:
         if session is None:
             return {"status": "error", "error": "Session not found"}
 
-        request_id = str(uuid.uuid4())[:8]
+        request_id = uuid.uuid4().hex
         create_result = self.db.create_agent_request(
             request_id=request_id,
             agent_id=str(session["agent_id"]),
@@ -321,14 +366,19 @@ class AgentCoordinator:
         message_category = (
             "approval_request" if request_type == "approval" else "question"
         )
-        send_result = self.send_session_message(
-            session_id=session_id,
-            content="\n\n".join(content_parts),
-            category=message_category,
-            request_id=request_id,
-            metadata=metadata,
-        )
+        try:
+            send_result = self.send_session_message(
+                session_id=session_id,
+                content="\n\n".join(content_parts),
+                category=message_category,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        except Exception:
+            self.db.update_agent_request(request_id, status="cancelled")
+            raise
         if send_result.get("status") != "success":
+            self.db.update_agent_request(request_id, status="cancelled")
             return send_result
 
         return {
@@ -342,8 +392,8 @@ class AgentCoordinator:
         self, request_id: str, timeout_seconds: int = 300
     ) -> dict[str, Any]:
         """Poll the database for a session request response."""
-        start = time.time()
-        while time.time() - start < timeout_seconds:
+        start = time.monotonic()
+        while time.monotonic() - start < timeout_seconds:
             request = self.db.get_agent_request(request_id)
             if request is None:
                 return {"status": "error", "error": "Request not found"}
@@ -364,15 +414,16 @@ class AgentCoordinator:
                 }
             time.sleep(1)
 
-        self.db.update_agent_request(request_id, status="timeout")
+        # A caller's polling timeout does not expire a shared pending request or
+        # overwrite an answer arriving concurrently. A later poll can resume.
         return {"status": "error", "error": "Response timeout"}
 
     async def wait_for_request_async(
         self, request_id: str, timeout_seconds: int = 300
     ) -> dict[str, Any]:
         """Poll the database asynchronously for a session request response."""
-        start = time.time()
-        while time.time() - start < timeout_seconds:
+        start = time.monotonic()
+        while time.monotonic() - start < timeout_seconds:
             request = await asyncio.to_thread(self.db.get_agent_request, request_id)
             if request is None:
                 return {"status": "error", "error": "Request not found"}
@@ -393,9 +444,6 @@ class AgentCoordinator:
                 }
             await asyncio.sleep(1)
 
-        await asyncio.to_thread(
-            self.db.update_agent_request, request_id, status="timeout"
-        )
         return {"status": "error", "error": "Response timeout"}
 
     def record_inbound_message(self, message: dict[str, Any]) -> dict[str, Any]:
@@ -414,15 +462,6 @@ class AgentCoordinator:
                 stream_name = display_recipient
 
         request_id = self.extract_request_id(topic_name, content)
-        if request_id:
-            request = self.db.get_agent_request(request_id)
-            if request and request.get("status") == "pending":
-                self.db.update_agent_request(
-                    request_id,
-                    status="answered",
-                    response=content,
-                    responded_at=datetime.now(timezone.utc),
-                )
 
         session = None
         if stream_name and topic_name:
@@ -432,11 +471,16 @@ class AgentCoordinator:
             return {"status": "ignored", "reason": "no_session"}
 
         parsed = parse_control_message(content)
+        request_id = parsed.request_id or request_id
         authorized = sender_email.lower() == str(session["owner_email"]).lower()
 
         if not authorized:
-            self.db.create_session_event(
-                event_id=str(uuid.uuid4()),
+            event_result = self.db.create_session_event(
+                event_id=(
+                    f"inbound:{session['session_id']}:{message['id']}"
+                    if message.get("id")
+                    else str(uuid.uuid4())
+                ),
                 agent_id=str(session["agent_id"]),
                 session_id=str(session["session_id"]),
                 stream_name=stream_name,
@@ -448,6 +492,8 @@ class AgentCoordinator:
                 normalized_content=parsed.normalized_content,
                 metadata="{}",
             )
+            if event_result.get("status") == "error":
+                return event_result
             if stream_name and topic_name:
                 self.bot_client.send_message(
                     message_type="stream",
@@ -462,28 +508,32 @@ class AgentCoordinator:
 
         if request_id:
             request = self.db.get_agent_request(request_id)
-            if request and request.get("status") == "pending":
-                self.db.update_agent_request(
+            if (
+                request
+                and request.get("status") == "pending"
+                and request.get("session_id") == session["session_id"]
+                and (
+                    request.get("request_type") != "approval"
+                    or parsed.decision is not None
+                )
+            ):
+                update_result = self.db.update_agent_request(
                     request_id,
                     status="answered",
                     response=parsed.decision or content,
                     responded_at=datetime.now(timezone.utc),
                 )
+                if update_result.get("status") == "error":
+                    return update_result
         elif parsed.event_type == "approval_response":
-            pending = self.db.get_latest_pending_request(
-                str(session["session_id"]), request_type="approval"
-            )
-            if pending is not None:
-                self.db.update_agent_request(
-                    str(pending["request_id"]),
-                    status="answered",
-                    response=parsed.decision or content,
-                    responded_at=datetime.now(timezone.utc),
-                )
-                request_id = str(pending["request_id"])
+            return {"status": "ignored", "reason": "approval_request_id_required"}
 
-        self.db.create_session_event(
-            event_id=str(uuid.uuid4()),
+        event_result = self.db.create_session_event(
+            event_id=(
+                f"inbound:{session['session_id']}:{message['id']}"
+                if message.get("id")
+                else str(uuid.uuid4())
+            ),
             agent_id=str(session["agent_id"]),
             session_id=str(session["session_id"]),
             stream_name=stream_name,
@@ -497,6 +547,8 @@ class AgentCoordinator:
             decision=parsed.decision,
             request_id=request_id,
         )
+        if event_result.get("status") == "error":
+            return event_result
         return {
             "status": "success",
             "session_id": session["session_id"],

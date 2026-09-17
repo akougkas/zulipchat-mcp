@@ -139,11 +139,9 @@ class TestNarrowBuilder:
         dt1 = datetime(2023, 1, 1, 12, 0, 0)
         dt2 = datetime(2023, 1, 2, 12, 0, 0)
 
-        builder.time_range(dt1, dt2)
-
-        assert len(builder.filters) == 2
-        assert builder.filters[0].operand == "after:2023-01-01T12:00:00"
-        assert builder.filters[1].operand == "before:2023-01-02T12:00:00"
+        with pytest.raises(ValueError, match="search_messages"):
+            builder.time_range(dt1, dt2)
+        assert builder.filters == []
 
     def test_build(self):
         """Test build() returns list of dicts."""

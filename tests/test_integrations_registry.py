@@ -1,12 +1,51 @@
 """Tests for integrations registry CLI."""
 
 import json
+import shlex
 import sys
 
 import pytest
 
 from src.zulipchat_mcp import __version__
 from src.zulipchat_mcp.integrations import registry
+
+
+def test_shell_snippets_preserve_metacharacters():
+    value = '/some path/$(touch marker)/`command`/"zuliprc"'
+    base = registry._build_base_config(value, None, False)
+    assert shlex.split(registry._render_for_client("claude-code", base)) == [
+        "claude",
+        "mcp",
+        "add",
+        "zulipchat",
+        "--",
+        "uvx",
+        *base["args"],
+    ]
+    assert shlex.split(
+        registry._render_remote_for_client("claude-code", value, value)
+    ) == [
+        "claude",
+        "mcp",
+        "add",
+        "--transport",
+        "http",
+        "zulipchat",
+        value,
+        "--header",
+        f"Authorization: Bearer {value}",
+    ]
+
+
+def test_codex_snippet_round_trips_escaped_paths():
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib
+    value = 'C:\\Users\\name "quoted"\\zuliprc\nline'
+    base = registry._build_base_config(value, None, False)
+    parsed = tomllib.loads(registry._render_for_client("codex", base))
+    assert parsed["mcp_servers"]["zulipchat"] == base
 
 
 def _run_main(monkeypatch, args):

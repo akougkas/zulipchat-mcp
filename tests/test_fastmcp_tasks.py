@@ -3,11 +3,47 @@
 from __future__ import annotations
 
 import pytest
-from fastmcp import FastMCP
+from fastmcp import Client, FastMCP
 from fastmcp.utilities.tasks import TASKS_EXTENSION_ID
-from fastmcp_tasks import TasksExtension
+from fastmcp_tasks import TasksExtension, call_tool_task
 
 from zulipchat_mcp.tools import register_core_tools, register_extended_tools
+
+
+@pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
+async def test_task_enabled_wait_tool_completes_with_real_protocol(mode, monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from zulipchat_mcp.tools import agents
+
+    coordinator = MagicMock()
+    coordinator.wait_for_request_async = AsyncMock(
+        return_value={
+            "status": "success",
+            "request_status": "answered",
+            "response": "approve",
+        }
+    )
+    monkeypatch.setattr(agents, "ensure_listener", lambda: None)
+    monkeypatch.setattr(agents, "_get_coordinator", lambda: coordinator)
+    mcp = FastMCP("task-execution-contract", tasks=False)
+    mcp.add_extension(TasksExtension())
+    register_core_tools(mcp)
+    async with Client(mcp, mode=mode, timeout=10) as client:
+        if mode == "legacy":
+            assert await client.ping()
+            result = await client.call_tool(
+                "wait_for_response", {"request_id": "request-1"}
+            )
+        else:
+            task = await call_tool_task(
+                client, "wait_for_response", {"request_id": "request-1"}
+            )
+            result = await task.result()
+        assert result.data["response"] == "approve"
+    coordinator.wait_for_request_async.assert_awaited_once_with(
+        "request-1", timeout_seconds=300
+    )
 
 
 @pytest.mark.asyncio

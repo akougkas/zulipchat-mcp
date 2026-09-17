@@ -7,12 +7,12 @@
     "url": "https://github.com/akougkas/zulipchat-mcp",
     "source": "github"
   },
-  "version": "0.7.3-beta.1",
+  "version": "0.7.3",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "zulipchat-mcp",
-      "version": "0.7.3-beta.1",
+      "version": "0.7.3",
       "transport": {
         "type": "stdio"
       },

@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.security import local_access_allowed
 from .registration import optional_background_task, register_tool
 
 
@@ -45,7 +46,7 @@ async def register_events(
         if client_capabilities:
             register_params["client_capabilities"] = client_capabilities
 
-        result = client.register(**register_params)
+        result = await asyncio.to_thread(client.register, **register_params)
 
         if result.get("result") == "success":
             return {
@@ -54,7 +55,7 @@ async def register_events(
                 "last_event_id": result.get("last_event_id", -1),
                 "zulip_feature_level": result.get("zulip_feature_level"),
                 "realm_state": result.get("realm_state", {}),
-                "queue_lifespan_secs": queue_lifespan_secs,
+                "queue_lifespan_secs": register_params["queue_lifespan_secs"],
             }
         else:
             return {
@@ -79,7 +80,8 @@ async def get_events(
     client = get_client()
 
     try:
-        result = client.get_events(
+        result = await asyncio.to_thread(
+            client.get_events,
             queue_id=queue_id,
             last_event_id=last_event_id,
             dont_block=dont_block,
@@ -121,6 +123,16 @@ async def listen_events(
     callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Comprehensive stateless event listener with automatic queue management."""
+    if callback_url and not local_access_allowed():
+        return {
+            "status": "error",
+            "error": "Outbound event callbacks are disabled over HTTP",
+        }
+    if not 0 < duration <= 600 or poll_interval <= 0 or max_events_per_poll <= 0:
+        return {
+            "status": "error",
+            "error": "Use duration in (0, 600], positive poll_interval and max_events_per_poll",
+        }
     get_client()  # Validate client is available
 
     try:
@@ -138,20 +150,27 @@ async def listen_events(
         queue_id = register_result["queue_id"]
         last_event_id = register_result["last_event_id"]
         collected_events = []
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             # Event collection loop
-            while time.time() - start_time < duration:
+            while time.monotonic() - start_time < duration:
                 # Get events
                 events_result = await get_events(
                     queue_id=queue_id,
                     last_event_id=last_event_id,
                     timeout=min(poll_interval, 30),
+                    dont_block=True,
                 )
 
                 if events_result.get("status") == "success":
-                    events = events_result.get("events", [])
+                    events = events_result.get("events", [])[:max_events_per_poll]
+                    # Acknowledge processed events, including filtered ones;
+                    # events beyond the page limit remain queued for the next poll.
+                    last_event_id = max(
+                        (e.get("id", last_event_id) for e in events),
+                        default=last_event_id,
+                    )
 
                     # Apply filters if specified
                     if filters and events:
@@ -159,10 +178,7 @@ async def listen_events(
                         for event in events:
                             include_event = True
                             for filter_key, filter_value in filters.items():
-                                if (
-                                    filter_key in event
-                                    and event[filter_key] != filter_value
-                                ):
+                                if event.get(filter_key) != filter_value:
                                     include_event = False
                                     break
                             if include_event:
@@ -171,10 +187,6 @@ async def listen_events(
 
                     if events:
                         collected_events.extend(events[:max_events_per_poll])
-                        last_event_id = max(
-                            [e.get("id", last_event_id) for e in events],
-                            default=last_event_id,
-                        )
 
                         # Send to webhook if configured
                         if callback_url:
@@ -202,7 +214,7 @@ async def listen_events(
             "status": "success",
             "collected_events": collected_events,
             "event_count": len(collected_events),
-            "duration_seconds": time.time() - start_time,
+            "duration_seconds": time.monotonic() - start_time,
             "session_summary": {
                 "queue_id": queue_id,
                 "event_types": event_types,
@@ -220,7 +232,7 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.deregister(queue_id)
+        result = await asyncio.to_thread(client.deregister, queue_id)
 
         if result.get("result") == "success":
             return {"status": "success", "queue_id": queue_id}

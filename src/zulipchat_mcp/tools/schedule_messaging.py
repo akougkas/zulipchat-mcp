@@ -4,6 +4,7 @@ Clean implementation of Zulip's scheduled message API endpoints.
 Direct mapping to API without unnecessary complexity.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any, Literal
 
@@ -17,8 +18,10 @@ async def get_scheduled_messages() -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            "scheduled_messages", method="GET", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "scheduled_messages", method="GET", request={}
+            )
         )
 
         if result.get("result") == "success":
@@ -68,8 +71,10 @@ async def create_scheduled_message(
         if topic:
             request_data["topic"] = topic
 
-        result = client.client.call_endpoint(
-            "scheduled_messages", method="POST", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "scheduled_messages", method="POST", request=request_data
+            )
         )
 
         if result.get("result") == "success":
@@ -121,10 +126,12 @@ async def update_scheduled_message(
                 "error": "Must provide at least one field to update",
             }
 
-        result = client.client.call_endpoint(
-            f"scheduled_messages/{scheduled_message_id}",
-            method="PATCH",
-            request=request_data,
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"scheduled_messages/{scheduled_message_id}",
+                method="PATCH",
+                request=request_data,
+            )
         )
 
         if result.get("result") == "success":
@@ -153,8 +160,12 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.client.call_endpoint(
-            f"scheduled_messages/{scheduled_message_id}", method="DELETE", request={}
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"scheduled_messages/{scheduled_message_id}",
+                method="DELETE",
+                request={},
+            )
         )
 
         if result.get("result") == "success":
@@ -193,21 +204,33 @@ async def manage_scheduled_message(
                 "error": "type, to, content, and scheduled_delivery_timestamp required for create",
             }
         return await create_scheduled_message(
-            type=type, to=to, content=content,
+            type=type,
+            to=to,
+            content=content,
             scheduled_delivery_timestamp=scheduled_delivery_timestamp,
-            topic=topic, read_by_sender=read_by_sender,
+            topic=topic,
+            read_by_sender=read_by_sender,
         )
     elif action == "update":
         if not scheduled_message_id:
-            return {"status": "error", "error": "scheduled_message_id required for update"}
+            return {
+                "status": "error",
+                "error": "scheduled_message_id required for update",
+            }
         return await update_scheduled_message(
             scheduled_message_id=scheduled_message_id,
-            type=type, to=to, content=content,
-            topic=topic, scheduled_delivery_timestamp=scheduled_delivery_timestamp,
+            type=type,
+            to=to,
+            content=content,
+            topic=topic,
+            scheduled_delivery_timestamp=scheduled_delivery_timestamp,
         )
     elif action == "delete":
         if not scheduled_message_id:
-            return {"status": "error", "error": "scheduled_message_id required for delete"}
+            return {
+                "status": "error",
+                "error": "scheduled_message_id required for delete",
+            }
         return await delete_scheduled_message(scheduled_message_id)
     else:
         return {"status": "error", "error": f"Unknown action: {action}"}
