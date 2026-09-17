@@ -52,5 +52,5 @@ await execute_chain(
 ## Behavior notes
 
 - Command chains run with shared context.
-- `conditional_action` evaluates a Python expression against context.
+- `conditional_action` evaluates a restricted data expression against `context`: boolean logic, comparisons, indexing, `dict.get`, and `len` are supported. Arbitrary calls, attribute traversal, comprehensions, and arithmetic are rejected. Expressions are limited to 4096 characters and 256 syntax nodes.
 - `search_messages` in chains adapts to current search tool behavior.

@@ -25,7 +25,7 @@ class MessageCache:
     def _make_key(self, *args: Any, **kwargs: Any) -> str:
         """Create cache key from arguments."""
         key_data = str(args) + str(sorted(kwargs.items()))
-        return hashlib.md5(key_data.encode()).hexdigest()
+        return hashlib.sha256(key_data.encode()).hexdigest()
 
     def get(self, key: str) -> Any | None:
         """Get value from cache.
@@ -162,7 +162,9 @@ class UserCache:
         # Check cross-mapping: a's delivery == b, or b's delivery == a
         delivery_a = self._email_to_delivery.get(email_a, email_a)
         delivery_b = self._email_to_delivery.get(email_b, email_b)
-        return delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
+        return (
+            delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
+        )
 
     def get_user_info(self, email: str) -> dict[str, Any] | None:
         """Get cached user information."""

@@ -31,12 +31,12 @@ This produces:
 
 - Runtime identity is global (`user` or `bot`), managed in `config.py`.
 - Default identity is `user`.
-- `switch_identity` updates the active identity.
+- `switch_identity` updates the active identity over stdio; HTTP rejects process-wide identity changes.
 - Bot identity is available only when bot credentials are configured.
 
 ## Startup flow
 
-1. Apply protocol compatibility patch (`core/compat.py`).
+1. Load FastMCP 4.0.4 and MCP SDK/types 2.2.0 without protocol monkey patches.
 2. Parse CLI flags (`--transport stdio|http`, `--host`, `--port`, `--auth-token`).
 3. Initialize config manager.
 4. Validate credentials (`zuliprc` or env fallback).
@@ -44,18 +44,18 @@ This produces:
 6. Initialize optional database/services.
 7. Register FastMCP instance with SEP-2663 `TasksExtension`.
 8. Register tools (core 20 or extended 60).
-9. Warm user/stream caches.
+9. Leave user/stream caches lazy so startup does not contact Zulip.
 10. Run FastMCP server (`stdio` or streamable `http`).
 
 ## Server-Side LLM Provider (`core/llm.py`)
 
-Under the 2026-07-28 stateless protocol, MCP sampling is removed from the server API. AI analytics tools execute via a server-side Anthropic provider (`core/llm.py`) configured with `ANTHROPIC_API_KEY`. When unconfigured, tools report `llm_unavailable: true` and return raw structured summaries so calling agents can reason over data directly.
+MCP sampling is deprecated in the 2026-07-28 specification. This server follows the recommended direct-provider migration. AI analytics tools execute via a server-side Anthropic provider (`core/llm.py`) configured with `ANTHROPIC_API_KEY`. When unconfigured, tools report `llm_unavailable: true` and return raw structured summaries so calling agents can reason over data directly.
 
 ## Stateless HTTP Transport & Multi-Replica Caveat
 
-`--transport http` enables streamable-HTTP serving. Requests are stateless and self-contained under the 2026-07-28 protocol, permitting round-robin load balancing.
+`--transport http` enables streamable-HTTP serving. Requests are stateless and self-contained under the 2026-07-28 protocol, but agent sessions and task storage still require application-level state.
 
-> **Single-Writer DB Caveat**: DuckDB storage (`zulipchat.duckdb`) is single-writer. Multi-replica HTTP deployments must either assign distinct DB file paths per worker or operate as a single instance.
+> **Single-instance workflows**: DuckDB storage (`zulipchat.duckdb`) is single-writer and the default task backend is local. Use one instance for agent sessions, approvals, and event listeners. Distinct DB paths avoid lock contention but do not share data, so round-robin routing across independent replicas is not supported. Legacy HTTP clients may retain transport sessions.
 
 ## Service behavior
 

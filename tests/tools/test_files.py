@@ -16,6 +16,10 @@ from src.zulipchat_mcp.tools.files import (
 )
 
 
+async def _download_chunks(chunk_size):
+    yield b"filedata"
+
+
 class TestNormalizeUploadPath:
     """Unit tests for _normalize_upload_path."""
 
@@ -60,9 +64,7 @@ class TestResolveFileUrl:
         return c
 
     def test_relative_user_uploads(self):
-        url = _resolve_file_url(
-            self._make_client(), "/user_uploads/43617/abc/file.txt"
-        )
+        url = _resolve_file_url(self._make_client(), "/user_uploads/43617/abc/file.txt")
         assert url == "https://example.zulipchat.com/user_uploads/43617/abc/file.txt"
 
     def test_raw_suffix(self):
@@ -172,7 +174,10 @@ class TestFilesTools:
         with patch("src.zulipchat_mcp.tools.files.get_client") as mock_get_client:
             client = MagicMock()
             mock_get_client.return_value = client
-            yield client
+            with patch(
+                "src.zulipchat_mcp.tools.files.is_unsafe_mode", return_value=True
+            ):
+                yield client
 
     def test_validate_file_security(self):
         """Test file security validation."""
@@ -320,7 +325,10 @@ class TestFilesTools:
         mock_response.raise_for_status = MagicMock()
 
         mock_http = AsyncMock()
-        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_response.aiter_bytes = _download_chunks
+        mock_http.stream = MagicMock()
+        mock_http.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_http.stream.return_value.__aexit__ = AsyncMock(return_value=None)
 
         # httpx is imported inside the function, so patch the module directly
         with patch.dict("sys.modules", {"httpx": MagicMock()}):
@@ -383,7 +391,10 @@ class TestFilesTools:
         mock_response.raise_for_status = MagicMock()
 
         mock_http = AsyncMock()
-        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_response.aiter_bytes = _download_chunks
+        mock_http.stream = MagicMock()
+        mock_http.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_http.stream.return_value.__aexit__ = AsyncMock(return_value=None)
 
         with patch.dict("sys.modules", {"httpx": MagicMock()}):
             import sys
@@ -402,7 +413,7 @@ class TestFilesTools:
 
         assert result["status"] == "success"
         expected_auth = base64.b64encode(b"sdk@example.com:sdk-key").decode()
-        assert mock_http.get.call_args.kwargs["headers"]["Authorization"] == (
+        assert mock_http.stream.call_args.kwargs["headers"]["Authorization"] == (
             f"Basic {expected_auth}"
         )
 
@@ -425,7 +436,10 @@ class TestFilesTools:
         mock_response.raise_for_status = MagicMock()
 
         mock_http = AsyncMock()
-        mock_http.get = AsyncMock(return_value=mock_response)
+        mock_response.aiter_bytes = _download_chunks
+        mock_http.stream = MagicMock()
+        mock_http.stream.return_value.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_http.stream.return_value.__aexit__ = AsyncMock(return_value=None)
 
         with patch.dict("sys.modules", {"httpx": MagicMock()}):
             import sys
@@ -444,7 +458,7 @@ class TestFilesTools:
 
         assert result["status"] == "success"
         expected_auth = base64.b64encode(b"bot@example.com:bot-key").decode()
-        assert mock_http.get.call_args.kwargs["headers"]["Authorization"] == (
+        assert mock_http.stream.call_args.kwargs["headers"]["Authorization"] == (
             f"Basic {expected_auth}"
         )
 

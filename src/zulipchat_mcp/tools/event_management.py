@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.security import local_access_allowed
 from .registration import optional_background_task, register_tool
 
 
@@ -79,7 +80,8 @@ async def get_events(
     client = get_client()
 
     try:
-        result = client.get_events(
+        result = await asyncio.to_thread(
+            client.get_events,
             queue_id=queue_id,
             last_event_id=last_event_id,
             dont_block=dont_block,
@@ -121,6 +123,16 @@ async def listen_events(
     callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Comprehensive stateless event listener with automatic queue management."""
+    if callback_url and not local_access_allowed():
+        return {
+            "status": "error",
+            "error": "Outbound event callbacks are disabled over HTTP",
+        }
+    if not 0 < duration <= 600 or poll_interval <= 0 or max_events_per_poll <= 0:
+        return {
+            "status": "error",
+            "error": "Use duration in (0, 600], positive poll_interval and max_events_per_poll",
+        }
     get_client()  # Validate client is available
 
     try:
@@ -138,11 +150,11 @@ async def listen_events(
         queue_id = register_result["queue_id"]
         last_event_id = register_result["last_event_id"]
         collected_events = []
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             # Event collection loop
-            while time.time() - start_time < duration:
+            while time.monotonic() - start_time < duration:
                 # Get events
                 events_result = await get_events(
                     queue_id=queue_id,
@@ -152,6 +164,12 @@ async def listen_events(
 
                 if events_result.get("status") == "success":
                     events = events_result.get("events", [])
+                    # Acknowledge every fetched event, including filtered events.
+                    # Otherwise excluded events are fetched repeatedly forever.
+                    last_event_id = max(
+                        (e.get("id", last_event_id) for e in events),
+                        default=last_event_id,
+                    )
 
                     # Apply filters if specified
                     if filters and events:
@@ -171,10 +189,6 @@ async def listen_events(
 
                     if events:
                         collected_events.extend(events[:max_events_per_poll])
-                        last_event_id = max(
-                            [e.get("id", last_event_id) for e in events],
-                            default=last_event_id,
-                        )
 
                         # Send to webhook if configured
                         if callback_url:
@@ -202,7 +216,7 @@ async def listen_events(
             "status": "success",
             "collected_events": collected_events,
             "event_count": len(collected_events),
-            "duration_seconds": time.time() - start_time,
+            "duration_seconds": time.monotonic() - start_time,
             "session_summary": {
                 "queue_id": queue_id,
                 "event_types": event_types,

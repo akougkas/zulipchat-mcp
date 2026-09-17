@@ -38,7 +38,7 @@ entrypoint checks could pass.
   support requires `fastmcp[... ,tasks]` so the built wheel installs `pydocket`.
 - Tool registration is tested with real `FastMCP`, not only mocks.
 - Server startup is tested through MCP stdio with fake credentials, including
-  `ping`, `list_tools`, and `server_info`.
+  legacy `ping`, plus modern discovery, `list_tools`, and `server_info` in both tool tiers. Modern MCP intentionally omits ping.
 - Background-task tools are async-safe and only long-running tools opt in.
 - Background services start and stop through FastMCP lifespan, not import-time or
   process-lifetime side effects.

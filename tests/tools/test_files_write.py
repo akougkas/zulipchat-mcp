@@ -28,7 +28,10 @@ class TestFileOperations:
         """Patch dependencies."""
         with patch("src.zulipchat_mcp.tools.files.get_client") as mock_get_client:
             mock_get_client.return_value = mock_client
-            yield mock_client
+            with patch(
+                "src.zulipchat_mcp.tools.files.is_unsafe_mode", return_value=True
+            ):
+                yield mock_client
 
     @pytest.mark.asyncio
     async def test_upload_valid_file(self, mock_deps):

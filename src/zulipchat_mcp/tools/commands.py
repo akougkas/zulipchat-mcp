@@ -26,6 +26,7 @@ from ..core.commands.engine import (
     SendMessageCommand,
 )
 from ..core.commands.workflows import ChainBuilder
+from ..core.conditions import evaluate_condition
 
 
 def _run_async_from_sync(
@@ -167,7 +168,7 @@ class SearchMessagesCommand(Command):
 
 
 class ConditionalActionCommand(Command):
-    """Conditional execution based on a simple Python expression evaluated against context data."""
+    """Conditional execution based on a restricted data expression."""
 
     def __init__(
         self,
@@ -181,13 +182,7 @@ class ConditionalActionCommand(Command):
         self.false_command = false_command
 
     def execute(self, context: ExecutionContext, client: ZulipClientWrapper) -> Any:
-        # Evaluate condition against context data with no builtins
-        try:
-            condition_met = bool(
-                eval(self.condition, {"__builtins__": {}}, {"context": context.data})
-            )
-        except Exception as e:
-            raise ValueError(f"Invalid condition expression: {e}") from e
+        condition_met = evaluate_condition(self.condition, context.data)
 
         if condition_met:
             return self.true_command.execute(context, client)

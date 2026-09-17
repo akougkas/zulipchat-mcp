@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid as _uuid
-from datetime import datetime, timezone
 from typing import Any
 
 from ..core.agent_control import AgentCoordinator
@@ -184,22 +183,9 @@ class MessageListener:
         topic = message.get("subject") or message.get("topic")
         content = message.get("content")
 
-        # Legacy input-request support for existing workflows.
-        request_id = self._coordinator.extract_request_id(
-            str(topic) if topic is not None else None,
-            str(content) if content is not None else None,
-        )
-        if request_id:
-            request = self.db.get_input_request(request_id)
-            if request and request.get("status") == "pending":
-                self.db.update_input_request(
-                    request_id,
-                    status="answered",
-                    response=content or "",
-                    responded_at=datetime.now(timezone.utc),
-                )
-
         # Session-aware routing, owner policy, and request persistence.
+        # Legacy requests lack a verifiable session/owner binding and must not
+        # be answered merely because a message contains their request ID.
         self._coordinator.record_inbound_message(message)
 
         # Always store as agent_event for poll_agent_events()

@@ -414,15 +414,6 @@ class AgentCoordinator:
                 stream_name = display_recipient
 
         request_id = self.extract_request_id(topic_name, content)
-        if request_id:
-            request = self.db.get_agent_request(request_id)
-            if request and request.get("status") == "pending":
-                self.db.update_agent_request(
-                    request_id,
-                    status="answered",
-                    response=content,
-                    responded_at=datetime.now(timezone.utc),
-                )
 
         session = None
         if stream_name and topic_name:
@@ -462,7 +453,11 @@ class AgentCoordinator:
 
         if request_id:
             request = self.db.get_agent_request(request_id)
-            if request and request.get("status") == "pending":
+            if (
+                request
+                and request.get("status") == "pending"
+                and request.get("session_id") == session["session_id"]
+            ):
                 self.db.update_agent_request(
                     request_id,
                     status="answered",

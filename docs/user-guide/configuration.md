@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents all runtime configuration for ZulipChat MCP v0.7.1.
+This page documents runtime configuration for ZulipChat MCP v0.7.3.
 
 ## Recommended setup
 
@@ -38,6 +38,8 @@ zulipchat-mcp [options]
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)
 - `--auth-token TOKEN`: Bearer authentication token for HTTP transport
+- `--allowed-host HOST`: Additional trusted HTTP hostname (repeatable)
+- `--allowed-origin URL`: Additional trusted browser origin (repeatable)
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
 - `--enable-listener`: Backward-compatibility flag
@@ -70,9 +72,16 @@ compatibility.
 
 - `ZULIPCHAT_HTTP_AUTH_TOKEN`: Bearer token required for `--transport http` requests
 
+Non-loopback binds require a token; blank or whitespace-bearing tokens are rejected.
+Host and Origin checks are always enabled. Add the public hostname with
+`--allowed-host` when using a reverse proxy. Use TLS for remote connections.
+Each instance serves one trusted account; bearer authentication does not map
+callers to separate Zulip users. See the [HTTP deployment notes](../../README.md#remote-http-transport).
+
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
+- `ZULIPCHAT_DB_PATH`: DuckDB file path (default: `.mcp/zulipchat/zulipchat.duckdb`)
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
 - `ZULIPCHAT_AGENT_STREAM=<stream>`: override the default control stream used for agent session topics
@@ -87,7 +96,8 @@ For credentials, `zuliprc` is the intended primary path. Environment credentials
 ## Safety model
 
 - Default mode is safe.
-- `--unsafe` enables destructive operations currently guarded in tool logic (for example topic deletion in `agents_channel_topic_ops`).
+- `--unsafe` enables attachment deletion and topic deletion in `agents_channel_topic_ops`.
+- HTTP disables local file paths and outbound event callbacks. Use inline uploads or returned download URLs; use stdio for local file operations.
 
 ## Dual identity
 
@@ -99,7 +109,9 @@ uvx zulipchat-mcp \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```
 
-Use `switch_identity` at runtime.
+Use `switch_identity` at runtime over stdio. HTTP uses the configured user identity
+for ordinary tools and rejects process-wide identity changes; session tools still
+use the configured bot account where needed.
 
 ## Test configuration quickly
 

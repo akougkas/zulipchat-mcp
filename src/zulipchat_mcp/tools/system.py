@@ -8,6 +8,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client, get_config_manager, set_current_identity
+from ..core.security import local_access_allowed
 
 
 async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
@@ -15,6 +16,11 @@ async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
 
     This sets the global identity state that all tools will use.
     """
+    if not local_access_allowed():
+        return {
+            "status": "error",
+            "error": "Identity switching is only available over stdio; HTTP uses the configured user identity",
+        }
     config = get_config_manager()
 
     try:
@@ -49,7 +55,7 @@ async def server_info() -> dict[str, Any]:
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.7.3-beta.1",
+        "version": "0.7.3",
         "available_identities": {
             "user": {"available": True, "email": config.config.email},
             "bot": {

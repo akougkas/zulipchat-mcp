@@ -153,6 +153,8 @@ Add to your MCP configuration:
 | `--host HOST` | Bind host for HTTP transport (default: `127.0.0.1`) |
 | `--port PORT` | Bind port for HTTP transport (default: `8000`) |
 | `--auth-token TOKEN` | Bearer auth token for HTTP transport (or `ZULIPCHAT_HTTP_AUTH_TOKEN`) |
+| `--allowed-host HOST` | Additional trusted HTTP hostname; repeat for multiple names |
+| `--allowed-origin URL` | Additional trusted browser origin; repeat for multiple origins |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
 
@@ -163,7 +165,7 @@ ZulipChat MCP supports stateless HTTP deployments under the MCP 2026-07-28 proto
 ```bash
 # Run server over HTTP with bearer authentication
 ZULIPCHAT_HTTP_AUTH_TOKEN=your-secret-token \
-  uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --transport http --host 0.0.0.0 --port 8000
+  uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --transport http --host 0.0.0.0 --port 8000 --allowed-host mcp.internal
 ```
 
 Generate client integration snippets for remote HTTP connections:
@@ -172,7 +174,11 @@ Generate client integration snippets for remote HTTP connections:
 uvx zulipchat-mcp-integrate print --client claude-code --remote-url http://mcp.internal:8000/mcp --remote-token your-secret-token
 ```
 
-> **Note on Multi-Replica Deployments**: DuckDB state persistence is single-writer. When deploying multiple HTTP replicas, ensure each instance points to a distinct DuckDB path or run a single-instance deployment.
+HTTP startup requires a bearer token for non-loopback binds and validates Host and Origin headers. Configure `--allowed-host` for the hostname used by clients or a reverse proxy; terminate TLS at the proxy for remote connections. A token grants access to the configured Zulip account: deploy a separate instance per trusted account, rather than sharing it across unrelated users.
+
+HTTP tools reject server-local file paths, outbound event callbacks, and `switch_identity`. Upload with `file_content`; download without `download_path` to obtain a URL. Use stdio for local file operations and runtime identity switching. Attachment deletion requires `--unsafe`.
+
+Agent sessions, approvals, listener cursors, and default background-task storage remain local state. Use a single instance for these workflows. Separate DuckDB paths avoid writer conflicts but do not share session data; ordinary round-robin routing across such replicas is not supported. Legacy HTTP clients may also retain transport sessions.
 
 ### AI Analytics & LLM Provider
 

@@ -4,6 +4,31 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-09-16
+
+### Security
+- Agent replies now verify the session owner and matching topic/session before answering a request. Supplying a request ID from another topic or another sender can no longer bypass approval checks. Unbound legacy requests are no longer answered from inbound messages.
+- Replaced command-condition Python `eval` with a bounded data-expression interpreter supporting comparisons, boolean logic, indexing, `dict.get`, and `len`. Arbitrary calls and attribute traversal are rejected.
+- Public HTTP binds now fail startup without a non-empty bearer token. Host and Origin validation is explicitly enabled; `--allowed-host` and `--allowed-origin` configure trusted deployments.
+- Authenticated downloads are restricted to attachment paths on the configured Zulip origin, reject path traversal, and do not follow redirects. Upload reads and streamed downloads enforce the 25 MB size limit.
+- HTTP tools reject local filesystem paths, outbound event callbacks, and process-wide identity switching. Local stdio retains these capabilities. Attachment deletion now requires `--unsafe`.
+- Updated affected runtime and development dependencies after an advisory audit, with security floors for the HTTP/authentication stack.
+
+### Fixed
+- Preserve DuckDB write-ahead logs during lock retries so crash recovery can replay committed data.
+- Remove eager network cache warmup from startup; startup and `server_info` no longer depend on Zulip API availability. Invalid configuration exits with a nonzero status.
+- Advance event cursors before filtering to avoid replaying excluded events, validate listener bounds, and run long polls outside the MCP event loop.
+- Add a timeout to the upload fallback and treat blank analytics model settings as unset.
+
+### MCP migration
+- Move from the FastMCP 4 beta to FastMCP 4.0.4 and MCP SDK/types 2.2.0, retaining 20 core and 60 extended tools and opt-in SEP-2663 tasks (addresses #17).
+- Remove the protocol monkey patch. Upstream closed python-sdk#3273 as intentional: ping is absent from the modern protocol surface. Smoke tests retain legacy ping and exercise modern discovery/tool calls (supersedes the original removal criterion in #18).
+- Test both protocol eras and both tool tiers from source and built wheels with isolated fake credentials and temporary databases.
+- Correct documentation: MCP sampling is deprecated, rather than removed, in 2026-07-28. Server-side Anthropic analytics remain the chosen migration path.
+- Document single-instance agent/session deployment requirements and HTTP migration constraints.
+
+This release also includes the previously unpublished `0.7.3-beta.1` fixes below. Community contributions from @aurelien-eveil (drafts) and @lloydhazlett (listener long polling) are retained.
+
 ## [0.7.3-beta.1] (2026-08-09)
 
 ### Fixed

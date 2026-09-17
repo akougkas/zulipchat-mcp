@@ -15,7 +15,7 @@ from zulipchat_mcp.utils.health import (
 
 def test_healthcheck_sync_and_status() -> None:
     hc = HealthCheck("ok", lambda: True)
-    assert asyncio.get_event_loop().run_until_complete(hc.execute()) is True
+    assert asyncio.run(hc.execute()) is True
     st = hc.get_status()
     assert st["name"] == "ok" and st["healthy"] is True and st["status"] == "pass"
 
@@ -29,7 +29,7 @@ def test_health_monitor_add_remove_and_readiness() -> None:
     ready0 = hm.get_readiness()["ready"]
     assert ready0 is False
     # Execute to set last_result
-    asyncio.get_event_loop().run_until_complete(hm.check_health())
+    asyncio.run(hm.check_health())
     # Now readiness is true
     assert hm.get_readiness()["ready"] is True
     # Remove and verify
@@ -43,5 +43,5 @@ def test_perform_health_check_and_liveness() -> None:
     assert live["status"] == "alive"
     r = get_readiness()
     assert "ready" in r
-    full = asyncio.get_event_loop().run_until_complete(perform_health_check())
+    full = asyncio.run(perform_health_check())
     assert full["status"] in ("healthy", "degraded", "unhealthy")

@@ -681,7 +681,7 @@ class ZulipClientWrapper:
         auth_bytes = base64.b64encode(auth_string.encode()).decode()
         headers = {"Authorization": f"Basic {auth_bytes}"}
 
-        response = requests.post(url, files=files, headers=headers)
+        response = requests.post(url, files=files, headers=headers, timeout=30)
         if response.status_code == 200:
             return {"result": "success", **response.json()}
         else:

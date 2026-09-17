@@ -40,5 +40,7 @@ await manage_files(
 ## Behavior notes
 
 - Uploads include file validation and hash metadata.
-- Delete uses Zulip attachment deletion endpoint.
-- Download supports authenticated fetch and URL normalization.
+- Delete uses the Zulip attachment deletion endpoint and requires `--unsafe`.
+- Authenticated downloads accept only `/user_uploads/` paths on the configured Zulip origin, reject traversal, and do not follow redirects. For externally hosted or redirected files, omit `download_path` and open the returned URL in an authenticated browser.
+- Upload reads and downloaded content are limited to 25 MB.
+- Over HTTP, `file_path` and `download_path` are disabled to protect the server filesystem. Supply `file_content` for uploads or omit `download_path` to obtain a URL. Local path operations remain available over stdio.

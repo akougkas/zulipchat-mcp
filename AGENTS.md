@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-## Current Status (v0.7.3-beta.1)
+## Current Status (v0.7.3)
 
 **Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
 
@@ -33,7 +33,7 @@
 ## Server-Side LLM Analytics & Protocol (v0.7.3+)
 
 ### LLM Analytics Provider Requirements
-In the 2026-07-28 stateless protocol (FastMCP 4+), MCP sampling was removed from the server API. AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) call a server-side Anthropic provider (`src/zulipchat_mcp/core/llm.py`) directly:
+MCP 2026-07-28 deprecates sampling and recommends direct provider integration. AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) call a server-side Anthropic provider (`src/zulipchat_mcp/core/llm.py`) directly:
 
 - `ANTHROPIC_API_KEY`: Required on the server process for LLM generation.
 - `ANTHROPIC_MODEL`: Optional model override (defaults to `claude-opus-5`).
@@ -43,7 +43,7 @@ In the 2026-07-28 stateless protocol (FastMCP 4+), MCP sampling was removed from
 ### Stateless HTTP Transport
 - `--transport http` serves on streamable-HTTP (port 8000 by default).
 - Authentication: Set `--auth-token` or `ZULIPCHAT_HTTP_AUTH_TOKEN` (Bearer token auth). Required when binding beyond `127.0.0.1`.
-- **Multi-replica note**: DuckDB persistence is single-writer. In multi-replica HTTP deployments, ensure each replica points to a distinct DuckDB path or use stdio/single-instance mode.
+- **Deployment note**: Agent sessions, listener cursors, and default task storage are local. Use a single instance for these workflows; separate DuckDB paths do not make independent replicas interchangeable. HTTP rejects local file paths, event callbacks, and runtime identity switching. Configure `--allowed-host` for public hostnames; Host/Origin validation is always enabled.
 
 ### Bidirectional Agent Communication (v0.4+)
 Full agent-to-user messaging pipeline available in `src/zulipchat_mcp/tools/agents.py`:
@@ -84,7 +84,7 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 ## Security & Configuration Tips
 - Do not commit secrets. Use `.env` (gitignored). Common vars: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
 - Prefer CLI flags for credentials in MCP clients. Message listener startup is lazy by default; `--enable-listener` starts it eagerly for backward compatibility.
-- Optional checks before release: `uv run bandit -q -r src` and `uv run safety check`.
+- Optional checks before release: `uv run bandit -q -r src` and `uv run pip-audit`.
 
 ## Documentation Resources
 

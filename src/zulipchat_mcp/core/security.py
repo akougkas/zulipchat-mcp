@@ -15,8 +15,22 @@ from contextvars import ContextVar
 from functools import wraps
 from typing import Any
 
+from fastmcp.server.dependencies import get_http_headers, get_http_request
+
 # Global safety mode context - defaults to SAFE (unsafe_mode=False)
 _unsafe_mode: ContextVar[bool] = ContextVar("unsafe_mode", default=False)
+
+
+def local_access_allowed() -> bool:
+    """Local paths and outbound callbacks belong to the local stdio trust boundary."""
+    # Tasks restore the submitting HTTP headers, but have no live Request.
+    if get_http_headers(include_all=True):
+        return False
+    try:
+        get_http_request()
+    except RuntimeError:
+        return True
+    return False
 
 
 def set_unsafe_mode(enabled: bool) -> None:
