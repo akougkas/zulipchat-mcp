@@ -4,7 +4,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.7.3] - 2026-09-16
+## [0.7.3] - 2026-09-17
 
 ### Security
 - Shell exports and generated Claude commands quote credentials, paths, and topic names as literal data, preventing shell substitution through integration values. Codex snippets escape TOML strings.
