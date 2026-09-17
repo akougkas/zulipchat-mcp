@@ -18,6 +18,6 @@ def test_metrics_text_smoke() -> None:
     text = get_metrics_text()
     # Ensure key sections present
     assert "uptime_seconds" in text
-    assert "zulip_mcp_tool_calls_total{tool=x}" in text
+    assert 'zulip_mcp_tool_calls_total{tool="x"}' in text
     # Depending on label ordering, error_type may appear before tool
     assert "zulip_mcp_tool_errors_total" in text and "ValueError" in text

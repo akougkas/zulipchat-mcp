@@ -258,6 +258,8 @@ class DatabaseManager:
             payload["updated_at"] = datetime.now(timezone.utc)
             if payload.get("status") in {"completed", "failed", "cancelled"}:
                 payload.setdefault("ended_at", datetime.now(timezone.utc))
+            elif "status" in payload:
+                payload.setdefault("ended_at", None)
             if not payload:
                 return {"status": "success"}
             set_clause = ", ".join([f"{k} = ?" for k in payload.keys()])
@@ -338,13 +340,14 @@ class DatabaseManager:
             return None
 
     def update_agent_request(self, request_id: str, **updates: Any) -> dict[str, Any]:
+        """Transition a pending request once; terminal decisions are immutable."""
         try:
             if not updates:
                 return {"status": "success"}
             set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
             values = list(updates.values()) + [request_id]
             self._db.execute(
-                f"UPDATE agent_requests SET {set_clause} WHERE request_id = ?",
+                f"UPDATE agent_requests SET {set_clause} WHERE request_id = ? AND status = 'pending'",
                 values,
             )
             return {"status": "success"}
@@ -378,6 +381,7 @@ class DatabaseManager:
                  event_type, content, normalized_content, command, decision, request_id, metadata,
                  created_at, acked)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)
+                ON CONFLICT (id) DO NOTHING
                 """,
                 [
                     event_id,
@@ -621,10 +625,9 @@ class DatabaseManager:
                 now + timedelta(hours=hours) if enabled and hours > 0 else None
             )
             # Clear existing state and insert new
-            self._db.execute("DELETE FROM afk_state")
             self._db.execute(
                 """
-                INSERT INTO afk_state (id, is_afk, reason, auto_return_at, updated_at)
+                INSERT OR REPLACE INTO afk_state (id, is_afk, reason, auto_return_at, updated_at)
                 VALUES (1, ?, ?, ?, ?)
                 """,
                 [enabled, reason, auto_return_at, now],
@@ -639,10 +642,9 @@ class DatabaseManager:
         self, queue_id: str, last_event_id: int | None
     ) -> dict[str, Any]:
         try:
-            self._db.execute("DELETE FROM listener_state")
             self._db.execute(
                 """
-                INSERT INTO listener_state (id, queue_id, last_event_id, updated_at)
+                INSERT OR REPLACE INTO listener_state (id, queue_id, last_event_id, updated_at)
                 VALUES (1, ?, ?, ?)
                 """,
                 [queue_id, last_event_id, datetime.now(timezone.utc)],
@@ -692,6 +694,7 @@ class DatabaseManager:
                 """
                 INSERT INTO agent_events (id, zulip_message_id, topic, sender_email, content, created_at, acked)
                 VALUES (?, ?, ?, ?, ?, ?, FALSE)
+                ON CONFLICT (id) DO NOTHING
                 """,
                 [
                     event_id,

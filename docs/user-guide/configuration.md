@@ -91,7 +91,29 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 
 For file-path settings, environment variables are checked first, then CLI values.
 
-For credentials, `zuliprc` is the intended primary path. Environment credentials are supported as a fallback.
+Once a `zuliprc` is selected, its email, key, and site are loaded together and
+take precedence over ambient credential environment variables. This applies
+separately to the user and bot files. Without a selected file, environment
+credentials are used. A malformed selected file fails explicitly; it does not
+silently switch to another account. File paths expand `~`.
+
+Clients and caches are isolated by configuration and user/bot identity. Restart
+the server after changing credential files so cached clients reload them.
+
+## Approval and listener behavior
+
+Owner approvals must name the request: `/approve REQUEST_ID` or
+`/deny REQUEST_ID`. Bare `approve`/`deny` messages do not answer a pending
+request. Once answered or cancelled, a request cannot be overwritten by a later
+message. A `wait_for_response` polling timeout leaves the request pending so
+another call can resume waiting. The Claude permission hook has a separate
+approval deadline and denies execution on timeout or persistence failure.
+
+The listener persists its cursor after processing each event. An interrupted
+poll can take up to the 90-second HTTP timeout to finish; shutdown does not start
+a replacement listener while the old one is still running. SDK automatic
+retries are disabled so an ambiguous failed write is not silently sent again.
+After a failed send, check Zulip before retrying it manually.
 
 ## Safety model
 

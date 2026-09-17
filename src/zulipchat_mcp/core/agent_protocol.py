@@ -52,9 +52,16 @@ def make_session_topic(
     agent_slug = normalize_slug(agent_name, fallback="agent")
     if external_session_id:
         session_slug = normalize_slug(external_session_id, fallback="session")[:24]
+        if session_slug != external_session_id:
+            suffix = uuid.uuid5(uuid.NAMESPACE_URL, external_session_id).hex[:10]
+            session_slug = f"{session_slug[:13]}-{suffix}"
     else:
         session_slug = str(uuid.uuid4())[:8]
-    return f"{topic_prefix}/{project_slug}/{agent_slug}/{session_slug}"
+    topic = f"{topic_prefix}/{project_slug}/{agent_slug}/{session_slug}"
+    if len(topic) > 60:
+        suffix = uuid.uuid5(uuid.NAMESPACE_URL, topic).hex[:16]
+        topic = f"{topic[:43]}/{suffix}"
+    return topic
 
 
 def strip_message_markup(content: str) -> str:
@@ -73,12 +80,28 @@ class ParsedControlMessage:
     command: str | None = None
     arguments: str | None = None
     decision: str | None = None
+    request_id: str | None = None
 
 
 def parse_control_message(content: str) -> ParsedControlMessage:
     """Parse an incoming topic message into control semantics."""
     text = strip_message_markup(content)
     normalized = " ".join(text.lower().split())
+
+    # Approval commands must be a complete command, never an embedded quote or
+    # an arbitrary sentence. Preserve the case of IDs and steering arguments.
+    approval = re.fullmatch(
+        r"/?(approve|approved|yes|y|deny|denied|no|n)(?:\s+(?:ID:\s*)?([A-Za-z0-9_-]{4,}))?",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if approval:
+        return ParsedControlMessage(
+            event_type="approval_response",
+            normalized_content=normalized,
+            decision="approve" if approval[1].lower() in APPROVE_WORDS else "deny",
+            request_id=approval[2],
+        )
 
     if normalized in APPROVE_WORDS:
         return ParsedControlMessage(
@@ -95,20 +118,13 @@ def parse_control_message(content: str) -> ParsedControlMessage:
         )
 
     if normalized.startswith("/"):
-        body = normalized[1:]
+        body = text[1:]
         command, _, arguments = body.partition(" ")
-        decision = None
-        if command == "approve":
-            decision = "approve"
-        elif command == "deny":
-            decision = "deny"
-        event_type = "approval_response" if decision else "command"
         return ParsedControlMessage(
-            event_type=event_type,
+            event_type="command",
             normalized_content=normalized,
-            command=command or None,
+            command=command.lower() or None,
             arguments=arguments or None,
-            decision=decision,
         )
 
     return ParsedControlMessage(
@@ -118,7 +134,9 @@ def parse_control_message(content: str) -> ParsedControlMessage:
     )
 
 
-def format_session_message(category: str, content: str, request_id: str | None = None) -> str:
+def format_session_message(
+    category: str, content: str, request_id: str | None = None
+) -> str:
     """Format outbound session messages consistently."""
     clean_content = content.strip()
     if category in LIFECYCLE_EVENTS:
@@ -133,7 +151,10 @@ def format_session_message(category: str, content: str, request_id: str | None =
             parts[0] += f" (ID: {request_id})"
         if clean_content:
             parts.append(clean_content)
-        parts.append("Reply with `approve` or `deny` in this topic.")
+        if request_id:
+            parts.append(
+                f"Reply with `/approve {request_id}` or `/deny {request_id}` in this topic."
+            )
         return "\n\n".join(parts)
 
     if category == "question":

@@ -46,7 +46,7 @@ async def register_events(
         if client_capabilities:
             register_params["client_capabilities"] = client_capabilities
 
-        result = client.register(**register_params)
+        result = await asyncio.to_thread(client.register, **register_params)
 
         if result.get("result") == "success":
             return {
@@ -55,7 +55,7 @@ async def register_events(
                 "last_event_id": result.get("last_event_id", -1),
                 "zulip_feature_level": result.get("zulip_feature_level"),
                 "realm_state": result.get("realm_state", {}),
-                "queue_lifespan_secs": queue_lifespan_secs,
+                "queue_lifespan_secs": register_params["queue_lifespan_secs"],
             }
         else:
             return {
@@ -160,12 +160,13 @@ async def listen_events(
                     queue_id=queue_id,
                     last_event_id=last_event_id,
                     timeout=min(poll_interval, 30),
+                    dont_block=True,
                 )
 
                 if events_result.get("status") == "success":
-                    events = events_result.get("events", [])
-                    # Acknowledge every fetched event, including filtered events.
-                    # Otherwise excluded events are fetched repeatedly forever.
+                    events = events_result.get("events", [])[:max_events_per_poll]
+                    # Acknowledge processed events, including filtered ones;
+                    # events beyond the page limit remain queued for the next poll.
                     last_event_id = max(
                         (e.get("id", last_event_id) for e in events),
                         default=last_event_id,
@@ -177,10 +178,7 @@ async def listen_events(
                         for event in events:
                             include_event = True
                             for filter_key, filter_value in filters.items():
-                                if (
-                                    filter_key in event
-                                    and event[filter_key] != filter_value
-                                ):
+                                if event.get(filter_key) != filter_value:
                                     include_event = False
                                     break
                             if include_event:
@@ -234,7 +232,7 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = client.deregister(queue_id)
+        result = await asyncio.to_thread(client.deregister, queue_id)
 
         if result.get("result") == "success":
             return {"status": "success", "queue_id": queue_id}

@@ -151,7 +151,7 @@ class TestResolveDownloadCredentials:
         with pytest.raises(ValueError, match="Missing Zulip credentials"):
             _resolve_download_credentials(client)
 
-    def test_bot_falls_back_to_user_creds_when_bot_creds_missing(self):
+    def test_bot_does_not_fall_back_to_user_credentials(self):
         client = MagicMock()
         client.identity = "bot"
         client.client.email = None
@@ -161,9 +161,17 @@ class TestResolveDownloadCredentials:
         client.config_manager.config.bot_api_key = None
         client.config_manager.config.email = "user@e.com"
         client.config_manager.config.api_key = "user-key"
-        email, key = _resolve_download_credentials(client)
-        assert email == "user@e.com"
-        assert key == "user-key"
+        with pytest.raises(ValueError, match="Missing Zulip credentials"):
+            _resolve_download_credentials(client)
+
+    def test_bot_prefers_resolved_sdk_credentials_over_environment(self):
+        client = MagicMock()
+        client.identity = "bot"
+        client.client.email = "file-bot@e.com"
+        client.client.api_key = "file-key"
+        client.config_manager.config.bot_email = "ambient-bot@e.com"
+        client.config_manager.config.bot_api_key = "ambient-key"
+        assert _resolve_download_credentials(client) == ("file-bot@e.com", "file-key")
 
 
 class TestFilesTools:

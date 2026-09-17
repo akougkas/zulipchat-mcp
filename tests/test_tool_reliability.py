@@ -158,16 +158,14 @@ class TestUserResolution:
 class TestParameterValidation:
     """Test parameter validation across tools."""
 
-    def test_narrow_helpers_type_conversion(self):
-        """Test NarrowHelper accepts string parameters and converts them."""
+    def test_narrow_helpers_reject_unsupported_timestamp_filters(self):
+        """String durations must not turn into literal after: text searches."""
         from zulipchat_mcp.utils.narrow_helpers import NarrowHelper
 
-        # Should not raise exception with string input
-        narrow_filter = NarrowHelper.last_days("7")
-        assert narrow_filter is not None
-
-        narrow_filter = NarrowHelper.last_hours("24")
-        assert narrow_filter is not None
+        with pytest.raises(ValueError, match="search_messages"):
+            NarrowHelper.last_days("7")
+        with pytest.raises(ValueError, match="search_messages"):
+            NarrowHelper.last_hours("24")
 
     def test_messaging_tools_error_structure(self):
         """Test messaging tools return structured errors."""

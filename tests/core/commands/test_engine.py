@@ -140,7 +140,7 @@ class TestCommands:
         cmd = AddReactionCommand()
         ctx = ExecutionContext()
         ctx.set("message_id", 1)
-        ctx.set("emoji_name", "smile")
+        ctx.set("emoji_name", "thumbs_up")
 
         mock_client.add_reaction.return_value = {"result": "success"}
 
@@ -149,18 +149,9 @@ class TestCommands:
         # Verify rollback data stored
         assert "add_reaction_reaction" in ctx.rollback_data
 
-        # Test rollback
+        mock_client.remove_reaction.return_value = {"result": "success"}
         cmd.rollback(ctx, mock_client)
-        # Note: rollback implementation just logs, doesn't call API because API lacks remove method?
-        # Let's check source code:
-        # try: logger.info(...).
-        # Does NOT call client.remove_reaction?
-        # Ah, source code comment: "# Note: Zulip API would need a remove_reaction method for full rollback"
-        # But wait, ZulipWrapper HAS remove_reaction.
-        # The AddReactionCommand implementation in engine.py:
-        # logger.info("Would remove reaction...")
-        # So it doesn't call API.
-        pass
+        mock_client.remove_reaction.assert_called_once_with(1, "thumbs_up")
 
     def test_process_data_command(self, mock_client):
         """Test ProcessDataCommand."""

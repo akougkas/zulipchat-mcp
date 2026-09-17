@@ -7,6 +7,7 @@ incoming messages and update pending user input requests.
 from __future__ import annotations
 
 import asyncio
+import threading
 import uuid as _uuid
 from typing import Any
 
@@ -37,11 +38,12 @@ class MessageListener:
         self._queue_id: str | None = None
         self._last_event_id: int | None = None
         self._consecutive_errors: int = 0
+        self._stop_event = threading.Event()
         self._coordinator = AgentCoordinator(db=db, bot_client=client)
 
     async def start(self) -> None:
         """Start listening to Zulip events."""
-        self.running = True
+        self.running = not self._stop_event.is_set()
         logger.info("Message listener started")
 
         while self.running:
@@ -51,26 +53,36 @@ class MessageListener:
                     # Error response (429, etc.); backoff before retrying
                     self._consecutive_errors += 1
                     delay = min(
-                        self._BACKOFF_BASE**self._consecutive_errors,
+                        self._BACKOFF_BASE ** min(self._consecutive_errors, 7),
                         self._BACKOFF_MAX,
                     )
                     logger.warning(
                         f"Backing off {delay:.0f}s (attempt {self._consecutive_errors})"
                     )
-                    await asyncio.sleep(delay)
+                    await asyncio.to_thread(self._stop_event.wait, delay)
                     continue
                 self._consecutive_errors = 0
                 for event in events:
                     if event.get("type") == "message":
                         await self._process_message(event.get("message", {}))
+                    # Acknowledge only after persistence succeeds. Fetching a
+                    # batch must not discard unprocessed events after a crash.
+                    if isinstance(event.get("id"), int):
+                        previous_id = self._last_event_id
+                        self._last_event_id = event["id"]
+                        try:
+                            self._save_queue_state()
+                        except Exception:
+                            self._last_event_id = previous_id
+                            raise
             except Exception as e:
                 logger.error(f"Listener error: {e}")
                 self._consecutive_errors += 1
                 delay = min(
-                    self._BACKOFF_BASE**self._consecutive_errors,
+                    self._BACKOFF_BASE ** min(self._consecutive_errors, 7),
                     self._BACKOFF_MAX,
                 )
-                await asyncio.sleep(delay)
+                await asyncio.to_thread(self._stop_event.wait, delay)
 
     async def stop(self) -> None:
         """Stop listener loop."""
@@ -79,6 +91,7 @@ class MessageListener:
     def request_stop(self) -> None:
         """Request listener shutdown from any thread."""
         self.running = False
+        self._stop_event.set()
 
     async def _get_events(self) -> list[dict[str, Any]] | None:
         """Fetch events from Zulip using a shared event queue.
@@ -93,15 +106,11 @@ class MessageListener:
                 "queue_id": self._queue_id,
                 "last_event_id": self._last_event_id,
                 "dont_block": False,
-                "timeout": 30,
             }
-            # zulip-py uses a 15s HTTP read timeout by default. With
-            # `longpolling=True` it switches to a 90s timeout, which is
-            # what /events long-polling needs — without it, every poll
-            # fails with `Read timed out` after 15s before the server
-            # has a chance to return from its (timeout=30) long-poll.
+            # Keep the SDK's 90s long-poll timeout, but disable its infinite
+            # internal read-timeout retry loop so shutdown can make progress.
             resp = self.client.client.call_endpoint(
-                "events", method="GET", request=params, longpolling=True
+                "events", method="GET", request=params, longpolling=False, timeout=90
             )
             if resp.get("result") != "success":
                 code = resp.get("code") or resp.get("msg")
@@ -111,13 +120,7 @@ class MessageListener:
                 # Return None to signal error and trigger backoff
                 return None
 
-            events = resp.get("events", [])
-            for ev in events:
-                if isinstance(ev.get("id"), int):
-                    self._last_event_id = ev["id"]
-            if events:
-                self._save_queue_state()
-            return events
+            return resp.get("events", [])
         except Exception as e:
             logger.error(f"Failed to fetch events: {e}")
             return None
@@ -169,7 +172,9 @@ class MessageListener:
     def _save_queue_state(self) -> None:
         """Persist current queue_id and last_event_id to DB."""
         if self._queue_id is not None:
-            self.db.save_listener_state(self._queue_id, self._last_event_id)
+            result = self.db.save_listener_state(self._queue_id, self._last_event_id)
+            if result.get("status") == "error":
+                raise RuntimeError("Failed to persist listener cursor")
 
     async def _process_message(self, message: dict[str, Any]) -> None:
         """Process a message event: update pending input requests and store as agent event."""
@@ -186,13 +191,19 @@ class MessageListener:
         # Session-aware routing, owner policy, and request persistence.
         # Legacy requests lack a verifiable session/owner binding and must not
         # be answered merely because a message contains their request ID.
-        self._coordinator.record_inbound_message(message)
+        result = self._coordinator.record_inbound_message(message)
+        if result.get("status") == "error":
+            raise RuntimeError("Failed to persist session message")
 
         # Always store as agent_event for poll_agent_events()
-        self.db.create_agent_event(
-            event_id=str(_uuid.uuid4()),
+        result = self.db.create_agent_event(
+            event_id=(
+                f"zulip:{message['id']}" if message.get("id") else str(_uuid.uuid4())
+            ),
             zulip_message_id=message.get("id"),
             topic=str(topic) if topic else "",
             sender_email=sender_email or "",
             content=content or "",
         )
+        if result.get("status") == "error":
+            raise RuntimeError("Failed to persist agent event")

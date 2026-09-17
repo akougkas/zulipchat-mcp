@@ -35,16 +35,16 @@ class TestChainBuilder:
             topic="test",
             content="hello",
             add_reaction=True,
-            emoji="smile",
+            emoji="thumbs_up",
         )
 
-        ctx = chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        ctx = chain.execute(client=mock_client)
 
         assert ctx.has_errors() is False
         mock_client.send_message.assert_called_with(
             "stream", "general", "hello", "test"
         )
-        mock_client.add_reaction.assert_called_with(100, "smile")
+        mock_client.add_reaction.assert_called_with(100, "thumbs_up")
 
     def test_create_message_workflow_no_reaction(self, mock_client):
         """Test message workflow without reaction."""
@@ -52,7 +52,7 @@ class TestChainBuilder:
             stream_name="general", topic="test", content="hello", add_reaction=False
         )
 
-        chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        chain.execute(client=mock_client)
 
         mock_client.send_message.assert_called()
         mock_client.add_reaction.assert_not_called()
@@ -78,7 +78,7 @@ class TestChainBuilder:
             target_topic="Daily",
         )
 
-        ctx = chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        ctx = chain.execute(client=mock_client)
 
         assert ctx.has_errors() is False
 
@@ -106,7 +106,7 @@ class TestChainBuilder:
         }
 
         # Verify chain structure implicitly by execution
-        chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        chain.execute(client=mock_client)
         mock_client.get_messages_from_stream.assert_called()
 
     def test_create_morning_briefing_workflow(self, mock_client):
@@ -116,7 +116,7 @@ class TestChainBuilder:
             "result": "success",
             "messages": [],
         }
-        chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        chain.execute(client=mock_client)
         mock_client.get_messages_from_stream.assert_called()
 
     def test_create_catch_up_workflow(self, mock_client):
@@ -126,7 +126,7 @@ class TestChainBuilder:
             "result": "success",
             "messages": [],
         }
-        chain.execute(client=mock_client, initial_context={"dummy": "init"})
+        chain.execute(client=mock_client)
         mock_client.get_messages_from_stream.assert_called()
 
 

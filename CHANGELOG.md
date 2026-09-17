@@ -7,6 +7,9 @@ All notable changes to ZulipChat MCP are documented in this file.
 ## [0.7.3] - 2026-09-16
 
 ### Security
+- Shell exports and generated Claude commands quote credentials, paths, and topic names as literal data, preventing shell substitution through integration values. Codex snippets escape TOML strings.
+- Selected zuliprc credentials cannot be replaced by ambient user credentials. Clients and caches are isolated by account and identity; authenticated bot downloads cannot fall back to the user's credentials.
+- Approvals require an explicit request ID, terminal decisions are immutable, and hooks fail closed if the decision cannot be persisted. Failed request announcements cancel the pending request.
 - Agent replies now verify the session owner and matching topic/session before answering a request. Supplying a request ID from another topic or another sender can no longer bypass approval checks. Unbound legacy requests are no longer answered from inbound messages.
 - Replaced command-condition Python `eval` with a bounded data-expression interpreter supporting comparisons, boolean logic, indexing, `dict.get`, and `len`. Arbitrary calls and attribute traversal are rejected.
 - Public HTTP binds now fail startup without a non-empty bearer token. Host and Origin validation is explicitly enabled; `--allowed-host` and `--allowed-origin` configure trusted deployments.
@@ -19,6 +22,13 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Remove eager network cache warmup from startup; startup and `server_info` no longer depend on Zulip API availability. Invalid configuration exits with a nonzero status.
 - Advance event cursors before filtering to avoid replaying excluded events, validate listener bounds, and run long polls outside the MCP event loop.
 - Add a timeout to the upload fallback and treat blank analytics model settings as unset.
+- Move synchronous Zulip operations out of async tool handlers, including lazy SDK initialization. Disable automatic SDK retries of ambiguous failed writes; bound long-poll retries while retaining the community fix's 90-second read timeout.
+- Persist listener cursors only after processing succeeds, deduplicate replayed inbound messages, interrupt backoff during shutdown, and prevent replacement of a listener that is still stopping. Event collection preserves events beyond the per-poll limit.
+- Keep approval requests pending after a caller's polling timeout, preserve refreshed session bindings, reject occupied topics, and generate distinct session topics within Zulip's usual 60-character limit.
+- Search the requested end of a UTC time window, honor result limits and ordering, implement advertised topic search, and propagate backend failures. Reject unsupported timestamp narrows with guidance to use `search_messages`.
+- Paginate mark-all/stream/topic-as-read operations, forward stream/user query options and custom reaction metadata, and scope teleport replies to the conversation and messages after the send.
+- Make workflow initializers usable without dummy inputs and execute real reaction rollback once. Command chains use the selected identity; scheduler lookups use the configured realm and reject partially resolved recipients.
+- Fix the setup wizard's `uvx` command selection, empty-file uploads, partial upload/share reporting, mutable validation defaults, list-choice validation, concurrent temporary identities, and Prometheus metric escaping and sample formatting.
 
 ### MCP migration
 - Move from the FastMCP 4 beta to FastMCP 4.0.4 and MCP SDK/types 2.2.0, retaining 20 core and 60 extended tools and opt-in SEP-2663 tasks (addresses #17).

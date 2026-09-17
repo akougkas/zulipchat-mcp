@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
@@ -106,7 +107,7 @@ class ParameterValidator:
                 and param_schema.default is not None
                 and param_schema.name in allowed_params
             ):
-                validated[param_schema.name] = param_schema.default
+                validated[param_schema.name] = deepcopy(param_schema.default)
 
         if errors:
             raise ValidationError(self._humanize_errors(errors, tool))
@@ -210,7 +211,7 @@ class ParameterValidator:
                         type=allowed_type,
                         description=schema.description,
                     )
-                    self._validate_param_value(temp_schema, value)
+                    value = self._validate_param_value(temp_schema, value)
                     type_matched = True
                     break
                 except ValueError:
@@ -221,7 +222,10 @@ class ParameterValidator:
                 )
 
         # Choice validation
-        if schema.choices and value not in schema.choices:
+        choices_to_check = value if isinstance(value, list) else [value]
+        if schema.choices and any(
+            item not in schema.choices for item in choices_to_check
+        ):
             raise ValueError(f"Must be one of {schema.choices}")
 
         # Range validation

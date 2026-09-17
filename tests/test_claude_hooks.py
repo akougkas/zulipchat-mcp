@@ -1,5 +1,7 @@
 """Tests for the Claude Code hook bridge."""
 
+import os
+import subprocess
 from pathlib import Path
 
 from src.zulipchat_mcp.claude_hooks import (
@@ -53,3 +55,32 @@ def test_persist_hook_env(tmp_path: Path, monkeypatch) -> None:
     assert "ZULIPCHAT_AGENT_ID" in content
     assert "ZULIPCHAT_SESSION_ID" in content
     assert "ZULIPCHAT_CLAUDE_SESSION_ID" in content
+
+
+def test_hook_environment_is_literal_shell_data(tmp_path, monkeypatch):
+    env_file = tmp_path / "hook.env"
+    marker = tmp_path / "executed"
+    topic = f"$(touch {marker}) `touch {marker}` ' quoted \\\"\nnext line"
+    monkeypatch.setenv("CLAUDE_ENV_FILE", str(env_file))
+    _persist_hook_env(
+        "agent",
+        {"session_id": "session", "stream_name": "stream", "topic_name": topic},
+        {},
+    )
+    result = subprocess.run(
+        [
+            "bash",
+            "--noprofile",
+            "--norc",
+            "-c",
+            'source "$1"; printf %s "$ZULIPCHAT_SESSION_TOPIC"',
+            "bash",
+            str(env_file),
+        ],
+        env={"PATH": os.environ["PATH"]},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout == topic
+    assert not marker.exists()

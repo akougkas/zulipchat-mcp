@@ -4,6 +4,7 @@ Complete file operations including upload, management, sharing, and security val
 All functionality from the complex v25 architecture preserved in minimal code.
 """
 
+import asyncio
 import hashlib
 import mimetypes
 import os
@@ -138,6 +139,9 @@ def _resolve_download_credentials(client: Any) -> tuple[str, str]:
     ) or _coerce_nonempty_str(getattr(client, "current_email", None))
     api_key = _coerce_nonempty_str(getattr(sdk_client, "api_key", None))
 
+    if email and api_key:
+        return email, api_key
+
     config_manager = getattr(client, "config_manager", None)
     config = getattr(config_manager, "config", None)
     identity = _coerce_nonempty_str(getattr(client, "identity", None)) or "user"
@@ -146,26 +150,12 @@ def _resolve_download_credentials(client: Any) -> tuple[str, str]:
         preferred_email_key = "bot_email" if identity == "bot" else "email"
         preferred_api_key = "bot_api_key" if identity == "bot" else "api_key"
 
-        # If identity is bot and bot credentials exist in config, prefer them
-        # over what the SDK client might have loaded from a generic config file.
-        if identity == "bot":
-            config_bot_email = _coerce_nonempty_str(getattr(config, "bot_email", None))
-            config_bot_api_key = _coerce_nonempty_str(
-                getattr(config, "bot_api_key", None)
-            )
-            if config_bot_email and config_bot_api_key:
-                email = config_bot_email
-                api_key = config_bot_api_key
-
+        # Only fill missing values from the selected identity's configuration;
+        # resolved SDK credentials above take precedence.
         if not email:
             email = _coerce_nonempty_str(getattr(config, preferred_email_key, None))
         if not api_key:
             api_key = _coerce_nonempty_str(getattr(config, preferred_api_key, None))
-
-        if not email:
-            email = _coerce_nonempty_str(getattr(config, "email", None))
-        if not api_key:
-            api_key = _coerce_nonempty_str(getattr(config, "api_key", None))
 
     if not email or not api_key:
         raise ValueError("Missing Zulip credentials for authenticated file download")
@@ -229,7 +219,7 @@ async def upload_file(
     message: str | None = None,
 ) -> dict[str, Any]:
     """Upload files to Zulip with comprehensive capabilities and security validation."""
-    if not file_content and not file_path:
+    if file_content is None and not file_path:
         return {
             "status": "error",
             "error": "Either file_content or file_path is required",
@@ -245,7 +235,7 @@ async def upload_file(
 
     try:
         # Read file if path provided
-        if file_path and not file_content:
+        if file_path and file_content is None:
             try:
                 with open(file_path, "rb") as f:
                     file_content = f.read(MAX_FILE_SIZE + 1)
@@ -270,7 +260,9 @@ async def upload_file(
             mime_type = validation["metadata"]["mime_type"]
 
         # Upload file with progress tracking for large files
-        upload_result = client.upload_file(file_content, filename)
+        upload_result = await asyncio.to_thread(
+            client.upload_file, file_content, filename
+        )
 
         if upload_result.get("result") == "success":
             file_url = upload_result.get("uri", "")
@@ -292,7 +284,9 @@ async def upload_file(
             if stream and file_url:
                 share_content = message or f"📎 Uploaded file: **{filename}**"
                 try:
-                    shared_file_url = _resolve_file_url(client, file_url)
+                    shared_file_url = await asyncio.to_thread(
+                        _resolve_file_url, client, file_url
+                    )
                 except ValueError:
                     shared_file_url = file_url
                 share_content += f"\n{shared_file_url}"
@@ -305,13 +299,18 @@ async def upload_file(
                     size_kb = validation["metadata"]["size"] / 1024
                     share_content += f"\n📊 Size: {size_kb:.1f} KB"
 
-                share_result = client.send_message(
-                    "stream", stream, share_content, topic
+                share_result = await asyncio.to_thread(
+                    client.send_message, "stream", stream, share_content, topic
                 )
                 if share_result.get("result") == "success":
                     response["shared_message_id"] = share_result.get("id")
                     response["shared_in_stream"] = stream
                     response["shared_in_topic"] = topic
+                else:
+                    response["status"] = "partial"
+                    response["share_error"] = share_result.get(
+                        "msg", "File uploaded but sharing failed"
+                    )
 
             return response
 
@@ -347,8 +346,10 @@ async def manage_files(
     try:
         if operation == "list":
             # Use Zulip's attachments API (Feature level 2+)
-            result = client.client.call_endpoint(
-                "attachments", method="GET", request={}
+            result = await asyncio.to_thread(
+                lambda: client.client.call_endpoint(
+                    "attachments", method="GET", request={}
+                )
             )
             if result.get("result") == "success":
                 return {
@@ -384,8 +385,10 @@ async def manage_files(
                 }
 
             # Use Zulip's delete attachment API (Feature level 179+)
-            result = client.client.call_endpoint(
-                f"attachments/{attachment_id}", method="DELETE", request={}
+            result = await asyncio.to_thread(
+                lambda: client.client.call_endpoint(
+                    f"attachments/{attachment_id}", method="DELETE", request={}
+                )
             )
 
             if result.get("result") == "success":
@@ -414,14 +417,18 @@ async def manage_files(
                 }
 
             try:
-                file_url = _resolve_file_url(client, file_id)
+                file_url = await asyncio.to_thread(_resolve_file_url, client, file_id)
             except ValueError as e:
                 return {"status": "error", "error": str(e)}
 
             share_content = f"📎 Shared file: {file_url}"
 
-            result = client.send_message(
-                "stream", share_in_stream, share_content, share_in_topic
+            result = await asyncio.to_thread(
+                client.send_message,
+                "stream",
+                share_in_stream,
+                share_content,
+                share_in_topic,
             )
 
             if result.get("result") == "success":
@@ -447,7 +454,9 @@ async def manage_files(
                 }
 
             try:
-                download_url = _resolve_file_url(client, file_id)
+                download_url = await asyncio.to_thread(
+                    _resolve_file_url, client, file_id
+                )
             except ValueError as e:
                 return {"status": "error", "error": str(e)}
 
@@ -461,7 +470,9 @@ async def manage_files(
                     import httpx
 
                     _validate_download_url(client, download_url)
-                    email, api_key = _resolve_download_credentials(client)
+                    email, api_key = await asyncio.to_thread(
+                        _resolve_download_credentials, client
+                    )
                     auth_bytes = b64encode(f"{email}:{api_key}".encode()).decode()
                     headers = {"Authorization": f"Basic {auth_bytes}"}
 

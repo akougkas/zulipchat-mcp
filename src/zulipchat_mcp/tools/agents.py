@@ -10,7 +10,6 @@ from typing import Any
 
 from ..config import get_client, get_config_manager
 from ..core.agent_control import AgentCoordinator
-from ..core.cache import user_cache
 from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
@@ -390,28 +389,16 @@ async def teleport_chat(
                     content=message,
                     topic=topic or "general",
                 )
-                identity_used = "user"
+                identity_used = client.identity
                 target_email = None
             else:
+                user_client = get_client()
+                user_cache = user_client.user_cache
                 target_email = target
                 if "@" not in target:
+                    if user_cache.get_users() is None:
+                        await asyncio.to_thread(user_client.get_users)
                     resolution = user_cache.resolve_user(target)
-                    if not resolution.get("email"):
-                        from .users import get_users as _get_users
-
-                        try:
-                            loop = asyncio.get_running_loop()
-                        except RuntimeError:
-                            loop = None
-                        if loop and loop.is_running():
-                            result = await _get_users()
-                            if result.get("status") == "success":
-                                user_cache.set_users(result.get("users", []))
-                        else:
-                            result = asyncio.run(_get_users())
-                            if result.get("status") == "success":
-                                user_cache.set_users(result.get("users", []))
-                        resolution = user_cache.resolve_user(target)
                     if not resolution.get("email"):
                         return {
                             "status": "error",
@@ -419,8 +406,7 @@ async def teleport_chat(
                         }
                     target_email = str(resolution["email"])
 
-                user_client = get_client()
-                _ = user_client.client
+                await asyncio.to_thread(lambda: user_client.client)
                 user_email = user_client.current_email
                 is_self_dm = user_cache.is_same_user(target_email, user_email or "")
 
@@ -429,7 +415,7 @@ async def teleport_chat(
                     identity_used = "bot"
                 else:
                     client = user_client
-                    identity_used = "user"
+                    identity_used = user_client.identity
 
                 result = await asyncio.to_thread(
                     client.send_message,
@@ -449,22 +435,46 @@ async def teleport_chat(
             }
 
             if wait_for_reply:
-                await asyncio.to_thread(ensure_listener)
-                db = DatabaseManager()
-                start = time.time()
-                while time.time() - start < reply_timeout:
-                    events = await asyncio.to_thread(db.get_unacked_events, limit=10)
-                    for event in events:
-                        sender = event.get("sender_email", "")
-                        if is_channel:
-                            if event.get("topic") == (topic or "general"):
-                                await asyncio.to_thread(db.ack_events, [event["id"]])
-                                response["reply"] = event.get("content")
-                                response["reply_from"] = sender
-                                return response
-                        elif sender == target_email:
-                            await asyncio.to_thread(db.ack_events, [event["id"]])
-                            response["reply"] = event.get("content")
+                # Scope replies to this conversation and this send. The legacy
+                # event table lacks stream/DM identity and can contain old replies.
+                narrow: list[dict[str, Any]] = (
+                    [
+                        {"operator": "stream", "operand": resolved_channel},
+                        {"operator": "topic", "operand": topic or "general"},
+                    ]
+                    if is_channel
+                    else [{"operator": "dm", "operand": target_email}]
+                )
+                cursor = int(result["id"])
+                start = time.monotonic()
+                while time.monotonic() - start < reply_timeout:
+                    replies = await asyncio.to_thread(
+                        client.get_messages_raw,
+                        anchor=str(cursor),
+                        num_before=0,
+                        num_after=50,
+                        narrow=narrow,
+                        include_anchor=False,
+                        apply_markdown=False,
+                    )
+                    if replies.get("result") != "success":
+                        response["reply_error"] = replies.get(
+                            "msg", "Failed to fetch replies"
+                        )
+                        return response
+                    for reply in sorted(
+                        replies.get("messages", []), key=lambda item: item["id"]
+                    ):
+                        if reply["id"] <= cursor:
+                            continue
+                        cursor = reply["id"]
+                        sender = reply.get("sender_email", "")
+                        if (
+                            sender
+                            and sender.lower()
+                            != str(client.current_email or "").lower()
+                        ):
+                            response["reply"] = reply.get("content")
                             response["reply_from"] = sender
                             return response
                     await asyncio.sleep(2)

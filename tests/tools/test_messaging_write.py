@@ -258,23 +258,11 @@ class TestEditMessage:
 
     @pytest.mark.asyncio
     async def test_edit_with_empty_content(self, mock_deps):
-        """Test editing with explicit empty content (should be allowed if intent is to clear)."""
-        # The logic: safe_content = sanitize_content(content) if content else None
-        # If content is "", safe_content is None.
-        # But if we WANT to set it to empty string?
-        # The current implementation treats `if content` as False for "".
-        # So it passes None to client.edit_message.
-        # This effectively means "don't change content".
-        # If the user *wants* to clear the content, they might need to send " " or similar?
-        # Or maybe the implementation should distinguish between None (no change) and "" (clear).
-        # Python: `if content` checks truthiness.
-
+        """Zulip requires nonempty message content."""
         result = await edit_message(100, content="")
-        # If content is "", current code:
-        # if not content and not topic and not stream_id: return error
-        # So edit_message(100, content="") returns error!
         assert result["status"] == "error"
-        assert "Must provide content, topic, or stream_id" in result["error"]
+        assert "Message content cannot be empty" in result["error"]
+        mock_deps.edit_message.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_propagate_mode_change_one(self, mock_deps):

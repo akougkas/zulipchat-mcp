@@ -3,7 +3,7 @@
 import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field
@@ -17,7 +17,9 @@ class ScheduledMessage(BaseModel):
 
     content: str = Field(..., description="Message content")
     scheduled_time: datetime = Field(..., description="When to send the message")
-    message_type: str = Field(..., description="Message type: 'stream' or 'private'")
+    message_type: Literal["stream", "private"] = Field(
+        ..., description="Message type: 'stream' or 'private'"
+    )
     recipients: str | list[str] = Field(
         ..., description="Recipients list or stream name"
     )
@@ -35,10 +37,20 @@ class MessageScheduler:
             config: Zulip configuration
         """
         self.config = config
-        self.base_url = f"{config.site}/api/v1"
-        if not config.email or not config.api_key:
+        manager = ConfigManager()
+        manager.config = config
+        credentials = manager.get_zulip_client_config()
+        if (
+            not credentials["email"]
+            or not credentials["api_key"]
+            or not credentials["site"]
+        ):
             raise ValueError("Scheduler requires email and api_key")
-        self.auth: tuple[str, str] = (config.email, config.api_key)
+        self.base_url = (
+            f"{ZulipClientWrapper._normalize_site_base_url(credentials['site'])}/api/v1"
+        )
+        self.auth: tuple[str, str] = (credentials["email"], credentials["api_key"])
+        self._lookup_client = ZulipClientWrapper(manager)
         self.client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> "MessageScheduler":
@@ -52,8 +64,7 @@ class MessageScheduler:
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
-        if self.client:
-            await self.client.aclose()
+        await self.close()
 
     def _ensure_client(self) -> httpx.AsyncClient:
         """Ensure client is initialized."""
@@ -94,16 +105,18 @@ class MessageScheduler:
         }
 
         # Get client for lookups (user identity)
-        client_wrapper = ZulipClientWrapper(ConfigManager())
+        client_wrapper = self._lookup_client
 
         # Set recipients based on message type
         if message.message_type == "stream":
+            if isinstance(message.recipients, list) and len(message.recipients) != 1:
+                raise ValueError("Stream messages require exactly one stream")
             stream_name = (
                 message.recipients
                 if isinstance(message.recipients, str)
                 else message.recipients[0]
             )
-            streams_resp = client_wrapper.get_streams()
+            streams_resp = await asyncio.to_thread(client_wrapper.get_streams)
             streams = (
                 streams_resp.get("streams", [])
                 if streams_resp.get("result") == "success"
@@ -126,7 +139,7 @@ class MessageScheduler:
                 if isinstance(message.recipients, list)
                 else [message.recipients]
             )
-            users_resp = client_wrapper.get_users()
+            users_resp = await asyncio.to_thread(client_wrapper.get_users)
 
             user_ids: list[int] = []
             members = (
@@ -140,6 +153,10 @@ class MessageScheduler:
                 )
                 if user_id is not None:
                     user_ids.append(int(user_id))
+                else:
+                    raise ValueError(
+                        f"Recipient '{email}' was not found; nothing was scheduled"
+                    )
 
             if not user_ids:
                 raise ValueError("No valid user IDs found for the given emails.")
@@ -187,7 +204,7 @@ class MessageScheduler:
 
         if data.get("result") == "success":
             return data.get("scheduled_messages", [])
-        return []
+        raise ValueError(data.get("msg", "Failed to list scheduled messages"))
 
     async def update_scheduled(
         self, scheduled_id: int, new_time: datetime
@@ -251,7 +268,7 @@ class MessageScheduler:
         content: str,
         minutes_from_now: int,
         recipients: str | list[str],
-        message_type: str = "private",
+        message_type: Literal["stream", "private"] = "private",
         topic: str | None = None,
     ) -> dict[str, Any]:
         """Schedule a reminder message.
@@ -350,8 +367,11 @@ Please share:
         # Use asyncio.gather for concurrent scheduling
         tasks = [self.schedule_message(message) for message in messages]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        # Filter out exceptions and return only successful results
-        return [r for r in results if isinstance(r, dict)]
+        # Preserve each input's position, including failures.
+        return [
+            r if isinstance(r, dict) else {"status": "error", "error": str(r)}
+            for r in results
+        ]
 
     async def get_scheduled_by_time_range(
         self, start_time: datetime, end_time: datetime
@@ -396,8 +416,11 @@ Please share:
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        # Filter out exceptions and return only successful results
-        return [r for r in results if isinstance(r, dict)]
+        # Preserve each input's position, including failures.
+        return [
+            r if isinstance(r, dict) else {"status": "error", "error": str(r)}
+            for r in results
+        ]
 
     async def close(self) -> None:
         """Close the async client."""
@@ -428,7 +451,7 @@ async def schedule_reminder(
     content: str,
     minutes_from_now: int,
     recipients: str | list[str],
-    message_type: str = "private",
+    message_type: Literal["stream", "private"] = "private",
     topic: str | None = None,
 ) -> dict[str, Any]:
     """Schedule a reminder message.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import time
 from typing import Any
@@ -62,7 +63,7 @@ def _persist_hook_env(
     }
     with open(env_file, "a", encoding="utf-8") as handle:
         for key, value in exports.items():
-            handle.write(f"export {key}={json.dumps(value)}\n")
+            handle.write(f"export {key}={shlex.quote(value)}\n")
 
 
 def _wait_for_topic_decision(
@@ -71,12 +72,13 @@ def _wait_for_topic_decision(
     stream_name: str,
     topic_name: str,
     owner_email: str,
+    request_id: str,
     min_message_id: int,
     timeout_seconds: int,
 ) -> dict[str, Any] | None:
     """Poll the topic directly via Zulip REST until the owner replies."""
-    start = time.time()
-    while time.time() - start < timeout_seconds:
+    start = time.monotonic()
+    while time.monotonic() - start < timeout_seconds:
         response = coordinator.bot_client.get_messages_raw(
             anchor="newest",
             num_before=50,
@@ -100,7 +102,10 @@ def _wait_for_topic_decision(
                 if str(message.get("sender_email", "")).lower() != owner_email.lower():
                     continue
                 parsed = parse_control_message(str(message.get("content", "")))
-                if parsed.decision in {"approve", "deny"}:
+                if (
+                    parsed.decision in {"approve", "deny"}
+                    and parsed.request_id == request_id
+                ):
                     return {
                         "decision": parsed.decision,
                         "message_id": message_id,
@@ -176,6 +181,7 @@ def _handle_permission_request(
         stream_name=str(session["stream_name"]),
         topic_name=str(session["topic_name"]),
         owner_email=str(session["owner_email"]),
+        request_id=str(request["request_id"]),
         min_message_id=int(request.get("message_id", 0)),
         timeout_seconds=timeout_seconds,
     )
@@ -194,12 +200,19 @@ def _handle_permission_request(
         )
         return _permission_decision_output("deny")
 
-    DatabaseManager().update_agent_request(
+    stored = coordinator.db.update_agent_request(
         request["request_id"],
         status="answered",
         response=decision["decision"],
     )
-    return _permission_decision_output(str(decision["decision"]))
+    persisted = coordinator.db.get_agent_request(request["request_id"])
+    if (
+        stored.get("status") != "success"
+        or not persisted
+        or persisted.get("status") != "answered"
+    ):
+        return _permission_decision_output("deny")
+    return _permission_decision_output(str(persisted.get("response", "deny")))
 
 
 def _handle_hook_event(

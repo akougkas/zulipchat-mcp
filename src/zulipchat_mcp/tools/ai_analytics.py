@@ -1,12 +1,13 @@
 """AI-powered analytics tools for ZulipChat MCP.
 
 High-level analytical tools that generate insights with a server-side LLM
-provider (src/zulipchat_mcp/core/llm.py). MCP sampling was removed in the
-2026-07-28 stateless protocol, so analytics run against a provider owned by
+provider (src/zulipchat_mcp/core/llm.py). MCP sampling was deprecated in the
+2026-07-28 protocol, so analytics run against a provider owned by
 this server (ANTHROPIC_API_KEY) instead of delegating generation to the
 client.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any, Literal
 
@@ -25,7 +26,9 @@ async def get_daily_summary(
     client = get_client()
 
     try:
-        summary = client.get_daily_summary(streams=streams, hours_back=hours_back)
+        summary = await asyncio.to_thread(
+            client.get_daily_summary, streams=streams, hours_back=hours_back
+        )
 
         return {
             "status": "success",
@@ -46,7 +49,7 @@ async def analyze_stream_with_llm(
     """Fetch stream data and analyze with LLM for sophisticated insights.
 
     Requires a server-side LLM provider (ANTHROPIC_API_KEY); MCP sampling was
-    removed in the 2026-07-28 protocol.
+    deprecated in the 2026-07-28 protocol.
     """
     get_client()  # Validate client is available
 
@@ -155,6 +158,11 @@ async def analyze_team_activity_with_llm(
                 last_hours=days_back * 24,
                 limit=50,  # Token-efficient per stream
             )
+            if search_result.get("status") != "success":
+                return {
+                    "status": "error",
+                    "error": f"Unable to analyze stream '{stream}': {search_result.get('error', 'Search failed')}",
+                }
             if search_result.get("status") == "success":
                 messages = search_result.get("messages", [])
                 for msg in messages:

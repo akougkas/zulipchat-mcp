@@ -45,7 +45,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 - **Switch identities** — post as yourself or as a bot, in the same session
 - **Monitor activity** — search recent messages, get stream info, check who's online
 - **Bind sessions to Zulip topics** — give long-running agent sessions a stable control topic
-- **Request approvals in-topic** — owner replies with `approve` / `deny` in the session topic
+- **Request approvals in-topic** — owner replies with `/approve REQUEST_ID` or `/deny REQUEST_ID` in the session topic; each decision names the request it answers
 
 ## Two-Tier Tool Architecture
 

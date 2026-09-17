@@ -7,7 +7,7 @@ with the type safety and power of v0.4.0 architecture.
 Key features:
 - Simple narrow builders for common use cases
 - Progressive complexity from basic to advanced narrow construction
-- Time-based filter helpers
+- Explicit errors for legacy timestamp helpers (use search_messages instead)
 - Integration with existing NarrowFilter types
 - User-friendly narrow construction
 """
@@ -244,49 +244,23 @@ class NarrowHelper:
 
     @staticmethod
     def after_time(when: datetime | str) -> NarrowFilter:
-        """Create an 'after time' filter.
-
-        Args:
-            when: DateTime or ISO string for the cutoff time
-
-        Returns:
-            NarrowFilter for messages after the specified time
-
-        Example:
-            filter = NarrowHelper.after_time(datetime.now() - timedelta(hours=24))
-        """
-        if isinstance(when, datetime):
-            time_str = when.isoformat()
-        else:
-            time_str = when
-
-        return NarrowFilter(operator=NarrowOperator.SEARCH, operand=f"after:{time_str}")
+        """Reject unsupported timestamp narrows; use search_messages(after_time=...)."""
+        raise ValueError(
+            "Zulip narrow filters cannot encode timestamps; use search_messages(after_time=...) instead"
+        )
 
     @staticmethod
     def before_time(when: datetime | str) -> NarrowFilter:
-        """Create a 'before time' filter.
-
-        Args:
-            when: DateTime or ISO string for the cutoff time
-
-        Returns:
-            NarrowFilter for messages before the specified time
-
-        Example:
-            filter = NarrowHelper.before_time(datetime.now())
-        """
-        if isinstance(when, datetime):
-            time_str = when.isoformat()
-        else:
-            time_str = when
-
-        return NarrowFilter(
-            operator=NarrowOperator.SEARCH, operand=f"before:{time_str}"
+        """Reject unsupported timestamp narrows; use search_messages(before_time=...)."""
+        raise ValueError(
+            "Zulip narrow filters cannot encode timestamps; use search_messages(before_time=...) instead"
         )
 
     @staticmethod
     def last_hours(hours: int) -> NarrowFilter:
-        """Create a filter for messages from the last N hours.
+        """Validate hours, then reject unsupported timestamp narrows.
+
+        Use search_messages(last_hours=...) instead.
 
         Args:
             hours: Number of hours to look back
@@ -295,7 +269,7 @@ class NarrowHelper:
             NarrowFilter for messages in the last N hours
 
         Raises:
-            ValueError: If hours cannot be converted to a valid integer
+            ValueError: Always; timestamps cannot be encoded in Zulip narrows.
 
         Example:
             filter = NarrowHelper.last_hours(24)
@@ -308,7 +282,9 @@ class NarrowHelper:
 
     @staticmethod
     def last_days(days: int) -> NarrowFilter:
-        """Create a filter for messages from the last N days.
+        """Validate days, then reject unsupported timestamp narrows.
+
+        Use search_messages(last_days=...) instead.
 
         Args:
             days: Number of days to look back
@@ -317,7 +293,7 @@ class NarrowHelper:
             NarrowFilter for messages in the last N days
 
         Raises:
-            ValueError: If days cannot be converted to a valid integer
+            ValueError: Always; timestamps cannot be encoded in Zulip narrows.
 
         Example:
             filter = NarrowHelper.last_days(7)
@@ -330,7 +306,7 @@ class NarrowHelper:
 
     @staticmethod
     def time_range(start: datetime | str, end: datetime | str) -> list[NarrowFilter]:
-        """Create filters for a time range.
+        """Reject unsupported timestamp narrows with guidance to search_messages.
 
         Args:
             start: Start time for the range

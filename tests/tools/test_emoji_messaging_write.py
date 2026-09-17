@@ -22,7 +22,9 @@ class TestReactions:
     def mock_deps(self, mock_client):
         """Patch dependencies."""
         with (
-            patch("src.zulipchat_mcp.tools.emoji_messaging.get_client") as mock_get_client,
+            patch(
+                "src.zulipchat_mcp.tools.emoji_messaging.get_client"
+            ) as mock_get_client,
         ):
             mock_get_client.return_value = mock_client
             yield mock_client
@@ -33,19 +35,22 @@ class TestReactions:
         result = await add_reaction(100, "thumbs_up")
         assert result["status"] == "success"
         assert result["reaction_type"] == "unicode_emoji"
-        mock_deps.add_reaction.assert_called_with(100, "thumbs_up")
+        mock_deps.add_reaction.assert_called_with(
+            100, "thumbs_up", reaction_type="unicode_emoji"
+        )
 
     @pytest.mark.asyncio
     async def test_add_custom_emoji(self, mock_deps):
         """Test adding a custom emoji (realm_emoji)."""
         # We use a valid emoji name from the registry, even if we say it's realm_emoji
-        result = await add_reaction(100, "thumbs_up", reaction_type="realm_emoji")
+        result = await add_reaction(
+            100, "thumbs_up", emoji_code="123", reaction_type="realm_emoji"
+        )
         assert result["status"] == "success"
         assert result["reaction_type"] == "realm_emoji"
-        # Note: The current implementation passes positional args to client.add_reaction(id, name)
-        # It seemingly ignores reaction_type/code in the call to client!
-        # But we test what the TOOL returns and what it calls on the client.
-        mock_deps.add_reaction.assert_called_with(100, "thumbs_up")
+        mock_deps.add_reaction.assert_called_with(
+            100, "thumbs_up", emoji_code="123", reaction_type="realm_emoji"
+        )
 
     @pytest.mark.asyncio
     async def test_add_to_nonexistent_message(self, mock_deps):
@@ -91,7 +96,9 @@ class TestReactions:
         result = await remove_reaction(100, "smile")
         assert result["status"] == "success"
         assert result["action"] == "removed"
-        mock_deps.remove_reaction.assert_called_with(100, "smile")
+        mock_deps.remove_reaction.assert_called_with(
+            100, "smile", reaction_type="unicode_emoji"
+        )
 
     @pytest.mark.asyncio
     async def test_remove_others_reaction_fails(self, mock_deps):

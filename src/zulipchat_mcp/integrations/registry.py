@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -51,10 +52,10 @@ def _render_remote_for_client(client: str, url: str, token: str | None) -> str:
     headers = {"Authorization": f"Bearer {token}"} if token else None
 
     if client == "claude-code":
-        cmd = f"claude mcp add --transport http zulipchat {url}"
+        args = ["claude", "mcp", "add", "--transport", "http", "zulipchat", url]
         if token:
-            cmd += f' --header "Authorization: Bearer {token}"'
-        return cmd
+            args.extend(["--header", f"Authorization: Bearer {token}"])
+        return shlex.join(args)
 
     if client == "generic":
         payload: dict[str, Any] = {"zulipchat": {"type": "http", "url": url}}
@@ -76,8 +77,16 @@ def _render_remote_for_client(client: str, url: str, token: str | None) -> str:
 
 def _render_for_client(client: str, base: dict[str, Any]) -> str:
     if client == "claude-code":
-        return "claude mcp add zulipchat -- " + " ".join(
-            [base["command"], *[str(arg) for arg in base["args"]]]
+        return shlex.join(
+            [
+                "claude",
+                "mcp",
+                "add",
+                "zulipchat",
+                "--",
+                base["command"],
+                *[str(arg) for arg in base["args"]],
+            ]
         )
 
     if client in {
@@ -115,10 +124,12 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
         return json.dumps(payload, indent=2)
 
     if client == "codex":
-        rendered_args = ", ".join(f'"{arg}"' for arg in base["args"])
+        rendered_args = ", ".join(
+            json.dumps(str(arg), ensure_ascii=False) for arg in base["args"]
+        )
         return (
             "[mcp_servers.zulipchat]\n"
-            f'command = "{base["command"]}"\n'
+            f'command = {json.dumps(base["command"], ensure_ascii=False)}\n'
             f"args = [{rendered_args}]"
         )
 

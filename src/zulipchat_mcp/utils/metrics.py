@@ -1,5 +1,6 @@
 """Metrics collection for ZulipChat MCP Server."""
 
+import threading
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -15,6 +16,7 @@ class MetricsCollector:
         self.histograms: dict[str, list[float]] = defaultdict(list)
         self.gauges: dict[str, float] = {}
         self.start_time = time.time()
+        self._lock = threading.RLock()
 
     def increment_counter(
         self, name: str, value: int = 1, labels: dict[str, str] | None = None
@@ -27,7 +29,8 @@ class MetricsCollector:
             labels: Optional labels
         """
         key = self._make_key(name, labels)
-        self.counters[key] += value
+        with self._lock:
+            self.counters[key] += value
 
     def record_histogram(
         self, name: str, value: float, labels: dict[str, str] | None = None
@@ -40,10 +43,11 @@ class MetricsCollector:
             labels: Optional labels
         """
         key = self._make_key(name, labels)
-        self.histograms[key].append(value)
-        # Keep only last 1000 values to prevent memory issues
-        if len(self.histograms[key]) > 1000:
-            self.histograms[key] = self.histograms[key][-1000:]
+        with self._lock:
+            self.histograms[key].append(value)
+            # Keep only last 1000 values to prevent memory issues
+            if len(self.histograms[key]) > 1000:
+                self.histograms[key] = self.histograms[key][-1000:]
 
     def set_gauge(
         self, name: str, value: float, labels: dict[str, str] | None = None
@@ -56,7 +60,8 @@ class MetricsCollector:
             labels: Optional labels
         """
         key = self._make_key(name, labels)
-        self.gauges[key] = value
+        with self._lock:
+            self.gauges[key] = value
 
     def _make_key(self, name: str, labels: dict[str, str] | None = None) -> str:
         """Create metric key from name and labels.
@@ -70,7 +75,15 @@ class MetricsCollector:
         """
         if not labels:
             return name
-        label_str = ",".join(f"{k}={v}" for k, v in sorted(labels.items()))
+
+        def quote(value: str) -> str:
+            return (
+                '"'
+                + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+                + '"'
+            )
+
+        label_str = ",".join(f"{k}={quote(v)}" for k, v in sorted(labels.items()))
         return f"{name}{{{label_str}}}"
 
     def get_metrics(self) -> dict[str, Any]:
@@ -79,11 +92,15 @@ class MetricsCollector:
         Returns:
             Dictionary of all metrics
         """
-        uptime = time.time() - self.start_time
+        with self._lock:
+            uptime = time.time() - self.start_time
+            counters = dict(self.counters)
+            gauges = dict(self.gauges)
+            histograms = {key: list(values) for key, values in self.histograms.items()}
 
         # Calculate histogram stats
         histogram_stats = {}
-        for key, values in self.histograms.items():
+        for key, values in histograms.items():
             if values:
                 sorted_values = sorted(values)
                 histogram_stats[key] = {
@@ -98,18 +115,19 @@ class MetricsCollector:
 
         return {
             "uptime_seconds": uptime,
-            "counters": dict(self.counters),
-            "gauges": dict(self.gauges),
+            "counters": counters,
+            "gauges": gauges,
             "histograms": histogram_stats,
             "timestamp": datetime.now().isoformat(),
         }
 
     def reset(self) -> None:
         """Reset all metrics."""
-        self.counters.clear()
-        self.histograms.clear()
-        self.gauges.clear()
-        self.start_time = time.time()
+        with self._lock:
+            self.counters.clear()
+            self.histograms.clear()
+            self.gauges.clear()
+            self.start_time = time.time()
 
 
 # Global metrics collector instance
@@ -236,28 +254,27 @@ def get_metrics_text() -> str:
     lines.append(f"uptime_seconds {data['uptime_seconds']:.2f}")
     lines.append("")
 
-    # Format counters
-    for key, value in data["counters"].items():
-        lines.append(f"# TYPE {key.split('{')[0]} counter")
-        lines.append(f"{key} {value}")
-    lines.append("")
+    families: dict[str, tuple[str, list[str]]] = {}
 
-    # Format gauges
-    for key, value in data["gauges"].items():
-        lines.append(f"# TYPE {key.split('{')[0]} gauge")
-        lines.append(f"{key} {value}")
-    lines.append("")
+    def sample(name: str, labels: str, value: float, kind: str) -> None:
+        if name not in families:
+            families[name] = (kind, [])
+        families[name][1].append(f"{name}{labels} {value}")
 
-    # Format histograms
+    for collection, kind in (("counters", "counter"), ("gauges", "gauge")):
+        for key, value in data[collection].items():
+            name, separator, labels = key.partition("{")
+            sample(name, separator + labels, value, kind)
+
+    # These are statistics over a bounded recent sample, not cumulative
+    # histogram buckets. Export them as gauges with suffixes before labels.
     for key, stats in data["histograms"].items():
-        base_name = key.split("{")[0]
-        lines.append(f"# TYPE {base_name} histogram")
-        lines.append(f"{key}_count {stats['count']}")
-        lines.append(f"{key}_min {stats['min']:.4f}")
-        lines.append(f"{key}_max {stats['max']:.4f}")
-        lines.append(f"{key}_mean {stats['mean']:.4f}")
-        lines.append(f"{key}_p50 {stats['p50']:.4f}")
-        lines.append(f"{key}_p95 {stats['p95']:.4f}")
-        lines.append(f"{key}_p99 {stats['p99']:.4f}")
+        name, separator, labels = key.partition("{")
+        for statistic, value in stats.items():
+            sample(f"{name}_{statistic}", separator + labels, value, "gauge")
 
-    return "\n".join(lines)
+    # Prometheus requires all samples of each metric family to be grouped.
+    for name, (kind, samples) in families.items():
+        lines.append(f"# TYPE {name} {kind}")
+        lines.extend(samples)
+    return "\n".join(lines) + "\n"

@@ -55,6 +55,10 @@ Full agent-to-user messaging pipeline available in `src/zulipchat_mcp/tools/agen
 - `poll_agent_events()` - Read owner steering/command events from the session topic
 - `zulipchat-mcp-hook` - Bridge Claude Code hook events into the same session model
 
+Owner approval replies must include `/approve REQUEST_ID` or `/deny REQUEST_ID`.
+Terminal decisions are immutable. A `wait_for_response` timeout leaves the request
+pending for another poll; hook permission deadlines still deny on timeout.
+
 ### Emoji Registry (v0.4+)
 New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent reactions:
 - 12 approved emoji: `thumbs_up`, `heart`, `rocket`, `fire`, `tada`, `check_mark`, `warning`, `thinking`, `bulb`, `wrench`, `star`, `zap`
@@ -73,7 +77,7 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
   - `uvx zulipchat-mcp` (PyPI - fastest, pre-built wheels)
   - `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
   - `uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp` (TestPyPI - for pre-release testing)
-- **Credential Loading**: Supports both zuliprc files and env vars. For config-file paths, environment variables (`ZULIP_CONFIG_FILE`, `ZULIP_BOT_CONFIG_FILE`) are checked before CLI flags; Zulip credentials can be loaded from either zuliprc or env.
+- **Credential Loading**: Supports both zuliprc files and env vars. For config-file paths, environment variables (`ZULIP_CONFIG_FILE`, `ZULIP_BOT_CONFIG_FILE`) are checked before CLI flags. A selected file supplies its email, key, and site together, overriding ambient credential variables. Clients/caches are isolated by configuration and identity; restart after credential-file changes.
 - **Claude Code Integration**: Use `--` separator for proper argument passing:
   ```bash
   # Correct syntax (tested)

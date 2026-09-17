@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -115,7 +116,7 @@ class RateLimiter:
         self.max_tokens: float = float(config.burst_limit)
         self.refill_rate: float = config.max_requests / config.time_window
         self.last_refill: float = time.monotonic()
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
 
     async def acquire(self, tokens: int = 1) -> float:
         """Acquire tokens from the bucket.
@@ -129,22 +130,22 @@ class RateLimiter:
         if not self.config.enforce:
             return 0.0
 
-        async with self._lock:
+        if tokens < 0 or tokens > self.max_tokens:
+            raise ValueError(
+                "tokens must be nonnegative and no greater than burst_limit"
+            )
+
+        with self._lock:
             # Refill tokens based on elapsed time
             now = time.monotonic()
             elapsed = now - self.last_refill
             self.tokens = min(self.max_tokens, self.tokens + elapsed * self.refill_rate)
             self.last_refill = now
 
-            # Check if we have enough tokens
-            if self.tokens >= tokens:
-                self.tokens -= tokens
-                return 0.0
-
-            # Calculate wait time
-            tokens_needed = tokens - self.tokens
-            wait_time = tokens_needed / self.refill_rate
-            return wait_time
+            # Reserve this request's tokens even when it must wait. Otherwise
+            # concurrent callers all sleep for the same slot and exceed the rate.
+            self.tokens -= tokens
+            return max(0.0, -self.tokens / self.refill_rate)
 
     async def wait_if_needed(self, tokens: int = 1) -> None:
         """Wait if rate limit would be exceeded.
@@ -276,7 +277,7 @@ class ErrorHandler:
                 if asyncio.iscoroutinefunction(func):
                     async_func = cast(Callable[..., Awaitable[T]], func)
                     return await async_func(*args, **kwargs)
-                return func(*args, **kwargs)
+                return await asyncio.to_thread(func, *args, **kwargs)
 
             except Exception as e:
                 last_error = e

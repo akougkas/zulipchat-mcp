@@ -15,6 +15,7 @@ from ..utils.logging import get_logger
 logger = get_logger(__name__)
 
 _instance: ServiceManager | None = None
+_instance_lock = threading.RLock()
 
 
 class ServiceManager:
@@ -62,6 +63,8 @@ class ServiceManager:
     def _start_listener(self) -> None:
         """Start the message listener service."""
         with self._lock:
+            if self._stopping.is_set():
+                return
             listener_thread = self.listener_ref.get("thread")
             if (
                 isinstance(listener_thread, threading.Thread)
@@ -118,11 +121,11 @@ class ServiceManager:
             except Exception as e:
                 logger.error(f"Listener watcher error: {e}")
 
-    def stop(self, timeout: float = 5.0) -> None:
+    def stop(self, timeout: float = 5.0) -> bool:
         """Stop listener services managed by this process."""
         with self._lock:
             if not self._started:
-                return
+                return True
             self.enable_listener = False
             self._stopping.set()
             listener = self.listener_ref.get("listener")
@@ -136,6 +139,7 @@ class ServiceManager:
             listener_thread.join(timeout=timeout)
             if listener_thread.is_alive():
                 logger.warning("Message listener did not stop before timeout")
+                return False
 
         if isinstance(watcher_thread, threading.Thread):
             watcher_thread.join(timeout=timeout)
@@ -148,6 +152,7 @@ class ServiceManager:
             self.dbm = None
             self._started = False
         logger.info("Service manager stopped")
+        return True
 
 
 def init_service_manager(
@@ -155,10 +160,11 @@ def init_service_manager(
 ) -> ServiceManager:
     """Initialize the module-level ServiceManager singleton. Called by server.py."""
     global _instance
-    if _instance is not None:
-        _instance.stop()
-    _instance = ServiceManager(config_manager, enable_listener=enable_listener)
-    return _instance
+    with _instance_lock:
+        if _instance is not None and not _instance.stop():
+            raise RuntimeError("Previous Zulip listener is still stopping")
+        _instance = ServiceManager(config_manager, enable_listener=enable_listener)
+        return _instance
 
 
 def ensure_listener() -> None:
@@ -172,20 +178,21 @@ def ensure_listener() -> None:
     """
     global _instance
 
-    if _instance is None:
-        from ..config import get_config_manager
+    with _instance_lock:
+        if _instance is None:
+            from ..config import get_config_manager
 
-        _instance = ServiceManager(get_config_manager(), enable_listener=True)
+            _instance = ServiceManager(get_config_manager(), enable_listener=True)
 
-    _instance.enable_listener = True
-    _instance.start()
-    _instance._start_listener()
-    _instance._start_watcher()
+        _instance.enable_listener = True
+        _instance.start()
+        _instance._start_listener()
+        _instance._start_watcher()
 
 
 def shutdown_service_manager() -> None:
     """Stop the module-level ServiceManager singleton."""
     global _instance
-    if _instance is not None:
-        _instance.stop()
-        _instance = None
+    with _instance_lock:
+        if _instance is not None and _instance.stop():
+            _instance = None

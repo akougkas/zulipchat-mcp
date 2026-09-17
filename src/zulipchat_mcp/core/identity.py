@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -169,11 +170,21 @@ class IdentityManager:
         self.config = config
         self.identities: dict[IdentityType, Identity] = {}
         self.current_identity: IdentityType | None = None
-        self._temporary_identity: IdentityType | None = None
+        self._identity_context: ContextVar[IdentityType | None] = ContextVar(
+            "zulip_identity", default=None
+        )
         # Removed: _identity_stack - over-engineering with nested contexts
 
         # Initialize identities
         self._initialize_identities()
+
+    @property
+    def _temporary_identity(self) -> IdentityType | None:
+        return self._identity_context.get()
+
+    @_temporary_identity.setter
+    def _temporary_identity(self, identity: IdentityType | None) -> None:
+        self._identity_context.set(identity)
 
     def _initialize_identities(self) -> None:
         """Initialize available identities from configuration."""
@@ -181,6 +192,11 @@ class IdentityManager:
         email: str | None = getattr(self.config, "email", config_data.email)
         api_key: str | None = getattr(self.config, "api_key", config_data.api_key)
         site: str | None = getattr(self.config, "site", config_data.site)
+        if config_data.config_file:
+            credentials = self.config.get_zulip_client_config()
+            email, api_key, site = (
+                credentials[key] for key in ("email", "api_key", "site")
+            )
 
         if not email or not api_key or not site:
             raise ValueError("User credentials (email, api_key, site) are required")
@@ -197,6 +213,12 @@ class IdentityManager:
             else None
         )
         bot_name = getattr(self.config, "bot_name", config_data.bot_name) or "Bot"
+        bot_site: str | None = site
+        if has_bot_credentials and config_data.bot_config_file:
+            credentials = self.config.get_zulip_client_config(use_bot=True)
+            bot_email, bot_api_key, bot_site = (
+                credentials[key] for key in ("email", "api_key", "site")
+            )
 
         # User identity (always available)
         user_identity = Identity(
@@ -217,7 +239,7 @@ class IdentityManager:
                 type=IdentityType.BOT,
                 email=bot_email,
                 api_key=bot_api_key,
-                site=site,
+                site=bot_site or site,
                 name=bot_name,
             )
             # Provide the config manager to bot identity

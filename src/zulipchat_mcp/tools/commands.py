@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from ..config import get_config_manager
+from ..config import get_client
 from ..core.client import ZulipClientWrapper
 from ..core.commands.engine import (
     AddReactionCommand,
@@ -113,6 +113,8 @@ class WaitForResponseCommand(Command):
 
         result = _run_async_from_sync(_run)
 
+        if result.get("status") != "success":
+            raise ValueError(result.get("error", "Failed to wait for response"))
         context.set("response", result.get("response"))
         return result
 
@@ -138,24 +140,18 @@ class SearchMessagesCommand(Command):
     def execute(
         self, context: ExecutionContext, client: ZulipClientWrapper
     ) -> dict[str, Any]:
-        """Execute search via v0.4 advanced_search adaptor.
+        """Execute search with the chain's authenticated client.
 
         Returns a legacy-shaped dict with a top-level "messages" list
         for backward compatibility with prior command chains.
         """
-        from .search import advanced_search  # v0.4 tool
-
         query = context.get(self.query_key)
         if not query:
             raise ValueError("search_query required in context")
-
-        async def _run() -> dict[str, Any]:
-            res = await advanced_search(query, search_type=["messages"], limit=100)
-            # Map v0.4 shape -> legacy shape expected by chains/tests
-            msgs = res.get("results", {}).get("messages", {}).get("messages", [])
-            return {"status": res.get("status", "success"), "messages": msgs}
-
-        result = _run_async_from_sync(_run)
+        response = client.search_messages(query, num_results=100)
+        if response.get("result") != "success":
+            raise ValueError(response.get("msg", "Search failed"))
+        result = {"status": "success", "messages": response.get("messages", [])}
 
         context.set("search_results", result.get("messages", []))
         return result
@@ -242,7 +238,7 @@ def execute_chain(
             this with values your commands will need.
             Example: {"search_query": "test", "message_type": "stream"}
     """
-    chain = CommandChain("mcp_chain", client=ZulipClientWrapper(get_config_manager()))
+    chain = CommandChain("mcp_chain", client=get_client())
     for cmd in commands:
         chain.add_command(build_command(cmd))
     context = chain.execute(initial_context=initial_context or {})

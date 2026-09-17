@@ -109,30 +109,39 @@ class TestConfigManager:
             manager = ConfigManager()
             assert manager.has_bot_credentials() is True
 
-    def test_get_zulip_client_config(self, monkeypatch):
+    def test_get_zulip_client_config(self, monkeypatch, tmp_path):
         """Test getting client config dict."""
         monkeypatch.delenv("ZULIP_CONFIG_FILE", raising=False)
         monkeypatch.delenv("ZULIP_BOT_CONFIG_FILE", raising=False)
         monkeypatch.delenv("ZULIP_BOT_EMAIL", raising=False)
         monkeypatch.delenv("ZULIP_BOT_API_KEY", raising=False)
         # User config
-        manager = ConfigManager(config_file="/user/path")
+        user_path = tmp_path / "user.zuliprc"
+        bot_path = tmp_path / "bot.zuliprc"
+        user_path.write_text(
+            "[api]\nemail=user@example.com\nkey=user-key\nsite=https://example.com\n"
+        )
+        bot_path.write_text(
+            "[api]\nemail=bot@example.com\nkey=bot-key\nsite=https://example.com\n"
+        )
+        manager = ConfigManager(config_file=str(user_path))
         cfg = manager.get_zulip_client_config(use_bot=False)
-        assert cfg["config_file"] == "/user/path"
+        assert cfg["config_file"] == str(user_path)
 
         # Bot config
         with patch("os.path.exists", return_value=True):
             manager = ConfigManager(
-                config_file="/user/path", bot_config_file="/bot/path"
+                config_file=str(user_path), bot_config_file=str(bot_path)
             )
             cfg = manager.get_zulip_client_config(use_bot=True)
-            assert cfg["config_file"] == "/bot/path"
+            assert cfg["config_file"] == str(bot_path)
+            assert cfg["email"] == "bot@example.com"
 
         # Fallback to user config if bot requested but not available
         with patch("os.path.exists", return_value=False):
-            manager = ConfigManager(config_file="/user/path")
+            manager = ConfigManager(config_file=str(user_path))
             cfg = manager.get_zulip_client_config(use_bot=True)
-            assert cfg["config_file"] == "/user/path"
+            assert cfg["config_file"] == str(user_path)
         # Wait, code says:
         # if use_bot and self.has_bot_credentials(): return bot_config
         # return user_config

@@ -6,6 +6,7 @@ Identity-protected topic operations:
 - Destructive operations (delete) require --unsafe mode
 """
 
+import asyncio
 from typing import Any, Literal
 
 from fastmcp import FastMCP
@@ -19,7 +20,7 @@ async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str,
     client = get_client()
 
     try:
-        result = client.get_stream_topics(stream_id)
+        result = await asyncio.to_thread(client.get_stream_topics, stream_id)
         if result.get("result") == "success":
             topics = result.get("topics", [])
             return {
@@ -59,7 +60,7 @@ async def agents_channel_topic_ops(
 
     try:
         # Get Agents-Channel stream ID
-        stream_result = client.get_stream_id("Agents-Channel")
+        stream_result = await asyncio.to_thread(client.get_stream_id, "Agents-Channel")
         if stream_result.get("result") != "success":
             return {"status": "error", "error": "Agents-Channel not found"}
 
@@ -83,8 +84,8 @@ async def agents_channel_topic_ops(
                 {"operator": "topic", "operand": source_topic},
             ]
 
-            search_result = client.get_messages_raw(
-                narrow=narrow, num_before=1, num_after=0
+            search_result = await asyncio.to_thread(
+                client.get_messages_raw, narrow=narrow, num_before=1, num_after=0
             )
 
             if search_result.get("result") != "success" or not search_result.get(
@@ -96,7 +97,8 @@ async def agents_channel_topic_ops(
             # (Do NOT import edit_message wrapper - it creates new user client)
             message_id = search_result["messages"][0]["id"]
 
-            edit_result = client.edit_message(
+            edit_result = await asyncio.to_thread(
+                client.edit_message,
                 message_id=message_id,
                 topic=target_topic,
                 propagate_mode=propagate_mode,
@@ -126,7 +128,9 @@ async def agents_channel_topic_ops(
                     "hint": "Start the server with --unsafe flag to enable destructive operations",
                 }
 
-            result = client.delete_topic(agents_channel_id, source_topic)
+            result = await asyncio.to_thread(
+                client.delete_topic, agents_channel_id, source_topic
+            )
             if result.get("result") == "success":
                 return {
                     "status": "success",
@@ -142,7 +146,9 @@ async def agents_channel_topic_ops(
                 }
 
         elif operation == "mute":
-            result = client.mute_topic(agents_channel_id, source_topic)
+            result = await asyncio.to_thread(
+                client.mute_topic, agents_channel_id, source_topic
+            )
             return (
                 {
                     "status": "success",
@@ -155,7 +161,9 @@ async def agents_channel_topic_ops(
             )
 
         elif operation == "unmute":
-            result = client.unmute_topic(agents_channel_id, source_topic)
+            result = await asyncio.to_thread(
+                client.unmute_topic, agents_channel_id, source_topic
+            )
             return (
                 {
                     "status": "success",

@@ -4,8 +4,9 @@ Core search operations: search messages, advanced search, narrow construction.
 Analytics moved to ai_analytics.py for LLM elicitation.
 """
 
+import asyncio
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Any, Literal, TypedDict, cast
 
@@ -53,7 +54,7 @@ async def resolve_user_identifier(
     try:
         # Try exact email match first
         if "@" in identifier:
-            response = client.get_users()
+            response = await asyncio.to_thread(client.get_users)
             if response.get("result") == "success":
                 users = response.get("members", [])
                 exact_match = next(
@@ -63,7 +64,7 @@ async def resolve_user_identifier(
                     return exact_match
 
         # Get all users for fuzzy matching
-        response = client.get_users()
+        response = await asyncio.to_thread(client.get_users)
         if response.get("result") != "success":
             raise Exception(
                 f"Failed to fetch users: {response.get('msg', 'Unknown error')}"
@@ -288,65 +289,59 @@ async def search_messages(
             is_mentioned=is_mentioned,
         )
 
-        # Determine anchor strategy based on time filters and sort
-        anchor: str = "newest"
-        anchor_date: str | None = None
-        num_before = limit
-        num_after = 0
+        if not 1 <= limit <= 1000:
+            return {"status": "error", "error": "limit must be between 1 and 1000"}
 
-        # Time-based filtering uses anchor="date" (Zulip 12.0+, feature level 445)
-        # NOTE: anchor_date positions the anchor but does NOT filter - post-fetch filtering required
-        cutoff_ts: float | None = None
-        before_ts: float | None = None
-
-        if last_hours or last_days or after_time:
-            # Calculate cutoff time
-            if last_hours:
-                hours = int(last_hours) if isinstance(last_hours, str) else last_hours
-                cutoff = datetime.now() - timedelta(hours=hours)
-            elif last_days:
-                days = int(last_days) if isinstance(last_days, str) else last_days
-                cutoff = datetime.now() - timedelta(days=days)
-            elif after_time:
-                cutoff = (
-                    after_time
-                    if isinstance(after_time, datetime)
-                    else datetime.fromisoformat(str(after_time))
-                )
-            else:
-                cutoff = None
-
-            if cutoff:
-                cutoff_ts = cutoff.timestamp()
-                # anchor="date" only works efficiently WITH a narrow filter.
-                # Without a narrow, the server times out searching entire DB.
-                # Fallback: use anchor="newest" and filter client-side.
-                if narrow:
-                    anchor = "date"
-                    anchor_date = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    num_before = 0
-                    num_after = limit
-                else:
-                    # No narrow: fetch newest messages, filter by timestamp client-side
-                    anchor = "newest"
-                    num_before = limit * 2  # Fetch extra to account for filtering
-                    num_after = 0
-
-        if before_time:
-            bt = (
-                before_time
-                if isinstance(before_time, datetime)
-                else datetime.fromisoformat(str(before_time))
+        def parse_time(value: datetime | str) -> datetime:
+            parsed = (
+                value
+                if isinstance(value, datetime)
+                else datetime.fromisoformat(value.replace("Z", "+00:00"))
             )
-            before_ts = bt.timestamp()
+            return (
+                parsed.replace(tzinfo=timezone.utc)
+                if parsed.tzinfo is None
+                else parsed.astimezone(timezone.utc)
+            )
 
-        if sort_by == "oldest" and anchor != "date":
-            anchor = "oldest"
-            num_before = 0
-            num_after = limit
+        cutoff: datetime | None = None
+        if last_hours is not None:
+            hours = int(last_hours)
+            if hours <= 0:
+                return {"status": "error", "error": "last_hours must be positive"}
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        elif last_days is not None:
+            days = int(last_days)
+            if days <= 0:
+                return {"status": "error", "error": "last_days must be positive"}
+            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        if after_time is not None:
+            after = parse_time(after_time)
+            cutoff = max(cutoff, after) if cutoff else after
+        before = parse_time(before_time) if before_time is not None else None
+        if cutoff and before and cutoff > before:
+            return {
+                "status": "error",
+                "error": "after_time must not exceed before_time",
+            }
+        cutoff_ts = cutoff.timestamp() if cutoff else None
+        before_ts = before.timestamp() if before else None
+
+        # Fetch from the requested end of the interval. Anchoring at its start
+        # for a newest-first query silently returns the oldest matching sample.
+        oldest_first = sort_by == "oldest"
+        anchor = "oldest" if oldest_first else "newest"
+        anchor_date = None
+        boundary = cutoff if oldest_first else before
+        if boundary:
+            anchor = "date"
+            anchor_date = boundary.isoformat()
+        num_before = 0 if oldest_first else limit
+        num_after = limit if oldest_first else 0
 
         # Execute search
-        result = client.get_messages_raw(
+        result = await asyncio.to_thread(
+            client.get_messages_raw,
             anchor=anchor,
             anchor_date=anchor_date,
             narrow=cast(list[dict[str, Any]], narrow),
@@ -365,6 +360,12 @@ async def search_messages(
                 messages = [m for m in messages if m["timestamp"] >= cutoff_ts]
             if before_ts is not None:
                 messages = [m for m in messages if m["timestamp"] <= before_ts]
+
+            messages = sorted(
+                messages,
+                key=lambda message: (message["timestamp"], message["id"]),
+                reverse=not oldest_first,
+            )[:limit]
 
             # Process messages for response
             processed_messages = []
@@ -450,7 +451,7 @@ async def advanced_search(
 
         # Search users
         if "users" in search_type:
-            users_response = client.get_users()
+            users_response = await asyncio.to_thread(client.get_users)
             if users_response.get("result") == "success":
                 users = users_response.get("members", [])
                 matching_users = [
@@ -464,10 +465,15 @@ async def advanced_search(
                     "users": matching_users,
                     "count": len(matching_users),
                 }
+            else:
+                results["users"] = {
+                    "status": "error",
+                    "error": users_response.get("msg", "User search failed"),
+                }
 
         # Search streams
         if "streams" in search_type:
-            streams_response = client.get_streams()
+            streams_response = await asyncio.to_thread(client.get_streams)
             if streams_response.get("result") == "success":
                 streams = streams_response.get("streams", [])
                 matching_streams = [
@@ -481,6 +487,45 @@ async def advanced_search(
                     "streams": matching_streams,
                     "count": len(matching_streams),
                 }
+            else:
+                results["streams"] = {
+                    "status": "error",
+                    "error": streams_response.get("msg", "Stream search failed"),
+                }
+
+        if "topics" in search_type:
+            if not stream:
+                results["topics"] = {
+                    "status": "error",
+                    "error": "Provide stream when searching topics",
+                }
+            else:
+                stream_result = await asyncio.to_thread(client.get_stream_id, stream)
+                if stream_result.get("result") != "success":
+                    results["topics"] = {
+                        "status": "error",
+                        "error": stream_result.get("msg", "Stream not found"),
+                    }
+                else:
+                    topics_result = await asyncio.to_thread(
+                        client.get_stream_topics, stream_result["stream_id"]
+                    )
+                    if topics_result.get("result") != "success":
+                        results["topics"] = {
+                            "status": "error",
+                            "error": topics_result.get("msg", "Topic search failed"),
+                        }
+                    else:
+                        topics = [
+                            item
+                            for item in topics_result.get("topics", [])
+                            if query.lower() in item.get("name", "").lower()
+                        ][:limit]
+                        results["topics"] = {
+                            "status": "success",
+                            "topics": topics,
+                            "count": len(topics),
+                        }
 
         # Basic aggregations only
         if (
@@ -497,14 +542,25 @@ async def advanced_search(
 
             if "count_by_stream" in aggregations:
                 stream_counts = Counter(
-                    msg["stream"] for msg in messages if msg["stream"]
+                    msg["stream"]
+                    for msg in messages
+                    if isinstance(msg.get("stream"), str) and msg["stream"]
                 )
                 agg_results["count_by_stream"] = dict(stream_counts.most_common(10))
 
             results["aggregations"] = agg_results
 
+        failures = [
+            kind
+            for kind in search_type
+            if results.get(kind, {}).get("status") != "success"
+        ]
         return {
-            "status": "success",
+            "status": (
+                "error"
+                if len(failures) == len(search_type)
+                else "partial" if failures else "success"
+            ),
             "query": query,
             "search_types": search_type,
             "results": results,
@@ -544,6 +600,11 @@ async def construct_narrow(
 ) -> dict[str, Any]:
     """Construct narrow filter following Zulip API patterns."""
     try:
+        if after_time is not None or before_time is not None:
+            return {
+                "status": "error",
+                "error": "Zulip narrow filters cannot encode timestamps. Use search_messages with after_time/before_time instead.",
+            }
         narrow: list[NarrowFilter] = []
 
         # Basic operators
@@ -620,23 +681,6 @@ async def construct_narrow(
                     {"operator": "is", "operand": "followed", "negated": True}
                 )
 
-        # Time filters
-        if after_time:
-            time_str = (
-                after_time.isoformat()
-                if isinstance(after_time, datetime)
-                else after_time
-            )
-            narrow.append({"operator": "search", "operand": f"after:{time_str}"})
-
-        if before_time:
-            time_str = (
-                before_time.isoformat()
-                if isinstance(before_time, datetime)
-                else before_time
-            )
-            narrow.append({"operator": "search", "operand": f"before:{time_str}"})
-
         # ID-based filters
         if message_id:
             narrow.append({"operator": "id", "operand": message_id})
@@ -678,8 +722,10 @@ async def check_messages_match_narrow(
             "narrow": narrow,
         }
 
-        result = client.client.call_endpoint(
-            "messages/matches_narrow", method="GET", request=request_data
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                "messages/matches_narrow", method="GET", request=request_data
+            )
         )
 
         if result.get("result") == "success":

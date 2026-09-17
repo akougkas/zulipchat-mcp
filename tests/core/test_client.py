@@ -101,7 +101,10 @@ class TestZulipClientWrapper:
         from src.zulipchat_mcp.core.client import Client
 
         Client.assert_called_with(
-            email="test@example.com", api_key="key", site="https://chat.zulip.org"
+            email="test@example.com",
+            api_key="key",
+            site="https://chat.zulip.org",
+            retry_on_errors=False,
         )
 
     def test_send_message_stream(self, mock_config_manager, mock_zulip_client):
@@ -170,9 +173,7 @@ class TestZulipClientWrapper:
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
 
         # Setup cache
-        from src.zulipchat_mcp.core.client import stream_cache
-
-        stream_cache.set_streams([{"name": "cached"}])
+        wrapper.stream_cache.set_streams([{"name": "cached"}])
 
         # Call should return cached
         result = wrapper.get_streams()

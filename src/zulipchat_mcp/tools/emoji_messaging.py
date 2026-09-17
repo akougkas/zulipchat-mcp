@@ -4,6 +4,7 @@ Clean implementation of Zulip's emoji reaction API endpoints.
 Direct mapping to add/remove reaction APIs.
 """
 
+import asyncio
 import re
 from typing import Any, Literal
 
@@ -53,16 +54,14 @@ async def add_reaction(
 
     try:
         # Prepare request data for Zulip API
-        request_data = {
-            "message_id": message_id,
-            "emoji_name": emoji_name,
-            "reaction_type": reaction_type,
-        }
+        request_data: dict[str, str] = {"reaction_type": reaction_type}
 
         if emoji_code:
             request_data["emoji_code"] = emoji_code
 
-        result = client.add_reaction(message_id, emoji_name)
+        result = await asyncio.to_thread(
+            client.add_reaction, message_id, emoji_name, **request_data
+        )
 
         if result.get("result") == "success":
             return {
@@ -100,7 +99,12 @@ async def remove_reaction(
     client = get_client()
 
     try:
-        result = client.remove_reaction(message_id, emoji_name)
+        request_data: dict[str, str] = {"reaction_type": reaction_type}
+        if emoji_code:
+            request_data["emoji_code"] = emoji_code
+        result = await asyncio.to_thread(
+            client.remove_reaction, message_id, emoji_name, **request_data
+        )
 
         if result.get("result") == "success":
             return {
