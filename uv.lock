@@ -764,14 +764,14 @@ wheels = [
 
 [[package]]
 name = "fastmcp"
-version = "4.0.4"
+version = "4.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastmcp-slim", extra = ["client", "server"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/55/b9/43c8a57614b130855800c7233ab7865ae9f67bd8ff025bf9324f92b866d9/fastmcp-4.0.4.tar.gz", hash = "sha256:1ba4809c5072f18647474e6d49583d7c7cfca7d41bd7d86a5f653a7aababe496", size = 42346535, upload-time = "2026-09-16T00:04:31.238Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c6/4e/8acec5837a5611b19b7d1ad0515f6ebac14ad526ac801f4d81de73a4e246/fastmcp-4.0.10.tar.gz", hash = "sha256:64539631a7dc5873a1c7a44089b2f7b3395dea3ca857e9f81bfe9665a59038d5", size = 42415441, upload-time = "2026-09-25T17:19:59.734Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/82/53c709dbcb3fc89d8d8b527b3c6de6e351597d5045e111b8a897c0539bd0/fastmcp-4.0.4-py3-none-any.whl", hash = "sha256:989313f2be6c3277e55cc32d28e74b80641d5d7aadbd3618f4ace38cc7178ff5", size = 8075, upload-time = "2026-09-16T00:04:26.48Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/04/897d9e48e653793a3e6ef5b8cb190bb194e0a8756d8051f6d7c214acba97/fastmcp-4.0.10-py3-none-any.whl", hash = "sha256:1f8462e3d97394a637e1b0f1eaea0002da661c8d98000ad43f0aa3fa1ff523e8", size = 8100, upload-time = "2026-09-25T17:19:56.6Z" },
 ]
 
 [package.optional-dependencies]
@@ -781,7 +781,7 @@ tasks = [
 
 [[package]]
 name = "fastmcp-slim"
-version = "4.0.4"
+version = "4.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "mcp-types" },
@@ -792,9 +792,9 @@ dependencies = [
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/46/4a2f2d62250f6ad89c23010eccbd20ccdff077ce0f6ecd2e78374c3fda27/fastmcp_slim-4.0.4.tar.gz", hash = "sha256:117ffce5719ba5ad2c4ca923176709dd50233717d22c0124c084a4c85925818f", size = 687813, upload-time = "2026-09-16T00:03:42.234Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/7b/ab66bdf56ac1741952b2b288166f0525ed63096958871b439ce2b6f58d4b/fastmcp_slim-4.0.10.tar.gz", hash = "sha256:d22b423f93ad945bf65d446a1689ff84be7b91dfd9b6f23c5013f4b2fe9776a7", size = 701806, upload-time = "2026-09-25T17:19:35.311Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/de/a4c72828bc64ec308a72de8d634df99fc629f1dd1ff17962f9dc1a145d15/fastmcp_slim-4.0.4-py3-none-any.whl", hash = "sha256:125d9a9384f65ea44d9dcacf4922ea90112f0338e90cc21e5d6f01ec14cbaef5", size = 862012, upload-time = "2026-09-16T00:03:40.8Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/86/9f99555e7b41d123c9c9f5fa9697e713129e43240de66b475f2324930c4c/fastmcp_slim-4.0.10-py3-none-any.whl", hash = "sha256:c2abd40302b8f06b0291413cf537d57bc0f171b5fd98af5cfef3b2b6b506122f", size = 876165, upload-time = "2026-09-25T17:19:34.001Z" },
 ]
 
 [package.optional-dependencies]
@@ -833,16 +833,16 @@ server = [
 
 [[package]]
 name = "fastmcp-tasks"
-version = "4.0.4"
+version = "4.0.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastmcp-slim", extra = ["server"] },
     { name = "pydocket" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/62/db/05f423e5dbc6d8c3a31c3187f0bd8a6e4c482e26489c1931e2eb70787699/fastmcp_tasks-4.0.4.tar.gz", hash = "sha256:1493d2dd4af08ee2704b55698ac218aa79cdda6a9001fb47690a475794b5ff66", size = 54248, upload-time = "2026-09-16T00:04:07.297Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/a9/f81f9d23d456a79ae02ee240389f6df724d910eed074a14a73b57c154cf4/fastmcp_tasks-4.0.10.tar.gz", hash = "sha256:af4e4638114e15a42b7fe24cd580ceac10565f5d1576dc412e2be55b195d192f", size = 54408, upload-time = "2026-09-25T17:19:55.198Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/09/69/8f5237c7c169f469958a157c678c66cbac9b70c121f0822771d2c2503e8f/fastmcp_tasks-4.0.4-py3-none-any.whl", hash = "sha256:5c4393808e8866bc7a2c4c8e585eebec9350bcfbee3b48491314608afb6aba7e", size = 65401, upload-time = "2026-09-16T00:04:06.113Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/2f/da2c361e3287209d471d0894ab025ffb4abf66303b228f58c7e6e28c9074/fastmcp_tasks-4.0.10-py3-none-any.whl", hash = "sha256:5af2c32494aab692a89dbf7263143eb2a9e22f67740b9ca4917cd3d723038701", size = 65600, upload-time = "2026-09-25T17:19:54.215Z" },
 ]
 
 [[package]]
@@ -2928,7 +2928,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.78.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "duckdb", specifier = ">=1.3.0" },
-    { name = "fastmcp", extras = ["tasks"], specifier = "==4.0.4" },
+    { name = "fastmcp", extras = ["tasks"], specifier = ">=4.0.4,<5" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "mcp-types", specifier = ">=2.2.0,<3" },
