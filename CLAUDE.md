@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.7.5)
+## Current Status (v0.7.6)
 
-**Current release**: v0.7.5 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
+**Current release**: v0.7.6 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
@@ -12,7 +12,7 @@ Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipcha
 
 ## Project Overview
 
-ZulipChat MCP Server v0.7.5 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.7.6 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 

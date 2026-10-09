@@ -374,17 +374,33 @@ def poll_agent_events(
     mentions_stream: str | None = None,
     after_message_id: int | None = None,
     wait_seconds: float = 0,
+    direct_messages: bool = False,
 ) -> dict[str, Any]:
     """Poll owner control events; use auto_ack=False and ack_event_ids for replay.
 
     include_audit=True also exposes outbound and unauthorized audit records.
     mentions_stream instead reads bot mentions without a pre-existing session.
+    direct_messages=True reads every direct or group-direct message the bot
+    receives instead (no @-mention needed; the bot's own messages are excluded).
+    The two modes are mutually exclusive and share after_message_id,
+    wait_seconds<=25, limit<=50 and the host-owned next_after_message_id cursor.
+    Each direct-message event lists recipients and reply_to (all participants
+    except the bot) so the host can answer in the same conversation.
+    Only senders allowed by --mention-allow (default: the configured owner) are
+    returned in events. Others appear only in ignored_unauthorized, without
+    content, and the cursor still advances past them.
     The host owns durable message-ID deduplication and agent wake-up policy.
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
         track_tool_call("poll_agent_events")
         try:
-            if mentions_stream is not None:
+            if mentions_stream is not None or direct_messages:
+                if mentions_stream is not None and direct_messages:
+                    return {
+                        "status": "error",
+                        "error": "mentions_stream and direct_messages are mutually exclusive",
+                        "retryable": False,
+                    }
                 if (
                     session_id
                     or agent_id
@@ -403,7 +419,7 @@ def poll_agent_events(
             if after_message_id is not None or wait_seconds:
                 return {
                     "status": "error",
-                    "error": "after_message_id and wait_seconds require mentions_stream",
+                    "error": "after_message_id and wait_seconds require mentions_stream or direct_messages",
                     "retryable": False,
                 }
             db = DatabaseManager()
@@ -445,8 +461,9 @@ def poll_agent_events(
                     "This feed only holds owner replies to bound agent sessions. "
                     "For @bot mentions call poll_agent_events(mentions_stream=CHANNEL, "
                     "after_message_id=LAST_SEEN, wait_seconds=20, auto_ack=False) and "
-                    "pass next_after_message_id to the next call. Do not re-run an "
-                    "identical search to watch for new messages."
+                    "pass next_after_message_id to the next call. For direct messages "
+                    "to the bot use direct_messages=True the same way. Do not re-run "
+                    "an identical search to watch for new messages."
                 )
             try:
                 ensure_listener()
@@ -459,19 +476,26 @@ def poll_agent_events(
 
 
 def _poll_bot_mentions(
-    stream: str, after_message_id: int | None, limit: int, wait_seconds: float = 0
+    stream: str | None,
+    after_message_id: int | None,
+    limit: int,
+    wait_seconds: float = 0,
 ) -> dict[str, Any]:
-    """Read the configured bot's mention inbox; never execute message contents."""
+    """Read the configured bot's mention (or, with no stream, direct-message) inbox.
+
+    Message contents are never executed. Senders outside the --mention-allow
+    policy are returned without content in ignored_unauthorized only.
+    """
+    direct = stream is None
     if (
-        not stream.strip()
-        or len(stream) > 200
+        (stream is not None and (not stream.strip() or len(stream) > 200))
         or not 1 <= limit <= 50
         or (after_message_id is not None and after_message_id < 0)
         or not 0 <= wait_seconds <= 25
     ):
         return {
             "status": "error",
-            "error": "Mention polling requires a stream, limit 1..50, nonnegative cursor and wait_seconds 0..25",
+            "error": "Inbox polling requires a nonblank mentions_stream (when used), limit 1..50, nonnegative cursor and wait_seconds 0..25",
             "retryable": False,
         }
     config = get_config_manager()
@@ -482,36 +506,79 @@ def _poll_bot_mentions(
             "error_code": "BOT_NOT_CONFIGURED",
             "retryable": False,
         }
+    try:
+        policy = config.mention_allow_policy()
+    except ValueError as error:
+        return {
+            "status": "error",
+            "error": f"Invalid mention allow policy: {error}",
+            "retryable": False,
+        }
     coordinator = _get_coordinator()
     from ..services.bot_mentions import get_mention_inbox
 
     inbox = get_mention_inbox(
         coordinator.bot_client,
         config.resolved_account().fingerprint,
-        stream.strip(),
+        None if stream is None else stream.strip(),
         after_message_id,
     )
     result = inbox.poll(after_message_id, limit, wait_seconds)
     owner = coordinator.default_owner_email().casefold()
+    bot_user_id = result.get("bot_user_id")
+    kind = "direct_message" if direct else "mention"
     events = []
+    ignored = []
     messages = result.pop("messages")
     for message in messages:
         message_id = message["id"]
         if after_message_id is not None and message_id <= after_message_id:
             continue
+        recipients = [
+            {"id": person.get("id"), "email": person.get("email")}
+            for person in (message.get("display_recipient") or [] if direct else [])
+            if isinstance(person, dict)
+        ]
+        where: dict[str, Any] = (
+            {"recipients": recipients}
+            if direct
+            else {"stream_id": message.get("stream_id")}
+        )
+        if not policy.allows(
+            message.get("sender_id"), message.get("sender_email"), owner
+        ):
+            # Metadata only: a host must not be able to act on unauthorized text.
+            ignored.append(
+                {
+                    "event_type": kind,
+                    "message_id": message_id,
+                    "sender_id": message.get("sender_id"),
+                    "sender_email": message.get("sender_email"),
+                    **where,
+                    "timestamp": message.get("timestamp"),
+                }
+            )
+            continue
         content = str(message.get("content", ""))
+        event: dict[str, Any] = {
+            "id": f"{kind}:{message_id}",
+            "event_type": kind,
+            "message_id": message_id,
+            "sender_id": message.get("sender_id"),
+            "sender_email": message.get("sender_email"),
+            "is_configured_owner": str(message.get("sender_email", "")).casefold()
+            == owner,
+            **where,
+        }
+        if direct:
+            event["message_type"] = "private"
+            event["reply_to"] = [p for p in recipients if p["id"] != bot_user_id]
+        else:
+            event["stream_name"] = message.get("display_recipient")
+            event["topic"] = message.get("subject")
         events.append(
             {
-                "id": f"mention:{message_id}",
-                "event_type": "mention",
-                "message_id": message_id,
-                "sender_id": message.get("sender_id"),
-                "sender_email": message.get("sender_email"),
-                "is_configured_owner": str(message.get("sender_email", "")).casefold()
-                == owner,
-                "stream_id": message.get("stream_id"),
-                "stream_name": message.get("display_recipient"),
-                "topic": message.get("subject"),
+                **event,
                 "timestamp": message.get("timestamp"),
                 "content": content[:6000],
                 "content_truncated": message.get("content_truncated", False),
@@ -522,6 +589,8 @@ def _poll_bot_mentions(
         **result,
         "events": events,
         "count": len(events),
+        "ignored_unauthorized": ignored,
+        "authorization": policy.mode,
     }
 
 

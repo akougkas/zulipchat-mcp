@@ -1,6 +1,13 @@
 # Roadmap
 
-## v0.7.5 (Current release)
+## v0.7.6 (Current release)
+
+- Enforce owner-only bot mention and direct-message polling, with `--mention-allow`.
+- Read direct messages to the bot; send as the bot per message.
+- Suppress repeated identical sends; report the sending identity and UTC times.
+- Advertise MCP tool annotations derived from the read-only profile.
+
+## v0.7.5
 
 - Share one account database per Zulip account across projects and hosts under
   `$XDG_STATE_HOME/zulipchat-mcp`, rather than the server's working directory.

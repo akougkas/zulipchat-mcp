@@ -1,7 +1,9 @@
-"""Account-scoped, durable bot mention snapshots fed by Zulip long polling.
+"""Account-scoped, durable bot mention and direct-message snapshots fed by Zulip.
 
-This is a transport inbox, not an agent runner. Hosts decide which senders may
-wake an agent and commit their own message-ID cursor with their work queue.
+This is a transport inbox, not an agent runner. The tool layer withholds content
+from unauthorized senders; hosts still commit their own message-ID cursor with
+their work queue. One inbox serves one scope: a channel's @-mentions of the bot,
+or every direct and group-direct message the bot receives (stream is None).
 """
 
 from __future__ import annotations
@@ -24,19 +26,20 @@ from ..core.snapshots import invalidate_realm_snapshots
 
 
 class BotMentionInbox:
-    """One lazy event queue and bounded snapshot for one account/channel."""
+    """One lazy event queue and bounded snapshot for one account and scope."""
 
     def __init__(
         self,
         client: ZulipClientWrapper,
         path: Path,
         account_fingerprint: str,
-        stream: str,
+        stream: str | None,
         initial_cursor: int | None = None,
     ) -> None:
         self.client = client
         self.path = path
         self.stream = stream
+        self.direct = stream is None
         self.initial_cursor = initial_cursor
         self._condition = threading.Condition(threading.RLock())
         self._stop = threading.Event()
@@ -91,6 +94,35 @@ class BotMentionInbox:
             ).fetchone()
             return json.loads(row[0]) if row else None
 
+    def _accepts(self, message: dict[str, Any]) -> bool:
+        """Whether a message belongs in this inbox's scope."""
+        # The bot's own replies must never come back as new work, including a
+        # reply that @-mentions the bot itself.
+        if message.get("sender_id") == self._bot_id:
+            return False
+        if self.direct:
+            return message.get("type") == "private"
+        return "mentioned" in message.get("flags", [])
+
+    def _narrows(self) -> tuple[list[list[str]], list[dict[str, str]]]:
+        """Event-queue narrow and equivalent history narrow for this scope."""
+        if not self.direct:
+            return (
+                [["stream", str(self.stream)]],
+                [
+                    {"operator": "stream", "operand": str(self.stream)},
+                    {"operator": "is", "operand": "mentioned"},
+                ],
+            )
+        # Zulip 7.0 (feature level 177) replaced is:private with is:dm. Both are
+        # supported by event-queue narrows; older servers only know is:private.
+        level = getattr(self.client.client, "feature_level", 0)
+        operand = "private" if isinstance(level, int) and 0 < level < 177 else "dm"
+        return (
+            [["is", operand]],
+            [{"operator": "is", "operand": operand}],
+        )
+
     def _commit(
         self,
         messages: list[dict[str, Any]],
@@ -100,7 +132,7 @@ class BotMentionInbox:
         """Persist message deltas and the upstream cursor in one transaction."""
         with self._condition, self._connect() as db:
             for message in messages:
-                if "mentioned" not in message.get("flags", []):
+                if not self._accepts(message):
                     continue
                 message_id = message["id"]
                 if type(message_id) is not int or message_id <= 0:
@@ -153,9 +185,12 @@ class BotMentionInbox:
             self._bot_verified = True
         if self._state("queue_id"):
             return
+        event_narrow, history_narrow = self._narrows()
+        # Zulip applies a queue narrow to message events only; update_message and
+        # delete_message arrive unfiltered and merely tombstone known IDs here.
         response = self.client.register(
             event_types=["message", "update_message", "delete_message"],
-            narrow=[["stream", self.stream]],
+            narrow=event_narrow,
             apply_markdown=False,
         )
         self._check_response(response)
@@ -167,10 +202,7 @@ class BotMentionInbox:
             for _ in range(20):
                 self._history_requests += 1
                 history = self.client.get_messages_raw(
-                    narrow=[
-                        {"operator": "stream", "operand": self.stream},
-                        {"operator": "is", "operand": "mentioned"},
-                    ],
+                    narrow=history_narrow,
                     anchor=str(cursor) if cursor is not None else "newest",
                     num_before=50 if cursor is None else 0,
                     num_after=50 if cursor is not None else 0,
@@ -218,11 +250,14 @@ class BotMentionInbox:
             state = {"last_event_id": event["id"]}
             if event.get("type") == "message":
                 message = {**event["message"], "flags": event.get("flags", [])}
-                if message.get("type") == "stream":
+                if message.get("type") == ("private" if self.direct else "stream"):
                     messages.append(message)
                     state["message_cursor"] = max(
                         self._state("message_cursor") or 0, message["id"]
                     )
+            elif event.get("type") == "update_message" and event.get("rendering_only"):
+                # Server-side rendering (e.g. link previews) did not change the text.
+                pass
             elif event.get("type") in {"update_message", "delete_message"}:
                 # Changed input must not silently become a new executable task.
                 # Remove it from the inbox; edits can be fetched explicitly.
@@ -278,7 +313,9 @@ class BotMentionInbox:
         with self._condition:
             if self._thread is None:
                 self._thread = threading.Thread(
-                    target=self._run, name="zulip-bot-mentions", daemon=True
+                    target=self._run,
+                    name="zulip-bot-direct" if self.direct else "zulip-bot-mentions",
+                    daemon=True,
                 )
                 self._thread.start()
 
@@ -305,7 +342,7 @@ class BotMentionInbox:
         gap = floor is not None and (after_message_id or 0) < floor
         return {
             "status": "partial" if gap or self._error or not self._ready else "success",
-            "mode": "bot_mentions",
+            "mode": "bot_direct_messages" if self.direct else "bot_mentions",
             "messages": [json.loads(row[1]) for row in rows if not row[2]],
             "next_after_message_id": max(
                 (row[0] for row in rows), default=after_message_id
@@ -338,14 +375,14 @@ class BotMentionInbox:
                 pass
 
 
-_inboxes: dict[tuple[str, str, str], BotMentionInbox] = {}
+_inboxes: dict[tuple[str, str, str | None], BotMentionInbox] = {}
 _inboxes_lock = threading.Lock()
 
 
 def get_mention_inbox(
     client: ZulipClientWrapper,
     account_fingerprint: str,
-    stream: str,
+    stream: str | None,
     initial_cursor: int | None,
 ) -> BotMentionInbox:
     from ..utils.database import get_database
@@ -354,12 +391,16 @@ def get_mention_inbox(
     key = (base, account_fingerprint, stream)
     with _inboxes_lock:
         if key not in _inboxes:
-            if len(_inboxes) >= 4:
-                raise ValueError(
-                    "At most four mention channels per server are supported"
-                )
-            digest = hashlib.sha256(stream.encode()).hexdigest()[:16]
-            path = Path(base) / f"mentions-{account_fingerprint}-{digest}.sqlite3"
+            if stream is None:
+                # Direct messages have their own cache file, queue and lease.
+                path = Path(base) / f"direct-{account_fingerprint}.sqlite3"
+            else:
+                if sum(1 for _, _, scope in _inboxes if scope is not None) >= 4:
+                    raise ValueError(
+                        "At most four mention channels per server are supported"
+                    )
+                digest = hashlib.sha256(stream.encode()).hexdigest()[:16]
+                path = Path(base) / f"mentions-{account_fingerprint}-{digest}.sqlite3"
             _inboxes[key] = BotMentionInbox(
                 client, path, account_fingerprint, stream, initial_cursor
             )

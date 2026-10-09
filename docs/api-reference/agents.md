@@ -18,7 +18,7 @@ The agent tool family is now session-oriented: bind an agent profile, bind a Zul
 - `list_sessions(agent_id=None, include_closed=True)`
 - `list_instances()` — compatibility alias for session listing
 - `close_agent_session(session_id, status="completed", summary="")`
-- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None, auto_ack=True, ack_event_ids=None, include_audit=False, mentions_stream=None, after_message_id=None, wait_seconds=0)`
+- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None, auto_ack=True, ack_event_ids=None, include_audit=False, mentions_stream=None, after_message_id=None, wait_seconds=0, direct_messages=False)`
 
 ## Ordinary bot mentions
 
@@ -38,8 +38,16 @@ batch = poll_agent_events(
 This mode returns `events`, `bot_user_id`, `next_after_message_id`, listener
 health and local-cache/recovery counters. Each event includes numeric sender,
 channel and message IDs, topic, timestamp, raw content and truncation state.
-`is_configured_owner` is advisory; the host validates its actual pairing and
-sender allowlist. Check `status`, readiness and `cache.cursor_gap` before
+`direct_messages=True` reads direct and group-direct messages to the bot instead,
+with its own cursor; no mention is needed. Its events add `recipients` and
+`reply_to`, every participant except the bot.
+
+The server only returns events from senders admitted by `--mention-allow` or
+`ZULIPCHAT_MENTION_ALLOW`: by default the configured owner alone, or the owner
+plus listed emails and numeric user IDs, or `everyone`. Other senders appear in
+`ignored_unauthorized` with IDs and no content, and the cursor still advances
+past them. `authorization` and `server_info.mention_authorization` report the
+policy. Check `status`, readiness and `cache.cursor_gap` before
 dispatching. The host commits its cursor with a durable work queue and deduplicates
 tasks by message ID. No event acknowledgement SQL is used in mention mode.
 
