@@ -1,0 +1,12 @@
+{
+  "id": "zulipchat-mcp-clio-coder",
+  "name": "ZulipChat MCP for clio-coder",
+  "platform": "clio-coder",
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
+}

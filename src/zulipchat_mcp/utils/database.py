@@ -18,6 +18,10 @@ import duckdb
 logger = logging.getLogger(__name__)
 
 
+class AccountBindingError(RuntimeError):
+    """Persistent state belongs to another or an unassociated account."""
+
+
 class DatabaseLockedError(Exception):
     """Raised when the database is locked by another process after retries."""
 
@@ -137,6 +141,9 @@ class DatabaseManager:
         Args:
             conn: Active database connection to use for migrations
         """
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS listener_message_cursors (session_id TEXT PRIMARY KEY, last_message_id BIGINT NOT NULL)"
+        )
         # Create migrations table
         conn.execute("""
           CREATE TABLE IF NOT EXISTS schema_migrations(
@@ -570,6 +577,59 @@ class DatabaseManager:
         """Close the database manager (no-op, connections are short-lived)."""
         pass  # Connections are short-lived, nothing to close
 
+    def bind_account(
+        self, fingerprint: str, *, associate_existing: bool = False
+    ) -> None:
+        """Associate empty state or explicitly adopted history; never rebind it."""
+        with self._write_lock:
+            conn = self._connect()
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    "CREATE TABLE IF NOT EXISTS account_binding (id INTEGER PRIMARY KEY, fingerprint TEXT NOT NULL)"
+                )
+                row = conn.execute(
+                    "SELECT fingerprint FROM account_binding WHERE id = 1"
+                ).fetchone()
+                if row and row[0] != fingerprint:
+                    raise AccountBindingError(
+                        "Database account mismatch. Choose a separate ZULIPCHAT_DB_PATH for this realm/account; existing state was not reassigned."
+                    )
+                if not row:
+                    tables = (
+                        "agent_profiles",
+                        "agent_sessions",
+                        "agent_requests",
+                        "session_events",
+                        "listener_state",
+                        "tasks",
+                        "agents",
+                        "agent_instances",
+                        "user_input_requests",
+                        "agent_events",
+                        "agent_status",
+                        "afk_state",
+                        "streams_cache",
+                        "users_cache",
+                    )
+                    has_history = any(
+                        conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+                        for table in tables
+                    )
+                    if has_history and not associate_existing:
+                        raise AccountBindingError(
+                            "Existing database has no account association. Verify which account created it, then explicitly use --associate-existing-db, or choose a new ZULIPCHAT_DB_PATH."
+                        )
+                    conn.execute(
+                        "INSERT INTO account_binding VALUES (1, ?)", [fingerprint]
+                    )
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+            finally:
+                conn.close()
+
     def __del__(self) -> None:
         """Cleanup (no-op, connections are short-lived)."""
         pass
@@ -577,6 +637,7 @@ class DatabaseManager:
 
 # Global database manager instance
 _db_manager: DatabaseManager | None = None
+_database_initialization_error: Exception | None = None
 
 
 def get_database() -> DatabaseManager:
@@ -586,13 +647,22 @@ def get_database() -> DatabaseManager:
         Global DatabaseManager instance
     """
     global _db_manager
+    if _database_initialization_error is not None:
+        raise AccountBindingError(
+            "Database initialization did not complete; explicitly initialize and verify the account before using persistent state"
+        ) from _database_initialization_error
     if _db_manager is None:
         db_path = os.getenv("ZULIPCHAT_DB_PATH", ".mcp/zulipchat/zulipchat.duckdb")
         _db_manager = DatabaseManager(db_path)
     return _db_manager
 
 
-def init_database(db_path: str | None = None) -> DatabaseManager:
+def init_database(
+    db_path: str | None = None,
+    *,
+    account_fingerprint: str | None = None,
+    associate_existing: bool = False,
+) -> DatabaseManager:
     """Initialize the global database manager with a specific path.
 
     Args:
@@ -601,8 +671,28 @@ def init_database(db_path: str | None = None) -> DatabaseManager:
     Returns:
         Initialized DatabaseManager instance
     """
-    global _db_manager
+    global _db_manager, _database_initialization_error
     if db_path is None:
-        db_path = os.getenv("ZULIPCHAT_DB_PATH", ".mcp/zulipchat/zulipchat.duckdb")
-    _db_manager = DatabaseManager(db_path)
+        default = (
+            f".mcp/zulipchat/accounts/{account_fingerprint}/zulipchat.duckdb"
+            if account_fingerprint
+            else ".mcp/zulipchat/zulipchat.duckdb"
+        )
+        db_path = os.getenv("ZULIPCHAT_DB_PATH", default)
+    existing = DatabaseManager._instance
+    if existing is not None and getattr(existing, "db_path", None) != db_path:
+        DatabaseManager._instance = None
+    try:
+        candidate = DatabaseManager(db_path)
+        if account_fingerprint:
+            candidate.bind_account(
+                account_fingerprint, associate_existing=associate_existing
+            )
+    except Exception as error:
+        _db_manager = None
+        DatabaseManager._instance = None
+        _database_initialization_error = error
+        raise
+    _db_manager = candidate
+    _database_initialization_error = None
     return _db_manager

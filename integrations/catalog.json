@@ -1,6 +1,6 @@
 {
   "name": "zulipchat-mcp-integrations",
-  "version": "0.6.0",
+  "version": "0.7.4",
   "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
   "packages": [
     "claude-code",
@@ -11,6 +11,10 @@
     "cursor",
     "windsurf",
     "antigravity",
-    "generic"
+    "generic",
+    "copilot-cli",
+    "antigravity-cli",
+    "clio-coder",
+    "portable"
   ]
 }

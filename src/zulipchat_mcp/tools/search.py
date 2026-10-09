@@ -13,6 +13,7 @@ from typing import Any, Literal, TypedDict, cast
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 
 NarrowOperand = str | int | list[str]
@@ -218,6 +219,7 @@ async def search_messages(
     # Response control
     limit: int = 50,
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
+    fresh: bool = False,
 ) -> dict[str, Any]:
     """Advanced search with fuzzy user resolution and comprehensive filtering."""
     client = get_client()
@@ -350,10 +352,12 @@ async def search_messages(
             include_anchor=True,
             client_gravatar=True,
             apply_markdown=True,
+            use_cache=not fresh,
         )
 
         if result.get("result") == "success":
             messages = result.get("messages", [])
+            fetched_count = len(messages)
 
             # Post-fetch time filtering (anchor_date positions anchor, doesn't filter)
             if cutoff_ts is not None:
@@ -376,6 +380,11 @@ async def search_messages(
                         "sender": msg["sender_full_name"],
                         "email": msg["sender_email"],
                         "timestamp": msg["timestamp"],
+                        "timestamp_utc": datetime.fromtimestamp(
+                            msg["timestamp"], tz=timezone.utc
+                        ).isoformat(),
+                        "content_format": "rendered_html",
+                        "content_truncated": len(msg["content"]) > 1000,
                         "content": (
                             msg["content"][:1000] + "..."
                             if len(msg["content"]) > 1000
@@ -393,12 +402,28 @@ async def search_messages(
                 "status": "success",
                 "messages": processed_messages,
                 "found": len(processed_messages),
+                "sample": {
+                    "coverage": "single_api_window",
+                    "requested_limit": limit,
+                    "fetched_count": fetched_count,
+                    "returned_count": len(processed_messages),
+                    "truncated_excerpt_count": sum(
+                        message["content_truncated"] for message in processed_messages
+                    ),
+                    "found_oldest": result.get("found_oldest"),
+                    "found_newest": result.get("found_newest"),
+                    "after_time_utc": cutoff.isoformat() if cutoff else None,
+                    "before_time_utc": before.isoformat() if before else None,
+                    "ordering": "oldest_first" if oldest_first else "newest_first",
+                    "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "cache": result.get("_cache"),
+                },
                 "anchor": result.get("anchor"),
                 "narrow_applied": narrow,
                 "sort_by": sort_by,
             }
         else:
-            return {"status": "error", "error": result.get("msg", "Search failed")}
+            return api_error(result, "Search failed")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -742,10 +767,7 @@ async def check_messages_match_narrow(
                 "narrow_applied": narrow,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to check messages against narrow"),
-            }
+            return api_error(result, "Failed to check messages against narrow")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

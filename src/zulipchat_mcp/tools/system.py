@@ -51,17 +51,25 @@ async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
 async def server_info() -> dict[str, Any]:
     """Get ZulipChat MCP server information and capabilities."""
     config = get_config_manager()
+    account = config.resolved_account()
+    bot_available = config.has_bot_credentials()
 
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.7.3",
+        "version": "0.7.4",
         "available_identities": {
-            "user": {"available": True, "email": config.config.email},
+            "user": {
+                "available": True,
+                "email": account.user_email,
+                "site": account.site,
+            },
             "bot": {
-                "available": config.has_bot_credentials(),
-                "email": config.config.bot_email,
+                "available": bot_available,
+                "email": account.bot_email if bot_available else None,
+                "site": account.bot_site if bot_available else None,
                 "name": config.config.bot_name,
+                "name_source": "configured_label",
             },
         },
         "features": [
@@ -73,7 +81,7 @@ async def server_info() -> dict[str, Any]:
             "file_uploads",
             "dual_identity",
         ],
-        "zulip_site": config.config.site,
+        "zulip_site": account.site,
     }
 
 

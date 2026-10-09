@@ -1,0 +1,12 @@
+{
+  "id": "zulipchat-mcp-antigravity-cli",
+  "name": "ZulipChat MCP for antigravity-cli",
+  "platform": "antigravity-cli",
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
+}

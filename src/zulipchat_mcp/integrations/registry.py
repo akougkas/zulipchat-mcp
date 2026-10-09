@@ -13,6 +13,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from .. import __version__
 from .claude_code_package import export_claude_code_package
 
@@ -26,6 +28,9 @@ CLIENTS = [
     "vscode",
     "opencode",
     "antigravity",
+    "antigravity-cli",
+    "copilot",
+    "clio-coder",
     "generic",
 ]
 
@@ -95,9 +100,25 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
         "cursor",
         "windsurf",
         "antigravity",
+        "antigravity-cli",
         "generic",
     }:
         return json.dumps({"mcpServers": {"zulipchat": base}}, indent=2)
+
+    if client == "copilot":
+        return json.dumps(
+            {"mcpServers": {"zulipchat": {"type": "local", **base, "tools": ["*"]}}},
+            indent=2,
+        )
+
+    if client == "clio-coder":
+        return yaml.safe_dump(
+            {
+                "version": 1,
+                "servers": [{"id": "zulipchat", **base, "timeoutMs": 900000}],
+            },
+            sort_keys=False,
+        )
 
     if client == "vscode":
         payload = {
@@ -177,7 +198,20 @@ def main() -> None:
         "export",
         help="Export richer client integration assets",
     )
-    export_parser.add_argument("--client", choices=["claude-code"], required=True)
+    export_parser.add_argument(
+        "--client",
+        choices=[
+            "claude-code",
+            "codex",
+            "opencode",
+            "copilot",
+            "vscode",
+            "antigravity-cli",
+            "clio-coder",
+            "generic",
+        ],
+        required=True,
+    )
     export_parser.add_argument("--output-dir", required=True)
     export_parser.add_argument("--zulip-config-file", required=True)
     export_parser.add_argument("--zulip-bot-config-file")
@@ -218,16 +252,26 @@ def main() -> None:
         return
 
     if args.command == "export":
-        if args.client != "claude-code":
-            raise ValueError(f"Unsupported export client: {args.client}")
-        results = export_claude_code_package(
-            Path(args.output_dir),
-            zulip_config_file=args.zulip_config_file,
-            zulip_bot_config_file=args.zulip_bot_config_file,
-            mode=args.mode,
-            extended_tools=args.extended_tools,
-            force=args.force,
+        from .agent_package import export_agent_package
+
+        exporter = (
+            export_claude_code_package
+            if args.client == "claude-code"
+            else export_agent_package
         )
+        options = {} if args.client == "claude-code" else {"client": args.client}
+        try:
+            results = exporter(
+                Path(args.output_dir),
+                zulip_config_file=args.zulip_config_file,
+                zulip_bot_config_file=args.zulip_bot_config_file,
+                mode=args.mode,
+                extended_tools=args.extended_tools,
+                force=args.force,
+                **options,
+            )
+        except (ValueError, OSError) as error:
+            export_parser.error(str(error))
         print(json.dumps({"status": "success", "files": results}, indent=2))
 
 

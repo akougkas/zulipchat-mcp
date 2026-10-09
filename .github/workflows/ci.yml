@@ -6,82 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   version-check:
     name: Version Consistency Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Extract version from pyproject.toml
-        id: version
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Release metadata and companion-command checks
         run: |
-          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Expected version: $VERSION"
-
-      - name: Check __init__.py version
-        run: |
-          EXPECTED="${{ steps.version.outputs.version }}"
-          ACTUAL=$(grep '__version__ = ' src/zulipchat_mcp/__init__.py | sed 's/__version__ = "\(.*\)"/\1/')
-          echo "src/zulipchat_mcp/__init__.py: $ACTUAL"
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::Version mismatch in __init__.py: expected $EXPECTED, got $ACTUAL"
-            exit 1
-          fi
-
-      - name: Check system.py version field exists
-        run: |
-          EXPECTED="${{ steps.version.outputs.version }}"
-          if grep -q "\"version\".*\"$EXPECTED\"" src/zulipchat_mcp/tools/system.py; then
-            echo "src/zulipchat_mcp/tools/system.py contains version $EXPECTED"
-          else
-            echo "::error::Version mismatch: expected v$EXPECTED in system.py server_info"
-            exit 1
-          fi
-
-      - name: Check system.py version
-        run: |
-          EXPECTED="${{ steps.version.outputs.version }}"
-          ACTUAL=$(grep '"version":' src/zulipchat_mcp/tools/system.py | sed 's/.*"version": "\(.*\)".*/\1/')
-          echo "src/zulipchat_mcp/tools/system.py: $ACTUAL"
-          if [ "$ACTUAL" != "$EXPECTED" ]; then
-            echo "::error::Version mismatch in system.py: expected $EXPECTED, got $ACTUAL"
-            exit 1
-          fi
-
-      - name: Check server.json versions
-        run: |
-          export EXPECTED="${{ steps.version.outputs.version }}"
-          python - <<'PY'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-
-          expected = os.environ["EXPECTED"]
-          data = json.loads(Path("server.json").read_text())
-
-          top = data.get("version")
-          if top != expected:
-              print(f"::error::server.json top-level version mismatch: expected {expected}, got {top}")
-              sys.exit(1)
-
-          packages = data.get("packages", [])
-          pkg_versions = {pkg.get("version") for pkg in packages if pkg.get("version")}
-          if pkg_versions != {expected}:
-              print(
-                  "::error::server.json package version mismatch: "
-                  f"expected only {expected}, got {sorted(pkg_versions)}"
-              )
-              sys.exit(1)
-
-          print(f"server.json versions OK: {expected}")
-          PY
-
-      - name: Version check passed
-        run: echo "All version strings are consistent at ${{ steps.version.outputs.version }}"
+          VERSION=$(uv run --no-project --python 3.12 python -c 'import tomllib; from pathlib import Path; print(tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"])')
+          uv run --no-project --python 3.12 python scripts/release_preflight.py --version "$VERSION" --allow-existing-tag
 
   package-smoke:
     name: Package Build & Entrypoint Smoke
@@ -89,10 +31,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "latest"
 
@@ -113,11 +55,12 @@ jobs:
           .pkg-smoke/bin/zulipchat-mcp-setup --version
           .pkg-smoke/bin/zulipchat-mcp-integrate --version
           .pkg-smoke/bin/zulipchat-mcp-integrate list
+          .pkg-smoke/bin/zulipchat-mcp-hook --help > /dev/null
 
       - name: Run installed MCP stdio smoke
         run: |
           VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          .pkg-smoke/bin/python scripts/mcp_stdio_smoke.py \
+          uv run --no-project --python .pkg-smoke/bin/python scripts/mcp_stdio_smoke.py \
             --expected-version "$VERSION" \
             -- "$PWD/.pkg-smoke/bin/zulipchat-mcp"
 
@@ -128,14 +71,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10.2.0
         with:
           version: "latest"
 
@@ -143,7 +86,7 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --python ${{ matrix.python-version }}
+        run: uv sync --locked --python ${{ matrix.python-version }}
 
       - name: Entrypoint smoke checks
         run: |
@@ -151,6 +94,7 @@ jobs:
           uv run zulipchat-mcp-setup --version
           uv run zulipchat-mcp-integrate --version
           uv run zulipchat-mcp-integrate list
+          uv run zulipchat-mcp-hook --help > /dev/null
 
       - name: MCP stdio smoke
         run: |

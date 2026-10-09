@@ -1,5 +1,6 @@
 """Zulip API client wrapper for MCP integration."""
 
+import hashlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -7,10 +8,12 @@ from threading import Lock
 from typing import Any
 from urllib.parse import quote, urlparse, urlunparse
 
-from zulip import Client
-
 from ..config import ConfigManager
+from .api_budget import PoliteZulipClient as Client
 from .cache import StreamCache, UserCache
+from .snapshots import ReadSnapshots, invalidate_realm_snapshots
+
+OUTBOUND_CLIENT_NAME = "zulipchat-mcp"
 
 
 @dataclass
@@ -91,6 +94,10 @@ class ZulipClientWrapper:
         # Cache data belongs to this authenticated client, never another identity.
         self.user_cache = UserCache()
         self.stream_cache = StreamCache()
+        principal = f"{self._base_url}\n{self.current_email}\n{self.identity}"
+        self.read_snapshots = ReadSnapshots(
+            hashlib.sha256(principal.encode()).hexdigest(), self._base_url
+        )
 
     @staticmethod
     def _normalize_site_base_url(base_url: str) -> str:
@@ -130,6 +137,7 @@ class ZulipClientWrapper:
                     site=self._client_config["site"],
                     config_file=self._client_config["config_file"],
                     retry_on_errors=False,
+                    client=OUTBOUND_CLIENT_NAME,
                 )
                 # Backfill properties from loaded client config
                 if hasattr(client, "email"):
@@ -148,6 +156,7 @@ class ZulipClientWrapper:
                     api_key=self._client_config["api_key"],
                     site=self._client_config["site"],
                     retry_on_errors=False,
+                    client=OUTBOUND_CLIENT_NAME,
                 )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
@@ -183,7 +192,10 @@ class ZulipClientWrapper:
         else:  # private message
             request["to"] = to if isinstance(to, list) else [to]
 
-        return self.client.send_message(request)
+        response = self.client.send_message(request)
+        if response.get("result") == "success":
+            invalidate_realm_snapshots(self._base_url)
+        return response
 
     def get_messages_raw(
         self,
@@ -195,6 +207,7 @@ class ZulipClientWrapper:
         client_gravatar: bool = True,
         apply_markdown: bool = True,
         anchor_date: str | None = None,
+        use_cache: bool = True,
     ) -> dict[str, Any]:
         """Get raw messages response from Zulip API.
 
@@ -222,7 +235,9 @@ class ZulipClientWrapper:
         if anchor == "date" and anchor_date:
             request["anchor_date"] = anchor_date
 
-        return self.client.get_messages(request)
+        return self.read_snapshots.fetch(
+            request, lambda: self.client.get_messages(request), use_cache=use_cache
+        )
 
     def get_messages(
         self,
@@ -391,7 +406,10 @@ class ZulipClientWrapper:
 
     # Additional endpoints used by v0.4 tools
     def update_message(self, request: dict[str, Any]) -> dict[str, Any]:
-        return self.client.update_message(request)
+        response = self.client.update_message(request)
+        if response.get("result") == "success":
+            invalidate_realm_snapshots(self._base_url)
+        return response
 
     def get_subscriptions(self) -> dict[str, Any]:
         return self.client.get_subscriptions()
@@ -405,7 +423,7 @@ class ZulipClientWrapper:
             )
         return self.client.call_endpoint(
             "users/me/subscriptions/properties",
-            method="PATCH",
+            method="POST",
             request={"subscription_data": subscriptions},
         )
 
@@ -483,7 +501,12 @@ class ZulipClientWrapper:
     def get_stream_id(self, stream: int | str) -> dict[str, Any]:
         if isinstance(stream, int):
             try:
-                return self.client.call_endpoint(f"streams/{stream}")
+                response = self.client.call_endpoint(
+                    f"streams/{stream}", method="GET", request={}
+                )
+                if response.get("result") == "success":
+                    return {**response, "stream_id": stream}
+                return response
             except Exception:
                 return {"result": "error", "msg": "Failed to fetch stream info"}
         return self.client.get_stream_id(stream)
@@ -513,7 +536,7 @@ class ZulipClientWrapper:
         if hasattr(self.client, "mute_topic"):
             return self.client.mute_topic({"stream_id": stream_id, "topic": topic_name})
         return self.client.call_endpoint(
-            "users/me/muted_topics",
+            "users/me/subscriptions/muted_topics",
             method="PATCH",
             request={"op": "add", "stream_id": stream_id, "topic": topic_name},
         )
@@ -522,7 +545,7 @@ class ZulipClientWrapper:
         if hasattr(self.client, "unmute_topic"):
             return self.client.unmute_topic(stream_id=stream_id, topic=topic_name)
         return self.client.call_endpoint(
-            "users/me/muted_topics",
+            "users/me/subscriptions/muted_topics",
             method="PATCH",
             request={"op": "remove", "stream_id": stream_id, "topic": topic_name},
         )
@@ -562,7 +585,7 @@ class ZulipClientWrapper:
         request["send_notification_to_old_thread"] = send_notification_to_old_thread
         request["send_notification_to_new_thread"] = send_notification_to_new_thread
 
-        return self.client.update_message(request)
+        return self.update_message(request)
 
     # -------------------------
     # Missing wrapper methods (v0.4 blockers)
@@ -604,15 +627,35 @@ class ZulipClientWrapper:
             request={"include_custom_profile_fields": include_custom_profile_fields},
         )
 
-    def get_message(self, message_id: int) -> dict[str, Any]:
-        """Fetch a single message by ID."""
-        if hasattr(self.client, "get_message"):
-            try:
-                return self.client.get_message(message_id=message_id)
-            except TypeError:
-                return self.client.get_message({"message_id": message_id})
-        return self.client.call_endpoint(
-            f"messages/{message_id}", method="GET", request={}
+    def get_message(
+        self,
+        message_id: int,
+        *,
+        apply_markdown: bool | None = None,
+        fresh: bool = False,
+    ) -> dict[str, Any]:
+        """Fetch a message, optionally requesting raw Markdown for copying.
+
+        Omitting apply_markdown preserves the SDK's default rendering behavior.
+        """
+        request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}
+
+        def fetch() -> dict[str, Any]:
+            if hasattr(self.client, "get_message"):
+                try:
+                    return self.client.get_message(message_id=message_id, **request)
+                except TypeError:
+                    return self.client.get_message(
+                        {"message_id": message_id, **request}
+                    )
+            return self.client.call_endpoint(
+                f"messages/{message_id}", method="GET", request=request
+            )
+
+        return self.read_snapshots.fetch(
+            {"endpoint": "message", "message_id": message_id, **request},
+            fetch,
+            use_cache=not fresh,
         )
 
     def update_message_flags(
@@ -621,10 +664,14 @@ class ZulipClientWrapper:
         """Add/remove a flag on a list of messages."""
         payload = {"messages": messages, "op": op, "flag": flag}
         if hasattr(self.client, "update_message_flags"):
-            return self.client.update_message_flags(payload)
-        return self.client.call_endpoint(
-            "messages/flags", method="POST", request=payload
-        )
+            response = self.client.update_message_flags(payload)
+        else:
+            response = self.client.call_endpoint(
+                "messages/flags", method="POST", request=payload
+            )
+        if response.get("result") == "success":
+            invalidate_realm_snapshots(self._base_url)
+        return response
 
     def register(self, **kwargs: Any) -> dict[str, Any]:
         """Register an event queue (events API)."""

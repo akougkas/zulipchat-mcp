@@ -67,7 +67,7 @@ class TestUserResolution:
             "result": "success",
             "members": [
                 {
-                    "email": "jcernudagarcia@hawk.iit.edu",
+                    "email": "jaime.garcia@example.edu",
                     "full_name": "Jaime Garcia",
                     "user_id": 123,
                 },
@@ -88,31 +88,29 @@ class TestUserResolution:
     @pytest.mark.asyncio
     async def test_resolve_exact_email_match(self, mock_client):
         """Test exact email matching works."""
-        result = await resolve_user_identifier(
-            "jcernudagarcia@hawk.iit.edu", mock_client
-        )
-        assert result["email"] == "jcernudagarcia@hawk.iit.edu"
+        result = await resolve_user_identifier("jaime.garcia@example.edu", mock_client)
+        assert result["email"] == "jaime.garcia@example.edu"
         assert result["full_name"] == "Jaime Garcia"
 
     @pytest.mark.asyncio
     async def test_resolve_exact_name_match(self, mock_client):
         """Test exact full name matching works."""
         result = await resolve_user_identifier("Jaime Garcia", mock_client)
-        assert result["email"] == "jcernudagarcia@hawk.iit.edu"
+        assert result["email"] == "jaime.garcia@example.edu"
         assert result["full_name"] == "Jaime Garcia"
 
     @pytest.mark.asyncio
     async def test_resolve_partial_name_match(self, mock_client):
         """Test partial name matching (key functionality from strategic plan)."""
         result = await resolve_user_identifier("Jaime", mock_client)
-        assert result["email"] == "jcernudagarcia@hawk.iit.edu"
+        assert result["email"] == "jaime.garcia@example.edu"
         assert result["full_name"] == "Jaime Garcia"
 
     @pytest.mark.asyncio
     async def test_resolve_case_insensitive_match(self, mock_client):
         """Test case insensitive matching."""
         result = await resolve_user_identifier("jaime garcia", mock_client)
-        assert result["email"] == "jcernudagarcia@hawk.iit.edu"
+        assert result["email"] == "jaime.garcia@example.edu"
 
     @pytest.mark.asyncio
     async def test_resolve_nonexistent_user(self, mock_client):

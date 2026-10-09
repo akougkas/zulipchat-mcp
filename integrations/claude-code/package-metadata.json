@@ -1,10 +1,15 @@
 {
-    "id": "zulipchat-mcp-claude-code",
-    "name": "ZulipChat MCP for Claude Code",
-    "platform": "claude-code",
-    "category": ["communication", "mcp", "zulip"],
-    "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
-    "description": "Adds ZulipChat MCP to Claude Code and scaffolds standalone or plugin-based Zulip session-control assets.",
-    "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/claude-code.md",
-    "repository": "https://github.com/akougkas/zulipchat-mcp"
+  "id": "zulipchat-mcp-claude-code",
+  "name": "ZulipChat MCP for Claude Code",
+  "platform": "claude-code",
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
+  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "description": "Adds ZulipChat MCP to Claude Code and scaffolds standalone or plugin-based Zulip session-control assets.",
+  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/claude-code.md",
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
 }

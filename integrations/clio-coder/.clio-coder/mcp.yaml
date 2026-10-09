@@ -1,0 +1,10 @@
+version: 1
+servers:
+- id: zulipchat
+  command: uvx
+  args:
+  - zulipchat-mcp
+  - --zulip-config-file
+  - /absolute/path/to/.zuliprc
+  - --extended-tools
+  timeoutMs: 900000

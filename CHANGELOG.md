@@ -4,6 +4,57 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-09
+
+### Security
+- Correct all hook and integration examples to use `uvx --from zulipchat-mcp`, so auxiliary commands resolve from the owning distribution rather than inferred package names. This also corrects the README included in future PyPI metadata. Reported privately by a security reporter.
+- Add a release-preflight and CI gate rejecting companion `uvx` commands without an explicit package source in documentation, hook commands, and JSON command/argument templates.
+- Resolve environment-based bot credentials against the selected user's effective realm rather than an unrelated ambient `ZULIP_SITE`. Separately selected bot files retain their explicit realm and credentials.
+- Bind persisted control-plane state to a non-secret fingerprint of the effective realms and principals. Default databases are account-scoped; explicit paths reject mismatched accounts. Every account-resolution or binding failure aborts startup and clears failed singleton candidates.
+- Replace exporter-owned Claude hooks when changing credentials with `--force`, preserving unrelated hooks and removing executable references to the old binding. Preflight all export conflicts, reject symlink paths, and replace individual files atomically.
+
+### Added
+- Add event-fed Generic-bot mention ingestion to `poll_agent_events`: a lazy channel-scoped long-poll queue, durable bounded local inbox, message-ID recovery, numeric bot re-verification, an OS producer lease, local bounded waits and host-owned cursors. A host adapter can wake an agent from ordinary mentions without `/reply`; MCP remains the transport and does not launch coding processes. No host adapter or autonomous coding runner ships with this release. A private Clio experiment adapter demonstrated four live mention-to-reply round trips, documented with its limits in [live bot mentions](docs/testing/clio-bot-mentions.md).
+- Add identity-scoped 15-second message snapshots with content hashes, freshness metadata, optional private persistence, duplicate-request coalescing, mutation/event invalidation and `fresh=True` search/detail reads.
+- Shape SDK requests through a shared realm/principal budget, adapt to Zulip's response headers, honor JSON/HTTP retry delays, and preserve backend error codes and cooldown instructions across registered tools. Writes are never transparently retried.
+- Add `--tool-profile read-only` with nine core or 23 extended reads, filtered discovery, enforced nonretryable direct-call denials, and effective capabilities in `server_info`. The default full profile retains 20/60 tools.
+- Bundle four Agent Skills: ordinary Zulip operations, session control, deliberate notifications, and a bounded work loop. Expose immutable MCP Resources to legacy hosts and the SEP-2640 `io.modelcontextprotocol/skills` extension on MCP 2026-07-28, including complete manifests, cache metadata, resource sizes, and SHA-256 digests.
+- Export native MCP configuration and skills for Codex, OpenCode, Copilot CLI, VS Code Copilot, Antigravity CLI, Clio Coder, and generic hosts. Preserve Claude Code's native plugin, hooks, skills, and session subagent, with its MCP declaration also included in standalone exports.
+- Export portable Agent Plugins 1.0.0 packages containing `plugin.json`, `mcp.json`, and all four skills. Plugin content does not grant host permissions or automatically execute MCP declarations.
+- Add explicit replay-safe event acknowledgement through `auto_ack=False` and scoped `ack_event_ids`, with `include_audit=True` for outbound and unauthorized history. Existing automatic acknowledgement remains the compatibility default.
+- Add `file_content_base64` for strict, bounded arbitrary-binary uploads, including HTTP. Existing text and stdio local-file inputs remain available.
+
+### Fixed
+- Correct numeric stream reads to GET, subscription-property fallback updates to POST, and fallback topic-muting paths to the documented subscription endpoint. Requested stream details that fail now report partial results with component errors.
+- Report UTC timestamps, actual fetched/returned counts, excerpt truncation, coverage bounds and snapshot metadata in message search results.
+- Mark application failures as MCP execution errors while preserving structured details. Keep partial delivery and resumable waits distinct from failed operations. Bounded waits now return `status="timeout"`, `request_status="pending"`, and the retained request ID rather than a generic execution error.
+- Correct live listener recovery to use Zulip's date anchor rather than the unsupported `after` narrow operator. Floor the initial boundary to integer-second precision and use message-ID pagination on servers below feature level 445. Reproduced and verified through the installed wheel against a real organization from the Clio Luna TUI.
+- Report the effective selected-file realm and user/bot principals in `server_info`, rather than missing or conflicting ambient values. Diagnostics remain network-free and exclude API keys; covered by file, separate-bot, and environment regressions discovered during the real Clio integration experiment.
+- Preserve Olivier Durif's original community commit relaxing FastMCP to `fastmcp[tasks]>=4.0.4,<5` (PR #22, @odurif0). The initial lockfile update in that commit to 4.0.10 is followed by the complete dependency refresh to 4.1.0.
+- Accept session-owner replies when the owner and transport use the same account. Suppress outbound echoes using persisted message IDs, send/receive serialization, and Zulip SDK client attribution across MCP and hook processes.
+- Establish listener readiness before posting interactive requests. Recover active session messages after expired event queues using durable per-session message cursors, registration-before-backfill, overlap deduplication, and Zulip's integer-second timestamp precision. Storage read failures cannot silently acknowledge unprocessed input or declare recovery complete.
+- Advertise `/reply REQUEST_ID answer` for ordinary questions, preserve multiline answers, and keep correlation scoped to the request's session. Question replies cannot satisfy permission approvals.
+- Exclude outbound and unauthorized audit records from the default owner feed. Scope explicit acknowledgements to the selected session/agent, propagate persistence failures, and allow retrieval of persisted decisions and events during listener outages.
+- Report sent-but-unrecorded messages as partial results with message/request IDs and unsafe-retry guidance. Check status, close-session, and acknowledgement persistence results. Claude permission hooks continue polling a valid delivered partial request and page forward beyond busy topic intervals.
+- Route the registered message-flag tool and compatibility helpers through shared pagination, include already-read messages when starring, and preserve confirmed progress if a later page fails.
+- Fetch raw Zulip Markdown when cross-posting and retain one client for the complete operation. Preserve delivered destination IDs on partial failure.
+- Bind compound event, analytics, and flag operations to a task-local client across awaits and worker threads. Concurrent identity switches affect subsequent independent operations, and cancellation restores the original task context.
+- Return backend errors or partial results from event observation when polling fails, bound retries, preserve collected events, and clean up queues.
+- Report fetched versus provider-supplied analytics data, omitted messages/streams, and truncation. Bounded 30-second approval waits in the portable skills retain the same request ID across polls.
+- Clarify portable skill behavior after the local-model experiment: stop unchanged policy-denial retries, distinguish tool discovery from permission, require supplied or verified recipients, and report host control transitions only after confirmation. Agent registration does not create a bot account or launch a coding process.
+
+### Migration
+- Fresh default state lives under `.mcp/zulipchat/accounts/<fingerprint>/zulipchat.duckdb`. Existing legacy state is not silently assigned to the currently configured account.
+- To adopt a verified legacy database, explicitly point `ZULIPCHAT_DB_PATH` to it and pass `--associate-existing-db` once. The flag alone does not select the legacy path. Existing account bindings cannot be overwritten by this flag. See the [configuration guide](docs/user-guide/configuration.md#persistent-state-and-account-migration).
+
+### Maintenance
+- Upgrade the complete runtime/development lockfile, including FastMCP 4.1.0, mcp-types 2.3.0, Anthropic 1.12.1, DuckDB 1.5.6, and the HTTP/authentication stack. Add YAML/TOML exporters, PEP 639 license metadata, Python 3.13/3.14 classifiers, and current build/test tooling while retaining Python 3.10 support.
+- Add Python 3.10–3.14 CI and weekly/manual minimum/latest FastMCP compatibility matrices. Run release preflight in CI, validate official plugin schemas offline, and exercise legacy/modern MCP, resources, both tool tiers, source, and clean wheels.
+- Include all four entry points and companion `uvx --from` wheel resolution in release checks. Add a repeatable fake-only smoke using Clio's actual configuration parser, plugin validator, and stdio client.
+- Retain the FastMCP architecture and the existing 20-tool core/60-tool extended surfaces. Extract bundled content loading from the protocol adapter, refresh stale documentation, and document named organization profiles as the next design milestone.
+- Validation evidence, review resolution, and known limitations are recorded in [the v0.7.4 audit](docs/releases/v0.7.4-audit.md).
+- Inventory the complete reviewed Zulip OpenAPI and document proxy coverage, rate limits, cache freshness, mention-host responsibilities and sanitized live Luna measurements.
+
 ## [0.7.3] - 2026-09-17
 
 ### Security

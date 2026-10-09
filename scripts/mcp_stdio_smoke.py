@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -43,10 +44,18 @@ async def _smoke(command: list[str], expected_version: str) -> None:
             "ZULIPCHAT_EXTENDED_TOOLS": "0",
             "ANTHROPIC_API_KEY": "",
         }
+        for name in ("UV_PROJECT_ENVIRONMENT", "UV_CACHE_DIR"):
+            if name in os.environ:
+                env[name] = os.environ[name]
         for mode in ("legacy", "2026-07-28"):
             for extended in (False, True):
-                args = [*command, *(["--extended-tools"] if extended else [])]
-                await _smoke_connection(args, expected_version, mode, extended, env)
+                for read_only in (False, True):
+                    args = [*command, *(["--extended-tools"] if extended else [])]
+                    if read_only:
+                        args += ["--tool-profile", "read-only"]
+                    await _smoke_connection(
+                        args, expected_version, mode, extended, read_only, env
+                    )
 
 
 async def _smoke_connection(
@@ -54,6 +63,7 @@ async def _smoke_connection(
     expected_version: str,
     mode: str,
     extended: bool,
+    read_only: bool,
     env: dict[str, str],
 ) -> None:
     transport = StdioTransport(
@@ -69,10 +79,17 @@ async def _smoke_connection(
 
         tools = await client.list_tools()
         names = {tool.name for tool in tools}
-        missing = sorted(REQUIRED_TOOLS - names)
+        required = (
+            REQUIRED_TOOLS - {"send_message", "teleport_chat"}
+            if read_only
+            else REQUIRED_TOOLS
+        )
+        missing = sorted(required - names)
         if missing:
             raise AssertionError(f"Missing required tools: {missing}")
-        expected_count = 60 if extended else 20
+        expected_count = (
+            (23 if extended else 9) if read_only else (60 if extended else 20)
+        )
         if len(tools) != expected_count:
             raise AssertionError(f"Expected {expected_count} tools, got {len(tools)}")
 
@@ -85,8 +102,35 @@ async def _smoke_connection(
                 f"server_info version mismatch: "
                 f"expected {expected_version}, got {data['version']}"
             )
+        capabilities = data["capabilities"]
+        if capabilities["enabled_tools"] != sorted(names):
+            raise AssertionError("server_info capabilities disagree with discovery")
+        if capabilities["enabled_tool_count"] != len(tools):
+            raise AssertionError("server_info tool count disagrees with discovery")
+        if read_only:
+            denied = await client.call_tool("send_message", {}, raise_on_error=False)
+            if (
+                not denied.is_error
+                or denied.structured_content.get("error_code") != "POLICY_DENIED"
+            ):
+                raise AssertionError("Read-only direct execution was not denied")
+            if denied.structured_content.get("retryable") is not False:
+                raise AssertionError("Policy denial must prohibit unchanged retries")
 
-        print(f"ok: {mode}, {len(tools)} tools, server_info v{data['version']}")
+        resources = await client.list_resources()
+        if len(resources) != 4:
+            raise AssertionError(
+                f"Expected four packaged skills, got {len(resources)} resources"
+            )
+        for resource in resources:
+            content = await client.read_resource(str(resource.uri))
+            if not content or "name: zulipchat" not in content[0].text:
+                raise AssertionError(f"Invalid packaged skill: {resource.uri}")
+
+        print(
+            f"ok: {mode}, {capabilities['tool_profile']}, {len(tools)} tools, "
+            f"four skills, server_info v{data['version']}"
+        )
 
 
 def main() -> None:

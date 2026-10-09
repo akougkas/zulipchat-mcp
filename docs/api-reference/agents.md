@@ -18,7 +18,42 @@ The agent tool family is now session-oriented: bind an agent profile, bind a Zul
 - `list_sessions(agent_id=None, include_closed=True)`
 - `list_instances()` — compatibility alias for session listing
 - `close_agent_session(session_id, status="completed", summary="")`
-- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None)`
+- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None, auto_ack=True, ack_event_ids=None, include_audit=False, mentions_stream=None, after_message_id=None, wait_seconds=0)`
+
+## Ordinary bot mentions
+
+With a configured Generic bot, a host can read explicit mentions in a channel
+without an existing session:
+
+```python
+batch = poll_agent_events(
+    mentions_stream="Agents-Channel",
+    after_message_id=previous_cursor,
+    auto_ack=False,
+    wait_seconds=20,
+    limit=20,
+)
+```
+
+This mode returns `events`, `bot_user_id`, `next_after_message_id`, listener
+health and local-cache/recovery counters. Each event includes numeric sender,
+channel and message IDs, topic, timestamp, raw content and truncation state.
+`is_configured_owner` is advisory; the host validates its actual pairing and
+sender allowlist. Check `status`, readiness and `cache.cursor_gap` before
+dispatching. The host commits its cursor with a durable work queue and deduplicates
+tasks by message ID. No event acknowledgement SQL is used in mention mode.
+
+`limit` is 1–50; `wait_seconds` is 0–25 and waits on local state. Startup may
+wait up to 20 seconds for readiness. Do not combine mention mode with session
+filters, `ack_event_ids` or audit mode. At most four channels can be watched per
+server. The background producer uses scoped long polling rather than fetching
+history for every host poll. Edited/deleted inputs become tombstones, and a
+consumer behind the 10,000-message retention limit receives an explicit gap.
+
+Retain one stable agent/topic session for successive tasks and use `agent_message`
+to reply in that topic. Normal mentions need no `/reply` syntax. The server
+does not launch a coding process, grant native permissions or supervise it;
+see [host ownership and efficiency](../developer-guide/zulip-api-proxy.md).
 
 ## Example flow
 
@@ -57,12 +92,24 @@ req = request_user_input(
     options=["approve", "deny"],
     request_type="approval",
 )
-wait_for_response(req["request_id"])
+await wait_for_response(req["request_id"], timeout_seconds=30)
 ```
 
 ## Behavior notes
 
 - Session topics are owner-controlled by default.
-- Inbound topic replies are classified as `command`, `approval_response`, or `steer` events.
+- Inbound topic replies are classified as `command`, `approval_response`,
+  `question_response`, or `steer` events.
 - Unauthorized users get a visible `Not authorized` reply in the topic.
+- Questions require `/reply REQUEST_ID ANSWER`, preserve multiline answers, and
+  cannot be used to approve a permission request. Approval replies must name the
+  request with `/approve REQUEST_ID` or `/deny REQUEST_ID`.
+- Use `timeout_seconds=30` for bounded waits, retaining the request ID after a
+  `status="timeout"`, `request_status="pending"` result. Persisted terminal
+  answers remain readable while Zulip is unavailable.
+- Polling excludes outbound/unauthorized records by default. Set `auto_ack=False`
+  for replay; pass consumed IDs through `ack_event_ids`, scoped by the session
+  and/or agent supplied to that poll. `include_audit=True` exposes audit history.
+- A delivered-but-unrecorded send returns `partial`, its message ID, and
+  `retry_safe=False`; inspect the existing message before retrying.
 - Lifecycle automation for Claude Code is intended to run through `zulipchat-mcp-hook`, not through AFK-style gating.

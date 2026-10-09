@@ -10,6 +10,7 @@ import socket
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -28,9 +29,18 @@ from .agent_protocol import (
     project_name_from_dir,
     strip_message_markup,
 )
-from .client import ZulipClientWrapper
+from .client import OUTBOUND_CLIENT_NAME, ZulipClientWrapper
 
 _session_binding_lock = threading.RLock()
+_message_delivery_lock = threading.RLock()
+_outbound_ids: OrderedDict[tuple[str, int], None] = OrderedDict()
+
+
+@contextmanager
+def _serialize_message_delivery() -> Iterator[None]:
+    """Serialize sends and echoes until their Zulip ID is recorded."""
+    with _message_delivery_lock:
+        yield
 
 
 @contextmanager
@@ -279,6 +289,7 @@ class AgentCoordinator:
             return self.db.get_latest_agent_session(agent_id, project_dir)
         return None
 
+    @_serialize_message_delivery()
     def send_session_message(
         self,
         *,
@@ -303,8 +314,17 @@ class AgentCoordinator:
         if result.get("result") != "success":
             return {"status": "error", "error": result.get("msg", "Failed to send")}
 
-        self.db.create_session_event(
-            event_id=str(uuid.uuid4()),
+        message_id = result.get("id")
+        if isinstance(message_id, int):
+            _outbound_ids[(str(self.db._db.db_path), message_id)] = None
+            if len(_outbound_ids) > 4096:
+                _outbound_ids.popitem(last=False)
+        persisted = self.db.create_session_event(
+            event_id=(
+                f"outbound:{message_id}"
+                if message_id is not None
+                else str(uuid.uuid4())
+            ),
             agent_id=str(session["agent_id"]),
             session_id=str(session["session_id"]),
             stream_name=str(session["stream_name"]),
@@ -318,12 +338,20 @@ class AgentCoordinator:
             metadata=self._json_blob(metadata),
         )
 
-        return {
+        outcome = {
             "status": "success",
             "session_id": session_id,
             "message_id": result.get("id"),
             "category": category,
         }
+        if persisted.get("status") != "success":
+            outcome.update(
+                status="partial",
+                delivered=True,
+                error="Zulip accepted the message, but local event persistence failed",
+                retry_safe=False,
+            )
+        return outcome
 
     def create_request(
         self,
@@ -377,15 +405,24 @@ class AgentCoordinator:
         except Exception:
             self.db.update_agent_request(request_id, status="cancelled")
             raise
-        if send_result.get("status") != "success":
+        if send_result.get("status") not in {"success", "partial"}:
             self.db.update_agent_request(request_id, status="cancelled")
             return send_result
 
         return {
-            "status": "success",
+            "status": send_result["status"],
             "request_id": request_id,
             "session_id": session_id,
             "message_id": send_result.get("message_id"),
+            **(
+                {
+                    "delivered": True,
+                    "retry_safe": False,
+                    "error": send_result.get("error"),
+                }
+                if send_result["status"] == "partial"
+                else {}
+            ),
         }
 
     def wait_for_request(
@@ -393,7 +430,7 @@ class AgentCoordinator:
     ) -> dict[str, Any]:
         """Poll the database for a session request response."""
         start = time.monotonic()
-        while time.monotonic() - start < timeout_seconds:
+        while True:
             request = self.db.get_agent_request(request_id)
             if request is None:
                 return {"status": "error", "error": "Request not found"}
@@ -412,18 +449,20 @@ class AgentCoordinator:
                     "response": request.get("response"),
                     "responded_at": responded_at,
                 }
+            if time.monotonic() - start >= timeout_seconds:
+                break
             time.sleep(1)
 
         # A caller's polling timeout does not expire a shared pending request or
         # overwrite an answer arriving concurrently. A later poll can resume.
-        return {"status": "error", "error": "Response timeout"}
+        return self._pending_wait_result(request_id, timeout_seconds)
 
     async def wait_for_request_async(
         self, request_id: str, timeout_seconds: int = 300
     ) -> dict[str, Any]:
         """Poll the database asynchronously for a session request response."""
         start = time.monotonic()
-        while time.monotonic() - start < timeout_seconds:
+        while True:
             request = await asyncio.to_thread(self.db.get_agent_request, request_id)
             if request is None:
                 return {"status": "error", "error": "Request not found"}
@@ -442,19 +481,49 @@ class AgentCoordinator:
                     "response": request.get("response"),
                     "responded_at": responded_at,
                 }
+            if time.monotonic() - start >= timeout_seconds:
+                break
             await asyncio.sleep(1)
 
-        return {"status": "error", "error": "Response timeout"}
+        return self._pending_wait_result(request_id, timeout_seconds)
 
+    @staticmethod
+    def _pending_wait_result(request_id: str, timeout_seconds: int) -> dict[str, Any]:
+        """A bounded wait elapsed; the persisted request can still be answered."""
+        return {
+            "status": "timeout",
+            "error": "Response timeout",
+            "request_id": request_id,
+            "request_status": "pending",
+            "timeout_seconds": timeout_seconds,
+            "retryable": True,
+        }
+
+    @_serialize_message_delivery()
     def record_inbound_message(self, message: dict[str, Any]) -> dict[str, Any]:
         """Classify and persist inbound Zulip messages for bound sessions."""
         sender_email = str(message.get("sender_email") or "")
-        if sender_email and sender_email == self.bot_client.current_email:
-            return {"status": "ignored", "reason": "self_message"}
+        # Zulip's message client attribution precedes persistence in a separate
+        # hook process. It suppresses echoes; it never authorizes a sender.
+        if (
+            message.get("client") == OUTBOUND_CLIENT_NAME
+            and sender_email.lower() == str(self.bot_client.current_email).lower()
+        ):
+            return {"status": "ignored", "reason": "outbound_echo"}
+        message_id = message.get("id")
+        if isinstance(message_id, int) and (
+            (str(self.db._db.db_path), message_id) in _outbound_ids
+            or self.db.is_outbound_message(message_id)
+        ):
+            return {"status": "ignored", "reason": "outbound_echo"}
 
         topic_name = str(message.get("subject") or message.get("topic") or "")
         raw_content = str(message.get("content") or "")
-        content = strip_message_markup(raw_content)
+        content = (
+            strip_message_markup(raw_content)
+            if message.get("content_type") == "text/html"
+            else raw_content.strip()
+        )
         stream_name = ""
         if message.get("type") == "stream":
             display_recipient = message.get("display_recipient")
@@ -469,6 +538,11 @@ class AgentCoordinator:
 
         if session is None:
             return {"status": "ignored", "reason": "no_session"}
+
+        if message_id is not None and self.db.has_session_event(
+            f"inbound:{session['session_id']}:{message_id}"
+        ):
+            return {"status": "ignored", "reason": "duplicate"}
 
         parsed = parse_control_message(content)
         request_id = parsed.request_id or request_id
@@ -495,14 +569,12 @@ class AgentCoordinator:
             if event_result.get("status") == "error":
                 return event_result
             if stream_name and topic_name:
-                self.bot_client.send_message(
-                    message_type="stream",
-                    to=stream_name,
+                self.send_session_message(
+                    session_id=str(session["session_id"]),
                     content=(
                         "Not authorized: only "
                         f"`{session['owner_email']}` can control this agent session."
                     ),
-                    topic=topic_name,
                 )
             return {"status": "ignored", "reason": "unauthorized"}
 
@@ -513,14 +585,20 @@ class AgentCoordinator:
                 and request.get("status") == "pending"
                 and request.get("session_id") == session["session_id"]
                 and (
-                    request.get("request_type") != "approval"
-                    or parsed.decision is not None
+                    (
+                        request.get("request_type") == "approval"
+                        and parsed.decision is not None
+                    )
+                    or (
+                        request.get("request_type") != "approval"
+                        and parsed.event_type == "question_response"
+                    )
                 )
             ):
                 update_result = self.db.update_agent_request(
                     request_id,
                     status="answered",
-                    response=parsed.decision or content,
+                    response=parsed.decision or parsed.arguments,
                     responded_at=datetime.now(timezone.utc),
                 )
                 if update_result.get("status") == "error":

@@ -34,7 +34,7 @@ Export into a project root. This merges the Zulip hooks into `.claude/settings.j
 and writes the skill and subagent files alongside them.
 
 ```bash
-uvx zulipchat-mcp-integrate export \
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export \
   --client claude-code \
   --mode standalone \
   --output-dir . \
@@ -55,7 +55,7 @@ Installed assets:
 Export a Claude plugin directory when you want a namespaced, shareable package.
 
 ```bash
-uvx zulipchat-mcp-integrate export \
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export \
   --client claude-code \
   --mode plugin \
   --output-dir ./zulipchat-plugin \
@@ -85,7 +85,7 @@ For session lifecycle updates and in-topic approval waits, the package uses the
 `zulipchat-mcp-hook` bridge:
 
 ```bash
-uvx zulipchat-mcp-hook \
+uvx --from zulipchat-mcp zulipchat-mcp-hook \
   --zulip-config-file ~/.zuliprc \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```

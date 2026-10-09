@@ -12,6 +12,8 @@ from fastmcp_tasks import TasksExtension
 from . import __version__
 from .config import ConfigManager, init_config_manager
 from .core.security import set_unsafe_mode
+from .core.skills import register_skills
+from .core.tool_contract import ToolContractMiddleware
 
 # Optional service manager for background services
 try:
@@ -24,7 +26,7 @@ except ImportError:
 from .tools import register_core_tools, register_extended_tools
 
 try:
-    from .utils.database import init_database
+    from .utils.database import AccountBindingError, init_database
 
     database_available = True
 except ImportError:
@@ -88,9 +90,20 @@ def main() -> None:
         "--enable-listener", action="store_true", help="Enable message listener service"
     )
     parser.add_argument(
+        "--associate-existing-db",
+        action="store_true",
+        help="Associate an unbound legacy database with this verified account (never overrides a different existing binding).",
+    )
+    parser.add_argument(
         "--extended-tools",
         action="store_true",
         help="Register all tools (60) instead of the core set (20).",
+    )
+    parser.add_argument(
+        "--tool-profile",
+        choices=["full", "read-only"],
+        default="full",
+        help="Restrict both tool discovery and execution to read-only Zulip operations.",
     )
 
     # Transport Options
@@ -136,6 +149,10 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    if args.tool_profile == "read-only" and (args.enable_listener or args.unsafe):
+        parser.error(
+            "The read-only tool profile cannot enable a listener or unsafe mode"
+        )
     if args.transport == "http":
         if args.auth_token is not None and (
             not args.auth_token.strip()
@@ -177,10 +194,27 @@ def main() -> None:
     # Initialize database (optional for agent features)
     if database_available:
         try:
-            init_database()
+            database = init_database(
+                account_fingerprint=config_manager.resolved_account().fingerprint,
+                associate_existing=args.associate_existing_db,
+            )
+            from pathlib import Path
+
+            from .core.snapshots import configure_snapshot_root
+
+            database_path = getattr(database, "db_path", None)
+            configure_snapshot_root(
+                Path(database_path).resolve().parent / "cache"
+                if isinstance(database_path, (str, os.PathLike))
+                else None
+            )
             logger.info("Database initialized")
+        except AccountBindingError as e:
+            logger.error(str(e))
+            raise SystemExit(1) from e
         except Exception as e:
-            logger.warning(f"Database initialization failed: {e}")
+            logger.error(f"Database/account initialization failed: {e}")
+            raise SystemExit(1) from e
     else:
         logger.info("Database not available (agent features disabled)")
 
@@ -226,6 +260,12 @@ def main() -> None:
     # task=TaskConfig(...) are rejected at startup unless this extension is
     # present. Defaults read FASTMCP_DOCKET_* env vars, unchanged from v3.
     mcp.add_extension(TasksExtension())
+    mcp.add_middleware(
+        ToolContractMiddleware(
+            read_only=args.tool_profile == "read-only", transport=args.transport
+        )
+    )
+    register_skills(mcp)
 
     logger.info("FastMCP initialized successfully")
 

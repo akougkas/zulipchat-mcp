@@ -12,6 +12,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_bot_client, get_client, get_config_manager
+from ..core.api_errors import api_error
 from ..core.security import is_unsafe_mode
 
 
@@ -30,10 +31,7 @@ async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str,
                 "count": len(topics),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to list topics"),
-            }
+            return api_error(result, "Failed to list topics")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -140,10 +138,7 @@ async def agents_channel_topic_ops(
                     "protection": "Limited to Agents-Channel only",
                 }
             else:
-                return {
-                    "status": "error",
-                    "error": result.get("msg", "Failed to delete topic"),
-                }
+                return api_error(result, "Failed to delete topic")
 
         elif operation == "mute":
             result = await asyncio.to_thread(

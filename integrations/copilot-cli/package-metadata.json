@@ -1,0 +1,12 @@
+{
+  "id": "zulipchat-mcp-copilot-cli",
+  "name": "ZulipChat MCP for copilot",
+  "platform": "copilot",
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
+}

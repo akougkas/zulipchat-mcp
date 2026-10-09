@@ -34,3 +34,14 @@ Each cycle should do exactly this:
 If the current Claude Code build exposes the native `/loop` command, this skill's
 instructions are the policy for each loop turn. If `/loop` is not available, follow
 the same cycle in the current conversation instead of failing.
+
+## Replies and reliable delivery
+
+Questions use `/reply REQUEST_ID YOUR ANSWER`; approvals use `/approve REQUEST_ID`
+or `/deny REQUEST_ID`. Call `wait_for_response(request_id=..., timeout_seconds=30)`
+and retain the same request ID after a timeout. Do not post duplicate prompts.
+
+Poll steering with `auto_ack=False` in the bound session. Handle each event, then
+acknowledge its ID with `ack_event_ids` in the same session scope. Replayed events
+must not repeat completed external actions. A delivered partial result includes
+its message ID and `retry_safe=False`; inspect that result before retrying.

@@ -188,11 +188,18 @@ def ensure_listener() -> None:
         _instance.start()
         _instance._start_listener()
         _instance._start_watcher()
+        listener = _instance.listener_ref.get("listener")
+    if not isinstance(listener, MessageListener):
+        raise RuntimeError("Zulip listener could not be started")
+    listener.wait_until_ready()
 
 
 def shutdown_service_manager() -> None:
     """Stop the module-level ServiceManager singleton."""
     global _instance
+    from ..services.bot_mentions import shutdown_mention_inboxes
+
+    shutdown_mention_inboxes()
     with _instance_lock:
         if _instance is not None and _instance.stop():
             _instance = None

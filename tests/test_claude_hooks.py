@@ -24,10 +24,97 @@ def test_build_permission_prompt_includes_tool_details() -> None:
     assert "Permission suggestions available: 1" in prompt
 
 
+def test_permission_hook_waits_on_delivered_partial_request(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from zulipchat_mcp import claude_hooks
+
+    coordinator = MagicMock()
+    coordinator.create_request.return_value = {
+        "status": "partial",
+        "delivered": True,
+        "request_id": "req-123",
+        "message_id": 10,
+    }
+    coordinator.db.update_agent_request.return_value = {"status": "success"}
+    coordinator.db.get_agent_request.return_value = {
+        "status": "answered",
+        "response": "approve",
+    }
+    poll = MagicMock(return_value={"decision": "approve"})
+    monkeypatch.setattr(claude_hooks, "_wait_for_topic_decision", poll)
+    result = claude_hooks._handle_permission_request(
+        coordinator,
+        {
+            "session_id": "s",
+            "stream_name": "Agents-Channel",
+            "topic_name": "t",
+            "owner_email": "owner@example.com",
+        },
+        {},
+        30,
+    )
+    assert result["hookSpecificOutput"]["decision"]["behavior"] == "allow"
+    poll.assert_called_once()
+
+
 def test_permission_decision_output_allow() -> None:
     output = _permission_decision_output("approve")
     decision = output["hookSpecificOutput"]["decision"]
     assert decision["behavior"] == "allow"
+
+
+def test_permission_hook_pages_past_busy_topic_without_skipping_approval(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from zulipchat_mcp import claude_hooks
+
+    coordinator = MagicMock()
+    coordinator.bot_client.get_messages_raw.side_effect = [
+        {
+            "result": "success",
+            "found_newest": False,
+            "messages": [
+                {
+                    "id": message_id,
+                    "sender_email": "other@example.com",
+                    "content": "busy",
+                }
+                for message_id in range(11, 111)
+            ],
+        },
+        {
+            "result": "success",
+            "found_newest": True,
+            "messages": [
+                {
+                    "id": 111,
+                    "sender_email": "OWNER@example.com",
+                    "content": "/approve req-123",
+                }
+            ],
+        },
+    ]
+    sleep = MagicMock(side_effect=AssertionError("Backlog pages must not sleep"))
+    monkeypatch.setattr(claude_hooks.time, "sleep", sleep)
+    result = claude_hooks._wait_for_topic_decision(
+        coordinator,
+        stream_name="Agents-Channel",
+        topic_name="t",
+        owner_email="owner@example.com",
+        request_id="req-123",
+        min_message_id=10,
+        timeout_seconds=30,
+    )
+    assert result == {
+        "decision": "approve",
+        "message_id": 111,
+        "content": "/approve req-123",
+    }
+    calls = coordinator.bot_client.get_messages_raw.call_args_list
+    assert [call.kwargs["anchor"] for call in calls] == ["10", "110"]
+    assert all(call.kwargs["include_anchor"] is False for call in calls)
+    sleep.assert_not_called()
 
 
 def test_permission_decision_output_deny() -> None:

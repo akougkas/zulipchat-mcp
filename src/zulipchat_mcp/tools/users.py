@@ -11,6 +11,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 
 
 def validate_email(email: str) -> bool:
@@ -49,10 +50,7 @@ async def get_users(
                 "include_custom_profile_fields": include_custom_profile_fields,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get users"),
-            }
+            return api_error(result, "Failed to get users")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -77,7 +75,7 @@ async def get_user_by_id(
                 "user": result.get("user", {}),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "User not found")}
+            return api_error(result, "User not found")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -105,7 +103,7 @@ async def get_user_by_email(
                 "user": result.get("user", {}),
             }
         else:
-            return {"status": "error", "error": result.get("msg", "User not found")}
+            return api_error(result, "User not found")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -137,10 +135,7 @@ async def get_own_user() -> dict[str, Any]:
                 },
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get own user"),
-            }
+            return api_error(result, "Failed to get own user")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -164,10 +159,7 @@ async def get_user_status(user_id: int) -> dict[str, Any]:
                 "user_status": result.get("status", {}),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get user status"),
-            }
+            return api_error(result, "Failed to get user status")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -219,10 +211,7 @@ async def update_status(
                 "updated_status": request_data,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to update status"),
-            }
+            return api_error(result, "Failed to update status")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -246,10 +235,7 @@ async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
                 "presence": result.get("presence", {}),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get user presence"),
-            }
+            return api_error(result, "Failed to get user presence")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -274,10 +260,7 @@ async def get_presence() -> dict[str, Any]:
                 "users_count": len(result.get("presences", {})),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get presence"),
-            }
+            return api_error(result, "Failed to get presence")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -303,10 +286,7 @@ async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str,
                 "include_deactivated": include_deactivated_groups,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get user groups"),
-            }
+            return api_error(result, "Failed to get user groups")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -338,10 +318,7 @@ async def get_user_group_members(
                 "direct_member_only": direct_member_only,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get group members"),
-            }
+            return api_error(result, "Failed to get group members")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -374,10 +351,7 @@ async def is_user_group_member(
                 "direct_member_only": direct_member_only,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to check group membership"),
-            }
+            return api_error(result, "Failed to check group membership")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -401,10 +375,7 @@ async def mute_user(muted_user_id: int) -> dict[str, Any]:
                 "action": "muted",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to mute user"),
-            }
+            return api_error(result, "Failed to mute user")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -428,10 +399,7 @@ async def unmute_user(muted_user_id: int) -> dict[str, Any]:
                 "action": "unmuted",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to unmute user"),
-            }
+            return api_error(result, "Failed to unmute user")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -445,10 +413,7 @@ async def resolve_user(name: str) -> dict[str, Any]:
     if user_cache.get_users() is None:
         result = await asyncio.to_thread(client.get_users)
         if result.get("result") != "success":
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to fetch users"),
-            }
+            return api_error(result, "Failed to fetch users")
 
     resolution = user_cache.resolve_user(name)
     if resolution.get("email"):

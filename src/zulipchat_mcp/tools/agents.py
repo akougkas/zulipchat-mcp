@@ -10,6 +10,7 @@ from typing import Any
 
 from ..config import get_client, get_config_manager
 from ..core.agent_control import AgentCoordinator
+from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
@@ -143,10 +144,27 @@ async def wait_for_response(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
-            await asyncio.to_thread(ensure_listener)
-            return await _get_coordinator().wait_for_request_async(
+            coordinator = _get_coordinator()
+            request = await asyncio.to_thread(
+                coordinator.db.get_agent_request, request_id
+            )
+            listener_error = None
+            if not request or request.get("status") not in {
+                "answered",
+                "cancelled",
+                "declined",
+                "timeout",
+            }:
+                try:
+                    await asyncio.to_thread(ensure_listener)
+                except Exception as error:
+                    listener_error = str(error)
+            result = await coordinator.wait_for_request_async(
                 request_id, timeout_seconds=timeout_seconds
             )
+            if listener_error:
+                result["listener_error"] = listener_error
+            return result
         except Exception as e:
             track_tool_error("wait_for_response", type(e).__name__)
             return {"status": "error", "error": str(e)}
@@ -161,12 +179,14 @@ def send_agent_status(agent_id: str, status: str, message: str = "") -> dict[str
             if profile is None:
                 return {"status": "error", "error": "Agent not found"}
             status_id = str(uuid.uuid4())
-            DatabaseManager().create_agent_status(
+            persisted = DatabaseManager().create_agent_status(
                 status_id=status_id,
                 agent_type=str(profile["agent_type"]),
                 status=status,
                 message=message,
             )
+            if persisted.get("status") != "success":
+                return persisted
             return {"status": "success", "status_id": status_id, "agent_id": agent_id}
         except Exception as e:
             track_tool_error("send_agent_status", type(e).__name__)
@@ -185,6 +205,7 @@ def request_user_input(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "request_user_input"}):
         track_tool_call("request_user_input")
         try:
+            ensure_listener()
             return _get_coordinator().create_request(
                 session_id=session_id,
                 prompt=question,
@@ -316,13 +337,22 @@ def close_agent_session(
             session = db.get_agent_session(session_id)
             if session is None:
                 return {"status": "error", "error": "Session not found"}
-            db.update_agent_session(session_id, status=status)
+            persisted = db.update_agent_session(session_id, status=status)
+            if persisted.get("status") != "success":
+                return persisted
             if summary:
-                _get_coordinator().send_session_message(
+                announcement = _get_coordinator().send_session_message(
                     session_id=session_id,
                     content=summary,
                     category=status if status in {"completed", "failed"} else "message",
                 )
+                if announcement.get("status") != "success":
+                    return {
+                        **announcement,
+                        "status": "partial",
+                        "session_id": session_id,
+                        "session_closed": True,
+                    }
             return {
                 "status": "success",
                 "session_id": session_id,
@@ -338,26 +368,153 @@ def poll_agent_events(
     agent_id: str | None = None,
     session_id: str | None = None,
     event_type: str | None = None,
+    auto_ack: bool = True,
+    ack_event_ids: list[str] | None = None,
+    include_audit: bool = False,
+    mentions_stream: str | None = None,
+    after_message_id: int | None = None,
+    wait_seconds: float = 0,
 ) -> dict[str, Any]:
-    """Poll unacknowledged inbound session events."""
+    """Poll owner control events; use auto_ack=False and ack_event_ids for replay.
+
+    include_audit=True also exposes outbound and unauthorized audit records.
+    mentions_stream instead reads bot mentions without a pre-existing session.
+    The host owns durable message-ID deduplication and agent wake-up policy.
+    """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
         track_tool_call("poll_agent_events")
         try:
-            ensure_listener()
+            if mentions_stream is not None:
+                if (
+                    session_id
+                    or agent_id
+                    or event_type
+                    or ack_event_ids
+                    or include_audit
+                ):
+                    return {
+                        "status": "error",
+                        "error": "Mention polling cannot be combined with session filters or acknowledgements",
+                        "retryable": False,
+                    }
+                return _poll_bot_mentions(
+                    mentions_stream, after_message_id, limit, wait_seconds
+                )
+            if after_message_id is not None or wait_seconds:
+                return {
+                    "status": "error",
+                    "error": "after_message_id and wait_seconds require mentions_stream",
+                    "retryable": False,
+                }
             db = DatabaseManager()
+            if not 1 <= limit <= 500 or (ack_event_ids and len(ack_event_ids) > 500):
+                return {
+                    "status": "error",
+                    "error": "Event batches must contain at most 500 entries and limit must be positive",
+                }
+            if ack_event_ids:
+                acknowledged = db.ack_session_events(
+                    ack_event_ids, session_id=session_id, agent_id=agent_id
+                )
+                if acknowledged.get("status") != "success":
+                    return acknowledged
             events = db.get_unacked_session_events(
                 limit=limit,
                 agent_id=agent_id,
                 session_id=session_id,
                 event_type=event_type,
+                include_audit=include_audit,
             )
             ids = [str(event["id"]) for event in events]
-            if ids:
-                db.ack_session_events(ids)
-            return {"status": "success", "events": events, "count": len(events)}
+            if ids and auto_ack:
+                acknowledged = db.ack_session_events(
+                    ids, session_id=session_id, agent_id=agent_id
+                )
+                if acknowledged.get("status") != "success":
+                    return {
+                        "status": "partial",
+                        "error": "Events read but acknowledgement failed",
+                        "events": events,
+                        "count": len(events),
+                    }
+            result = {"status": "success", "events": events, "count": len(events)}
+            if events or ack_event_ids:
+                return result
+            try:
+                ensure_listener()
+            except Exception as error:
+                result["listener_error"] = str(error)
+            return result
         except Exception as e:
             track_tool_error("poll_agent_events", type(e).__name__)
             return {"status": "error", "error": str(e)}
+
+
+def _poll_bot_mentions(
+    stream: str, after_message_id: int | None, limit: int, wait_seconds: float = 0
+) -> dict[str, Any]:
+    """Read the configured bot's mention inbox; never execute message contents."""
+    if (
+        not stream.strip()
+        or len(stream) > 200
+        or not 1 <= limit <= 50
+        or (after_message_id is not None and after_message_id < 0)
+        or not 0 <= wait_seconds <= 25
+    ):
+        return {
+            "status": "error",
+            "error": "Mention polling requires a stream, limit 1..50, nonnegative cursor and wait_seconds 0..25",
+            "retryable": False,
+        }
+    config = get_config_manager()
+    if not config.has_bot_credentials():
+        return {
+            "status": "error",
+            "error": "Mention polling requires a configured Generic Zulip bot",
+            "error_code": "BOT_NOT_CONFIGURED",
+            "retryable": False,
+        }
+    coordinator = _get_coordinator()
+    from ..services.bot_mentions import get_mention_inbox
+
+    inbox = get_mention_inbox(
+        coordinator.bot_client,
+        config.resolved_account().fingerprint,
+        stream.strip(),
+        after_message_id,
+    )
+    result = inbox.poll(after_message_id, limit, wait_seconds)
+    owner = coordinator.default_owner_email().casefold()
+    events = []
+    messages = result.pop("messages")
+    for message in messages:
+        message_id = message["id"]
+        if after_message_id is not None and message_id <= after_message_id:
+            continue
+        content = str(message.get("content", ""))
+        events.append(
+            {
+                "id": f"mention:{message_id}",
+                "event_type": "mention",
+                "message_id": message_id,
+                "sender_id": message.get("sender_id"),
+                "sender_email": message.get("sender_email"),
+                "is_configured_owner": str(message.get("sender_email", "")).casefold()
+                == owner,
+                "stream_id": message.get("stream_id"),
+                "stream_name": message.get("display_recipient"),
+                "topic": message.get("subject"),
+                "timestamp": message.get("timestamp"),
+                "content": content[:6000],
+                "content_truncated": message.get("content_truncated", False),
+                "last_edit_timestamp": message.get("last_edit_timestamp"),
+            }
+        )
+    return {
+        **result,
+        "events": events,
+        "count": len(events),
+    }
 
 
 async def teleport_chat(
@@ -425,7 +582,7 @@ async def teleport_chat(
                 )
 
             if result.get("result") != "success":
-                return {"status": "error", "error": result.get("msg", "Failed to send")}
+                return api_error(result, "Failed to send")
 
             response: dict[str, Any] = {
                 "status": "success",

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.zulipchat_mcp.config import ConfigManager, ResolvedAccount
 from src.zulipchat_mcp.tools.system import (
     register_system_tools,
     server_info,
@@ -32,6 +33,12 @@ class TestSystemTools:
         config.config.bot_email = "bot@example.com"
         config.config.bot_name = "Test Bot"
         config.config.site = "https://test.zulipchat.com"
+        config.resolved_account.return_value = ResolvedAccount(
+            "https://test.zulipchat.com",
+            "test@example.com",
+            "https://test.zulipchat.com",
+            "bot@example.com",
+        )
         return config
 
     @pytest.fixture
@@ -103,13 +110,75 @@ class TestServerInfo(TestSystemTools):
     """Tests for server_info function."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("source", ["file", "file_with_bot", "environment"])
+    async def test_reports_effective_account_without_network(
+        self, monkeypatch, tmp_path, source
+    ):
+        """Diagnostics must match SDK credentials rather than ambient settings."""
+        for name in (
+            "ZULIP_CONFIG_FILE",
+            "ZULIP_BOT_CONFIG_FILE",
+            "ZULIP_BOT_EMAIL",
+            "ZULIP_BOT_API_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr(ConfigManager, "_find_default_config", lambda _: None)
+        monkeypatch.setenv("ZULIP_EMAIL", "ambient@example.com")
+        monkeypatch.setenv("ZULIP_API_KEY", "ambient-secret")
+        monkeypatch.setenv("ZULIP_SITE", "https://ambient.example/")
+        user_path = tmp_path / "user.zuliprc"
+        user_path.write_text(
+            "[api]\nemail=selected@example.com\nkey=user-secret\n"
+            "site=https://selected.example/\n"
+        )
+        bot_path = tmp_path / "bot.zuliprc"
+        bot_path.write_text(
+            "[api]\nemail=bot@example.com\nkey=bot-secret\n"
+            "site=https://bot.example/\n"
+        )
+        manager = ConfigManager(
+            config_file=str(user_path) if source != "environment" else None,
+            bot_config_file=str(bot_path) if source == "file_with_bot" else None,
+        )
+        with (
+            patch(
+                "src.zulipchat_mcp.tools.system.get_config_manager",
+                return_value=manager,
+            ),
+            patch("src.zulipchat_mcp.tools.system.get_client") as client_factory,
+        ):
+            result = await server_info()
+        client_factory.assert_not_called()
+        expected_site = (
+            "https://ambient.example"
+            if source == "environment"
+            else "https://selected.example"
+        )
+        assert result["zulip_site"] == expected_site
+        user = result["available_identities"]["user"]
+        assert user["site"] == expected_site
+        assert user["email"] == (
+            "ambient@example.com" if source == "environment" else "selected@example.com"
+        )
+        bot = result["available_identities"]["bot"]
+        assert bot["available"] is (source == "file_with_bot")
+        assert bot["site"] == (
+            "https://bot.example" if source == "file_with_bot" else None
+        )
+        assert bot["email"] == (
+            "bot@example.com" if source == "file_with_bot" else None
+        )
+        for secret in ("user-secret", "bot-secret", "ambient-secret"):
+            assert secret not in str(result)
+
+    @pytest.mark.asyncio
     async def test_server_info_with_bot_credentials(self, mock_deps):
         """Test server_info returns complete information with bot configured."""
         result = await server_info()
 
         assert result["status"] == "success"
         assert result["server_name"] == "ZulipChat MCP"
-        assert result["version"] == "0.7.3"
+        assert result["version"] == "0.7.4"
         assert result["zulip_site"] == "https://test.zulipchat.com"
 
         # Check user identity info

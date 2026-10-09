@@ -127,6 +127,17 @@ def main() -> int:
         return 1
 
     root = Path(__file__).parent.parent
+    integration_updates = [
+        VersionUpdate(
+            str(path.relative_to(root)),
+            r'"version": "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
+            '"version": "{version}"',
+        )
+        for path in sorted((root / "integrations").rglob("*.json"))
+        if path.name in {"catalog.json", "package-metadata.json", "plugin.json"}
+        and '"version":' in path.read_text()
+    ]
+    updates = [*VERSION_UPDATES, *integration_updates]
     version = args.version
 
     print(f"Bumping version to {version}")
@@ -137,7 +148,7 @@ def main() -> int:
     success_count = 0
     error_count = 0
 
-    for item in VERSION_UPDATES:
+    for item in updates:
         filepath = root / item.file_path
         replacement = item.replacement_template.format(version=version)
 
@@ -159,7 +170,7 @@ def main() -> int:
     print()
     print(f"Summary: {success_count} files processed, {error_count} errors")
 
-    expected = len(VERSION_UPDATES) + len(MANUAL_FILES)
+    expected = len(updates) + len(MANUAL_FILES)
     if success_count == expected:
         print(f"All {expected} version locations processed successfully!")
         return 0

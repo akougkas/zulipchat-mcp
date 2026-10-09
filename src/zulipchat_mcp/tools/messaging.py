@@ -11,6 +11,8 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
+from ..core.client import ZulipClientWrapper
 
 
 def sanitize_content(content: str, max_length: int = 50000) -> str:
@@ -27,7 +29,17 @@ async def send_message(
     topic: str | None = None,
 ) -> dict[str, Any]:
     """Send a message to stream or user (immediate delivery only)."""
-    client = get_client()
+    return await _send_message(get_client(), type, to, content, topic)
+
+
+async def _send_message(
+    client: ZulipClientWrapper,
+    type: Literal["stream", "private"],
+    to: str | list[str],
+    content: str,
+    topic: str | None = None,
+) -> dict[str, Any]:
+    """Send using the identity captured by the enclosing operation."""
 
     # Validate stream messages have topic
     if type == "stream" and not topic:
@@ -50,7 +62,7 @@ async def send_message(
             "timestamp": datetime.now().isoformat(),
         }
     else:
-        return {"status": "error", "error": result.get("msg", "Failed to send message")}
+        return api_error(result, "Failed to send message")
 
 
 async def edit_message(
@@ -126,10 +138,10 @@ async def edit_message(
             "propagate_mode": propagate_mode,
         }
     else:
-        return {"status": "error", "error": result.get("msg", "Failed to edit message")}
+        return api_error(result, "Failed to edit message")
 
 
-async def get_message(message_id: int) -> dict[str, Any]:
+async def get_message(message_id: int, fresh: bool = False) -> dict[str, Any]:
     """Get a single message by ID."""
     if not isinstance(message_id, int) or message_id <= 0:
         return {"status": "error", "error": "Invalid message ID"}
@@ -137,15 +149,20 @@ async def get_message(message_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = await asyncio.to_thread(client.get_message, message_id)
+        result = await asyncio.to_thread(
+            client.get_message, message_id, **({"fresh": True} if fresh else {})
+        )
 
         if result.get("result") == "success":
-            return {
+            response = {
                 "status": "success",
                 "message": result.get("message", {}),
             }
+            if "_cache" in result:
+                response["cache"] = result["_cache"]
+            return response
         else:
-            return {"status": "error", "error": result.get("msg", "Message not found")}
+            return api_error(result, "Message not found")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -165,13 +182,15 @@ async def cross_post_message(
     if not target_streams:
         return {"status": "error", "error": "Must specify target streams"}
 
-    get_client()  # Validate client is available
+    client = get_client()
 
     try:
         # Get source message
-        msg_result = await get_message(source_message_id)
-        if msg_result.get("status") != "success":
-            return {"status": "error", "error": "Source message not found"}
+        msg_result = await asyncio.to_thread(
+            client.get_message, source_message_id, apply_markdown=False
+        )
+        if msg_result.get("result") != "success":
+            return api_error(msg_result, "Source message not found")
 
         source_msg = msg_result.get("message", {})
         source_content = source_msg.get("content", "")
@@ -195,7 +214,13 @@ async def cross_post_message(
         for stream in target_streams:
             post_topic = target_topic or source_topic
 
-            send_result = await send_message("stream", stream, safe_content, post_topic)
+            try:
+                send_result = await _send_message(
+                    client, "stream", stream, safe_content, post_topic
+                )
+            except Exception as e:
+                # Retain confirmed earlier sends; never retry ambiguous writes.
+                send_result = {"status": "error", "error": str(e)}
 
             if send_result.get("status") == "success":
                 results.append(
@@ -220,7 +245,7 @@ async def cross_post_message(
         failed = [r for r in results if r["status"] == "error"]
 
         return {
-            "status": "success" if not failed else "partial",
+            "status": "success" if not failed else "partial" if successful else "error",
             "source_message_id": source_message_id,
             "target_streams": target_streams,
             "successful": len(successful),

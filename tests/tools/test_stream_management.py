@@ -210,7 +210,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_name="nonexistent")
 
         assert result["status"] == "error"
-        assert "Stream 'nonexistent' not found" in result["error"]
+        assert result["error"] == "Invalid stream name"
 
     @pytest.mark.asyncio
     async def test_get_stream_info_id_not_in_streams(self, mock_deps):
@@ -238,7 +238,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_id=1)
 
         assert result["status"] == "error"
-        assert "Failed to get stream information" in result["error"]
+        assert result["error"] == "Permission denied"
 
     @pytest.mark.asyncio
     async def test_get_stream_info_with_subscribers(self, mock_deps):
@@ -289,8 +289,12 @@ class TestGetStreamInfo:
 
         result = await get_stream_info(stream_id=1, include_subscribers=True)
 
-        assert result["status"] == "success"
+        assert result["status"] == "partial"
+        assert result["stream_id"] == 1
         assert "subscribers" not in result
+        assert result["errors"] == [
+            {"component": "subscribers", "status": "error", "error": "Not authorized"}
+        ]
 
     @pytest.mark.asyncio
     async def test_get_stream_info_with_topics(self, mock_deps):
@@ -344,8 +348,12 @@ class TestGetStreamInfo:
 
         result = await get_stream_info(stream_id=1, include_topics=True)
 
-        assert result["status"] == "success"
+        assert result["status"] == "partial"
+        assert result["stream_id"] == 1
         assert "topics" not in result
+        assert result["errors"] == [
+            {"component": "topics", "status": "error", "error": "Not authorized"}
+        ]
 
     @pytest.mark.asyncio
     async def test_get_stream_info_with_both_subscribers_and_topics(self, mock_deps):

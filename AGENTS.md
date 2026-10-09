@@ -1,19 +1,21 @@
 # Repository Guidelines
 
-## Current Status (v0.7.3)
+## Current Status (v0.7.4)
 
-**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | Install: `uvx zulipchat-mcp`
+**Current release**: v0.7.4 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:
   - `tools/` (tool groups), `core/` (client, cache, commands), `services/` (listener, scheduler), `integrations/` (client installers), `utils/` (logging, metrics, db).
 - Tests are in `tests/` (pytest with `slow` and `integration` markers).
-- Config via CLI flags or environment; copy `.env.example` to `.env` for local dev. Entry points: `zulipchat-mcp`, `zulipchat-mcp-integrate`.
+- Config via CLI flags or environment; copy `.env.example` to `.env` for local dev. Entry points: `zulipchat-mcp`, `zulipchat-mcp-integrate`, `zulipchat-mcp-setup`, `zulipchat-mcp-hook`.
 
 ## Build, Test, and Development Commands
 - `uv sync` — install dependencies.
 - `uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
+- Companion commands require an explicit package source: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help` (also applies to setup and hook commands).
+- `uv run python scripts/release_preflight.py --version 0.7.4 --allow-dirty` — validate versions, documentation package sources, and release metadata. CI also runs this gate.
 - `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
 - `uv run ruff check .` — lint; use Black on changed Python files; `uv run mypy src` — type-check.
 
@@ -58,6 +60,52 @@ Full agent-to-user messaging pipeline available in `src/zulipchat_mcp/tools/agen
 Owner approval replies must include `/approve REQUEST_ID` or `/deny REQUEST_ID`.
 Terminal decisions are immutable. A `wait_for_response` timeout leaves the request
 pending for another poll; hook permission deadlines still deny on timeout.
+Ordinary questions use `/reply REQUEST_ID answer`. Prefer 30-second waits and
+retain the same request ID. For reliable steering delivery, poll with
+`auto_ack=False`, then acknowledge handled IDs within the same session/agent
+scope. Default polling excludes outbound and unauthorized audit records.
+
+For conversational bot entry, an authorized person mentions the Generic bot
+normally. `poll_agent_events(mentions_stream="Agents-Channel",
+after_message_id=..., auto_ack=False, wait_seconds=20)` reads an event-fed local
+inbox without an existing session. The host validates numeric bot, sender and
+channel IDs, commits its cursor with a durable work queue, wakes the coding
+agent and replies in the source topic. Ordinary mention-driven work does not
+require `/reply`; explicit question/approval correlation remains available.
+MCP never launches a coding process or treats mention text as executable code.
+
+### Zulip API efficiency (v0.7.4)
+- SDK queries share a per-process budget by normalized realm/principal, with
+  0.5-second minimum spacing, bounded admission, server-header adaptation and
+  `RATE_LIMIT_HIT`/`Retry-After` cooldown. Never transparently retry a write.
+- Message windows/details use private identity-scoped snapshots for 15 seconds.
+  Identical concurrent requests share a fetch. `fresh=True` on search/detail
+  tools bypasses the snapshot. Return source hashes, age, UTC dates, fetched and
+  returned counts, and excerpt truncation; a sample is never a complete archive.
+- Bot mentions use one lazy long-poll queue per watched channel (maximum four),
+  a bounded initial snapshot, message-ID recovery after queue expiration, and
+  atomic persistence before event acknowledgement. Host polls read local state.
+- Check partial results and listener health. A cursor-retention gap, edited
+  input or unverified sender must not silently become an executable host task.
+- See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md).
+
+### Skills, integrations, and persistent state (v0.7.4)
+- Four canonical Agent Skills live in `src/zulipchat_mcp/skills/`; load content
+  through dependency-light `skill_content.py`. The FastMCP adapter adds immutable
+  Resources and SEP-2640 on MCP 2026-07-28. Resource manifests use exact UTF-8
+  byte hashes; preserve full frontmatter and cache metadata.
+- Exporters support Claude Code, Codex, OpenCode, Copilot, Antigravity CLI,
+  Clio Coder, and generic clients. Native host configuration and portable plugin
+  content have separate activation/trust requirements; see
+  [Agent Skills](docs/integrations/agent-skills.md).
+- Resolve realms and principals through `ConfigManager.resolved_account()`.
+  Startup must fail on all account/database initialization errors. Default
+  databases are account-scoped; legacy adoption requires an explicit verified
+  `ZULIPCHAT_DB_PATH` plus `--associate-existing-db`. Never silently associate
+  existing unbound state or reuse another account's database.
+- Interactive prompts require listener readiness. Recovery registers a queue
+  before backfill, persists per-session message IDs, and deduplicates overlap.
+  Persisted decisions/events remain readable when Zulip is unavailable.
 
 ### Emoji Registry (v0.4+)
 New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent reactions:

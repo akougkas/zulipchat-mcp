@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot",
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc",
             "timeout": 900
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }
@@ -40,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }
@@ -72,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file ~/.zuliprc --zulip-bot-config-file ~/.zuliprc-bot"
+            "command": "uvx --from zulipchat-mcp zulipchat-mcp-hook --zulip-config-file /absolute/path/to/.zuliprc"
           }
         ]
       }

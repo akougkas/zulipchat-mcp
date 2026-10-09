@@ -200,6 +200,7 @@ cython_debug/
 config.json
 .zulipchat-mcp.json
 .mcp.json
+!integrations/**/.mcp.json
 .mcp/
 
 # Claude Code workspace files

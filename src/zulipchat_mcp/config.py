@@ -5,12 +5,18 @@ Supports zuliprc files and environment-variable credentials.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+from collections.abc import Iterator
 from configparser import ConfigParser
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit, urlunsplit
 
 if TYPE_CHECKING:
     from .core.client import ZulipClientWrapper
@@ -53,6 +59,30 @@ class ZulipConfig:
     bot_name: str = "Claude Code"
     bot_avatar_url: str | None = None
     bot_config_file: str | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedAccount:
+    """Non-secret effective account identity for persistent-state association."""
+
+    site: str
+    user_email: str
+    bot_site: str
+    bot_email: str
+
+    @property
+    def fingerprint(self) -> str:
+        identity = json.dumps(
+            [self.site, self.user_email, self.bot_site, self.bot_email]
+        )
+        return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _normalize_site(site: str) -> str:
+    parsed = urlsplit(site)
+    return urlunsplit(
+        (parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), "", "")
+    )
 
 
 def load_zuliprc_credentials(config_file: str) -> dict[str, str]:
@@ -207,9 +237,7 @@ class ConfigManager:
             # bot credentials with the user's ZULIP_EMAIL/ZULIP_API_KEY.
             return dict(load_zuliprc_credentials(config_file))
         if use_bot and self.has_bot_credentials():
-            site = self.config.site
-            if not site and self.config.config_file:
-                site = self.get_zulip_client_config(use_bot=False)["site"]
+            site = self.get_zulip_client_config(use_bot=False)["site"]
             return {
                 "email": self.config.bot_email,
                 "api_key": self.config.bot_api_key,
@@ -223,6 +251,24 @@ class ConfigManager:
             "site": self.config.site,
             "config_file": self.config.config_file,
         }
+
+    def resolved_account(self) -> ResolvedAccount:
+        """Resolve the same selected sources used by SDK client construction."""
+        user = self.get_zulip_client_config(use_bot=False)
+        bot = self.get_zulip_client_config(use_bot=True)
+        if (
+            not user.get("site")
+            or not user.get("email")
+            or not bot.get("site")
+            or not bot.get("email")
+        ):
+            raise ValueError("Account association requires complete Zulip credentials")
+        return ResolvedAccount(
+            _normalize_site(str(user["site"])),
+            str(user["email"]).lower(),
+            _normalize_site(str(bot["site"])),
+            str(bot["email"]).lower(),
+        )
 
 
 # Module-level singleton for ConfigManager
@@ -290,12 +336,34 @@ def set_current_identity(identity: str) -> None:
     _current_identity = identity
 
 
+_operation_client: ContextVar[ZulipClientWrapper | None] = ContextVar(
+    "zulipchat_operation_client", default=None
+)
+
+
+@contextmanager
+def bind_client(client: ZulipClientWrapper) -> Iterator[None]:
+    """Keep compound operations on one client across awaits and worker threads.
+
+    The binding is local to the current task and is restored even on cancellation.
+    Concurrent identity switches still select the client for subsequent operations.
+    """
+    token = _operation_client.set(client)
+    try:
+        yield
+    finally:
+        _operation_client.reset(token)
+
+
 def get_client() -> ZulipClientWrapper:
     """Get a ZulipClientWrapper with the current identity.
 
-    This is the canonical way to get a client - it respects the
-    current identity setting from switch_identity().
+    Compound operations retain their bound client. Otherwise, use the current
+    identity setting from switch_identity().
     """
+    bound = _operation_client.get()
+    if bound is not None:
+        return bound
     config = get_config_manager()
     use_bot = _current_identity == "bot" and config.has_bot_credentials()
     return _get_cached_client(config, use_bot)
