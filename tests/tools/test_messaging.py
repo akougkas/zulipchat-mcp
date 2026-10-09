@@ -35,9 +35,7 @@ class TestMessagingTools:
     @pytest.fixture
     def mock_deps(self, mock_client):
         """Patch get_client to return mock client."""
-        with patch(
-            "src.zulipchat_mcp.tools.messaging.get_client"
-        ) as mock_get_client:
+        with patch("src.zulipchat_mcp.tools.messaging.get_client") as mock_get_client:
             mock_get_client.return_value = mock_client
             yield mock_client
 
@@ -69,6 +67,56 @@ class TestMessagingTools:
         mock_deps.send_message.assert_called_with(
             "private", "user@example.com", "hello", None
         )
+
+    @pytest.mark.asyncio
+    async def test_identical_repeat_is_suppressed_and_reports_original(self, mock_deps):
+        mock_deps.current_email = "user@example.com"
+        mock_deps.identity = "user"
+        first = await send_message("private", ["b@x.com", "A@x.com"], "hi")
+        repeat = await send_message("private", ["a@x.com", "b@x.com"], "hi")
+        assert mock_deps.send_message.call_count == 1
+        assert repeat["duplicate_suppressed"] is True
+        assert repeat["message_id"] == first["message_id"] == 100
+        assert first["sent_as"] == {"identity": "user", "email": "user@example.com"}
+        assert first["timestamp"].endswith("+00:00")
+
+        await send_message(
+            "private", ["a@x.com", "b@x.com"], "hi", allow_duplicate=True
+        )
+        await send_message("private", ["a@x.com", "b@x.com"], "different")
+        assert mock_deps.send_message.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_failed_send_is_not_remembered(self, mock_deps):
+        mock_deps.send_message.return_value = {"result": "error", "msg": "nope"}
+        await send_message("stream", "general", "hello", "topic")
+        mock_deps.send_message.return_value = {"result": "success", "id": 7}
+        result = await send_message("stream", "general", "hello", "topic")
+        assert result["message_id"] == 7 and "duplicate_suppressed" not in result
+
+    @pytest.mark.asyncio
+    async def test_as_bot_uses_bot_client_for_one_send(self, mock_deps):
+        bot = MagicMock(identity="bot", current_email="bot@x.com")
+        bot.send_message.return_value = {"result": "success", "id": 9}
+        config = MagicMock()
+        config.has_bot_credentials.return_value = True
+        with (
+            patch("src.zulipchat_mcp.tools.messaging.get_bot_client", return_value=bot),
+            patch(
+                "src.zulipchat_mcp.tools.messaging.get_config_manager",
+                return_value=config,
+            ),
+        ):
+            result = await send_message("private", "jaime@x.com", "hi", as_bot=True)
+        assert result["sent_as"] == {"identity": "bot", "email": "bot@x.com"}
+        mock_deps.send_message.assert_not_called()
+
+        config.has_bot_credentials.return_value = False
+        with patch(
+            "src.zulipchat_mcp.tools.messaging.get_config_manager", return_value=config
+        ):
+            missing = await send_message("private", "jaime@x.com", "hi", as_bot=True)
+        assert missing["status"] == "error" and missing["retryable"] is False
 
     @pytest.mark.asyncio
     async def test_send_message_invalid(self, mock_deps):

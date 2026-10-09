@@ -5,14 +5,19 @@ Reactions moved to emoji_messaging.py, bulk ops moved to mark_messaging.py.
 """
 
 import asyncio
-from datetime import datetime
+import hashlib
+import json
+import threading
+import time
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastmcp import FastMCP
 
-from ..config import get_client
+from ..config import get_bot_client, get_client, get_config_manager
 from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
+from ..core.security import local_access_allowed
 
 
 def sanitize_content(content: str, max_length: int = 50000) -> str:
@@ -22,14 +27,94 @@ def sanitize_content(content: str, max_length: int = 50000) -> str:
     return content
 
 
+# Agents occasionally repeat an identical send right after it succeeded.
+# Repeats inside this window return the original result instead of posting.
+DUPLICATE_SEND_WINDOW_SECONDS = 120.0
+_recent_sends: dict[str, tuple[float, dict[str, Any]]] = {}
+_recent_sends_lock = threading.Lock()
+
+
+def _send_key(
+    client: ZulipClientWrapper,
+    type: str,
+    to: str | list[str],
+    content: str,
+    topic: str | None,
+) -> str:
+    recipients = sorted(
+        str(item).strip().lower() for item in (to if isinstance(to, list) else [to])
+    )
+    identity = [
+        str(getattr(client, "base_url", "")),
+        str(getattr(client, "current_email", "")),
+        str(getattr(client, "identity", "")),
+    ]
+    payload = json.dumps([identity, type, recipients, topic or "", content])
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
 async def send_message(
     type: Literal["stream", "private"],
     to: str | list[str],
     content: str,
     topic: str | None = None,
+    allow_duplicate: bool = False,
+    as_bot: bool = False,
 ) -> dict[str, Any]:
-    """Send a message to stream or user (immediate delivery only)."""
-    return await _send_message(get_client(), type, to, content, topic)
+    """Send a message to stream or user (immediate delivery only).
+
+    as_bot=True sends this one message with the configured bot credentials,
+    which is how an agent speaks as itself; replies to a bot DM reach the bot.
+
+    An identical message (same sender, recipients, topic and content) sent
+    successfully in the last two minutes is not posted again; the result has
+    duplicate_suppressed=True and the original message_id. Pass
+    allow_duplicate=True only when the user explicitly wants a repeat.
+    """
+    if as_bot:
+        if not local_access_allowed():
+            return {
+                "status": "error",
+                "error": "as_bot is only available over stdio; HTTP uses the configured user identity",
+                "retryable": False,
+            }
+        if not get_config_manager().has_bot_credentials():
+            return {
+                "status": "error",
+                "error": "Bot credentials not configured; nothing was sent",
+                "suggestion": "Start the server with --zulip-bot-config-file",
+                "retryable": False,
+            }
+        client = get_bot_client()
+    else:
+        client = get_client()
+    key = _send_key(client, type, to, content, topic)
+    now = time.monotonic()
+    if not allow_duplicate:
+        with _recent_sends_lock:
+            for stale in [
+                k
+                for k, (sent, _) in _recent_sends.items()
+                if now - sent > DUPLICATE_SEND_WINDOW_SECONDS
+            ]:
+                del _recent_sends[stale]
+            previous = _recent_sends.get(key)
+        if previous:
+            sent_at, result = previous
+            return {
+                **result,
+                "duplicate_suppressed": True,
+                "note": (
+                    f"Identical message already sent {now - sent_at:.0f}s ago as "
+                    f"message {result.get('message_id')}; it was not sent again. "
+                    "Do not repeat it."
+                ),
+            }
+    result = await _send_message(client, type, to, content, topic)
+    if result.get("status") == "success":
+        with _recent_sends_lock:
+            _recent_sends[key] = (now, result)
+    return result
 
 
 async def _send_message(
@@ -59,7 +144,11 @@ async def _send_message(
         return {
             "status": "success",
             "message_id": result.get("id"),
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "sent_as": {
+                "identity": getattr(client, "identity", None),
+                "email": getattr(client, "current_email", None),
+            },
         }
     else:
         return api_error(result, "Failed to send message")
@@ -261,7 +350,10 @@ def register_messaging_tools(mcp: FastMCP) -> None:
     """Register core messaging tools with the MCP server."""
     mcp.tool(
         name="send_message",
-        description="Send message to stream or user (immediate delivery)",
+        description=(
+            "Send one message to a stream topic or users. Sends once; an identical "
+            "repeat within two minutes is suppressed. The result reports sent_as."
+        ),
     )(send_message)
     mcp.tool(
         name="edit_message",

@@ -440,6 +440,14 @@ def poll_agent_events(
             result = {"status": "success", "events": events, "count": len(events)}
             if events or ack_event_ids:
                 return result
+            if not session_id and not agent_id:
+                result["hint"] = (
+                    "This feed only holds owner replies to bound agent sessions. "
+                    "For @bot mentions call poll_agent_events(mentions_stream=CHANNEL, "
+                    "after_message_id=LAST_SEEN, wait_seconds=20, auto_ack=False) and "
+                    "pass next_after_message_id to the next call. Do not re-run an "
+                    "identical search to watch for new messages."
+                )
             try:
                 ensure_listener()
             except Exception as error:

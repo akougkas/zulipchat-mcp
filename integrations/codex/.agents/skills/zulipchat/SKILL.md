@@ -21,6 +21,27 @@ Sending messages or changing Zulip state follows the user's existing authorizati
 Use a recipient explicitly supplied by the user or verified in available results;
 do not substitute an unverified email after a failed lookup.
 
+Send each message once. A result with `status="success"` and a `message_id`
+was delivered; never resend to confirm or to check for duplicates, and verify
+delivery by reading instead. `duplicate_suppressed=True` means an identical
+send already succeeded. Check `sent_as`: sends use the user's identity by
+default. When you speak as the agent rather than for the user, pass
+`as_bot=True`, so people see the bot and replies to its direct messages reach
+it. Do not sign user-identity messages as the bot or type `@Bot` into your own
+text; that is not a mention and it pollutes later mention searches. Never claim
+to have inspected files, systems or data that you did not inspect.
+
+To watch for new messages, advance a cursor rather than repeating an identical
+search: pass the newest seen message ID or `next_after_message_id` to the next
+call. Identical repeated calls re-read the same window and coding hosts block
+them as loops. For bot mentions use
+`poll_agent_events(mentions_stream=CHANNEL, after_message_id=CURSOR,
+wait_seconds=20, auto_ack=False)`, not a text search for the bot's name, which
+also matches replies. One such call already waits server-side; make at most one
+per turn. For continuous watching, ask the host to schedule one poll per turn,
+for example a recurring job, carrying the cursor forward. The inbox covers
+channel mentions; reply in the source topic with `as_bot=True`.
+
 Discovery shows tools, not permission to call every tool. A read can be outside
 the active allowlist. On a policy denial, stop the unchanged attempt and explain
 the restriction; retry only after the relevant policy or configuration actually
