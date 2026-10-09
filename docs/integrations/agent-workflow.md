@@ -36,3 +36,7 @@ normal event polling excludes outbound messages and unauthorized input.
 Every coding host retains its own execution trust and approval policy. An owner
 approval in Zulip communicates a decision but does not bypass the host's checks.
 Keep the listener and persistent state on one server instance.
+
+The [agent-control design](../developer-guide/zulip-agent-control-design.md)
+describes a proposed host-owned bridge for starting and supervising coding work
+from Zulip. Those launch commands are not implemented by this workflow.

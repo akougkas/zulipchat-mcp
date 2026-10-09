@@ -44,6 +44,7 @@ prepares v0.7.4; the latest published stable release is v0.7.3.
 ## Developer Docs
 
 - [Architecture](developer-guide/architecture.md)
+- [Proposed Zulip Agent Control](developer-guide/zulip-agent-control-design.md)
 - [Tool Categories](developer-guide/tool-categories.md)
 - [Foundation Components](developer-guide/foundation-components.md)
 - [Testing Guide](testing/README.md)
