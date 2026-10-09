@@ -33,6 +33,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Bind compound event, analytics, and flag operations to a task-local client across awaits and worker threads. Concurrent identity switches affect subsequent independent operations, and cancellation restores the original task context.
 - Return backend errors or partial results from event observation when polling fails, bound retries, preserve collected events, and clean up queues.
 - Report fetched versus provider-supplied analytics data, omitted messages/streams, and truncation. Bounded 30-second approval waits in the portable skills retain the same request ID across polls.
+- Clarify portable skill behavior after the local-model experiment: stop unchanged policy-denial retries, distinguish tool discovery from permission, require supplied or verified recipients, and report host control transitions only after confirmation. Agent registration does not create a bot account or launch a coding process.
 
 ### Migration
 - Fresh default state lives under `.mcp/zulipchat/accounts/<fingerprint>/zulipchat.duckdb`. Existing legacy state is not silently assigned to the currently configured account.

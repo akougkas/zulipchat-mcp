@@ -63,6 +63,33 @@ team's architecture pane and acknowledged. The WebSocket interruption is one
 observation, not a confirmed reproducible Clio defect. The deliberate headless
 discovery restriction is documented in the [integration guide](../integrations/clio-coder.md).
 
+## Policy-denial recovery follow-up
+
+The operator subsequently supplied a TUI trace requesting a greeting to a
+teammate, then changing the requested sender from the unavailable bot to the
+user account. The experiment's six-tool server policy remained in force.
+After initially explaining that restriction, the local model described
+`send_message` and `resolve_user` and repeated a denied `resolve_user` call.
+Clio's loop guard eventually blocked further attempts. In the next turn, the
+model tried `send_message` with a recipient address not successfully resolved
+in the observed trace. The guard denied that invocation too. No successful
+send is evidenced.
+
+One-call operator approvals in Clio did not override the independent server
+policy. The final model explanation incorrectly grouped `resolve_user`, which
+is a read operation, with writes; it was blocked because it was outside the
+reviewed allowlist. The wrapper exposed the general tool catalog even though
+many tools were unavailable under that policy. These are separate failures in
+capability communication and denial recovery, despite successful enforcement.
+
+A useful regression must assert that the agent stops after the first unchanged
+policy denial, distinguishes an excluded read from a write, avoids unverified
+recipient substitution, and explains the concrete configuration needed to
+proceed. Repeated host approval must not imply that the server's policy changed.
+Record this supplied trace separately from a controlled, fake-provider
+reproduction. Sanitized details were handed to the local Clio team; no private
+message bodies, recipient addresses or credentials were included.
+
 ## Interpreting this evidence
 
 Discovery of 60 tools does not certify 60 working operations. This experiment
