@@ -1,6 +1,7 @@
 # ZulipChat MCP Documentation
 
-ZulipChat MCP v0.7.1 is a Model Context Protocol server for Zulip Chat.
+ZulipChat MCP is a Model Context Protocol server for Zulip Chat. This branch
+prepares v0.7.4; the latest published stable release is v0.7.3.
 
 ## Start Here
 
@@ -18,9 +19,14 @@ ZulipChat MCP v0.7.1 is a Model Context Protocol server for Zulip Chat.
 - [Codex](integrations/codex.md)
 - [OpenCode](integrations/opencode.md)
 - [VS Code + GitHub Copilot](integrations/vscode-copilot.md)
+- [Copilot CLI](integrations/copilot-cli.md)
+- [Clio Coder](integrations/clio-coder.md)
+- [Agent Skills and Plugins](integrations/agent-skills.md)
+- [Agent Workflow](integrations/agent-workflow.md)
 - [Cursor](integrations/cursor.md)
 - [Windsurf](integrations/windsurf.md)
 - [Antigravity](integrations/antigravity.md)
+- [Antigravity CLI](integrations/antigravity-cli.md)
 - [Generic MCP Client](integrations/generic.md)
 
 ## API Reference
@@ -42,7 +48,7 @@ ZulipChat MCP v0.7.1 is a Model Context Protocol server for Zulip Chat.
 - [Foundation Components](developer-guide/foundation-components.md)
 - [Testing Guide](testing/README.md)
 
-## Tool Modes (v0.7.1)
+## Tool Modes
 
 - Default mode: 20 core tools.
 - Extended mode: 60 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).

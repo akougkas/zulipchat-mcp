@@ -1,0 +1,44 @@
+name: Dependency compatibility
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 8 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  fastmcp:
+    name: FastMCP ${{ matrix.requirement }} / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        requirement: ["fastmcp[tasks]==4.0.4", "fastmcp[tasks]>=4.0.4,<5"]
+        python: ["3.10", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uv sync --locked --python '${{ matrix.python }}'
+      - name: Install the compatibility target
+        env:
+          FASTMCP_REQUIREMENT: ${{ matrix.requirement }}
+        run: uv pip install --upgrade "$FASTMCP_REQUIREMENT"
+      # --no-sync keeps this deliberate environment different from uv.lock.
+      - run: uv run --no-sync pytest -q -m "not slow and not integration"
+      - name: Source protocol and skills smoke
+        run: |
+          VERSION=$(uv run --no-sync python -c 'from zulipchat_mcp import __version__; print(__version__)')
+          uv run --no-sync python scripts/mcp_stdio_smoke.py --expected-version "$VERSION" -- uv run --no-sync zulipchat-mcp
+          uv run --no-sync zulipchat-mcp-hook --help > /dev/null
+      - run: uv build
+      - name: Installed-wheel compatibility smoke
+        env:
+          FASTMCP_REQUIREMENT: ${{ matrix.requirement }}
+        run: |
+          uv venv .wheel-compat --python '${{ matrix.python }}'
+          uv pip install --python .wheel-compat/bin/python dist/*.whl "$FASTMCP_REQUIREMENT"
+          VERSION=$(uv run --no-sync python -c 'from zulipchat_mcp import __version__; print(__version__)')
+          uv run --no-project --python .wheel-compat/bin/python scripts/mcp_stdio_smoke.py --expected-version "$VERSION" -- "$PWD/.wheel-compat/bin/zulipchat-mcp"
+          .wheel-compat/bin/zulipchat-mcp-hook --help > /dev/null

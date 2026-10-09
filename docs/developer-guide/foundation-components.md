@@ -17,7 +17,8 @@
 ## Caching (`core/cache.py`)
 
 - User and stream caches are used for fast fuzzy resolution.
-- Startup warms both caches in `server.py`.
+- Clients and their account-isolated caches initialize lazily. Startup does not
+  query Zulip to warm caches.
 
 ## Security helpers (`core/security.py`)
 

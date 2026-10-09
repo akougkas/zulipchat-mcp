@@ -2,15 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.7.3)
+## Current Status (v0.7.4)
 
-**Published**: [PyPI](https://pypi.org/project/zulipchat-mcp/) | [TestPyPI](https://test.pypi.org/project/zulipchat-mcp/)
+**Development**: v0.7.4 is prepared locally and unpublished. Latest published stable: [v0.7.3 on PyPI](https://pypi.org/project/zulipchat-mcp/0.7.3/).
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
+Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help`. Always use `--from zulipchat-mcp` for the setup wizard, integration exporter, and hook bridge.
+
 ## Project Overview
 
-ZulipChat MCP Server v0.7.3 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.7.4 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -77,6 +79,20 @@ src/zulipchat_mcp/
 - **Tools**: `src/zulipchat_mcp/tools/*.py` - MCP tool implementations
 - **Configuration**: `src/zulipchat_mcp/config.py` - Environment/CLI configuration management
 - **Database**: DuckDB integration for persistence and caching
+- **Account binding**: immutable effective realm/principal resolution and
+  fingerprint-scoped persistence; all initialization/binding failures abort startup
+- **Packaged skills**: four canonical `skills/*/SKILL.md` documents, a dependency-light
+  loader, immutable Resources, and SEP-2640 discovery on MCP 2026-07-28
+- **Integration exports**: native configurations for seven host families and
+  schema-validated portable plugin content; host trust remains an operator action
+
+Use `/reply REQUEST_ID answer` for questions and `/approve REQUEST_ID` or
+`/deny REQUEST_ID` for permissions. Prefer 30-second waits on the same pending
+request. Use explicit scoped event acknowledgements when delivery must survive
+a lost tool response. New prompts require listener readiness, while persisted
+decisions and events remain available during outages. See
+[the integration guide](docs/integrations/agent-skills.md) and
+[account migration](docs/user-guide/configuration.md#persistent-state-and-account-migration).
 
 ### Dual Identity System
 The client supports both user and bot credentials:
@@ -247,9 +263,14 @@ If analytics tools return `llm_unavailable=True`:
 ### DuckDB lock after unclean shutdown
 Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the file in `.mcp/zulipchat/zulipchat.duckdb`.
 
-## Project Skills (`.claude/skills/`)
+## Exported Claude skills
 
-Three project-specific skills extend the Zulip control plane. They activate when a Claude Code session is bound to a Zulip topic via `zulipchat-mcp-hook` and read `ZULIPCHAT_SESSION_ID`, `ZULIPCHAT_SESSION_STREAM`, `ZULIPCHAT_SESSION_TOPIC` from the shell:
+Claude package templates under `integrations/claude-code/` include three
+host-specific control-plane skills plus the portable `zulipchat` skill. Export
+them with `zulipchat-mcp-integrate export --client claude-code`; standalone mode
+places them in the destination project's `.claude/skills/`. The three native
+skills require a topic-bound hook session and read `ZULIPCHAT_SESSION_ID`,
+`ZULIPCHAT_SESSION_STREAM`, and `ZULIPCHAT_SESSION_TOPIC` from the shell:
 
 - **`zulipchat-session-operator`**: treats Zulip as the owner control plane. Polls `poll_agent_events`, handles `/status`, `/pause`, `/resume`, `/cancel`, `/handoff`, enforces lifecycle-only posting discipline.
 - **`zulipchat-loop`**: per-cycle policy for `/loop` runs. Each turn polls events, applies steering, emits at most one lifecycle message, does one unit of work.

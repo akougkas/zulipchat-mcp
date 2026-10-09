@@ -8,7 +8,8 @@ import asyncio
 import hashlib
 import mimetypes
 import os
-from base64 import b64encode
+from base64 import b64decode, b64encode
+from binascii import Error as Base64Error
 from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse, urlunparse
@@ -217,21 +218,53 @@ async def upload_file(
     stream: str | None = None,
     topic: str | None = None,
     message: str | None = None,
+    file_content_base64: str | None = None,
 ) -> dict[str, Any]:
-    """Upload files to Zulip with comprehensive capabilities and security validation."""
-    if file_content is None and not file_path:
+    """Upload one file source, optionally sharing it in a stream.
+
+    Use file_content_base64 for binary data over MCP JSON: standard, padded base64
+    with no whitespace, limited to 25 MiB decoded. An empty string uploads an empty
+    file. file_content preserves UTF-8 text over JSON and bytes for Python callers;
+    file_path is available only locally. Supply exactly one of these sources.
+    """
+    source_count = sum(
+        (file_content is not None, bool(file_path), file_content_base64 is not None)
+    )
+    if source_count != 1:
         return {
             "status": "error",
-            "error": "Either file_content or file_path is required",
+            "error": (
+                "Exactly one of file_content, file_path, or file_content_base64 "
+                "is required"
+            ),
         }
 
     if file_path and not local_access_allowed():
         return {
             "status": "error",
-            "error": "Local file paths are disabled over HTTP; use file_content",
+            "error": (
+                "Local file paths are disabled over HTTP; use file_content "
+                "or file_content_base64"
+            ),
         }
 
-    client = get_client()
+    if file_content_base64 is not None:
+        # Bound the encoded allocation before decoding; padding means the decoded
+        # length must still be checked by validate_file_security below.
+        if len(file_content_base64) > 4 * ((MAX_FILE_SIZE + 2) // 3):
+            return {"status": "error", "error": "File too large (max 25MB)"}
+        try:
+            file_content = b64decode(file_content_base64, validate=True)
+        except (Base64Error, ValueError):
+            return {
+                "status": "error",
+                "error": "file_content_base64 must be valid standard padded base64",
+            }
+        if b64encode(file_content).decode("ascii") != file_content_base64:
+            return {
+                "status": "error",
+                "error": "file_content_base64 must be canonical standard padded base64",
+            }
 
     try:
         # Read file if path provided
@@ -254,6 +287,8 @@ async def upload_file(
         validation = validate_file_security(file_content, filename)
         if not validation["valid"]:
             return {"status": "error", "error": validation["error"]}
+
+        client = get_client()
 
         # Auto-detect MIME type if not provided
         if not mime_type:
@@ -545,7 +580,11 @@ def register_files_tools(mcp: FastMCP) -> None:
     """Register file tools with the MCP server."""
     mcp.tool(
         name="upload_file",
-        description="Upload files with comprehensive security validation and sharing",
+        description=(
+            "Upload and optionally share a file (max 25 MiB). Supply exactly one "
+            "source: file_content_base64 for binary data using standard padded "
+            "base64, file_content for UTF-8 text, or a local file_path (stdio only)."
+        ),
     )(upload_file)
     mcp.tool(
         name="manage_files",

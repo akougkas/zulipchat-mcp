@@ -2,9 +2,14 @@
   "id": "zulipchat-mcp-vscode-copilot",
   "name": "ZulipChat MCP for VS Code + Copilot",
   "platform": "vscode-copilot",
-  "category": ["communication", "mcp", "zulip"],
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
   "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
   "description": "Workspace MCP server configuration for VS Code and GitHub Copilot.",
   "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/vscode-copilot.md",
-  "repository": "https://github.com/akougkas/zulipchat-mcp"
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
 }

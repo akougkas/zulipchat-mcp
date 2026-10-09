@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Gemini CLI, Codex, Cursor, Windsurf, VS Code Copilot, and other MCP clients to Zulip.</h3>
+  <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Codex, Clio Coder, OpenCode, Copilot, Antigravity CLI, Gemini CLI, and other MCP clients to Zulip.</h3>
 
   [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![CI](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
@@ -21,11 +21,15 @@
 
 ## Quick Start
 
+This branch prepares **v0.7.4**; the latest published stable package is
+**v0.7.3**. Run `uv sync` and `uv run zulipchat-mcp` to test this checkout.
+
 ```bash
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-That's it. Your AI assistant can now read and write Zulip messages.
+Configure this command in your MCP client to let the assistant read and write
+Zulip messages with the configured account.
 
 Need a zuliprc? **Zulip Settings > Personal > Account & privacy > API key** — download the file, save it as `~/.zuliprc`.
 
@@ -46,6 +50,26 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 - **Monitor activity** — search recent messages, get stream info, check who's online
 - **Bind sessions to Zulip topics** — give long-running agent sessions a stable control topic
 - **Request approvals in-topic** — owner replies with `/approve REQUEST_ID` or `/deny REQUEST_ID` in the session topic; each decision names the request it answers
+- **Load Agent Skills** — four packaged instructions for messaging, session control, notifications, and bounded work loops, available as local files and MCP Resources
+- **Export agent packages** — native host configuration and skills, Claude's hook/plugin assets, or an Agent Plugins 1.0.0 package
+
+### Agent setup in v0.7.4
+
+```bash
+# From this unpublished checkout; substitute another supported client as needed.
+uv run zulipchat-mcp-integrate export --client clio-coder \
+  --output-dir /absolute/path/to/project \
+  --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
+```
+
+Exports support `claude-code`, `codex`, `opencode`, `copilot`, `vscode`,
+`antigravity-cli`, `clio-coder`, and `generic`. Add `--mode plugin` for a package.
+After publication, run the exporter with
+`uvx --from zulipchat-mcp zulipchat-mcp-integrate`. Host trust remains explicit;
+Clio configures MCP execution separately from plugin content. See the
+[capability matrix](docs/integrations/agent-skills.md),
+[Clio guide](docs/integrations/clio-coder.md), and
+[complete workflow](docs/integrations/agent-workflow.md).
 
 ## Two-Tier Tool Architecture
 
@@ -99,14 +123,14 @@ claude mcp add zulipchat -- uvx zulipchat-mcp \
 
 Optional Claude hook bridge for lifecycle and approval routing:
 ```bash
-uvx zulipchat-mcp-hook \
+uvx --from zulipchat-mcp zulipchat-mcp-hook \
   --zulip-config-file ~/.zuliprc \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```
 
 Optional Claude package export for project-local hooks, skills, and subagents:
 ```bash
-uvx zulipchat-mcp-integrate export \
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export \
   --client claude-code \
   --mode standalone \
   --output-dir . \
@@ -157,6 +181,7 @@ Add to your MCP configuration:
 | `--allowed-origin URL` | Additional trusted browser origin; repeat for multiple origins |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
+| `--associate-existing-db` | Deliberately associate an unbound legacy database with the verified current account |
 
 ### Remote HTTP Transport
 
@@ -171,12 +196,17 @@ ZULIPCHAT_HTTP_AUTH_TOKEN=your-secret-token \
 Generate client integration snippets for remote HTTP connections:
 
 ```bash
-uvx zulipchat-mcp-integrate print --client claude-code --remote-url http://mcp.internal:8000/mcp --remote-token your-secret-token
+uvx --from zulipchat-mcp zulipchat-mcp-integrate print --client claude-code --remote-url http://mcp.internal:8000/mcp --remote-token your-secret-token
 ```
 
 HTTP startup requires a bearer token for non-loopback binds and validates Host and Origin headers. Configure `--allowed-host` for the hostname used by clients or a reverse proxy; terminate TLS at the proxy for remote connections. A token grants access to the configured Zulip account: deploy a separate instance per trusted account, rather than sharing it across unrelated users.
 
-HTTP tools reject server-local file paths, outbound event callbacks, and `switch_identity`. Upload with `file_content`; download without `download_path` to obtain a URL. Use stdio for local file operations and runtime identity switching. Attachment deletion requires `--unsafe`.
+HTTP tools reject server-local file paths, outbound event callbacks, and `switch_identity`. Upload text with `file_content` or binary bytes with `file_content_base64`; download without `download_path` to obtain a URL. Use stdio for local file operations and runtime identity switching. Attachment deletion requires `--unsafe`.
+
+Persistent state defaults to an account-scoped directory. An explicitly selected
+`ZULIPCHAT_DB_PATH` is associated with the normalized realm and user/bot
+principals; a different account cannot reuse it. Legacy state is left intact and
+requires deliberate association. See [database migration](docs/user-guide/configuration.md#persistent-state-and-account-migration).
 
 Agent sessions, approvals, listener cursors, and default background-task storage remain local state. Use a single instance for these workflows. Separate DuckDB paths avoid writer conflicts but do not share session data; ordinary round-robin routing across such replicas is not supported. Legacy HTTP clients may also retain transport sessions.
 

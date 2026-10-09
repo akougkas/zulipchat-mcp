@@ -1,0 +1,15 @@
+{
+  "mcp": {
+    "zulipchat": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "uvx",
+        "zulipchat-mcp",
+        "--zulip-config-file",
+        "/absolute/path/to/.zuliprc",
+        "--extended-tools"
+      ]
+    }
+  }
+}

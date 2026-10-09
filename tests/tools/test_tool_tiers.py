@@ -6,6 +6,8 @@ import asyncio
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 # --- Registration counting infrastructure ---
 
 
@@ -143,11 +145,16 @@ def _run(coro):
 
 
 class TestManageMessageFlags:
+    @pytest.fixture(autouse=True)
+    def captured_client(self):
+        with patch("zulipchat_mcp.tools.mark_messaging.get_client"):
+            yield
+
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
     def test_scope_all(self, mock_update):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
-        mock_update.return_value = {"status": "success"}
+        mock_update.return_value = {"status": "success", "found_newest": True}
         result = _run(manage_message_flags(flag="read", action="add", scope="all"))
         assert result["status"] == "success"
         mock_update.assert_called_once()
@@ -164,7 +171,7 @@ class TestManageMessageFlags:
     def test_scope_stream(self, mock_update, mock_resolve):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
-        mock_update.return_value = {"status": "success"}
+        mock_update.return_value = {"status": "success", "found_newest": True}
         result = _run(
             manage_message_flags(flag="read", action="add", scope="stream", stream_id=1)
         )
@@ -186,7 +193,7 @@ class TestManageMessageFlags:
     def test_scope_topic(self, mock_update, mock_resolve):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
-        mock_update.return_value = {"status": "success"}
+        mock_update.return_value = {"status": "success", "found_newest": True}
         result = _run(
             manage_message_flags(
                 flag="starred",
@@ -214,7 +221,7 @@ class TestManageMessageFlags:
     def test_scope_narrow_with_explicit_narrow(self, mock_update):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
-        mock_update.return_value = {"status": "success"}
+        mock_update.return_value = {"status": "success", "found_newest": True}
         narrow = [{"operator": "sender", "operand": "user@test.com"}]
         result = _run(
             manage_message_flags(
@@ -366,6 +373,7 @@ class TestSessionTools:
 
         mock_db = mock_db_cls.return_value
         mock_db.get_agent_session.return_value = {"session_id": "s1"}
+        mock_db.update_agent_session.return_value = {"status": "success"}
         mock_coord = mock_coordinator_factory.return_value
         mock_coord.send_session_message.return_value = {"status": "success"}
 

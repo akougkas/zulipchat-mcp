@@ -143,10 +143,27 @@ async def wait_for_response(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
         track_tool_call("wait_for_response")
         try:
-            await asyncio.to_thread(ensure_listener)
-            return await _get_coordinator().wait_for_request_async(
+            coordinator = _get_coordinator()
+            request = await asyncio.to_thread(
+                coordinator.db.get_agent_request, request_id
+            )
+            listener_error = None
+            if not request or request.get("status") not in {
+                "answered",
+                "cancelled",
+                "declined",
+                "timeout",
+            }:
+                try:
+                    await asyncio.to_thread(ensure_listener)
+                except Exception as error:
+                    listener_error = str(error)
+            result = await coordinator.wait_for_request_async(
                 request_id, timeout_seconds=timeout_seconds
             )
+            if listener_error:
+                result["listener_error"] = listener_error
+            return result
         except Exception as e:
             track_tool_error("wait_for_response", type(e).__name__)
             return {"status": "error", "error": str(e)}
@@ -161,12 +178,14 @@ def send_agent_status(agent_id: str, status: str, message: str = "") -> dict[str
             if profile is None:
                 return {"status": "error", "error": "Agent not found"}
             status_id = str(uuid.uuid4())
-            DatabaseManager().create_agent_status(
+            persisted = DatabaseManager().create_agent_status(
                 status_id=status_id,
                 agent_type=str(profile["agent_type"]),
                 status=status,
                 message=message,
             )
+            if persisted.get("status") != "success":
+                return persisted
             return {"status": "success", "status_id": status_id, "agent_id": agent_id}
         except Exception as e:
             track_tool_error("send_agent_status", type(e).__name__)
@@ -185,6 +204,7 @@ def request_user_input(
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "request_user_input"}):
         track_tool_call("request_user_input")
         try:
+            ensure_listener()
             return _get_coordinator().create_request(
                 session_id=session_id,
                 prompt=question,
@@ -316,13 +336,22 @@ def close_agent_session(
             session = db.get_agent_session(session_id)
             if session is None:
                 return {"status": "error", "error": "Session not found"}
-            db.update_agent_session(session_id, status=status)
+            persisted = db.update_agent_session(session_id, status=status)
+            if persisted.get("status") != "success":
+                return persisted
             if summary:
-                _get_coordinator().send_session_message(
+                announcement = _get_coordinator().send_session_message(
                     session_id=session_id,
                     content=summary,
                     category=status if status in {"completed", "failed"} else "message",
                 )
+                if announcement.get("status") != "success":
+                    return {
+                        **announcement,
+                        "status": "partial",
+                        "session_id": session_id,
+                        "session_closed": True,
+                    }
             return {
                 "status": "success",
                 "session_id": session_id,
@@ -338,23 +367,56 @@ def poll_agent_events(
     agent_id: str | None = None,
     session_id: str | None = None,
     event_type: str | None = None,
+    auto_ack: bool = True,
+    ack_event_ids: list[str] | None = None,
+    include_audit: bool = False,
 ) -> dict[str, Any]:
-    """Poll unacknowledged inbound session events."""
+    """Poll owner control events; use auto_ack=False and ack_event_ids for replay.
+
+    include_audit=True also exposes outbound and unauthorized audit records.
+    """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
         track_tool_call("poll_agent_events")
         try:
-            ensure_listener()
             db = DatabaseManager()
+            if not 1 <= limit <= 500 or (ack_event_ids and len(ack_event_ids) > 500):
+                return {
+                    "status": "error",
+                    "error": "Event batches must contain at most 500 entries and limit must be positive",
+                }
+            if ack_event_ids:
+                acknowledged = db.ack_session_events(
+                    ack_event_ids, session_id=session_id, agent_id=agent_id
+                )
+                if acknowledged.get("status") != "success":
+                    return acknowledged
             events = db.get_unacked_session_events(
                 limit=limit,
                 agent_id=agent_id,
                 session_id=session_id,
                 event_type=event_type,
+                include_audit=include_audit,
             )
             ids = [str(event["id"]) for event in events]
-            if ids:
-                db.ack_session_events(ids)
-            return {"status": "success", "events": events, "count": len(events)}
+            if ids and auto_ack:
+                acknowledged = db.ack_session_events(
+                    ids, session_id=session_id, agent_id=agent_id
+                )
+                if acknowledged.get("status") != "success":
+                    return {
+                        "status": "partial",
+                        "error": "Events read but acknowledgement failed",
+                        "events": events,
+                        "count": len(events),
+                    }
+            result = {"status": "success", "events": events, "count": len(events)}
+            if events or ack_event_ids:
+                return result
+            try:
+                ensure_listener()
+            except Exception as error:
+                result["listener_error"] = str(error)
+            return result
         except Exception as e:
             track_tool_error("poll_agent_events", type(e).__name__)
             return {"status": "error", "error": str(e)}

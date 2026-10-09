@@ -249,7 +249,7 @@ class TestMarkAllAsRead:
         assert "Connection failed" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_mark_all_as_read_outer_exception(self):
+    async def test_mark_all_as_read_outer_exception(self, mock_deps):
         """Test outer exception handler in mark_all_as_read."""
         # Patch the inner function to raise an exception
         with patch(
@@ -345,6 +345,7 @@ class TestMarkMessagesUnread:
             "result": "success",
             "processed_count": 10,
             "updated_count": 10,
+            "found_newest": True,
         }
         client.get_streams.return_value = {
             "result": "success",
@@ -466,7 +467,7 @@ class TestMarkMessagesUnread:
         assert "Server error" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_mark_messages_unread_outer_exception(self):
+    async def test_mark_messages_unread_outer_exception(self, mock_deps):
         """Test outer exception handler in mark_messages_unread."""
         with patch(
             "src.zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow"
@@ -491,6 +492,7 @@ class TestStarMessages:
             "result": "success",
             "processed_count": 5,
             "updated_count": 5,
+            "found_newest": True,
         }
         client.get_streams.return_value = {
             "result": "success",
@@ -587,7 +589,7 @@ class TestStarMessages:
         assert "Rate limited" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_star_messages_outer_exception(self):
+    async def test_star_messages_outer_exception(self, mock_deps):
         """Test outer exception handler in star_messages."""
         with patch(
             "src.zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow"
@@ -612,6 +614,7 @@ class TestUnstarMessages:
             "result": "success",
             "processed_count": 3,
             "updated_count": 3,
+            "found_newest": True,
         }
         client.get_streams.return_value = {
             "result": "success",
@@ -728,7 +731,7 @@ class TestUnstarMessages:
         assert "Connection reset" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_unstar_messages_outer_exception(self):
+    async def test_unstar_messages_outer_exception(self, mock_deps):
         """Test outer exception handler in unstar_messages."""
         with patch(
             "src.zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow"

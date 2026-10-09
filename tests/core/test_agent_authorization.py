@@ -24,6 +24,7 @@ def test_explicit_request_id_requires_owner_and_matching_session(
         "request_id": "request-1",
         "session_id": session_id,
         "status": "pending",
+        "request_type": "approval",
     }
     db.get_agent_session_for_topic.return_value = (
         {

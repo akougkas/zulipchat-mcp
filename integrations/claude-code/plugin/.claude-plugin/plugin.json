@@ -1,7 +1,7 @@
 {
   "name": "zulipchat",
   "description": "Connect Claude Code sessions to Zulip topics with lifecycle hooks, owner approvals, and bidirectional control.",
-  "version": "0.6.2",
+  "version": "0.7.4",
   "author": {
     "name": "Anthony Kougkas"
   },

@@ -95,6 +95,7 @@ async def test_listener_backoff_remains_bounded_after_many_errors():
 
 @pytest.mark.asyncio
 async def test_mark_all_read_processes_more_than_one_page(monkeypatch):
+    monkeypatch.setattr(mark_messaging, "get_client", MagicMock())
     update = AsyncMock(
         side_effect=[
             {

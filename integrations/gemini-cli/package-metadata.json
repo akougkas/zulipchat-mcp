@@ -2,9 +2,14 @@
   "id": "zulipchat-mcp-gemini-cli",
   "name": "ZulipChat MCP for Gemini CLI",
   "platform": "gemini-cli",
-  "category": ["communication", "mcp", "zulip"],
+  "category": [
+    "communication",
+    "mcp",
+    "zulip"
+  ],
   "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
   "description": "Registers ZulipChat MCP in Gemini CLI user scope.",
   "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/gemini-cli.md",
-  "repository": "https://github.com/akougkas/zulipchat-mcp"
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "version": "0.7.4"
 }

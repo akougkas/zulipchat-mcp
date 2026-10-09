@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents runtime configuration for ZulipChat MCP v0.7.3.
+This page documents runtime configuration for ZulipChat MCP v0.7.4 (prepared, unpublished); the same options are available in stable v0.7.3.
 
 ## Recommended setup
 
@@ -81,11 +81,41 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
-- `ZULIPCHAT_DB_PATH`: DuckDB file path (default: `.mcp/zulipchat/zulipchat.duckdb`)
+- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb`.
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
 - `ZULIPCHAT_AGENT_STREAM=<stream>`: override the default control stream used for agent session topics
 - `ZULIPCHAT_APPROVAL_TIMEOUT=<seconds>`: timeout for Claude hook approval waits
+
+## Persistent state and account migration
+
+The default database path now includes a non-secret SHA-256 fingerprint of the
+normalized realm and effective user/bot principals. Key rotation does not change
+that fingerprint. Different realms or principals use different default paths.
+An explicit `ZULIPCHAT_DB_PATH` is bound to the same identity and refuses reuse
+by another account, even with the association flag. Initialization or binding
+failure aborts startup; an unverified candidate is not available to later tools.
+
+The old `.mcp/zulipchat/zulipchat.duckdb` remains intact. Starting v0.7.4 with the
+new default does not migrate its sessions or approvals. To retain verified old
+state, first confirm the account that created it and make a backup, then select
+that exact file and explicitly associate it:
+
+```bash
+ZULIPCHAT_DB_PATH=/absolute/path/to/project/.mcp/zulipchat/zulipchat.duckdb \
+  uv run zulipchat-mcp --zulip-config-file /absolute/path/to/.zuliprc \
+  --associate-existing-db
+```
+
+The flag alone does not select the legacy path. It associates an unbound
+database with the configured account; it never overrides an existing different
+binding. Retain the same explicit path for subsequent server and Claude hook
+processes. Hooks use the account-scoped default when that variable is absent.
+
+This protects sequential account changes as well as concurrent use. It does
+not make separate processes/replicas interchangeable: use one listener/server
+instance per account/session workflow. Named organization profiles remain a
+separate [proposed feature](../developer-guide/organization-profiles.md).
 
 ## Configuration precedence
 

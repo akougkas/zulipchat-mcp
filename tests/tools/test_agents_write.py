@@ -18,7 +18,9 @@ class TestAgentOperations:
 
     @pytest.fixture
     def mock_db(self):
-        return MagicMock()
+        db = MagicMock()
+        db.update_agent_session.return_value = {"status": "success"}
+        return db
 
     @pytest.fixture
     def mock_coordinator(self):

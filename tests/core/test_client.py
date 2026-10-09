@@ -105,6 +105,7 @@ class TestZulipClientWrapper:
             api_key="key",
             site="https://chat.zulip.org",
             retry_on_errors=False,
+            client="zulipchat-mcp",
         )
 
     def test_send_message_stream(self, mock_config_manager, mock_zulip_client):

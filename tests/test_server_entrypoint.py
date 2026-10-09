@@ -153,7 +153,9 @@ def test_http_transport_passes_host_port_and_registers_tasks_extension():
     ):
         server.main()
 
-    mcp.add_extension.assert_called_once()
+    assert {
+        type(call.args[0]).__name__ for call in mcp.add_extension.call_args_list
+    } == {"TasksExtension", "SkillsExtension"}
     mcp.run.assert_called_once_with(
         transport="http",
         host="0.0.0.0",

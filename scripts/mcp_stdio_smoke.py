@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -43,6 +44,9 @@ async def _smoke(command: list[str], expected_version: str) -> None:
             "ZULIPCHAT_EXTENDED_TOOLS": "0",
             "ANTHROPIC_API_KEY": "",
         }
+        for name in ("UV_PROJECT_ENVIRONMENT", "UV_CACHE_DIR"):
+            if name in os.environ:
+                env[name] = os.environ[name]
         for mode in ("legacy", "2026-07-28"):
             for extended in (False, True):
                 args = [*command, *(["--extended-tools"] if extended else [])]
@@ -86,7 +90,19 @@ async def _smoke_connection(
                 f"expected {expected_version}, got {data['version']}"
             )
 
-        print(f"ok: {mode}, {len(tools)} tools, server_info v{data['version']}")
+        resources = await client.list_resources()
+        if len(resources) != 4:
+            raise AssertionError(
+                f"Expected four packaged skills, got {len(resources)} resources"
+            )
+        for resource in resources:
+            content = await client.read_resource(str(resource.uri))
+            if not content or "name: zulipchat" not in content[0].text:
+                raise AssertionError(f"Invalid packaged skill: {resource.uri}")
+
+        print(
+            f"ok: {mode}, {len(tools)} tools, four skills, server_info v{data['version']}"
+        )
 
 
 def main() -> None:

@@ -78,16 +78,17 @@ def _wait_for_topic_decision(
 ) -> dict[str, Any] | None:
     """Poll the topic directly via Zulip REST until the owner replies."""
     start = time.monotonic()
+    cursor = min_message_id
     while time.monotonic() - start < timeout_seconds:
         response = coordinator.bot_client.get_messages_raw(
-            anchor="newest",
-            num_before=50,
-            num_after=0,
+            anchor=str(cursor),
+            num_before=0,
+            num_after=100,
             narrow=[
                 {"operator": "stream", "operand": stream_name},
                 {"operator": "topic", "operand": topic_name},
             ],
-            include_anchor=True,
+            include_anchor=False,
             client_gravatar=False,
             apply_markdown=False,
         )
@@ -97,8 +98,9 @@ def _wait_for_topic_decision(
             )
             for message in messages:
                 message_id = int(message.get("id", 0))
-                if message_id <= min_message_id:
+                if message_id <= cursor:
                     continue
+                cursor = message_id
                 if str(message.get("sender_email", "")).lower() != owner_email.lower():
                     continue
                 parsed = parse_control_message(str(message.get("content", "")))
@@ -111,6 +113,8 @@ def _wait_for_topic_decision(
                         "message_id": message_id,
                         "content": str(message.get("content", "")),
                     }
+            if messages and response.get("found_newest") is False:
+                continue
         time.sleep(3)
     return None
 
@@ -173,7 +177,12 @@ def _handle_permission_request(
         source_event="PermissionRequest",
         metadata=payload,
     )
-    if request.get("status") != "success":
+    if request.get("status") != "success" and not (
+        request.get("status") == "partial"
+        and request.get("delivered")
+        and request.get("request_id")
+        and request.get("message_id")
+    ):
         return _permission_decision_output("deny")
 
     decision = _wait_for_topic_decision(
@@ -318,7 +327,7 @@ def main() -> None:
         logger.error("Invalid Zulip configuration for Claude hook bridge")
         sys.exit(1)
 
-    init_database()
+    init_database(account_fingerprint=config_manager.resolved_account().fingerprint)
     coordinator = AgentCoordinator()
 
     agent_result = coordinator.register_agent(

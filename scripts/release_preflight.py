@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -54,7 +55,11 @@ def _run_git(args: list[str]) -> str:
 
 def _check_semver(version: str) -> CheckResult:
     passed = bool(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?", version))
-    detail = version if passed else "Expected format MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE"
+    detail = (
+        version
+        if passed
+        else "Expected format MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-PRERELEASE"
+    )
     return CheckResult("Version is valid semver", passed, detail)
 
 
@@ -126,13 +131,90 @@ def _check_changelog(version: str) -> CheckResult:
 
 def _check_required_scripts() -> CheckResult:
     content = _read_text(ROOT / "pyproject.toml")
-    expected = ["zulipchat-mcp", "zulipchat-mcp-setup", "zulipchat-mcp-integrate"]
+    expected = [
+        "zulipchat-mcp",
+        "zulipchat-mcp-setup",
+        "zulipchat-mcp-integrate",
+        "zulipchat-mcp-hook",
+    ]
     missing = [name for name in expected if f"{name} =" not in content]
     passed = not missing
     detail = (
         "all expected entrypoints found" if passed else f"missing: {', '.join(missing)}"
     )
     return CheckResult("CLI entrypoints declared", passed, detail)
+
+
+def _has_package_source(options: list[str]) -> bool:
+    return any(
+        (
+            option == "--from"
+            and index + 1 < len(options)
+            and bool(options[index + 1])
+            and not options[index + 1].startswith("-")
+        )
+        or (option.startswith("--from=") and len(option) > len("--from="))
+        for index, option in enumerate(options)
+    )
+
+
+def _unsafe_json_companions(value: object) -> bool:
+    """Inspect command/args arrays as well as shell command strings."""
+    if isinstance(value, dict):
+        if value.get("command") == "uvx":
+            args = value.get("args", [])
+            if isinstance(args, list) and all(isinstance(arg, str) for arg in args):
+                for index, arg in enumerate(args):
+                    if arg in {
+                        "zulipchat-mcp-setup",
+                        "zulipchat-mcp-integrate",
+                        "zulipchat-mcp-hook",
+                    } and not _has_package_source(args[:index]):
+                        return True
+        return any(_unsafe_json_companions(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_unsafe_json_companions(item) for item in value)
+    return False
+
+
+def _check_uvx_package_sources() -> CheckResult:
+    """Reject companion commands whose distribution would be inferred by uvx."""
+    pattern = re.compile(
+        r"\buvx[ \t]+(?P<options>(?:[^\r\n`]|\\\r?\n)*?)"
+        r"\bzulipchat-mcp-(?:setup|integrate|hook)\b"
+    )
+    paths = list(ROOT.glob("*.md"))
+    extensions = {".md", ".rst", ".sh", ".json", ".jsonc", ".toml", ".yml", ".yaml"}
+    for directory in ("docs", "integrations", "src/zulipchat_mcp/skills"):
+        paths.extend(
+            path
+            for path in (ROOT / directory).rglob("*")
+            if path.is_file() and path.suffix in extensions
+        )
+    failures = []
+    for path in sorted(paths):
+        content = _read_text(path)
+        if path.suffix == ".json" and _unsafe_json_companions(json.loads(content)):
+            failures.append(f"{path.relative_to(ROOT)}: command/args")
+        for match in pattern.finditer(content):
+            try:
+                options = shlex.split(
+                    match.group("options").replace("\\\n", "").replace("\\\r\n", "")
+                )
+            except ValueError:
+                options = []
+            if not _has_package_source(options):
+                line = content.count("\n", 0, match.start()) + 1
+                failures.append(f"{path.relative_to(ROOT)}:{line}")
+    return CheckResult(
+        "Companion uvx commands specify a package source",
+        not failures,
+        (
+            ", ".join(failures)
+            if failures
+            else "documentation and templates use explicit sources"
+        ),
+    )
 
 
 def _check_git_clean() -> CheckResult:
@@ -142,6 +224,21 @@ def _check_git_clean() -> CheckResult:
         "working tree is clean" if passed else "working tree has uncommitted changes"
     )
     return CheckResult("Git working tree is clean", passed, detail)
+
+
+def _check_integration_versions(version: str) -> CheckResult:
+    failures = []
+    for path in (ROOT / "integrations").rglob("*.json"):
+        if path.name not in {"catalog.json", "package-metadata.json", "plugin.json"}:
+            continue
+        payload = json.loads(_read_text(path))
+        if "version" in payload and payload["version"] != version:
+            failures.append(str(path.relative_to(ROOT)))
+    return CheckResult(
+        "Integration package versions match",
+        not failures,
+        ", ".join(failures) if failures else version,
+    )
 
 
 def _check_tag_absent(version: str) -> CheckResult:
@@ -187,6 +284,8 @@ def main() -> None:
     results.extend(_check_server_json(args.version))
     results.append(_check_changelog(args.version))
     results.append(_check_required_scripts())
+    results.append(_check_uvx_package_sources())
+    results.append(_check_integration_versions(args.version))
 
     if args.allow_dirty:
         results.append(

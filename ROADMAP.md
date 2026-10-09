@@ -1,49 +1,45 @@
 # Roadmap
 
-## v0.7.3 (Current)
+## v0.7.4 (Current)
 
-Release preparation and audit evidence: [v0.7.3 audit](docs/releases/v0.7.3-audit.md).
+Development is on `v074`. The latest published stable release is **v0.7.3**;
+v0.7.4 has not been pushed, tagged, released, or published.
 
-- FastMCP 4 final validation (#17): implemented and covered by protocol/task tests.
-- Ping compatibility patch (#18): removed after upstream confirmed modern ping is intentionally unsupported.
-- Publish v0.7.3 after reviewing the release artifact and audit.
-- Public stable release at audit time: v0.7.2; v0.7.3-beta.1 was tagged but not published.
+- Correct auxiliary `uvx` commands and gate explicit package sources in CI.
+- Preserve Olivier Durif's community PR #22, allow compatible FastMCP 4 updates,
+  refresh the full lockfile, and test the minimum and latest allowed versions.
+- Package four Agent Skills, serve them through MCP Resources and SEP-2640,
+  and export native configuration for Claude Code, Codex, OpenCode, Copilot CLI,
+  VS Code, Antigravity CLI, and Clio Coder.
+- Provide an Agent Plugins 1.0.0 package alongside Claude's native plugin format.
+  Keep host-specific execution and permission checks explicit.
+- Address confirmed findings from the independent Astra architecture review.
+- Keep Python 3.10 compatibility and validate current Python versions, local
+  source, and built wheels with fake credentials.
 
-## Future work (not scheduled)
+Evidence and limitations: [v0.7.4 audit](docs/releases/v0.7.4-audit.md).
+The FastMCP migration (#17) and modern ping behavior (#18) were resolved in
+v0.7.3; see its [completed audit](docs/releases/v0.7.3-audit.md).
 
-### Feature 1: Multi-Organization Support
-**Problem**: Users with multiple Zulip orgs (work, personal, open-source) can't switch contexts.
+## Next: named organization profiles
 
-**Solution**:
-- Named profiles in config: `--profile work` / `--profile personal`
-- Profile registry: `~/.config/zulipchat-mcp/profiles.json`
-- Runtime switching: `switch_organization` tool
-- Auto-discovery of multiple zuliprc files
+Start with **startup selection**, with one organization per server process.
+The [profile design](docs/developer-guide/organization-profiles.md) specifies
+credential precedence, cache/database isolation, configuration validation, and
+acceptance tests. This feature is a design proposal; `--profile` and runtime
+organization switching are not implemented in v0.7.4.
 
-**Example**:
-```bash
-uvx zulipchat-mcp --profile work
-uvx zulipchat-mcp --profile personal
-```
+Runtime organization switching needs a separate design for listener shutdown,
+pending approvals, tasks, and HTTP caller isolation before it can be offered.
 
-### Feature 2: Plugin Marketplace Packaging
-**Problem**: Different AI platforms have different extension formats.
+## Distribution after release approval
 
-**Target platforms**:
-- MCP Registry (modelcontextprotocol.io)
-- Anthropic Tool Library
-- Google Gemini Extensions
-- OpenAI GPT Actions
-- VS Code / Cursor extensions
-
-**Approach**:
-- Adapter layer per platform (same core, different packaging)
-- `plugins/` directory with platform-specific manifests
-- Single `uv build --target=<platform>` command
-
----
-
-## Next Session Agenda
-1. List zulipchat-mcp in public MCP catalogs
-2. Submit to Anthropic/Google extension directories
-3. Create promotional materials (demo GIFs, etc.)
+- Publish the prepared artifact and notify reporters with credit and upgrade
+  instructions. Keep the community PR open until the local work is published.
+- Validate the MCP Registry entry and submit supported plugin packages to host
+  directories that accept this format. Local schema validation does not imply
+  directory acceptance or listing.
+- Use the [agent workflow example](docs/integrations/agent-workflow.md) as a small
+  reproducible demo, including Clio discovery and owner replies.
+- Collect real integration feedback before adding executable host plugins or
+  another compatibility layer.

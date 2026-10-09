@@ -85,8 +85,19 @@ class ParsedControlMessage:
 
 def parse_control_message(content: str) -> ParsedControlMessage:
     """Parse an incoming topic message into control semantics."""
-    text = strip_message_markup(content)
+    text = content.strip()
     normalized = " ".join(text.lower().split())
+
+    reply = re.fullmatch(
+        r"/reply\s+([A-Za-z0-9_-]{4,})\s+([\s\S]+)", text, flags=re.IGNORECASE
+    )
+    if reply:
+        return ParsedControlMessage(
+            event_type="question_response",
+            normalized_content=normalized,
+            request_id=reply[1],
+            arguments=reply[2].strip(),
+        )
 
     # Approval commands must be a complete command, never an embedded quote or
     # an arbitrary sentence. Preserve the case of IDs and steering arguments.
@@ -163,6 +174,8 @@ def format_session_message(
             parts[0] += f" (ID: {request_id})"
         if clean_content:
             parts.append(clean_content)
+        if request_id:
+            parts.append(f"Reply with `/reply {request_id} YOUR ANSWER` in this topic.")
         return "\n\n".join(parts)
 
     return clean_content

@@ -79,7 +79,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent profile: {e}")
-            return None
+            raise
 
     def get_agent_profile_by_name(
         self, agent_name: str, owner_email: str
@@ -96,7 +96,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent profile by name: {e}")
-            return None
+            raise
 
     def list_agent_profiles(self) -> list[dict[str, Any]]:
         try:
@@ -105,7 +105,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to list agent profiles: {e}")
-            return []
+            raise
 
     def upsert_agent_session(
         self,
@@ -169,7 +169,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent session: {e}")
-            return None
+            raise
 
     def get_agent_session_by_external(
         self, agent_id: str, external_session_id: str
@@ -186,7 +186,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get session by external ID: {e}")
-            return None
+            raise
 
     def get_agent_session_for_topic(
         self, stream_name: str, topic_name: str
@@ -203,7 +203,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get session for topic: {e}")
-            return None
+            raise
 
     def get_latest_agent_session(
         self, agent_id: str, project_dir: str | None = None
@@ -230,7 +230,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get latest agent session: {e}")
-            return None
+            raise
 
     def list_agent_sessions(
         self, agent_id: str | None = None, include_closed: bool = True
@@ -250,7 +250,7 @@ class DatabaseManager:
             return self._db.query_as_dicts(sql, params)
         except Exception as e:
             logger.error(f"Failed to list agent sessions: {e}")
-            return []
+            raise
 
     def update_agent_session(self, session_id: str, **updates: Any) -> dict[str, Any]:
         try:
@@ -319,7 +319,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent request: {e}")
-            return None
+            raise
 
     def get_latest_pending_request(
         self, session_id: str, request_type: str | None = None
@@ -337,7 +337,7 @@ class DatabaseManager:
             return self._db.query_one_as_dict(sql, params)
         except Exception as e:
             logger.error(f"Failed to get latest pending request: {e}")
-            return None
+            raise
 
     def update_agent_request(self, request_id: str, **updates: Any) -> dict[str, Any]:
         """Transition a pending request once; terminal decisions are immutable."""
@@ -413,9 +413,12 @@ class DatabaseManager:
         agent_id: str | None = None,
         session_id: str | None = None,
         event_type: str | None = None,
+        include_audit: bool = False,
     ) -> list[dict[str, Any]]:
         try:
             sql = "SELECT * FROM session_events WHERE acked = FALSE"
+            if not include_audit:
+                sql += " AND direction = 'inbound' AND event_type IN ('steer', 'command', 'approval_response', 'question_response')"
             params: list[Any] = []
             if agent_id:
                 sql += " AND agent_id = ?"
@@ -431,16 +434,60 @@ class DatabaseManager:
             return self._db.query_as_dicts(sql, params)
         except Exception as e:
             logger.error(f"Failed to get unacked session events: {e}")
-            return []
+            raise
 
-    def ack_session_events(self, ids: list[str]) -> dict[str, Any]:
+    def is_outbound_message(self, message_id: int) -> bool:
+        return (
+            self._db.query_one_as_dict(
+                "SELECT id FROM session_events WHERE id = ? AND direction = 'outbound'",
+                [f"outbound:{message_id}"],
+            )
+            is not None
+        )
+
+    def has_session_event(self, event_id: str) -> bool:
+        return (
+            self._db.query_one_as_dict(
+                "SELECT id FROM session_events WHERE id = ?", [event_id]
+            )
+            is not None
+        )
+
+    def get_listener_message_cursor(self, session_id: str) -> int | None:
+        row = self._db.query_one_as_dict(
+            "SELECT last_message_id FROM listener_message_cursors WHERE session_id = ?",
+            [session_id],
+        )
+        return int(row["last_message_id"]) if row else None
+
+    def save_listener_message_cursor(self, session_id: str, message_id: int) -> None:
+        self._db.execute(
+            "INSERT INTO listener_message_cursors VALUES (?, ?) ON CONFLICT (session_id) DO UPDATE SET last_message_id = greatest(listener_message_cursors.last_message_id, excluded.last_message_id)",
+            [session_id, message_id],
+        )
+
+    def ack_session_events(
+        self,
+        ids: list[str],
+        *,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
         try:
             if not ids:
                 return {"status": "success"}
             placeholders = ",".join(["?"] * len(ids))
+            scope = ""
+            params = list(ids)
+            if session_id:
+                scope += " AND session_id = ?"
+                params.append(session_id)
+            if agent_id:
+                scope += " AND agent_id = ?"
+                params.append(agent_id)
             self._db.execute(
-                f"UPDATE session_events SET acked = TRUE WHERE id IN ({placeholders})",
-                ids,
+                f"UPDATE session_events SET acked = TRUE WHERE id IN ({placeholders}){scope}",
+                params,
             )
             return {"status": "success"}
         except Exception as e:
@@ -500,7 +547,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent instance: {e}")
-            return None
+            raise
 
     # User input requests
     def create_input_request(
@@ -539,7 +586,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get input request: {e}")
-            return None
+            raise
 
     def get_pending_input_requests(self) -> list[dict[str, Any]]:
         try:
@@ -548,7 +595,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to list pending input requests: {e}")
-            return []
+            raise
 
     def update_input_request(self, request_id: str, **updates: Any) -> dict[str, Any]:
         try:
@@ -614,7 +661,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get AFK state: {e}")
-            return None
+            raise
 
     def set_afk_state(
         self, enabled: bool, reason: str = "", hours: int = 0
@@ -661,7 +708,7 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get listener state: {e}")
-            return None
+            raise
 
     # Agent status audit trail
     def create_agent_status(
@@ -726,7 +773,7 @@ class DatabaseManager:
                 )
         except Exception as e:
             logger.error(f"Failed to fetch unacked events: {e}")
-            return []
+            raise
 
     def ack_events(self, ids: list[str]) -> dict[str, Any]:
         try:

@@ -12,6 +12,8 @@ from zulip import Client
 from ..config import ConfigManager
 from .cache import StreamCache, UserCache
 
+OUTBOUND_CLIENT_NAME = "zulipchat-mcp"
+
 
 @dataclass
 class ZulipMessage:
@@ -130,6 +132,7 @@ class ZulipClientWrapper:
                     site=self._client_config["site"],
                     config_file=self._client_config["config_file"],
                     retry_on_errors=False,
+                    client=OUTBOUND_CLIENT_NAME,
                 )
                 # Backfill properties from loaded client config
                 if hasattr(client, "email"):
@@ -148,6 +151,7 @@ class ZulipClientWrapper:
                     api_key=self._client_config["api_key"],
                     site=self._client_config["site"],
                     retry_on_errors=False,
+                    client=OUTBOUND_CLIENT_NAME,
                 )
         except Exception as e:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
@@ -604,15 +608,21 @@ class ZulipClientWrapper:
             request={"include_custom_profile_fields": include_custom_profile_fields},
         )
 
-    def get_message(self, message_id: int) -> dict[str, Any]:
-        """Fetch a single message by ID."""
+    def get_message(
+        self, message_id: int, *, apply_markdown: bool | None = None
+    ) -> dict[str, Any]:
+        """Fetch a message, optionally requesting raw Markdown for copying.
+
+        Omitting apply_markdown preserves the SDK's default rendering behavior.
+        """
+        request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}
         if hasattr(self.client, "get_message"):
             try:
-                return self.client.get_message(message_id=message_id)
+                return self.client.get_message(message_id=message_id, **request)
             except TypeError:
-                return self.client.get_message({"message_id": message_id})
+                return self.client.get_message({"message_id": message_id, **request})
         return self.client.call_endpoint(
-            f"messages/{message_id}", method="GET", request={}
+            f"messages/{message_id}", method="GET", request=request
         )
 
     def update_message_flags(

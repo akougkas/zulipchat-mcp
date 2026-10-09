@@ -10,7 +10,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from ..config import get_client
+from ..config import bind_client, get_client
 from ..core.security import local_access_allowed
 from .registration import optional_background_task, register_tool
 
@@ -61,6 +61,7 @@ async def register_events(
             return {
                 "status": "error",
                 "error": result.get("msg", "Failed to register events"),
+                "code": result.get("code"),
             }
 
     except Exception as e:
@@ -106,6 +107,7 @@ async def get_events(
             return {
                 "status": "error",
                 "error": result.get("msg", "Failed to get events"),
+                "code": result.get("code"),
             }
 
     except Exception as e:
@@ -122,7 +124,11 @@ async def listen_events(
     all_public_streams: bool = False,
     callback_url: str | None = None,
 ) -> dict[str, Any]:
-    """Comprehensive stateless event listener with automatic queue management."""
+    """Collect events, retrying at most three consecutive failed polls.
+
+    Unrecovered failures return error, or partial when events were collected.
+    Recovered failures are reported in polling_errors even on success.
+    """
     if callback_url and not local_access_allowed():
         return {
             "status": "error",
@@ -133,98 +139,150 @@ async def listen_events(
             "status": "error",
             "error": "Use duration in (0, 600], positive poll_interval and max_events_per_poll",
         }
-    get_client()  # Validate client is available
-
-    try:
-        # Register queue
-        register_result = await register_events(
-            event_types=event_types,
-            narrow=narrow,
-            queue_lifespan_secs=min(duration + 60, 600),  # Buffer for processing
-            all_public_streams=all_public_streams,
-        )
-
-        if register_result.get("status") != "success":
-            return register_result
-
-        queue_id = register_result["queue_id"]
-        last_event_id = register_result["last_event_id"]
-        collected_events = []
-        start_time = time.monotonic()
-
+    with bind_client(get_client()):
         try:
-            # Event collection loop
-            while time.monotonic() - start_time < duration:
-                # Get events
-                events_result = await get_events(
-                    queue_id=queue_id,
-                    last_event_id=last_event_id,
-                    timeout=min(poll_interval, 30),
-                    dont_block=True,
-                )
+            # Register queue
+            register_result = await register_events(
+                event_types=event_types,
+                narrow=narrow,
+                queue_lifespan_secs=min(duration + 60, 600),  # Buffer for processing
+                all_public_streams=all_public_streams,
+            )
 
-                if events_result.get("status") == "success":
-                    events = events_result.get("events", [])[:max_events_per_poll]
-                    # Acknowledge processed events, including filtered ones;
-                    # events beyond the page limit remain queued for the next poll.
-                    last_event_id = max(
-                        (e.get("id", last_event_id) for e in events),
-                        default=last_event_id,
+            if register_result.get("status") != "success":
+                return register_result
+
+            queue_id = register_result["queue_id"]
+            last_event_id = register_result["last_event_id"]
+            collected_events = []
+            start_time = time.monotonic()
+            polling_errors = []
+            consecutive_failures = 0
+            last_failure = None
+            cleanup_error = None
+
+            try:
+                # Event collection loop
+                while (elapsed := time.monotonic() - start_time) < duration:
+                    # Get events
+                    try:
+                        events_result = await get_events(
+                            queue_id=queue_id,
+                            last_event_id=last_event_id,
+                            timeout=min(poll_interval, 30),
+                            dont_block=True,
+                        )
+                    except Exception as exc:
+                        events_result = {"status": "error", "error": str(exc)}
+
+                    if events_result.get("status") == "success":
+                        consecutive_failures = 0
+                        last_failure = None
+                        events = events_result.get("events", [])[:max_events_per_poll]
+                        # Acknowledge processed events, including filtered ones;
+                        # events beyond the page limit remain queued for the next poll.
+                        last_event_id = max(
+                            (e.get("id", last_event_id) for e in events),
+                            default=last_event_id,
+                        )
+
+                        # Apply filters if specified
+                        if filters and events:
+                            filtered_events = []
+                            for event in events:
+                                include_event = True
+                                for filter_key, filter_value in filters.items():
+                                    if event.get(filter_key) != filter_value:
+                                        include_event = False
+                                        break
+                                if include_event:
+                                    filtered_events.append(event)
+                            events = filtered_events
+
+                        if events:
+                            collected_events.extend(events[:max_events_per_poll])
+
+                            # Send to webhook if configured
+                            if callback_url:
+                                try:
+                                    import httpx
+
+                                    async with httpx.AsyncClient() as http_client:
+                                        await http_client.post(
+                                            callback_url, json={"events": events}
+                                        )
+                                except Exception:
+                                    pass  # Best effort
+                    else:
+                        last_failure = {
+                            "error": events_result.get("error", "Failed to get events"),
+                            "code": events_result.get("code"),
+                        }
+                        polling_errors.append(last_failure)
+                        consecutive_failures += 1
+                        # A lost queue or invalid credentials cannot recover by polling
+                        # the same queue. Unknown/backend/network errors get bounded
+                        # retries, without acknowledging any unreceived events.
+                        if (
+                            last_failure["code"]
+                            in {
+                                "BAD_EVENT_QUEUE_ID",
+                                "BAD_EVENT_QUEUE_OWNER",
+                                "BAD_REQUEST",
+                                "UNAUTHORIZED",
+                                "FORBIDDEN",
+                                "INVALID_API_KEY",
+                            }
+                            or consecutive_failures >= 3
+                        ):
+                            break
+
+                    # Sleep before next poll
+                    await asyncio.sleep(
+                        min(
+                            poll_interval * 2 ** min(consecutive_failures, 2),
+                            duration - elapsed,
+                        )
                     )
 
-                    # Apply filters if specified
-                    if filters and events:
-                        filtered_events = []
-                        for event in events:
-                            include_event = True
-                            for filter_key, filter_value in filters.items():
-                                if event.get(filter_key) != filter_value:
-                                    include_event = False
-                                    break
-                            if include_event:
-                                filtered_events.append(event)
-                        events = filtered_events
+            finally:
+                # Cleanup: deregister queue
+                try:
+                    cleanup_result = await deregister_events(queue_id)
+                    if (
+                        isinstance(cleanup_result, dict)
+                        and cleanup_result.get("status") != "success"
+                    ):
+                        cleanup_error = cleanup_result
+                except Exception as exc:
+                    cleanup_error = {"status": "error", "error": str(exc)}
 
-                    if events:
-                        collected_events.extend(events[:max_events_per_poll])
+            response = {
+                "status": (
+                    ("partial" if collected_events else "error")
+                    if last_failure
+                    else "success"
+                ),
+                "collected_events": collected_events,
+                "event_count": len(collected_events),
+                "duration_seconds": time.monotonic() - start_time,
+                "polling_errors": polling_errors,
+                "poll_failure_count": len(polling_errors),
+                "session_summary": {
+                    "queue_id": queue_id,
+                    "event_types": event_types,
+                    "poll_interval": poll_interval,
+                    "max_events_per_poll": max_events_per_poll,
+                },
+            }
+            if last_failure:
+                response.update(last_failure)
+            if cleanup_error:
+                response["cleanup_error"] = cleanup_error
+            return response
 
-                        # Send to webhook if configured
-                        if callback_url:
-                            try:
-                                import httpx
-
-                                async with httpx.AsyncClient() as http_client:
-                                    await http_client.post(
-                                        callback_url, json={"events": events}
-                                    )
-                            except Exception:
-                                pass  # Best effort
-
-                # Sleep before next poll
-                await asyncio.sleep(poll_interval)
-
-        finally:
-            # Cleanup: deregister queue
-            try:
-                await deregister_events(queue_id)
-            except Exception:
-                pass  # Best effort cleanup
-
-        return {
-            "status": "success",
-            "collected_events": collected_events,
-            "event_count": len(collected_events),
-            "duration_seconds": time.monotonic() - start_time,
-            "session_summary": {
-                "queue_id": queue_id,
-                "event_types": event_types,
-                "poll_interval": poll_interval,
-                "max_events_per_poll": max_events_per_poll,
-            },
-        }
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
 
 async def deregister_events(queue_id: str) -> dict[str, Any]:
@@ -240,6 +298,7 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
             return {
                 "status": "error",
                 "error": result.get("msg", "Failed to deregister queue"),
+                "code": result.get("code"),
             }
 
     except Exception as e:

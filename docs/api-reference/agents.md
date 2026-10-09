@@ -18,7 +18,7 @@ The agent tool family is now session-oriented: bind an agent profile, bind a Zul
 - `list_sessions(agent_id=None, include_closed=True)`
 - `list_instances()` — compatibility alias for session listing
 - `close_agent_session(session_id, status="completed", summary="")`
-- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None)`
+- `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None, auto_ack=True, ack_event_ids=None, include_audit=False)`
 
 ## Example flow
 
@@ -57,12 +57,23 @@ req = request_user_input(
     options=["approve", "deny"],
     request_type="approval",
 )
-wait_for_response(req["request_id"])
+await wait_for_response(req["request_id"], timeout_seconds=30)
 ```
 
 ## Behavior notes
 
 - Session topics are owner-controlled by default.
-- Inbound topic replies are classified as `command`, `approval_response`, or `steer` events.
+- Inbound topic replies are classified as `command`, `approval_response`,
+  `question_response`, or `steer` events.
 - Unauthorized users get a visible `Not authorized` reply in the topic.
+- Questions require `/reply REQUEST_ID ANSWER`, preserve multiline answers, and
+  cannot be used to approve a permission request. Approval replies must name the
+  request with `/approve REQUEST_ID` or `/deny REQUEST_ID`.
+- Use `timeout_seconds=30` for bounded waits, retaining the request ID after a
+  timeout. Persisted terminal answers remain readable while Zulip is unavailable.
+- Polling excludes outbound/unauthorized records by default. Set `auto_ack=False`
+  for replay; pass consumed IDs through `ack_event_ids`, scoped by the session
+  and/or agent supplied to that poll. `include_audit=True` exposes audit history.
+- A delivered-but-unrecorded send returns `partial`, its message ID, and
+  `retry_safe=False`; inspect the existing message before retrying.
 - Lifecycle automation for Claude Code is intended to run through `zulipchat-mcp-hook`, not through AFK-style gating.

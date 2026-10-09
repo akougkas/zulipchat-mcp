@@ -89,6 +89,9 @@ class TestAgentTools:
     def mock_db(self):
         with patch("src.zulipchat_mcp.tools.agents.DatabaseManager") as mock_db_cls:
             db_instance = MagicMock()
+            db_instance.create_agent_status.return_value = {"status": "success"}
+            db_instance.update_agent_session.return_value = {"status": "success"}
+            db_instance.ack_session_events.return_value = {"status": "success"}
             mock_db_cls.return_value = db_instance
             yield db_instance
 
@@ -200,7 +203,9 @@ class TestAgentTools:
         result = poll_agent_events(session_id="sess-1")
         assert result["status"] == "success"
         assert result["count"] == 1
-        mock_db.ack_session_events.assert_called_once_with(["evt-1"])
+        mock_db.ack_session_events.assert_called_once_with(
+            ["evt-1"], session_id="sess-1", agent_id=None
+        )
 
     def test_manage_task_dispatch(self):
         with patch("src.zulipchat_mcp.tools.agents.start_task") as mock_start:

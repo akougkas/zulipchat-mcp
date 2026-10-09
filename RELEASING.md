@@ -74,7 +74,8 @@ uv run python scripts/bump_version.py X.Y.Z
 ```
 
 This updates scripted version locations. Manually audit Markdown and packaging
-metadata for stale version references that are intentionally not scripted.
+metadata for stale version references. Catalogs, package metadata, and plugin
+manifest versions are now included in the version script and release preflight.
 
 ### 4. Update Release Notes
 

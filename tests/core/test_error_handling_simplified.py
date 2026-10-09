@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 
 import pytest
@@ -319,7 +320,7 @@ class TestErrorHandler:
         safe_func = handler.create_safe_executor(mock_func)
 
         # Should return wrapped async function
-        assert asyncio.iscoroutinefunction(safe_func)
+        assert inspect.iscoroutinefunction(safe_func)
 
     def test_create_safe_executor_sync(self) -> None:
         """Test creating safe executor for sync functions."""
