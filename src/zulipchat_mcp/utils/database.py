@@ -11,6 +11,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -72,7 +73,7 @@ class DatabaseManager:
 
         dirname = os.path.dirname(db_path)
         if dirname:
-            os.makedirs(dirname, exist_ok=True)
+            os.makedirs(dirname, mode=0o700, exist_ok=True)
 
         # Run migrations using short-lived connection
         self._run_migrations_with_retry()
@@ -657,6 +658,23 @@ def get_database() -> DatabaseManager:
     return _db_manager
 
 
+def default_database_path(account_fingerprint: str | None = None) -> str:
+    """Return the default database path for an account.
+
+    Account state lives under ``$XDG_STATE_HOME/zulipchat-mcp`` so every
+    project and host shares one database per account. A 0.7.4 database in the
+    working directory's ``.mcp/zulipchat/accounts`` keeps being used.
+    """
+    if not account_fingerprint:
+        return ".mcp/zulipchat/zulipchat.duckdb"
+    relative = Path("accounts") / account_fingerprint / "zulipchat.duckdb"
+    working_directory = Path(".mcp/zulipchat") / relative
+    if working_directory.exists():
+        return str(working_directory)
+    state_home = os.getenv("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return str(Path(state_home) / "zulipchat-mcp" / relative)
+
+
 def init_database(
     db_path: str | None = None,
     *,
@@ -673,12 +691,9 @@ def init_database(
     """
     global _db_manager, _database_initialization_error
     if db_path is None:
-        default = (
-            f".mcp/zulipchat/accounts/{account_fingerprint}/zulipchat.duckdb"
-            if account_fingerprint
-            else ".mcp/zulipchat/zulipchat.duckdb"
+        db_path = os.getenv(
+            "ZULIPCHAT_DB_PATH", default_database_path(account_fingerprint)
         )
-        db_path = os.getenv("ZULIPCHAT_DB_PATH", default)
     existing = DatabaseManager._instance
     if existing is not None and getattr(existing, "db_path", None) != db_path:
         DatabaseManager._instance = None

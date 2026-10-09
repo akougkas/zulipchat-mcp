@@ -52,7 +52,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 - **Load Agent Skills** — four packaged instructions for messaging, session control, notifications, and bounded work loops, available as local files and MCP Resources
 - **Export agent packages** — native host configuration and skills, Claude's hook/plugin assets, or an Agent Plugins 1.0.0 package
 
-### Agent setup in v0.7.4
+### Agent setup
 
 ```bash
 # Substitute another supported client as needed.
@@ -63,7 +63,9 @@ uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client clio-coder \
 
 Exports support `claude-code`, `codex`, `opencode`, `copilot`, `vscode`,
 `antigravity-cli`, `clio-coder`, and `generic`. Add `--mode plugin` for a package.
-Host trust remains explicit;
+For several Zulip organizations, export once per organization with
+`--server-id zulipchat-<org>`; exports merge into one host configuration.
+Account state lives under `~/.local/state/zulipchat-mcp/`. Host trust remains explicit;
 Clio configures MCP execution separately from plugin content. See the
 [capability matrix](docs/integrations/agent-skills.md),
 [Clio guide](docs/integrations/clio-coder.md), and

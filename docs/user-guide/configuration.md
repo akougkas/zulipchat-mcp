@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents runtime configuration for ZulipChat MCP v0.7.4. The tool profile option is new in v0.7.4.
+This page documents runtime configuration for ZulipChat MCP v0.7.5.
 
 ## Recommended setup
 
@@ -114,7 +114,7 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
-- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb`.
+- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `$XDG_STATE_HOME/zulipchat-mcp/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb` (normally `~/.local/state/...`), shared by every project and host using that account. A v0.7.4 database at `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/` in the server's working directory keeps being used.
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
 - `ZULIPCHAT_AGENT_STREAM=<stream>`: override the default control stream used for agent session topics
@@ -129,7 +129,7 @@ An explicit `ZULIPCHAT_DB_PATH` is bound to the same identity and refuses reuse
 by another account, even with the association flag. Initialization or binding
 failure aborts startup; an unverified candidate is not available to later tools.
 
-The old `.mcp/zulipchat/zulipchat.duckdb` remains intact. Starting v0.7.4 with the
+The pre-0.7.4 `.mcp/zulipchat/zulipchat.duckdb` remains intact. Starting with the
 new default does not migrate its sessions or approvals. To retain verified old
 state, first confirm the account that created it and make a backup, then select
 that exact file and explicitly associate it:

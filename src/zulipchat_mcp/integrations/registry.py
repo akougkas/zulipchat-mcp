@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -80,14 +81,29 @@ def _render_remote_for_client(client: str, url: str, token: str | None) -> str:
     )
 
 
-def _render_for_client(client: str, base: dict[str, Any]) -> str:
+SERVER_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,31}")
+
+
+def validate_server_id(server_id: str) -> str:
+    """Accept ids every supported host can use as a server key."""
+    if not SERVER_ID_PATTERN.fullmatch(server_id):
+        raise ValueError(
+            "Server id must be 1-32 lowercase letters, digits, '-' or '_', "
+            "starting with a letter or digit"
+        )
+    return server_id
+
+
+def _render_for_client(
+    client: str, base: dict[str, Any], server_id: str = "zulipchat"
+) -> str:
     if client == "claude-code":
         return shlex.join(
             [
                 "claude",
                 "mcp",
                 "add",
-                "zulipchat",
+                server_id,
                 "--",
                 base["command"],
                 *[str(arg) for arg in base["args"]],
@@ -103,11 +119,11 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
         "antigravity-cli",
         "generic",
     }:
-        return json.dumps({"mcpServers": {"zulipchat": base}}, indent=2)
+        return json.dumps({"mcpServers": {server_id: base}}, indent=2)
 
     if client == "copilot":
         return json.dumps(
-            {"mcpServers": {"zulipchat": {"type": "local", **base, "tools": ["*"]}}},
+            {"mcpServers": {server_id: {"type": "local", **base, "tools": ["*"]}}},
             indent=2,
         )
 
@@ -115,7 +131,7 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
         return yaml.safe_dump(
             {
                 "version": 1,
-                "servers": [{"id": "zulipchat", **base, "timeoutMs": 900000}],
+                "servers": [{"id": server_id, **base, "timeoutMs": 900000}],
             },
             sort_keys=False,
         )
@@ -123,7 +139,7 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
     if client == "vscode":
         payload = {
             "servers": {
-                "zulipchat": {
+                server_id: {
                     "type": "stdio",
                     "command": base["command"],
                     "args": base["args"],
@@ -135,7 +151,7 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
     if client == "opencode":
         payload = {
             "mcp": {
-                "zulipchat": {
+                server_id: {
                     "type": "local",
                     "enabled": True,
                     "command": [base["command"], *base["args"]],
@@ -149,7 +165,7 @@ def _render_for_client(client: str, base: dict[str, Any]) -> str:
             json.dumps(str(arg), ensure_ascii=False) for arg in base["args"]
         )
         return (
-            "[mcp_servers.zulipchat]\n"
+            f"[mcp_servers.{server_id}]\n"
             f'command = {json.dumps(base["command"], ensure_ascii=False)}\n'
             f"args = [{rendered_args}]"
         )
@@ -180,6 +196,14 @@ def main() -> None:
     )
     print_parser.add_argument("--zulip-bot-config-file")
     print_parser.add_argument("--extended-tools", action="store_true")
+    print_parser.add_argument(
+        "--server-id",
+        default="zulipchat",
+        help=(
+            "MCP server name in the host configuration (default: zulipchat). "
+            "Use one id per Zulip organization, e.g. zulipchat-grc."
+        ),
+    )
     print_parser.add_argument(
         "--remote-url",
         help=(
@@ -221,6 +245,14 @@ def main() -> None:
         default="standalone",
     )
     export_parser.add_argument("--extended-tools", action="store_true")
+    export_parser.add_argument(
+        "--server-id",
+        default="zulipchat",
+        help=(
+            "MCP server name in the host configuration (default: zulipchat). "
+            "Use one id per Zulip organization, e.g. zulipchat-grc."
+        ),
+    )
     export_parser.add_argument("--force", action="store_true")
 
     args = parser.parse_args()
@@ -248,7 +280,11 @@ def main() -> None:
             args.zulip_bot_config_file,
             args.extended_tools,
         )
-        print(_render_for_client(args.client, base))
+        try:
+            server_id = validate_server_id(args.server_id)
+        except ValueError as e:
+            print_parser.error(str(e))
+        print(_render_for_client(args.client, base, server_id))
         return
 
     if args.command == "export":
@@ -259,7 +295,16 @@ def main() -> None:
             if args.client == "claude-code"
             else export_agent_package
         )
-        options = {} if args.client == "claude-code" else {"client": args.client}
+        options: dict[str, str] = (
+            {} if args.client == "claude-code" else {"client": args.client}
+        )
+        if args.server_id != "zulipchat":
+            if args.client == "claude-code":
+                export_parser.error(
+                    "--server-id is not supported for claude-code exports; "
+                    "its hooks bind one account per project"
+                )
+            options["server_id"] = args.server_id
         try:
             results = exporter(
                 Path(args.output_dir),

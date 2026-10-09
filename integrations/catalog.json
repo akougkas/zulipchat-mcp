@@ -1,6 +1,6 @@
 {
   "name": "zulipchat-mcp-integrations",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
   "packages": [
     "claude-code",

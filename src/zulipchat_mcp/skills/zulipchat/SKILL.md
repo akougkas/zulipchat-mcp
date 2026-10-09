@@ -77,11 +77,16 @@ Keep credentials out of messages and committed configuration. HTTP rejects local
 paths, callbacks, and runtime identity switching; local stdio supports these
 within its authorization boundaries. Use a single server instance for sessions.
 
-For Clio Coder, discover with `gateway(op="find", server="zulipchat")`, inspect
+Each server process serves one Zulip organization. Hosts may declare several,
+one per organization, under ids such as `zulipchat-grc`; the default id is
+`zulipchat`. Use the server for the organization the user names, confirm it with
+`server_info`, and ask when the organization is unclear.
+
+For Clio Coder, discover with `gateway(op="find", server=SERVER_ID)`, inspect
 the chosen capability with `gateway(op="describe", capability=...)`, then call
 it with `gateway(op="call", capability=..., args=...)`. MCP names normally follow
-`mcp_zulipchat__<tool>`. A plugin supplies instructions; the operator separately
-configures and trusts `.clio-coder/mcp.yaml` to launch the server.
+`mcp_SERVER_ID__<tool>`. A plugin supplies instructions; the operator separately
+configures and trusts the Clio MCP declaration that launches the server.
 
 For owner questions, advertise `/reply REQUEST_ID YOUR ANSWER`. For approval
 requests use `/approve REQUEST_ID` or `/deny REQUEST_ID`. Poll with

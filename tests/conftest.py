@@ -23,6 +23,12 @@ from zulipchat_mcp.core import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolated_state_home(tmp_path, monkeypatch):
+    """Keep default account databases out of the real XDG state directory."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for async tests."""

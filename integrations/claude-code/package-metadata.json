@@ -11,5 +11,5 @@
   "description": "Adds ZulipChat MCP to Claude Code and scaffolds standalone or plugin-based Zulip session-control assets.",
   "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/claude-code.md",
   "repository": "https://github.com/akougkas/zulipchat-mcp",
-  "version": "0.7.4"
+  "version": "0.7.5"
 }

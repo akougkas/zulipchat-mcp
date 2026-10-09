@@ -1,8 +1,8 @@
 # Repository Guidelines
 
-## Current Status (v0.7.4)
+## Current Status (v0.7.5)
 
-**Current release**: v0.7.4 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
+**Current release**: v0.7.5 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:
@@ -15,7 +15,7 @@
 - `uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
 - Companion commands require an explicit package source: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help` (also applies to setup and hook commands).
-- `uv run python scripts/release_preflight.py --version 0.7.4 --allow-dirty` — validate versions, documentation package sources, and release metadata. CI also runs this gate.
+- `uv run python scripts/release_preflight.py --version 0.7.5 --allow-dirty` — validate versions, documentation package sources, and release metadata. CI also runs this gate.
 - `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
 - `uv run ruff check .` — lint; use Black on changed Python files; `uv run mypy src` — type-check.
 

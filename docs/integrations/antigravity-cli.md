@@ -9,8 +9,8 @@ uv run zulipchat-mcp-integrate export --client antigravity-cli \
   --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
 ```
 
-After v0.7.4 is published, use
-`uvx --from zulipchat-mcp zulipchat-mcp-integrate` for the same operation.
+`uvx --from zulipchat-mcp zulipchat-mcp-integrate` performs the same operation
+without a source checkout.
 Merge the resulting `mcp_config.json` into the CLI's user configuration
 (`~/.gemini/config/mcp_config.json`, or the configuration directory selected by
 `ANTIGRAVITY_HOME`). Copy the generated `.agents/skills` into the project.

@@ -239,3 +239,53 @@ def test_claude_reexport_rejects_ambiguous_hook_ownership_before_writing(tmp_pat
         if path.is_file()
     }
     assert after == before
+
+
+def test_server_ids_let_one_host_config_declare_several_organizations(tmp_path):
+    for org in ("grc", "chronolog"):
+        export_agent_package(
+            tmp_path,
+            client="clio-coder",
+            zulip_config_file=f"/home/test/.zuliprc-{org}",
+            server_id=f"zulipchat-{org}",
+        )
+    servers = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"]
+    assert [server["id"] for server in servers] == [
+        "zulipchat-grc",
+        "zulipchat-chronolog",
+    ]
+    assert servers[1]["args"][2] == "/home/test/.zuliprc-chronolog"
+
+    export_agent_package(
+        tmp_path,
+        client="codex",
+        zulip_config_file="/home/test/.zuliprc-grc",
+        server_id="zulipchat-grc",
+    )
+    codex = _parse((tmp_path / ".codex/config.toml").read_text(), ".toml")
+    assert list(codex["mcp_servers"]) == ["zulipchat-grc"]
+
+
+@pytest.mark.parametrize("server_id", ["", "Zulip", "-grc", "a" * 33, "grc/../x"])
+def test_invalid_server_ids_are_rejected_before_writing(tmp_path, server_id):
+    with pytest.raises(ValueError, match="Server id"):
+        export_agent_package(
+            tmp_path,
+            client="clio-coder",
+            zulip_config_file="/home/test/.zuliprc",
+            server_id=server_id,
+        )
+    assert not any(tmp_path.iterdir())
+
+
+def test_checked_in_integration_skills_match_packaged_skills():
+    import runpy
+
+    script = Path(__file__).parents[1] / "scripts/sync_integration_templates.py"
+    expected = runpy.run_path(str(script))["expected_templates"]()
+    stale = [
+        str(path) for path, content in expected.items() if path.read_text() != content
+    ]
+    assert (
+        expected and not stale
+    ), "Run scripts/sync_integration_templates.py to refresh: " + ", ".join(stale)
