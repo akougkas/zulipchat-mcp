@@ -11,6 +11,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 from .registration import register_tool
 from .search import resolve_user_identifier
 
@@ -92,10 +93,7 @@ async def get_drafts() -> dict[str, Any]:
                 "count": len(drafts),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get drafts"),
-            }
+            return api_error(result, "Failed to get drafts")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -133,10 +131,7 @@ async def create_draft(
                 "draft_id": draft_ids[0] if draft_ids else None,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to create draft"),
-            }
+            return api_error(result, "Failed to create draft")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -175,10 +170,7 @@ async def edit_draft(
                 "action": "edited",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to edit draft"),
-            }
+            return api_error(result, "Failed to edit draft")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -202,10 +194,7 @@ async def delete_draft(draft_id: int) -> dict[str, Any]:
                 "action": "deleted",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to delete draft"),
-            }
+            return api_error(result, "Failed to delete draft")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

@@ -455,7 +455,7 @@ class AgentCoordinator:
 
         # A caller's polling timeout does not expire a shared pending request or
         # overwrite an answer arriving concurrently. A later poll can resume.
-        return {"status": "error", "error": "Response timeout"}
+        return self._pending_wait_result(request_id, timeout_seconds)
 
     async def wait_for_request_async(
         self, request_id: str, timeout_seconds: int = 300
@@ -485,7 +485,19 @@ class AgentCoordinator:
                 break
             await asyncio.sleep(1)
 
-        return {"status": "error", "error": "Response timeout"}
+        return self._pending_wait_result(request_id, timeout_seconds)
+
+    @staticmethod
+    def _pending_wait_result(request_id: str, timeout_seconds: int) -> dict[str, Any]:
+        """A bounded wait elapsed; the persisted request can still be answered."""
+        return {
+            "status": "timeout",
+            "error": "Response timeout",
+            "request_id": request_id,
+            "request_status": "pending",
+            "timeout_seconds": timeout_seconds,
+            "retryable": True,
+        }
 
     @_serialize_message_delivery()
     def record_inbound_message(self, message: dict[str, Any]) -> dict[str, Any]:

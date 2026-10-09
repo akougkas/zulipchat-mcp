@@ -9,11 +9,12 @@ from __future__ import annotations
 import asyncio
 import threading
 import uuid as _uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from ..core.agent_control import AgentCoordinator
 from ..core.client import ZulipClientWrapper
+from ..core.snapshots import invalidate_realm_snapshots
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import get_logger
 
@@ -202,6 +203,8 @@ class MessageListener:
 
     async def _backfill_sessions(self) -> None:
         """Register first, catch up by message ID, then deduplicate queue overlap."""
+        feature_level = getattr(self.client.client, "feature_level", 0)
+        supports_date_anchor = isinstance(feature_level, int) and feature_level >= 445
         for session in self.db.list_agent_sessions(include_closed=False):
             cursor = self.db.get_listener_message_cursor(str(session["session_id"]))
             created = session.get("created_at")
@@ -215,22 +218,30 @@ class MessageListener:
                 {"operator": "stream", "operand": session["stream_name"]},
                 {"operator": "topic", "operand": session["topic_name"]},
             ]
-            if isinstance(created, datetime) and cursor is None:
-                narrow.append(
-                    {
-                        "operator": "after",
-                        "operand": (created - timedelta(days=1)).date().isoformat(),
-                    }
-                )
             for _ in range(100):
+                # Dates are anchors, not Zulip narrow operators. Floor the
+                # initial boundary to the upstream timestamp's second precision.
+                anchor_date = (
+                    created.replace(microsecond=0).isoformat()
+                    if cursor is None
+                    and isinstance(created, datetime)
+                    and supports_date_anchor
+                    else None
+                )
                 response = await asyncio.to_thread(
                     self.client.get_messages_raw,
                     narrow=narrow,
-                    anchor=str(cursor) if cursor is not None else "oldest",
+                    anchor=(
+                        str(cursor)
+                        if cursor is not None
+                        else "date" if anchor_date else "oldest"
+                    ),
+                    anchor_date=anchor_date,
                     num_before=0,
                     num_after=1000,
                     include_anchor=cursor is None,
                     apply_markdown=False,
+                    use_cache=False,
                 )
                 if response.get("result") != "success":
                     raise RuntimeError(
@@ -276,6 +287,7 @@ class MessageListener:
         """Process a message event: update pending input requests and store as agent event."""
         if not message:
             return
+        invalidate_realm_snapshots(self.client.base_url)
 
         sender_email = message.get("sender_email")
         topic = message.get("subject") or message.get("topic")

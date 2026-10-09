@@ -10,6 +10,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import bind_client, get_client
+from ..core.api_errors import api_error
 
 
 def _resolve_stream_name(stream_id: int) -> str:
@@ -66,10 +67,7 @@ async def update_message_flags_for_narrow(
                 "found_newest": result.get("found_newest", False),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to update message flags"),
-            }
+            return api_error(result, "Failed to update message flags")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

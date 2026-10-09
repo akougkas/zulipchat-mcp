@@ -219,7 +219,7 @@ async def test_short_wait_can_resume_same_request_after_owner_answer(coordinator
         await coordinator.wait_for_request_async(
             request["request_id"], timeout_seconds=0
         )
-    )["status"] == "error"
+    )["status"] == "timeout"
     coordinator.record_inbound_message(
         inbound(session, f"/reply {request['request_id']} A")
     )
@@ -260,6 +260,7 @@ def test_failed_binding_cannot_publish_an_unverified_candidate(
 
 
 async def test_backfill_accepts_a_reply_in_the_session_creation_second(coordinator):
+    coordinator.bot_client.client.feature_level = 445
     session = bind_session(coordinator)
     request = coordinator.create_request(
         session_id=session["session_id"], prompt="Choose"
@@ -280,6 +281,31 @@ async def test_backfill_accepts_a_reply_in_the_session_creation_second(coordinat
         == "immediate"
     )
     assert coordinator.db.get_listener_message_cursor(session["session_id"]) == 11
+    upstream = coordinator.bot_client.get_messages_raw.call_args.kwargs
+    assert upstream["anchor"] == "date"
+    assert (
+        datetime.fromisoformat(upstream["anchor_date"]).timestamp()
+        == reply["timestamp"]
+    )
+    assert {part["operator"] for part in upstream["narrow"]} == {"stream", "topic"}
+
+
+async def test_backfill_uses_message_ids_for_servers_without_date_anchors(coordinator):
+    coordinator.bot_client.client.feature_level = 444
+    session = bind_session(coordinator)
+    coordinator.bot_client.get_messages_raw.return_value = {
+        "result": "success",
+        "messages": [],
+        "found_newest": True,
+    }
+    await MessageListener(coordinator.bot_client, coordinator.db)._backfill_sessions()
+    upstream = coordinator.bot_client.get_messages_raw.call_args.kwargs
+    assert upstream["anchor"] == "oldest"
+    assert upstream["anchor_date"] is None
+    assert upstream["narrow"] == [
+        {"operator": "stream", "operand": session["stream_name"]},
+        {"operator": "topic", "operand": session["topic_name"]},
+    ]
 
 
 async def test_backfill_read_failure_cannot_mark_a_queue_ready(
@@ -301,6 +327,43 @@ async def test_backfill_read_failure_cannot_mark_a_queue_ready(
     assert listener._queue_id is None
     with pytest.raises(RuntimeError, match="read failure"):
         listener.wait_until_ready(timeout=0)
+
+
+@pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
+async def test_actual_mcp_pending_wait_resumes_without_reposting(
+    coordinator, monkeypatch, mode
+):
+    from fastmcp import Client, FastMCP
+
+    from zulipchat_mcp.core.tool_contract import ToolContractMiddleware
+    from zulipchat_mcp.tools import agents
+
+    session = bind_session(coordinator)
+    request = coordinator.create_request(
+        session_id=session["session_id"], prompt="Choose"
+    )
+    monkeypatch.setattr(agents, "_get_coordinator", lambda: coordinator)
+    monkeypatch.setattr(agents, "ensure_listener", lambda: None)
+    server = FastMCP("actual-pending-wait")
+    server.tool(agents.wait_for_response)
+    server.add_middleware(ToolContractMiddleware())
+    args = {"request_id": request["request_id"], "timeout_seconds": 0}
+    async with Client(server, mode=mode) as client:
+        pending = await client.call_tool("wait_for_response", args)
+        assert pending.is_error is False
+        assert pending.data["status"] == "timeout"
+        assert pending.data["request_id"] == request["request_id"]
+        assert pending.data["request_status"] == "pending"
+        assert (
+            coordinator.db.get_agent_request(request["request_id"])["status"]
+            == "pending"
+        )
+        coordinator.record_inbound_message(
+            inbound(session, f"/reply {request['request_id']} A")
+        )
+        answered = await client.call_tool("wait_for_response", args)
+        assert answered.data["response"] == "A"
+    assert coordinator.bot_client.send_message.call_count == 1
 
 
 async def test_session_lookup_failure_prevents_message_cursor_advance(

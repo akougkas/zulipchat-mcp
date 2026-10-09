@@ -11,6 +11,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 
 
 async def get_scheduled_messages() -> dict[str, Any]:
@@ -31,10 +32,7 @@ async def get_scheduled_messages() -> dict[str, Any]:
                 "count": len(result.get("scheduled_messages", [])),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get scheduled messages"),
-            }
+            return api_error(result, "Failed to get scheduled messages")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -86,10 +84,7 @@ async def create_scheduled_message(
                 ).isoformat(),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to create scheduled message"),
-            }
+            return api_error(result, "Failed to create scheduled message")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -146,10 +141,7 @@ async def update_scheduled_message(
                 ),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to update scheduled message"),
-            }
+            return api_error(result, "Failed to update scheduled message")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -175,10 +167,7 @@ async def delete_scheduled_message(scheduled_message_id: int) -> dict[str, Any]:
                 "action": "deleted",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to delete scheduled message"),
-            }
+            return api_error(result, "Failed to delete scheduled message")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

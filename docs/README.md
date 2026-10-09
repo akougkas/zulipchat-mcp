@@ -44,15 +44,19 @@ prepares v0.7.4; the latest published stable release is v0.7.3.
 ## Developer Docs
 
 - [Architecture](developer-guide/architecture.md)
+- [Zulip API Coverage and Efficiency](developer-guide/zulip-api-proxy.md)
 - [Proposed Zulip Agent Control](developer-guide/zulip-agent-control-design.md)
 - [Tool Categories](developer-guide/tool-categories.md)
 - [Foundation Components](developer-guide/foundation-components.md)
 - [Testing Guide](testing/README.md)
+- [Live Clio Bot Mentions](testing/clio-bot-mentions.md)
 
 ## Tool Modes
 
 - Default mode: 20 core tools.
 - Extended mode: 60 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
+- `--tool-profile read-only`: nine core reads or 23 extended reads, with matching
+  discovery and enforced call policy.
 
 ## Community and Security
 

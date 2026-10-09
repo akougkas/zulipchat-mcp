@@ -65,6 +65,30 @@ retain the same request ID. For reliable steering delivery, poll with
 `auto_ack=False`, then acknowledge handled IDs within the same session/agent
 scope. Default polling excludes outbound and unauthorized audit records.
 
+For conversational bot entry, an authorized person mentions the Generic bot
+normally. `poll_agent_events(mentions_stream="Agents-Channel",
+after_message_id=..., auto_ack=False, wait_seconds=20)` reads an event-fed local
+inbox without an existing session. The host validates numeric bot, sender and
+channel IDs, commits its cursor with a durable work queue, wakes the coding
+agent and replies in the source topic. Ordinary mention-driven work does not
+require `/reply`; explicit question/approval correlation remains available.
+MCP never launches a coding process or treats mention text as executable code.
+
+### Zulip API efficiency (v0.7.4)
+- SDK queries share a per-process budget by normalized realm/principal, with
+  0.5-second minimum spacing, bounded admission, server-header adaptation and
+  `RATE_LIMIT_HIT`/`Retry-After` cooldown. Never transparently retry a write.
+- Message windows/details use private identity-scoped snapshots for 15 seconds.
+  Identical concurrent requests share a fetch. `fresh=True` on search/detail
+  tools bypasses the snapshot. Return source hashes, age, UTC dates, fetched and
+  returned counts, and excerpt truncation; a sample is never a complete archive.
+- Bot mentions use one lazy long-poll queue per watched channel (maximum four),
+  a bounded initial snapshot, message-ID recovery after queue expiration, and
+  atomic persistence before event acknowledgement. Host polls read local state.
+- Check partial results and listener health. A cursor-retention gap, edited
+  input or unverified sender must not silently become an executable host task.
+- See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md).
+
 ### Skills, integrations, and persistent state (v0.7.4)
 - Four canonical Agent Skills live in `src/zulipchat_mcp/skills/`; load content
   through dependency-light `skill_content.py`. The FastMCP adapter adds immutable

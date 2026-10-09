@@ -14,7 +14,13 @@ from zulipchat_mcp.tools import messaging
 @pytest.mark.parametrize("sdk_method", [True, False])
 def test_message_wrapper_rendering_option(apply_markdown, sdk_method):
     sdk = MagicMock() if sdk_method else SimpleNamespace(call_endpoint=MagicMock())
-    wrapper = object.__new__(ZulipClientWrapper)
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
     wrapper._client = sdk
     wrapper.get_message(42, apply_markdown=apply_markdown)
     request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}

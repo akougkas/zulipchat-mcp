@@ -69,6 +69,7 @@ async def server_info() -> dict[str, Any]:
                 "email": account.bot_email if bot_available else None,
                 "site": account.bot_site if bot_available else None,
                 "name": config.config.bot_name,
+                "name_source": "configured_label",
             },
         },
         "features": [

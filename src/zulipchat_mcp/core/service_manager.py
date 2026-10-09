@@ -197,6 +197,9 @@ def ensure_listener() -> None:
 def shutdown_service_manager() -> None:
     """Stop the module-level ServiceManager singleton."""
     global _instance
+    from ..services.bot_mentions import shutdown_mention_inboxes
+
+    shutdown_mention_inboxes()
     with _instance_lock:
         if _instance is not None and _instance.stop():
             _instance = None

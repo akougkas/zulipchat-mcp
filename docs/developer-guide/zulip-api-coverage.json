@@ -1,0 +1,2229 @@
+{
+  "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
+  "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
+  "registered_tools": 60,
+  "operations": [
+    {
+      "method": "POST",
+      "path": "/fetch_api_key",
+      "operation": "fetch-api-key",
+      "summary": "Fetch an API key (production)",
+      "tags": [
+        "authentication"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/jwt/fetch_api_key",
+      "operation": "jwt-fetch-api-key",
+      "summary": "Fetch an API key (JWT)",
+      "tags": [
+        "authentication"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/dev_fetch_api_key",
+      "operation": "dev-fetch-api-key",
+      "summary": "Fetch an API key (development only)",
+      "tags": [
+        "authentication"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/dev_list_users",
+      "operation": "dev-list-users",
+      "summary": "List users (development only)",
+      "tags": [
+        "authentication"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/events",
+      "operation": "get-events",
+      "summary": "Get events from an event queue",
+      "tags": [
+        "real_time_events"
+      ],
+      "tools": [
+        "get_events",
+        "listen_events",
+        "poll_agent_events",
+        "request_user_input",
+        "wait_for_response"
+      ],
+      "wrappers": [
+        "get_events"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "DELETE",
+      "path": "/events",
+      "operation": "delete-queue",
+      "summary": "Delete an event queue",
+      "tags": [
+        "real_time_events"
+      ],
+      "tools": [
+        "deregister_events",
+        "listen_events",
+        "poll_agent_events"
+      ],
+      "wrappers": [
+        "deregister"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "GET",
+      "path": "/get_stream_id",
+      "operation": "get-stream-id",
+      "summary": "Get channel ID",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "advanced_search",
+        "agents_channel_topic_ops",
+        "create_draft",
+        "edit_draft",
+        "get_stream_info"
+      ],
+      "wrappers": [
+        "get_stream_id"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/mark_all_as_read",
+      "operation": "mark-all-as-read",
+      "summary": "Mark all messages as read",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/mark_stream_as_read",
+      "operation": "mark-stream-as-read",
+      "summary": "Mark messages in a channel as read",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/mark_topic_as_read",
+      "operation": "mark-topic-as-read",
+      "summary": "Mark messages in a topic as read",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [
+        "mark_topic_as_read"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "GET",
+      "path": "/attachments",
+      "operation": "get-attachments",
+      "summary": "Get attachments",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "manage_files"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/attachments/{attachment_id}",
+      "operation": "remove-attachment",
+      "summary": "Delete an attachment",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "manage_files"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/bot_storage",
+      "operation": "get-bot-storage",
+      "summary": "Get a bot's stored data",
+      "tags": [
+        "bots"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PUT",
+      "path": "/bot_storage",
+      "operation": "update-bot-storage",
+      "summary": "Update a bot's stored data",
+      "tags": [
+        "bots"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/bot_storage",
+      "operation": "remove-bot-storage",
+      "summary": "Remove a bot's stored data",
+      "tags": [
+        "bots"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/drafts",
+      "operation": "get-drafts",
+      "summary": "Get drafts",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [
+        "get_drafts"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/drafts",
+      "operation": "create-drafts",
+      "summary": "Create drafts",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [
+        "create_draft"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/drafts/{draft_id}",
+      "operation": "edit-draft",
+      "summary": "Edit a draft",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [
+        "edit_draft"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/drafts/{draft_id}",
+      "operation": "delete-draft",
+      "summary": "Delete a draft",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [
+        "delete_draft"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/navigation_views",
+      "operation": "get-navigation-views",
+      "summary": "Get all navigation views",
+      "tags": [
+        "navigation_views"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/navigation_views",
+      "operation": "add-navigation-view",
+      "summary": "Add a navigation view",
+      "tags": [
+        "navigation_views"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/navigation_views/{fragment}",
+      "operation": "edit-navigation-view",
+      "summary": "Update the navigation view",
+      "tags": [
+        "navigation_views"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/navigation_views/{fragment}",
+      "operation": "remove-navigation-view",
+      "summary": "Remove a navigation view",
+      "tags": [
+        "navigation_views"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/saved_snippets",
+      "operation": "get-saved-snippets",
+      "summary": "Get all saved snippets",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/saved_snippets",
+      "operation": "create-saved-snippet",
+      "summary": "Create a saved snippet",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/saved_snippets/{saved_snippet_id}",
+      "operation": "edit-saved-snippet",
+      "summary": "Edit a saved snippet",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/saved_snippets/{saved_snippet_id}",
+      "operation": "delete-saved-snippet",
+      "summary": "Delete a saved snippet",
+      "tags": [
+        "drafts"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/reminders",
+      "operation": "get-reminders",
+      "summary": "Get reminders",
+      "tags": [
+        "reminders"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/reminders",
+      "operation": "create-message-reminder",
+      "summary": "Create a message reminder",
+      "tags": [
+        "reminders"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/reminders/{reminder_id}",
+      "operation": "delete-reminder",
+      "summary": "Delete a reminder",
+      "tags": [
+        "reminders"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/scheduled_messages",
+      "operation": "get-scheduled-messages",
+      "summary": "Get scheduled messages",
+      "tags": [
+        "scheduled_messages"
+      ],
+      "tools": [
+        "get_scheduled_messages"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/scheduled_messages",
+      "operation": "create-scheduled-message",
+      "summary": "Create a scheduled message",
+      "tags": [
+        "scheduled_messages"
+      ],
+      "tools": [
+        "manage_scheduled_message"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/scheduled_messages/{scheduled_message_id}",
+      "operation": "update-scheduled-message",
+      "summary": "Edit a scheduled message",
+      "tags": [
+        "scheduled_messages"
+      ],
+      "tools": [
+        "manage_scheduled_message"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/scheduled_messages/{scheduled_message_id}",
+      "operation": "delete-scheduled-message",
+      "summary": "Delete a scheduled message",
+      "tags": [
+        "scheduled_messages"
+      ],
+      "tools": [
+        "manage_scheduled_message"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/default_streams",
+      "operation": "add-default-stream",
+      "summary": "Add a default channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/default_streams",
+      "operation": "remove-default-stream",
+      "summary": "Remove a default channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/messages",
+      "operation": "get-messages",
+      "summary": "Get messages",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "advanced_search",
+        "agents_channel_topic_ops",
+        "analyze_stream_with_llm",
+        "analyze_team_activity_with_llm",
+        "execute_chain",
+        "get_daily_summary",
+        "intelligent_report_generator",
+        "poll_agent_events",
+        "request_user_input",
+        "search_messages",
+        "teleport_chat",
+        "wait_for_response"
+      ],
+      "wrappers": [
+        "get_daily_summary",
+        "get_messages",
+        "get_messages_from_stream",
+        "get_messages_raw",
+        "search_messages"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "POST",
+      "path": "/messages",
+      "operation": "send-message",
+      "summary": "Send a message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "agent_message",
+        "close_agent_session",
+        "cross_post_message",
+        "execute_chain",
+        "manage_files",
+        "request_user_input",
+        "send_agent_status",
+        "send_message",
+        "teleport_chat",
+        "upload_file"
+      ],
+      "wrappers": [
+        "send_message"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "GET",
+      "path": "/messages/{message_id}/history",
+      "operation": "get-message-history",
+      "summary": "Get a message's edit history",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/messages/flags",
+      "operation": "update-message-flags",
+      "summary": "Update personal message flags",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_message_flags"
+      ],
+      "status": "wrapper_only",
+      "manual_review": "Internal explicit-ID helpers exist; registered bulk tools use /messages/flags/narrow."
+    },
+    {
+      "method": "POST",
+      "path": "/messages/flags/narrow",
+      "operation": "update-message-flags-for-narrow",
+      "summary": "Update personal message flags for narrow",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "manage_message_flags",
+        "update_message_flags_for_narrow"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/messages/render",
+      "operation": "render-message",
+      "summary": "Render a message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/messages/{message_id}/reactions",
+      "operation": "add-reaction",
+      "summary": "Add an emoji reaction",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "add_reaction",
+        "execute_chain",
+        "toggle_reaction"
+      ],
+      "wrappers": [
+        "add_reaction"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "DELETE",
+      "path": "/messages/{message_id}/reactions",
+      "operation": "remove-reaction",
+      "summary": "Remove an emoji reaction",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "toggle_reaction"
+      ],
+      "wrappers": [
+        "remove_reaction"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/{message_id}/read_receipts",
+      "operation": "get-read-receipts",
+      "summary": "Get a message's read receipts",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/matches_narrow",
+      "operation": "check-messages-match-narrow",
+      "summary": "Check if messages match a narrow",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "check_messages_match_narrow"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/messages/{message_id}",
+      "operation": "get-message",
+      "summary": "Fetch a single message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "cross_post_message",
+        "get_message"
+      ],
+      "wrappers": [
+        "fetch",
+        "get_message"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/messages/{message_id}",
+      "operation": "update-message",
+      "summary": "Edit a message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "agents_channel_topic_ops",
+        "edit_message"
+      ],
+      "wrappers": [
+        "edit_message",
+        "update_message"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/messages/{message_id}",
+      "operation": "delete-message",
+      "summary": "Delete a message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/messages/{message_id}/report",
+      "operation": "report-message",
+      "summary": "Report a message",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/user_uploads",
+      "operation": "upload-file",
+      "summary": "Upload a file",
+      "tags": [
+        "messages"
+      ],
+      "tools": [
+        "upload_file"
+      ],
+      "wrappers": [
+        "upload_file"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/thumbnail/status/{realm_id_str}/{filename}",
+      "operation": "check-thumbnail-status",
+      "summary": "Check thumbnail status",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/user_uploads/{realm_id_str}/{filename}",
+      "operation": "get-file-temporary-url",
+      "summary": "Get public temporary URL for an uploaded file",
+      "tags": [
+        "messages"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "operation": "get-users",
+      "summary": "Get users",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "advanced_search",
+        "get_users",
+        "resolve_user",
+        "search_messages",
+        "teleport_chat"
+      ],
+      "wrappers": [
+        "get_users"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "operation": "create-user",
+      "summary": "Create a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/{user_id}/reactivate",
+      "operation": "reactivate-user",
+      "summary": "Reactivate a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/{user_id}/status",
+      "operation": "update-status-for-user",
+      "summary": "Update user status",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{user_id}/status",
+      "operation": "get-user-status",
+      "summary": "Get a user's status",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user_status"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{user_id_or_email}/presence",
+      "operation": "get-user-presence",
+      "summary": "Get a user's presence",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user_presence"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/users/me",
+      "operation": "get-own-user",
+      "summary": "Get own user",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_own_user",
+        "poll_agent_events"
+      ],
+      "wrappers": [],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me",
+      "operation": "deactivate-own-user",
+      "summary": "Deactivate own user",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/api_key/regenerate",
+      "operation": "regenerate-api-key",
+      "summary": "Regenerate your API key",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users/me/alert_words",
+      "operation": "get-alert-words",
+      "summary": "Get all alert words",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/alert_words",
+      "operation": "add-alert-words",
+      "summary": "Add alert words",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/alert_words",
+      "operation": "remove-alert-words",
+      "summary": "Remove alert words",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/presence",
+      "operation": "update-presence",
+      "summary": "Update your presence",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_presence"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/me/profile_data",
+      "operation": "update-profile-data",
+      "summary": "Update your profile data",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/profile_data",
+      "operation": "remove-profile-data",
+      "summary": "Remove your profile data",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/status",
+      "operation": "update-status",
+      "summary": "Update your status",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "update_status"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/users/me/{stream_id}/topics",
+      "operation": "get-stream-topics",
+      "summary": "Get topics in a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "advanced_search",
+        "get_stream_info",
+        "get_stream_topics"
+      ],
+      "wrappers": [
+        "get_stream_topics"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/users/me/subscriptions",
+      "operation": "get-subscriptions",
+      "summary": "Get subscribed channels",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "get_subscriptions"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/subscriptions",
+      "operation": "subscribe",
+      "summary": "Subscribe to a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "add_subscriptions"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/subscriptions",
+      "operation": "unsubscribe",
+      "summary": "Unsubscribe from a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "remove_subscriptions"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/me/subscriptions/muted_topics",
+      "operation": "mute-topic",
+      "summary": "Topic muting",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "agents_channel_topic_ops"
+      ],
+      "wrappers": [
+        "mute_topic",
+        "unmute_topic"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/mobile_push/test_notification",
+      "operation": "test-notify",
+      "summary": "Send a test notification to mobile device(s)",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/mobile_push/e2ee/test_notification",
+      "operation": "e2ee-test-notify",
+      "summary": "Send an E2EE test notification to mobile device(s)",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/mobile_push/register",
+      "operation": "register-push-device",
+      "summary": "Register E2EE push device",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/remotes/push/e2ee/register",
+      "operation": "register-remote-push-device",
+      "summary": "Register E2EE push device to bouncer",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/register_client_device",
+      "operation": "register-client-device",
+      "summary": "Register a logged-in device",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/remove_client_device",
+      "operation": "remove-client-device",
+      "summary": "Remove a registered device",
+      "tags": [
+        "mobile"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/user_topics",
+      "operation": "update-user-topic",
+      "summary": "Update personal preferences for a topic",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/muted_users/{muted_user_id}",
+      "operation": "mute-user",
+      "summary": "Mute a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "manage_user_mute"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/muted_users/{muted_user_id}",
+      "operation": "unmute-user",
+      "summary": "Unmute a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "manage_user_mute"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/apns_device_token",
+      "operation": "add-apns-token",
+      "summary": "Add an APNs device token",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/apns_device_token",
+      "operation": "remove-apns-token",
+      "summary": "Remove an APNs device token",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/android_gcm_reg_id",
+      "operation": "add-fcm-token",
+      "summary": "Add an FCM registration token",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/android_gcm_reg_id",
+      "operation": "remove-fcm-token",
+      "summary": "Remove an FCM registration token",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{user_id}/subscriptions/{stream_id}",
+      "operation": "get-subscription-status",
+      "summary": "Get subscription status",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{user_id}/channels",
+      "operation": "get-user-channels",
+      "summary": "Get a user's subscribed channels",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/emoji/{emoji_name}",
+      "operation": "upload-custom-emoji",
+      "summary": "Upload custom emoji",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/realm/emoji/{emoji_name}",
+      "operation": "deactivate-custom-emoji",
+      "summary": "Deactivate custom emoji",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/realm/emoji",
+      "operation": "get-custom-emoji",
+      "summary": "Get all custom emoji",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/realm/presence",
+      "operation": "get-presence",
+      "summary": "Get presence of all users",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [
+        "get_presence"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/realm/domains",
+      "operation": "get-realm-domains",
+      "summary": "Get allowed domains",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/domains",
+      "operation": "add-realm-domain",
+      "summary": "Add an allowed domain",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/domains/{domain}",
+      "operation": "patch-realm-domain",
+      "summary": "Update an allowed domain",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/realm/domains/{domain}",
+      "operation": "delete-realm-domain",
+      "summary": "Remove an allowed domain",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/deactivate",
+      "operation": "deactivate-realm",
+      "summary": "Deactivate an organization",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/realm/profile_fields",
+      "operation": "get-custom-profile-fields",
+      "summary": "Get all custom profile fields",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/profile_fields",
+      "operation": "reorder-custom-profile-fields",
+      "summary": "Reorder custom profile fields",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/profile_fields",
+      "operation": "create-custom-profile-field",
+      "summary": "Create a custom profile field",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/profile_fields/{field_id}",
+      "operation": "update-custom-profile-field",
+      "summary": "Update a custom profile field",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/realm/profile_fields/{field_id}",
+      "operation": "delete-custom-profile-field",
+      "summary": "Delete a custom profile field",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/user_settings_defaults",
+      "operation": "update-realm-user-settings-defaults",
+      "summary": "Update realm-level defaults of user settings",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/avatar",
+      "operation": "upload-avatar",
+      "summary": "Upload your profile picture",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/me/avatar",
+      "operation": "delete-avatar",
+      "summary": "Delete your profile picture",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/users/me/subscriptions/properties",
+      "operation": "update-subscription-settings",
+      "summary": "Bulk update subscription settings",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_subscription_settings"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/me/subscriptions/{stream_id}",
+      "operation": "update-subscription-property",
+      "summary": "Update a subscription setting",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{email}",
+      "operation": "get-user-by-email",
+      "summary": "Get a user by email",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user"
+      ],
+      "wrappers": [
+        "get_user_by_email",
+        "get_user_by_id"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/{email}",
+      "operation": "update-user-by-email",
+      "summary": "Update a user by email",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_user"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "GET",
+      "path": "/users/{user_id}",
+      "operation": "get-user",
+      "summary": "Get a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user"
+      ],
+      "wrappers": [
+        "get_user_by_email",
+        "get_user_by_id"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/users/{user_id}",
+      "operation": "update-user",
+      "summary": "Update a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_user"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "DELETE",
+      "path": "/users/{user_id}",
+      "operation": "deactivate-user",
+      "summary": "Deactivate a user",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/realm/linkifiers",
+      "operation": "get-linkifiers",
+      "summary": "Get linkifiers",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/linkifiers",
+      "operation": "reorder-linkifiers",
+      "summary": "Reorder linkifiers",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/filters",
+      "operation": "add-linkifier",
+      "summary": "Add a linkifier",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/realm/filters/{filter_id}",
+      "operation": "remove-linkifier",
+      "summary": "Remove a linkifier",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/realm/filters/{filter_id}",
+      "operation": "update-linkifier",
+      "summary": "Update a linkifier",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/playgrounds",
+      "operation": "add-code-playground",
+      "summary": "Add a code playground",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/realm/playgrounds/{playground_id}",
+      "operation": "remove-code-playground",
+      "summary": "Remove a code playground",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/export/realm/{export_id}",
+      "operation": "delete-realm-export",
+      "summary": "Delete a data export",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/export/realm",
+      "operation": "get-realm-exports",
+      "summary": "Get all data exports",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/export/realm",
+      "operation": "export-realm",
+      "summary": "Create a data export",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/export/realm/consents",
+      "operation": "get-realm-export-consents",
+      "summary": "Get data export consent state",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/invites",
+      "operation": "get-invites",
+      "summary": "Get all invitations",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/invites",
+      "operation": "send-invites",
+      "summary": "Send invitations",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/invites/multiuse",
+      "operation": "create-invite-link",
+      "summary": "Create a reusable invitation link",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/invites/{invite_id}",
+      "operation": "revoke-email-invite",
+      "summary": "Revoke an email invitation",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "DELETE",
+      "path": "/invites/multiuse/{invite_id}",
+      "operation": "revoke-invite-link",
+      "summary": "Revoke a reusable invitation link",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/invites/{invite_id}/resend",
+      "operation": "resend-email-invite",
+      "summary": "Resend an email invitation",
+      "tags": [
+        "invites"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/realm/test_welcome_bot_custom_message",
+      "operation": "test-welcome-bot-custom-message",
+      "summary": "Test welcome bot custom message",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/register",
+      "operation": "register-queue",
+      "summary": "Register an event queue",
+      "tags": [
+        "real_time_events"
+      ],
+      "tools": [
+        "listen_events",
+        "poll_agent_events",
+        "register_events",
+        "request_user_input",
+        "wait_for_response"
+      ],
+      "wrappers": [
+        "register"
+      ],
+      "status": "registered_tool",
+      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+    },
+    {
+      "method": "GET",
+      "path": "/server_settings",
+      "operation": "get-server-settings",
+      "summary": "Get server settings",
+      "tags": [
+        "server_and_organizations"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "sdk_bootstrap",
+      "manual_review": "SDK initialization can fetch server feature settings; MCP server_info remains network-free."
+    },
+    {
+      "method": "PATCH",
+      "path": "/settings",
+      "operation": "update-settings",
+      "summary": "Update settings",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/streams/{stream_id}/members",
+      "operation": "get-subscribers",
+      "summary": "Get channel subscribers",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "get_stream_info"
+      ],
+      "wrappers": [
+        "get_subscribers"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/streams",
+      "operation": "get-streams",
+      "summary": "Get all channels",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "advanced_search",
+        "get_daily_summary",
+        "get_stream_info",
+        "get_streams",
+        "manage_message_flags"
+      ],
+      "wrappers": [
+        "get_daily_summary",
+        "get_streams"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "GET",
+      "path": "/streams/{stream_id}",
+      "operation": "get-stream-by-id",
+      "summary": "Get a channel by ID",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "advanced_search",
+        "agents_channel_topic_ops",
+        "create_draft",
+        "edit_draft",
+        "get_stream_info"
+      ],
+      "wrappers": [
+        "get_stream_id"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "DELETE",
+      "path": "/streams/{stream_id}",
+      "operation": "archive-stream",
+      "summary": "Archive a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "delete_stream"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "PATCH",
+      "path": "/streams/{stream_id}",
+      "operation": "update-stream",
+      "summary": "Update a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [
+        "update_stream"
+      ],
+      "status": "wrapper_only"
+    },
+    {
+      "method": "GET",
+      "path": "/streams/{stream_id}/email_address",
+      "operation": "get-stream-email-address",
+      "summary": "Get channel's email address",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/streams/{stream_id}/delete_topic",
+      "operation": "delete-topic",
+      "summary": "Delete a topic",
+      "tags": [
+        "channels"
+      ],
+      "tools": [
+        "agents_channel_topic_ops"
+      ],
+      "wrappers": [
+        "delete_topic"
+      ],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/typing",
+      "operation": "set-typing-status",
+      "summary": "Set \"typing\" status",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/messages/{message_id}/typing",
+      "operation": "set-typing-status-for-message-edit",
+      "summary": "Set \"typing\" status for message editing",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/channels/create",
+      "operation": "create-channel",
+      "summary": "Create a channel",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/user_groups/create",
+      "operation": "create-user-group",
+      "summary": "Create a user group",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/user_groups/{user_group_id}/members",
+      "operation": "update-user-group-members",
+      "summary": "Update user group members",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/user_groups/{user_group_id}/members",
+      "operation": "get-user-group-members",
+      "summary": "Get user group members",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user_group_members"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "PATCH",
+      "path": "/user_groups/{user_group_id}",
+      "operation": "update-user-group",
+      "summary": "Update a user group",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/user_groups",
+      "operation": "get-user-groups",
+      "summary": "Get user groups",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "get_user_groups"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/user_groups/{user_group_id}/subgroups",
+      "operation": "update-user-group-subgroups",
+      "summary": "Update subgroups of a user group",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/user_groups/{user_group_id}/subgroups",
+      "operation": "get-user-group-subgroups",
+      "summary": "Get subgroups of a user group",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/user_groups/{user_group_id}/members/{user_id}",
+      "operation": "get-is-user-group-member",
+      "summary": "Get user group membership status",
+      "tags": [
+        "users"
+      ],
+      "tools": [
+        "is_user_group_member"
+      ],
+      "wrappers": [],
+      "status": "registered_tool"
+    },
+    {
+      "method": "POST",
+      "path": "/user_groups/{user_group_id}/deactivate",
+      "operation": "deactivate-user-group",
+      "summary": "Deactivate a user group",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/channel_folders/create",
+      "operation": "create-channel-folder",
+      "summary": "Create a channel folder",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/channel_folders",
+      "operation": "get-channel-folders",
+      "summary": "Get channel folders",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/channel_folders",
+      "operation": "patch-channel-folders",
+      "summary": "Reorder channel folders",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "PATCH",
+      "path": "/channel_folders/{channel_folder_id}",
+      "operation": "update-channel-folder",
+      "summary": "Update a channel folder",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "GET",
+      "path": "/bots/{bot_id}/api_key",
+      "operation": "get-bot-api-key",
+      "summary": "Get a bot's API key",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/bots/{bot_id}/api_key/regenerate",
+      "operation": "regenerate-bot-api-key",
+      "summary": "Regenerate a bot's API key",
+      "tags": [
+        "users"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/real-time",
+      "operation": "post /real-time",
+      "summary": null,
+      "tags": [
+        "real_time_events"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "documentation_reference"
+    },
+    {
+      "method": "POST",
+      "path": "/rest-error-handling",
+      "operation": "rest-error-handling",
+      "summary": "Error handling",
+      "tags": [
+        "real_time_events"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "documentation_reference"
+    },
+    {
+      "method": "POST",
+      "path": "/zulip-outgoing-webhook",
+      "operation": "zulip-outgoing-webhooks",
+      "summary": "Outgoing webhooks",
+      "tags": [
+        "webhooks"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "documentation_reference"
+    },
+    {
+      "method": "GET",
+      "path": "/calls/bigbluebutton/create",
+      "operation": "create-big-blue-button-video-call",
+      "summary": "Create BigBlueButton video call",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/calls/nextcloud_talk/create",
+      "operation": "create-nextcloud-talk-video-call",
+      "summary": "Create Nextcloud Talk video call",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/calls/webex/create",
+      "operation": "create-webex-video-call",
+      "summary": "Create Webex video call",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    },
+    {
+      "method": "POST",
+      "path": "/calls/constructorgroups/create",
+      "operation": "create-constructor-groups-video-call",
+      "summary": "Create Constructor Groups video call",
+      "tags": [
+        "channels"
+      ],
+      "tools": [],
+      "wrappers": [],
+      "status": "not_exposed"
+    }
+  ],
+  "counts": {
+    "documentation_reference": 3,
+    "not_exposed": 109,
+    "registered_tool": 42,
+    "sdk_bootstrap": 1,
+    "wrapper_only": 11
+  },
+  "method": "Static registered-tool/client/SDK call reachability, with manually reviewed coordinator, listener, analytics and command-engine paths. A mapped endpoint is not certification of all parameters or live permissions.",
+  "reviewed_at_utc": "2026-10-09T16:28:29.246349+00:00",
+  "source_retrieved_date": "2026-10-09",
+  "rest_operation_count": 163
+}

@@ -45,10 +45,12 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 
 - **Send and read messages** — stream messages, DMs, replies, reactions
 - **Search conversation history** — full-text search with filters for sender, stream, time range
-- **Resolve people by name** — "message Jaime" just works, no hunting for formal emails
+- **Resolve people by name** — verify a unique recipient before sending; ambiguous names need clarification
 - **Switch identities** — post as yourself or as a bot, in the same session
 - **Monitor activity** — search recent messages, get stream info, check who's online
 - **Bind sessions to Zulip topics** — give long-running agent sessions a stable control topic
+- **Receive ordinary bot mentions** — an event-fed local inbox lets a configured host wake an agent and reply in the source topic, without `/reply` for conversation
+- **Reuse dated snapshots** — short-lived message caches and rate-aware request admission reduce repeated API reads
 - **Request approvals in-topic** — owner replies with `/approve REQUEST_ID` or `/deny REQUEST_ID` in the session topic; each decision names the request it answers
 - **Load Agent Skills** — four packaged instructions for messaging, session control, notifications, and bounded work loops, available as local files and MCP Resources
 - **Export agent packages** — native host configuration and skills, Claude's hook/plugin assets, or an Agent Plugins 1.0.0 package
@@ -70,6 +72,13 @@ Clio configures MCP execution separately from plugin content. See the
 [capability matrix](docs/integrations/agent-skills.md),
 [Clio guide](docs/integrations/clio-coder.md), and
 [complete workflow](docs/integrations/agent-workflow.md).
+
+For read-only access, add `--tool-profile read-only`: discovery and execution
+both expose nine core reads or 23 extended reads. The default full profile
+retains 20/60 tools. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
+for cache freshness, rate limits and the boundary between message transport and
+host execution. The [live Luna experiment](docs/testing/clio-bot-mentions.md)
+records normal mention-to-bot replies from a real Clio TUI.
 
 ## Two-Tier Tool Architecture
 
@@ -173,6 +182,7 @@ Add to your MCP configuration:
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
 | `--extended-tools` | Register all 60 tools instead of the 20-tool core set |
+| `--tool-profile {full,read-only}` | Filter discovery and enforce read-only Zulip calls; default: `full` |
 | `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
 | `--host HOST` | Bind host for HTTP transport (default: `127.0.0.1`) |
 | `--port PORT` | Bind port for HTTP transport (default: `8000`) |

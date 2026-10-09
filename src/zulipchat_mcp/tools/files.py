@@ -17,6 +17,7 @@ from urllib.parse import unquote, urlparse, urlunparse
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 from ..core.security import is_unsafe_mode, local_access_allowed
 
 MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -350,10 +351,7 @@ async def upload_file(
             return response
 
         else:
-            return {
-                "status": "error",
-                "error": upload_result.get("msg", "Upload failed"),
-            }
+            return api_error(upload_result, "Upload failed")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -394,10 +392,7 @@ async def manage_files(
                     "count": len(result.get("attachments", [])),
                 }
             else:
-                return {
-                    "status": "error",
-                    "error": result.get("msg", "Failed to list files"),
-                }
+                return api_error(result, "Failed to list files")
 
         elif operation == "delete":
             if not is_unsafe_mode():
@@ -433,10 +428,7 @@ async def manage_files(
                     "message": "File deleted successfully",
                 }
             else:
-                return {
-                    "status": "error",
-                    "error": result.get("msg", "Failed to delete file"),
-                }
+                return api_error(result, "Failed to delete file")
 
         elif operation == "share":
             if not file_id:
@@ -476,10 +468,7 @@ async def manage_files(
                     "message_id": result.get("id"),
                 }
             else:
-                return {
-                    "status": "error",
-                    "error": result.get("msg", "Failed to share file"),
-                }
+                return api_error(result, "Failed to share file")
 
         elif operation == "download":
             if not file_id:

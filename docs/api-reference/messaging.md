@@ -4,7 +4,7 @@
 
 - `send_message(type, to, content, topic=None)`
 - `edit_message(message_id, content=None, topic=None, stream_id=None, propagate_mode="change_one", ...)`
-- `get_message(message_id)`
+- `get_message(message_id, fresh=False)`
 - `add_reaction(message_id, emoji_name, emoji_code=None, reaction_type="unicode_emoji")`
 - `manage_message_flags(flag, action, scope="narrow", stream_id=None, topic_name=None, sender_email=None, narrow=None)`
 
@@ -58,3 +58,7 @@ await manage_message_flags(
 - `add_reaction` validates against the approved agent emoji list.
 - `send_message` and `edit_message` truncate very large content payloads.
 - Scheduled message tools are in extended mode.
+- Individual reads reuse identity-scoped snapshots for up to 15 seconds;
+  inspect `cache`, or set `fresh=True` when a new observation is needed.
+- Cross-posting retrieves raw Markdown. Backend errors retain available codes
+  and retry delays; resolve uncertain send outcomes before retrying a write.

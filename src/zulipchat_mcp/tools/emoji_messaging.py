@@ -11,6 +11,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 from ..core.emoji_registry import validate_emoji_for_agent
 
 
@@ -72,10 +73,7 @@ async def add_reaction(
                 "reaction_type": reaction_type,
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to add reaction"),
-            }
+            return api_error(result, "Failed to add reaction")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -116,10 +114,7 @@ async def remove_reaction(
                 "action": "removed",
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to remove reaction"),
-            }
+            return api_error(result, "Failed to remove reaction")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}

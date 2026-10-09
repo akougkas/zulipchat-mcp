@@ -291,7 +291,11 @@ def register_extended_tools(mcp: FastMCP) -> None:
     )(close_agent_session)
     mcp.tool(
         name="poll_agent_events",
-        description="Poll unacknowledged inbound session events.",
+        description=(
+            "Read persisted owner session events, or set mentions_stream for "
+            "event-fed bot mentions. Retain a host-owned after_message_id cursor; "
+            "wait_seconds<=25 waits locally without refetching history."
+        ),
     )(poll_agent_events)
 
     # Files (2)

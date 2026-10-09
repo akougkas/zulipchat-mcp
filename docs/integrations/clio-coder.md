@@ -15,6 +15,12 @@ The local model also constructed narrows and summarized the retrieved discussion
 This establishes those read operations, not every discovered tool or the write
 and approval workflows. See the [experiment notes](../testing/clio-live-readonly.md).
 
+A subsequent Generic-bot experiment used **Luna** in a dedicated visible TUI.
+Three normal owner mentions woke Clio and produced one bot reply each in the
+source topic. Its host adapter and native approvals were scoped to that private
+project; see [live bot mentions](../testing/clio-bot-mentions.md). The MCP exporter
+does not install an unattended launcher.
+
 ## Configure a project
 
 From this unpublished checkout:
@@ -75,6 +81,16 @@ Inspect each tool's actual schema before calling it. Register with
 and retain `session_id`. Use `agent_message` for results, `poll_agent_events`
 for owner steering, and `request_user_input` plus bounded `wait_for_response`
 for decisions. Use the [workflow example](agent-workflow.md) and bundled skills.
+
+For mention-driven work, a separate host adapter reads
+`poll_agent_events(mentions_stream="Agents-Channel", after_message_id=cursor,
+auto_ack=False, wait_seconds=20)`. This reads a local event-fed inbox and does
+not require an existing session. Validate numeric bot/sender/channel IDs,
+listener health and cursor continuity before queuing work. Retain a stable
+agent/topic binding for subsequent mentions; source message IDs identify tasks,
+not new external sessions. Reply in the source topic with the configured bot.
+Ordinary conversation does not use `/reply`. Explicit questions and approvals
+remain correlated by request ID. See [API efficiency and host ownership](../developer-guide/zulip-api-proxy.md).
 
 ## Plugin content
 

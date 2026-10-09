@@ -5,8 +5,12 @@ license: MIT
 ---
 
 Discover the connected ZulipChat MCP tools and their current schemas before
-calling them. Core mode has 20 tools; extended mode has 60. File, draft, event,
-analytics, and session steering tools require extended mode. Tool names may have
+calling them. The full profile has 20 core tools or 60 extended tools. The
+read-only profile exposes nine core reads or 23 extended reads. Inspect
+`server_info.capabilities.enabled_tools` and the active profile; a restrictive
+profile cannot be widened by changing the sender or approving one host call.
+File, draft, event, analytics, and session steering tools require extended mode.
+Tool names may have
 a host prefix; use the discovered name rather than inventing one.
 
 For ordinary messaging, resolve people and streams before sending when their
@@ -30,6 +34,26 @@ IDs when full content matters. Count duplicate IDs across overlapping searches
 separately from distinct messages. Check the result's `status` even when the
 host displays a successful MCP call. Date historical announcements and qualify
 linked issue status unless that source was also inspected.
+
+Reuse results within a task. Message searches and detail reads normally share
+15-second snapshots; inspect their cache age and snapshot ID. Use `fresh=True`
+only when the task needs a new upstream observation. Report fetched versus
+returned counts, UTC dates and truncated excerpts. On `RATE_LIMIT_HIT`, wait at
+least `retry_after_seconds` before retrying; do not turn a cooldown into a loop.
+Successful cached reads during a cooldown remain bounded, dated observations.
+
+For conversational bot requests, people mention the Generic bot with ordinary
+text. A host adapter consumes `poll_agent_events(mentions_stream=...,
+after_message_id=..., auto_ack=False, wait_seconds=20)` from the local event-fed
+inbox. It validates `bot_user_id`, sender/channel IDs, listener readiness and
+cursor continuity, then commits its cursor with its durable work queue before
+waking the coding agent. It replies through `agent_message` in the source topic.
+Keep the message ID as the task deduplication key and the agent/topic session
+as a separate stable binding. Reuse the stored session for later mentions in
+that topic; creating a new external session ID per message conflicts with it.
+The host controls execution and permissions; MCP only transports and persists
+messages. Do not require `/reply` for an ordinary mention. Use explicit reply
+syntax when you have actually created a correlated question or approval.
 
 For a session the user wants controlled through Zulip:
 
@@ -62,6 +86,8 @@ configures and trusts `.clio-coder/mcp.yaml` to launch the server.
 For owner questions, advertise `/reply REQUEST_ID YOUR ANSWER`. For approval
 requests use `/approve REQUEST_ID` or `/deny REQUEST_ID`. Poll with
 `wait_for_response(request_id=..., timeout_seconds=30)` and retain the same
-request ID after a timeout. Resume polling instead of posting a duplicate prompt.
+request ID after a timeout. A returned `status="timeout"` with
+`request_status="pending"` is a bounded observation, not a failed delivery or
+terminal decision. Resume polling instead of posting a duplicate prompt.
 For replayable steering, use `poll_agent_events(auto_ack=False, session_id=...)`
 and acknowledge consumed event IDs on the next poll with `ack_event_ids`.

@@ -10,6 +10,7 @@ from typing import Any
 
 from ..config import get_client, get_config_manager
 from ..core.agent_control import AgentCoordinator
+from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
@@ -370,14 +371,41 @@ def poll_agent_events(
     auto_ack: bool = True,
     ack_event_ids: list[str] | None = None,
     include_audit: bool = False,
+    mentions_stream: str | None = None,
+    after_message_id: int | None = None,
+    wait_seconds: float = 0,
 ) -> dict[str, Any]:
     """Poll owner control events; use auto_ack=False and ack_event_ids for replay.
 
     include_audit=True also exposes outbound and unauthorized audit records.
+    mentions_stream instead reads bot mentions without a pre-existing session.
+    The host owns durable message-ID deduplication and agent wake-up policy.
     """
     with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
         track_tool_call("poll_agent_events")
         try:
+            if mentions_stream is not None:
+                if (
+                    session_id
+                    or agent_id
+                    or event_type
+                    or ack_event_ids
+                    or include_audit
+                ):
+                    return {
+                        "status": "error",
+                        "error": "Mention polling cannot be combined with session filters or acknowledgements",
+                        "retryable": False,
+                    }
+                return _poll_bot_mentions(
+                    mentions_stream, after_message_id, limit, wait_seconds
+                )
+            if after_message_id is not None or wait_seconds:
+                return {
+                    "status": "error",
+                    "error": "after_message_id and wait_seconds require mentions_stream",
+                    "retryable": False,
+                }
             db = DatabaseManager()
             if not 1 <= limit <= 500 or (ack_event_ids and len(ack_event_ids) > 500):
                 return {
@@ -420,6 +448,73 @@ def poll_agent_events(
         except Exception as e:
             track_tool_error("poll_agent_events", type(e).__name__)
             return {"status": "error", "error": str(e)}
+
+
+def _poll_bot_mentions(
+    stream: str, after_message_id: int | None, limit: int, wait_seconds: float = 0
+) -> dict[str, Any]:
+    """Read the configured bot's mention inbox; never execute message contents."""
+    if (
+        not stream.strip()
+        or len(stream) > 200
+        or not 1 <= limit <= 50
+        or (after_message_id is not None and after_message_id < 0)
+        or not 0 <= wait_seconds <= 25
+    ):
+        return {
+            "status": "error",
+            "error": "Mention polling requires a stream, limit 1..50, nonnegative cursor and wait_seconds 0..25",
+            "retryable": False,
+        }
+    config = get_config_manager()
+    if not config.has_bot_credentials():
+        return {
+            "status": "error",
+            "error": "Mention polling requires a configured Generic Zulip bot",
+            "error_code": "BOT_NOT_CONFIGURED",
+            "retryable": False,
+        }
+    coordinator = _get_coordinator()
+    from ..services.bot_mentions import get_mention_inbox
+
+    inbox = get_mention_inbox(
+        coordinator.bot_client,
+        config.resolved_account().fingerprint,
+        stream.strip(),
+        after_message_id,
+    )
+    result = inbox.poll(after_message_id, limit, wait_seconds)
+    owner = coordinator.default_owner_email().casefold()
+    events = []
+    messages = result.pop("messages")
+    for message in messages:
+        message_id = message["id"]
+        if after_message_id is not None and message_id <= after_message_id:
+            continue
+        content = str(message.get("content", ""))
+        events.append(
+            {
+                "id": f"mention:{message_id}",
+                "event_type": "mention",
+                "message_id": message_id,
+                "sender_id": message.get("sender_id"),
+                "sender_email": message.get("sender_email"),
+                "is_configured_owner": str(message.get("sender_email", "")).casefold()
+                == owner,
+                "stream_id": message.get("stream_id"),
+                "stream_name": message.get("display_recipient"),
+                "topic": message.get("subject"),
+                "timestamp": message.get("timestamp"),
+                "content": content[:6000],
+                "content_truncated": message.get("content_truncated", False),
+                "last_edit_timestamp": message.get("last_edit_timestamp"),
+            }
+        )
+    return {
+        **result,
+        "events": events,
+        "count": len(events),
+    }
 
 
 async def teleport_chat(
@@ -487,7 +582,7 @@ async def teleport_chat(
                 )
 
             if result.get("result") != "success":
-                return {"status": "error", "error": result.get("msg", "Failed to send")}
+                return api_error(result, "Failed to send")
 
             response: dict[str, Any] = {
                 "status": "success",

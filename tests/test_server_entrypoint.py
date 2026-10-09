@@ -221,3 +221,15 @@ def test_startup_does_not_make_zulip_api_calls(monkeypatch):
     ):
         server.main()
     get_client.assert_not_called()
+
+
+@pytest.mark.parametrize("flag", ["--enable-listener", "--unsafe"])
+def test_read_only_profile_rejects_mutating_startup_flags(monkeypatch, flag):
+    monkeypatch.setattr(
+        sys, "argv", ["zulipchat-mcp", "--tool-profile", "read-only", flag]
+    )
+    with patch.object(server, "init_config_manager") as init:
+        with pytest.raises(SystemExit) as exc:
+            server.main()
+    assert exc.value.code == 2
+    init.assert_not_called()

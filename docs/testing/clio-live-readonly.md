@@ -21,7 +21,9 @@ origin, GET requests, channel-scoped bounded searches, and previously sampled
 message IDs for individual reads. It rejected redirects and wrote an audit
 containing methods, endpoint paths and HTTP statuses, excluding headers,
 credentials, query parameters and message bodies. These guards were local
-experiment code; the production server does not have a read-only CLI mode.
+experiment code. The later v0.7.4 follow-up adds a production
+`--tool-profile read-only` that restricts the tool surface; channel, request,
+and model-call budgets remain additional experiment-specific controls.
 
 No Zulip messages, reactions, flags, subscriptions, channel settings or
 approval prompts were changed. The listener was not enabled. Local model/session

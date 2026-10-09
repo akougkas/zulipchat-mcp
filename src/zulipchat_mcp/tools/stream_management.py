@@ -10,6 +10,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 
 
 async def get_streams(
@@ -34,10 +35,7 @@ async def get_streams(
                 "count": len(streams),
             }
         else:
-            return {
-                "status": "error",
-                "error": result.get("msg", "Failed to list streams"),
-            }
+            return api_error(result, "Failed to list streams")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -63,7 +61,7 @@ async def get_stream_info(
         if stream_name and not stream_id:
             stream_result = await asyncio.to_thread(client.get_stream_id, stream_name)
             if stream_result.get("result") != "success":
-                return {"status": "error", "error": f"Stream '{stream_name}' not found"}
+                return api_error(stream_result, f"Stream '{stream_name}' not found")
             stream_id = stream_result.get("stream_id")
 
         # Get basic stream information
@@ -76,7 +74,7 @@ async def get_stream_info(
             if not stream_info:
                 return {"status": "error", "error": "Stream not found"}
         else:
-            return {"status": "error", "error": "Failed to get stream information"}
+            return api_error(streams_result, "Failed to get stream information")
 
         info = {
             "status": "success",
@@ -93,6 +91,14 @@ async def get_stream_info(
             if sub_result.get("result") == "success":
                 info["subscribers"] = sub_result.get("subscribers", [])
                 info["subscriber_count"] = len(sub_result.get("subscribers", []))
+            else:
+                info["status"] = "partial"
+                info.setdefault("errors", []).append(
+                    {
+                        "component": "subscribers",
+                        **api_error(sub_result, "Subscribers unavailable"),
+                    }
+                )
 
         # Get topics if requested
         if include_topics and stream_id:
@@ -100,6 +106,14 @@ async def get_stream_info(
             if topics_result.get("result") == "success":
                 info["topics"] = topics_result.get("topics", [])
                 info["topic_count"] = len(topics_result.get("topics", []))
+            else:
+                info["status"] = "partial"
+                info.setdefault("errors", []).append(
+                    {
+                        "component": "topics",
+                        **api_error(topics_result, "Topics unavailable"),
+                    }
+                )
 
         return info
 

@@ -2,7 +2,7 @@
 
 ## Core tool
 
-- `search_messages(query=None, stream=None, topic=None, sender=None, ..., limit=50, sort_by="relevance")`
+- `search_messages(query=None, stream=None, topic=None, sender=None, ..., limit=50, sort_by="relevance", fresh=False)`
 
 ## Extended tools
 
@@ -62,3 +62,10 @@ await advanced_search(
 - `advanced_search` also supports topic-name search when `stream` is supplied.
   Failed scopes are included in the results and produce `status="partial"` or
   `status="error"`. Counts and aggregations describe the returned sample.
+- Message excerpts include UTC dates, `content_format` and truncation state.
+  The `sample` describes fetched versus returned counts, interval/order bounds,
+  backend boundaries, retrieval time and cache provenance. Use selected message
+  IDs for full reads; a rendered excerpt is not raw Markdown.
+- Successful windows are cached for 15 seconds by identity and exact upstream
+  request. `fresh=True` bypasses reuse. Honor returned `RATE_LIMIT_HIT` retry
+  delays rather than repeating a throttled query. See [API efficiency](../developer-guide/zulip-api-proxy.md).

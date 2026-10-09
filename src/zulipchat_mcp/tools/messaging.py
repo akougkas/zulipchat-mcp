@@ -11,6 +11,7 @@ from typing import Any, Literal
 from fastmcp import FastMCP
 
 from ..config import get_client
+from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 
 
@@ -61,7 +62,7 @@ async def _send_message(
             "timestamp": datetime.now().isoformat(),
         }
     else:
-        return {"status": "error", "error": result.get("msg", "Failed to send message")}
+        return api_error(result, "Failed to send message")
 
 
 async def edit_message(
@@ -137,10 +138,10 @@ async def edit_message(
             "propagate_mode": propagate_mode,
         }
     else:
-        return {"status": "error", "error": result.get("msg", "Failed to edit message")}
+        return api_error(result, "Failed to edit message")
 
 
-async def get_message(message_id: int) -> dict[str, Any]:
+async def get_message(message_id: int, fresh: bool = False) -> dict[str, Any]:
     """Get a single message by ID."""
     if not isinstance(message_id, int) or message_id <= 0:
         return {"status": "error", "error": "Invalid message ID"}
@@ -148,15 +149,20 @@ async def get_message(message_id: int) -> dict[str, Any]:
     client = get_client()
 
     try:
-        result = await asyncio.to_thread(client.get_message, message_id)
+        result = await asyncio.to_thread(
+            client.get_message, message_id, **({"fresh": True} if fresh else {})
+        )
 
         if result.get("result") == "success":
-            return {
+            response = {
                 "status": "success",
                 "message": result.get("message", {}),
             }
+            if "_cache" in result:
+                response["cache"] = result["_cache"]
+            return response
         else:
-            return {"status": "error", "error": result.get("msg", "Message not found")}
+            return api_error(result, "Message not found")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -184,10 +190,7 @@ async def cross_post_message(
             client.get_message, source_message_id, apply_markdown=False
         )
         if msg_result.get("result") != "success":
-            return {
-                "status": "error",
-                "error": msg_result.get("msg", "Source message not found"),
-            }
+            return api_error(msg_result, "Source message not found")
 
         source_msg = msg_result.get("message", {})
         source_content = source_msg.get("content", "")

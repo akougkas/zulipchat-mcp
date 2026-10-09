@@ -9,6 +9,17 @@ frozen artifact or independently established binary/source equivalence.
 interfaces below are proposals unless explicitly identified as implemented.**
 This document does not authorize activation, local coding execution, or release.
 
+**Implementation update, 2026-10-09:** v0.7.4 now includes matching capability
+discovery/enforcement for full and read-only profiles, MCP error-state mapping,
+bounded pending waits, UTC/sample/cache provenance, request shaping and a durable
+event-fed bot mention inbox. The [API proxy contract](zulip-api-proxy.md) describes
+these shipped boundaries. A separately authorized [Luna TUI experiment](../testing/clio-bot-mentions.md)
+demonstrated three normal owner mentions and source-topic bot replies. Its private
+host adapter corrected delivery reconciliation and stable-session reuse. It
+does not implement or certify the proposed unattended execution, ACP task
+ceilings, cancellation settlement or workspace-confinement design below.
+Historical observations and unimplemented proposals remain identified as such.
+
 ## Recommendation and decision points
 
 Retain FastMCP, Python 3.10 support, the default 20/core and 60/extended tool
@@ -107,8 +118,9 @@ only within host policy; it cannot override server policy. The attempted
 recipient is **unverified**, not proven invented. The proper result was a
 short explanation after the first unchanged denial, with no repeated call and
 no attempted send. Effective capability discovery should usually prevent even
-that first call. The wrapper is experiment-only; production MCP does not yet
-offer this policy profile.
+that first call. The original wrapper was experiment-only. Production MCP now
+offers `--tool-profile read-only` with filtered discovery and nonretryable denials;
+the finer channel and per-source send controls remain experiment-specific.
 
 ## Implemented contracts and missing behavior
 

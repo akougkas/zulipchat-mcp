@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents runtime configuration for ZulipChat MCP v0.7.4 (prepared, unpublished); the same options are available in stable v0.7.3.
+This page documents runtime configuration for ZulipChat MCP v0.7.4 (prepared, unpublished). The tool profile option is new in v0.7.4.
 
 ## Recommended setup
 
@@ -34,6 +34,7 @@ zulipchat-mcp [options]
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
 - `--extended-tools`: Register all 60 tools instead of the 20-tool core set
+- `--tool-profile {full,read-only}`: Enforce the selected Zulip tool surface (`full` by default)
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)
@@ -47,6 +48,38 @@ zulipchat-mcp [options]
 Note: listener services are lazy-started by tools that need them. The
 `--enable-listener` flag starts the listener eagerly and remains for
 compatibility.
+
+## Read-only tool profile
+
+For bounded discovery and Zulip reads, use:
+
+```bash
+uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --tool-profile read-only
+```
+
+The profile exposes nine core reads, or 23 with `--extended-tools`. Discovery
+omits writes and mixed-operation tools. A direct call to an excluded tool is
+also rejected with `isError=true`, `error_code="POLICY_DENIED"`, and
+`retryable=false`, before the operation executes. `resolve_user` is a read and
+remains available. Polling and interactive session tools are excluded because
+they can register remote event queues or post messages. The profile rejects
+`--enable-listener` and `--unsafe` at startup.
+
+`server_info.capabilities` reports the effective tool names and count, profile,
+transport, and availability of identity switching. Use this information and
+the current tool schemas to plan calls. The profile covers the configured
+account; it does not confine reads to one channel, sandbox the coding host, or
+make the server's local database and caches immutable. The `full` profile
+retains the established 20/60-tool surface and existing safety checks.
+
+Application failures now set MCP `isError=true` while preserving structured
+error details. Partial delivery retains its message IDs and is not converted
+to an execution error. A bounded `wait_for_response` that elapses returns
+`status="timeout"`, `request_status="pending"`, the same `request_id`, and
+`retryable=true`. Resume that wait instead of reposting the question. This
+changes the former `status="error", error="Response timeout"` classification;
+the diagnostic `error` string is retained for existing callers. Stored
+terminal decisions remain immutable.
 
 ## Environment variables
 

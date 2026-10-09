@@ -72,7 +72,10 @@ def test_poll_timeout_does_not_cancel_other_waiters(coordinator):
     request = coordinator.create_request(
         session_id=session["session_id"], prompt="Question?"
     )["request_id"]
-    assert coordinator.wait_for_request(request, timeout_seconds=0)["status"] == "error"
+    result = coordinator.wait_for_request(request, timeout_seconds=0)
+    assert result["status"] == "timeout"
+    assert result["request_id"] == request
+    assert result["retryable"] is True
     assert coordinator.db.get_agent_request(request)["status"] == "pending"
 
 
