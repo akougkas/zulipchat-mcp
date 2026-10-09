@@ -16,8 +16,9 @@ This establishes those read operations, not every discovered tool or the write
 and approval workflows. See the [experiment notes](../testing/clio-live-readonly.md).
 
 A subsequent Generic-bot experiment used **Luna** in a dedicated visible TUI.
-Three normal owner mentions woke Clio and produced one bot reply each in the
-source topic. Its host adapter and native approvals were scoped to that private
+Four normal owner mentions woke Clio and produced one bot reply each in the
+source topic, including a five-message summary with correct UTC dates and IDs.
+Its host adapter and native approvals were scoped to that private
 project; see [live bot mentions](../testing/clio-bot-mentions.md). The MCP exporter
 does not install an unattended launcher.
 

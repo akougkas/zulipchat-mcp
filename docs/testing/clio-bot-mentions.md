@@ -9,13 +9,14 @@ measurements are separate.
 
 ## Observed workflow
 
-Three ordinary owner mentions in the designated bot channel were ingested,
+Four ordinary owner mentions in the designated bot channel were ingested,
 dispatched to the real Luna session and answered by the Generic bot in their
 original topic. No `/reply` syntax was needed. Actual MCP results, the pinned
 Clio transcript, a durable host ledger and an independent HTTP audit agreed on
-one successful bot post for each source message. The three requests were short
-conversational greetings; this result does not establish a new read/summarize
-or computer-editing task. Private evidence retains the source/result IDs and
+one successful bot post for each source message. The first three requests were
+short conversational greetings; the fourth requested a five-message catch-up.
+This establishes bounded read/summarize behavior, not a computer-editing task.
+Private evidence retains the source/result IDs and
 timestamps without publishing the institution's message ledger.
 
 The host adapter verified the numeric bot, channel and owner IDs, persisted
@@ -88,6 +89,28 @@ input becomes a tombstone; expired queues recover by message ID; competing local
 producers fail before an API call; and restart re-verifies the numeric bot ID.
 Separate wire tests cover cache/error metadata and the minimum/latest framework.
 
+## Final-wheel read and summary
+
+After final wheel alignment, an actual owner mention requested a catch-up on the
+five most recent messages in the same topic, with UTC dates, message IDs and
+explicit uncertainty. The visible Luna turn completed in about 21 seconds.
+It made one `search_messages` call with the exact channel/topic, newest-first
+ordering and `limit=5`. One upstream message-window GET fetched and returned
+five untruncated messages. The model reused that result without a detail read
+or repeated search, then made one successful source-topic bot post. The
+independent audit records HTTP 200 for that read and post, plus three read-only
+SDK server-settings requests during agent startup. Bootstrap requests are
+counted separately from message retrieval.
+
+The reply included all five IDs and correct UTC timestamps, described the
+conversation, and qualified decisions/follow-ups against the limited sample.
+The five newest messages included the request itself, as the prompt did not
+exclude it. It did not infer the nature of unspecified work or claim a wider
+team/project audit. The actual final MCP result, completed Luna transcript,
+source/post budget and HTTP audit agreed; there was no extra acknowledgement
+post, changed Zulip state beyond the requested reply, or replay. The host
+persisted completion and continued serving ordinary owner mentions.
+
 ## Shipping boundary
 
 The shipped MCP addition is the event-fed, account-scoped mention inbox exposed
@@ -107,8 +130,11 @@ The visible Luna session was resumed, and one adapter restarted from the durable
 cursor without replaying the completed sources. The new listener re-verified
 the bot, held its kernel producer lease, recovered with one bounded history
 read, and reported ready with no gap. A competing lease acquisition failed
-without starting another producer. This validates final-wheel live startup and
-recovery, not a new summarization or computer-editing task.
+without starting another producer. A final mapper correction was installed
+after quiescing only the host/listener; the resumed TUI stayed visible. All
+74 installed Python/skill files matched the final wheel. The listener reused
+its persisted queue with zero new history reads and remained ready. The bounded
+summary above then exercised that final artifact live.
 
 The final release candidate is also checked with rebuilt-wheel, fake-credential
 protocol and actual Clio-client smokes. These checks do not retroactively turn

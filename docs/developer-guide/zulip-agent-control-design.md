@@ -14,7 +14,8 @@ discovery/enforcement for full and read-only profiles, MCP error-state mapping,
 bounded pending waits, UTC/sample/cache provenance, request shaping and a durable
 event-fed bot mention inbox. The [API proxy contract](zulip-api-proxy.md) describes
 these shipped boundaries. A separately authorized [Luna TUI experiment](../testing/clio-bot-mentions.md)
-demonstrated three normal owner mentions and source-topic bot replies. Its private
+demonstrated four normal owner mentions and source-topic bot replies, including
+a bounded summary on the final wheel. Its private
 host adapter corrected delivery reconciliation and stable-session reuse. It
 does not implement or certify the proposed unattended execution, ACP task
 ceilings, cancellation settlement or workspace-confinement design below.
