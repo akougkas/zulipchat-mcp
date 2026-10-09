@@ -4,6 +4,16 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-09
+
+### Fixed
+- Store default account databases under `$XDG_STATE_HOME/zulipchat-mcp/accounts/<fingerprint>/` (normally `~/.local/state`), not the server's working directory. Hosts declared once for every project previously created a separate database, snapshot cache and mention inbox in each project. All processes for an account now share one database, and its directory is created private. A v0.7.4 database in `.mcp/zulipchat/accounts/<fingerprint>/` under the working directory keeps being used; `ZULIPCHAT_DB_PATH` still overrides both.
+- The packaged `zulipchat` skill no longer assumes the server id `zulipchat`. It explains one server per organization and tells agents to confirm the organization with `server_info`.
+- Refresh the skill templates checked in under `integrations/`, which had not received the v0.7.4 skill updates. The published package was unaffected. `scripts/sync_integration_templates.py` regenerates them and a test now fails when they drift.
+
+### Added
+- `zulipchat-mcp-integrate print|export --server-id ID` names the host server entry, so several organizations can be declared side by side, for example `zulipchat-grc` and `zulipchat-chronolog`. Repeated exports merge into one host configuration and preserve other servers. Ids are validated for every supported host; Claude Code exports keep one account per project because their hooks bind one credential set.
+
 ## [0.7.4] - 2026-10-09
 
 ### Security

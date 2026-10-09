@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.7.4)
+## Current Status (v0.7.5)
 
-**Current release**: v0.7.4 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
+**Current release**: v0.7.5 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
@@ -12,7 +12,7 @@ Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipcha
 
 ## Project Overview
 
-ZulipChat MCP Server v0.7.4 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.7.5 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
 
 ## Essential Development Commands
 
@@ -261,7 +261,7 @@ If analytics tools return `llm_unavailable=True`:
 - Calling agents can process the returned `data_summary` field directly when server-side LLM is unconfigured.
 
 ### DuckDB lock after unclean shutdown
-Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the file in `.mcp/zulipchat/zulipchat.duckdb`.
+Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the account database under `~/.local/state/zulipchat-mcp/accounts/`.
 
 ## Exported Claude skills
 

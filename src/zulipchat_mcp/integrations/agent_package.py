@@ -35,7 +35,9 @@ LAYOUTS = {
 }
 
 
-def portable_plugin_files(base: dict[str, Any]) -> dict[str, str]:
+def portable_plugin_files(
+    base: dict[str, Any], server_id: str = "zulipchat"
+) -> dict[str, str]:
     """Render Agent Plugins 1.0.0 without imposing host-specific permissions."""
     manifest = {
         "$schema": PLUGIN_SCHEMA,
@@ -50,7 +52,7 @@ def portable_plugin_files(base: dict[str, Any]) -> dict[str, str]:
     }
     mcp = {
         "$schema": MCP_SCHEMA,
-        "mcpServers": {"zulipchat": {"type": "stdio", **base}},
+        "mcpServers": {server_id: {"type": "stdio", **base}},
     }
     return {
         "plugin.json": json.dumps(manifest, indent=2) + "\n",
@@ -82,7 +84,13 @@ def _serialize(payload: dict[str, Any], suffix: str) -> str:
 
 
 def _merge_config(
-    current: str, incoming: str, *, path: str, key: str, force: bool
+    current: str,
+    incoming: str,
+    *,
+    path: str,
+    key: str,
+    force: bool,
+    server_id: str = "zulipchat",
 ) -> str:
     suffix = Path(path).suffix
     existing = _parse(current, suffix)
@@ -98,15 +106,15 @@ def _merge_config(
         matches = [
             index
             for index, server in enumerate(servers)
-            if server.get("id") == "zulipchat"
+            if server.get("id") == server_id
         ]
         if len(matches) > 1:
-            raise ValueError("Duplicate zulipchat server declarations")
+            raise ValueError(f"Duplicate {server_id} server declarations")
         replacement = new["servers"][0]
         if matches:
             if servers[matches[0]] != replacement and not force:
                 raise FileExistsError(
-                    "Existing zulipchat declaration differs; use --force to replace it"
+                    f"Existing {server_id} declaration differs; use --force to replace it"
                 )
             servers[matches[0]] = replacement
         else:
@@ -115,12 +123,12 @@ def _merge_config(
         servers = existing.setdefault(key, {})
         if not isinstance(servers, dict):
             raise ValueError(f"Client configuration {key} must be an object")
-        replacement = new[key]["zulipchat"]
-        if "zulipchat" in servers and servers["zulipchat"] != replacement and not force:
+        replacement = new[key][server_id]
+        if server_id in servers and servers[server_id] != replacement and not force:
             raise FileExistsError(
-                "Existing zulipchat declaration differs; use --force to replace it"
+                f"Existing {server_id} declaration differs; use --force to replace it"
             )
-        servers["zulipchat"] = replacement
+        servers[server_id] = replacement
     return _serialize(existing, suffix)
 
 
@@ -133,13 +141,18 @@ def export_agent_package(
     mode: str = "standalone",
     extended_tools: bool = False,
     force: bool = False,
+    server_id: str = "zulipchat",
 ) -> list[dict[str, str]]:
     """Export host assets; never install, trust, or launch a coding agent."""
-    from .registry import _build_base_config, _render_for_client
+    from .registry import _build_base_config, _render_for_client, validate_server_id
+
+    validate_server_id(server_id)
 
     base = _build_base_config(zulip_config_file, zulip_bot_config_file, extended_tools)
     if mode == "plugin":
-        return write_package(output_dir, portable_plugin_files(base), force=force)
+        return write_package(
+            output_dir, portable_plugin_files(base, server_id), force=force
+        )
     if mode != "standalone" or client not in LAYOUTS:
         raise ValueError(f"Unsupported standalone export client/mode: {client}/{mode}")
     config_path, skill_root, key = LAYOUTS[client]
@@ -148,7 +161,7 @@ def export_agent_package(
             "Existing opencode.jsonc: merge a printed snippet manually instead of creating a competing opencode.json"
         )
     documents = {
-        config_path: _render_for_client(client, base) + "\n",
+        config_path: _render_for_client(client, base, server_id) + "\n",
         **{
             f"{skill_root}/{relative}": content
             for relative, content in skill_files().items()
@@ -156,7 +169,14 @@ def export_agent_package(
     }
 
     def merge(current: str, incoming: str) -> str:
-        return _merge_config(current, incoming, path=config_path, key=key, force=force)
+        return _merge_config(
+            current,
+            incoming,
+            path=config_path,
+            key=key,
+            force=force,
+            server_id=server_id,
+        )
 
     return write_package(
         output_dir, documents, force=force, mergers={config_path: merge}

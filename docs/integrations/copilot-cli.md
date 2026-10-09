@@ -10,7 +10,7 @@ uv run zulipchat-mcp-integrate export --client copilot \
   --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
 ```
 
-Use `uvx --from zulipchat-mcp zulipchat-mcp-integrate` after v0.7.4 is published.
+Without a source checkout, use `uvx --from zulipchat-mcp zulipchat-mcp-integrate`.
 Copilot's repository trust and organization MCP policy still apply. To register
 only a user-scoped server, Copilot also supports:
 

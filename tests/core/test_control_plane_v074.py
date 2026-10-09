@@ -2,6 +2,7 @@
 
 import multiprocessing
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -45,6 +46,26 @@ def test_empty_database_can_bind_and_scoped_defaults_do_not_reuse_legacy_state(
     second = database.init_database(account_fingerprint="account-b")
     assert first.db_path != second.db_path
     assert "account-a" in first.db_path and "account-b" in second.db_path
+
+
+def test_default_account_database_uses_xdg_state_and_keeps_074_working_directory_state(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    assert database.default_database_path("acct") == str(
+        tmp_path / "state/zulipchat-mcp/accounts/acct/zulipchat.duckdb"
+    )
+    legacy = tmp_path / ".mcp/zulipchat/accounts/acct/zulipchat.duckdb"
+    legacy.parent.mkdir(parents=True)
+    legacy.touch()
+    assert database.default_database_path("acct") == (
+        ".mcp/zulipchat/accounts/acct/zulipchat.duckdb"
+    )
+    monkeypatch.delenv("XDG_STATE_HOME")
+    assert database.default_database_path("other").startswith(
+        str(Path.home() / ".local/state/zulipchat-mcp/accounts/other")
+    )
 
 
 async def test_same_account_owner_replies_are_accepted_but_outbound_echoes_are_suppressed(

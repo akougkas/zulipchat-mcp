@@ -1,6 +1,13 @@
 # Roadmap
 
-## v0.7.4 (Current release)
+## v0.7.5 (Current release)
+
+- Share one account database per Zulip account across projects and hosts under
+  `$XDG_STATE_HOME/zulipchat-mcp`, rather than the server's working directory.
+- Export several organizations into one host configuration with `--server-id`.
+- Keep checked-in integration skill templates identical to the packaged skills.
+
+## v0.7.4
 
 - Correct auxiliary `uvx` commands and gate explicit package sources in CI.
 - Merge Olivier Durif's community PR #22, allow compatible FastMCP 4 updates,
@@ -24,7 +31,8 @@ Start with **startup selection**, with one organization per server process.
 The [profile design](docs/developer-guide/organization-profiles.md) specifies
 credential precedence, cache/database isolation, configuration validation, and
 acceptance tests. This feature is a design proposal; `--profile` and runtime
-organization switching are not implemented in v0.7.4.
+organization switching are not implemented. v0.7.5's `--server-id` exports
+and shared per-account state cover one process per organization today.
 
 Runtime organization switching needs a separate design for listener shutdown,
 pending approvals, tasks, and HTTP caller isolation before it can be offered.

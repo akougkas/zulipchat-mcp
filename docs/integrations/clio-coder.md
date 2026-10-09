@@ -65,6 +65,28 @@ trust record authorizes the exact server declaration; changing it needs a new
 trust decision. Use a user-owned bot or user credential file with appropriate
 organization permissions.
 
+### Several organizations
+
+One server process serves one Zulip organization. Export once per organization
+with a distinct `--server-id`; repeated exports merge into the same
+`.clio-coder/mcp.yaml` and leave other servers unchanged:
+
+```bash
+for org in grc chronolog; do
+  uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client clio-coder \
+    --output-dir /absolute/path/to/project --server-id "zulipchat-$org" \
+    --zulip-config-file "$HOME/.zuliprc-$org" --extended-tools
+done
+clio-coder mcp trust zulipchat-grc --action-class execute
+clio-coder mcp trust zulipchat-chronolog --action-class execute
+```
+
+For every project, copy the same `servers` entries into Clio's user-level
+`~/.config/clio-coder/mcp.yaml`, which Clio trusts by authorship, and the skills
+into `~/.config/clio-coder/skills`. Each account's state lives under
+`~/.local/state/zulipchat-mcp/accounts/`, so all projects share one database and
+one mention inbox per account.
+
 ## Drive the server
 
 Discover through Clio's gateway:
@@ -127,7 +149,7 @@ node --import /absolute/path/to/clio-coder/node_modules/tsx/dist/loader.mjs \
   --clio-repo /absolute/path/to/clio-coder \
   --server-command /absolute/path/to/venv/bin/zulipchat-mcp \
   --integrate-command /absolute/path/to/venv/bin/zulipchat-mcp-integrate \
-  --expected-version 0.7.4
+  --expected-version 0.7.5
 ```
 
 The check creates and removes its own temporary project and fake credentials.

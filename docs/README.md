@@ -1,7 +1,7 @@
 # ZulipChat MCP Documentation
 
 ZulipChat MCP is a Model Context Protocol server for Zulip Chat. The current
-release is v0.7.4.
+release is v0.7.5.
 
 ## Start Here
 

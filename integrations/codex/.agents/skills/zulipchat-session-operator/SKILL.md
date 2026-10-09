@@ -14,6 +14,10 @@ handoff updates. Poll `poll_agent_events` between substantial steps when the
 extended tool is exposed. Preserve the event cursor to avoid repeating commands.
 Honor `/status`, `/pause`, `/resume`, `/cancel`, and `/handoff` from the verified
 owner. A canceled task stops; a resumed task retains its original objective.
+MCP delivers these control events; the coding host must apply them. It does not
+launch an agent or interrupt running local tools. Report a pause or cancellation
+as requested until the host confirms that transition; do not claim enforcement
+from event receipt alone.
 
 For approval, persist a concrete request with `request_user_input`, retain its
 ID, and use `wait_for_response` for that request. Only an immutable decision
