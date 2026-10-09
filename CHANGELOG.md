@@ -4,17 +4,17 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.7.4] - Unreleased
+## [0.7.4] - 2026-10-09
 
 ### Security
-- Correct all hook and integration examples to use `uvx --from zulipchat-mcp`, so auxiliary commands resolve from the owning distribution rather than inferred package names. This also corrects the README included in future PyPI metadata. Reported privately by Presend.
+- Correct all hook and integration examples to use `uvx --from zulipchat-mcp`, so auxiliary commands resolve from the owning distribution rather than inferred package names. This also corrects the README included in future PyPI metadata. Reported privately by a security reporter.
 - Add a release-preflight and CI gate rejecting companion `uvx` commands without an explicit package source in documentation, hook commands, and JSON command/argument templates.
 - Resolve environment-based bot credentials against the selected user's effective realm rather than an unrelated ambient `ZULIP_SITE`. Separately selected bot files retain their explicit realm and credentials.
 - Bind persisted control-plane state to a non-secret fingerprint of the effective realms and principals. Default databases are account-scoped; explicit paths reject mismatched accounts. Every account-resolution or binding failure aborts startup and clears failed singleton candidates.
 - Replace exporter-owned Claude hooks when changing credentials with `--force`, preserving unrelated hooks and removing executable references to the old binding. Preflight all export conflicts, reject symlink paths, and replace individual files atomically.
 
 ### Added
-- Add event-fed Generic-bot mention ingestion to `poll_agent_events`: a lazy channel-scoped long-poll queue, durable bounded local inbox, message-ID recovery, numeric bot re-verification, an OS producer lease, local bounded waits and host-owned cursors. A host adapter can wake an agent from ordinary mentions without `/reply`; MCP remains the transport and does not launch coding processes.
+- Add event-fed Generic-bot mention ingestion to `poll_agent_events`: a lazy channel-scoped long-poll queue, durable bounded local inbox, message-ID recovery, numeric bot re-verification, an OS producer lease, local bounded waits and host-owned cursors. A host adapter can wake an agent from ordinary mentions without `/reply`; MCP remains the transport and does not launch coding processes. No host adapter or autonomous coding runner ships with this release. A private Clio experiment adapter demonstrated four live mention-to-reply round trips, documented with its limits in [live bot mentions](docs/testing/clio-bot-mentions.md).
 - Add identity-scoped 15-second message snapshots with content hashes, freshness metadata, optional private persistence, duplicate-request coalescing, mutation/event invalidation and `fresh=True` search/detail reads.
 - Shape SDK requests through a shared realm/principal budget, adapt to Zulip's response headers, honor JSON/HTTP retry delays, and preserve backend error codes and cooldown instructions across registered tools. Writes are never transparently retried.
 - Add `--tool-profile read-only` with nine core or 23 extended reads, filtered discovery, enforced nonretryable direct-call denials, and effective capabilities in `server_info`. The default full profile retains 20/60 tools.
@@ -30,7 +30,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Mark application failures as MCP execution errors while preserving structured details. Keep partial delivery and resumable waits distinct from failed operations. Bounded waits now return `status="timeout"`, `request_status="pending"`, and the retained request ID rather than a generic execution error.
 - Correct live listener recovery to use Zulip's date anchor rather than the unsupported `after` narrow operator. Floor the initial boundary to integer-second precision and use message-ID pagination on servers below feature level 445. Reproduced and verified through the installed wheel against a real organization from the Clio Luna TUI.
 - Report the effective selected-file realm and user/bot principals in `server_info`, rather than missing or conflicting ambient values. Diagnostics remain network-free and exclude API keys; covered by file, separate-bot, and environment regressions discovered during the real Clio integration experiment.
-- Preserve Olivier Durif's original community commit relaxing FastMCP to `fastmcp[tasks]>=4.0.4,<5` (PR #22, @odurif0). His initial lockfile update to 4.0.10 is followed by the complete dependency refresh to 4.1.0.
+- Preserve Olivier Durif's original community commit relaxing FastMCP to `fastmcp[tasks]>=4.0.4,<5` (PR #22, @odurif0). The initial lockfile update in that commit to 4.0.10 is followed by the complete dependency refresh to 4.1.0.
 - Accept session-owner replies when the owner and transport use the same account. Suppress outbound echoes using persisted message IDs, send/receive serialization, and Zulip SDK client attribution across MCP and hook processes.
 - Establish listener readiness before posting interactive requests. Recover active session messages after expired event queues using durable per-session message cursors, registration-before-backfill, overlap deduplication, and Zulip's integer-second timestamp precision. Storage read failures cannot silently acknowledge unprocessed input or declare recovery complete.
 - Advertise `/reply REQUEST_ID answer` for ordinary questions, preserve multiline answers, and keep correlation scoped to the request's session. Question replies cannot satisfy permission approvals.
@@ -52,7 +52,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Add Python 3.10–3.14 CI and weekly/manual minimum/latest FastMCP compatibility matrices. Run release preflight in CI, validate official plugin schemas offline, and exercise legacy/modern MCP, resources, both tool tiers, source, and clean wheels.
 - Include all four entry points and companion `uvx --from` wheel resolution in release checks. Add a repeatable fake-only smoke using Clio's actual configuration parser, plugin validator, and stdio client.
 - Retain the FastMCP architecture and the existing 20-tool core/60-tool extended surfaces. Extract bundled content loading from the protocol adapter, refresh stale documentation, and document named organization profiles as the next design milestone.
-- Prepare 0.7.4 locally without pushing, tagging, or publishing. Validation, review resolution, and remaining release checks are recorded in [the v0.7.4 audit](docs/releases/v0.7.4-audit.md).
+- Validation evidence, review resolution, and known limitations are recorded in [the v0.7.4 audit](docs/releases/v0.7.4-audit.md).
 - Inventory the complete reviewed Zulip OpenAPI and document proxy coverage, rate limits, cache freshness, mention-host responsibilities and sanitized live Luna measurements.
 
 ## [0.7.3] - 2026-09-17

@@ -13,7 +13,7 @@ Some packages also include richer scaffolds. Claude Code now ships:
 - standalone `.claude/` assets with hooks, skills, and subagents
 - a shareable Claude plugin template
 - `uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client claude-code`
-  for local export after publication (use `uv run` in this unpublished checkout)
+  for local export
 
 Native configuration plus four Agent Skills can also be exported for Codex,
 OpenCode, Copilot CLI, VS Code, Antigravity CLI, and Clio Coder. `portable/`

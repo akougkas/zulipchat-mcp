@@ -1,6 +1,6 @@
 # Real Clio read-only experiment
 
-On 2026-10-09 the maintainer explicitly authorized an unpublished v0.7.4 wheel
+On 2026-10-09 the maintainer explicitly authorized a pre-release v0.7.4 wheel
 to be tested against a real Zulip organization from the installed Clio Coder
 v0.6.2-rc.3 TUI. This was a separate experiment after the fake-only release
 checks. Nothing was pushed, tagged or released.
@@ -35,7 +35,7 @@ bookkeeping and the temporary database were permitted.
   authenticated the user, retrieved channel topics, fetched five messages and
   retrieved one by ID. A provider WebSocket close interrupted final narration;
   Clio recovered once without repeating the Zulip calls.
-- The smaller local `dynamo/qwopus3.8-27b-flash-v2` target described all six
+- The smaller local `qwopus3.8-27b-flash-v2` target described all six
   reviewed schemas and exercised them. Overlapping searches returned 60 entries
   representing 23 distinct messages; 14 individual reads expanded the excerpts.
   All actual upstream requests were GETs.

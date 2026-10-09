@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Status (v0.7.4)
 
-**Development**: v0.7.4 is prepared locally and unpublished. Latest published stable: [v0.7.3 on PyPI](https://pypi.org/project/zulipchat-mcp/0.7.3/).
+**Current release**: v0.7.4 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
@@ -180,7 +180,7 @@ ZULIP_BOT_API_KEY=bot_api_key              # Optional
 ### CLI Integration
 For Claude Code integration (tested syntax):
 ```bash
-# From PyPI (once published)
+# From PyPI
 claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_KEY=your-api-key -e ZULIP_SITE=https://your-org.zulipchat.com -- uvx zulipchat-mcp
 
 # From GitHub (available now)

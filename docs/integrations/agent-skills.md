@@ -1,8 +1,7 @@
 # Agent Skills and plugin packages
 
-v0.7.4 is prepared locally and unpublished. Run the examples below with
-`uv run zulipchat-mcp-integrate` from this checkout while testing it. After
-publication, use `uvx --from zulipchat-mcp zulipchat-mcp-integrate`.
+Run the examples below with `uvx --from zulipchat-mcp zulipchat-mcp-integrate`,
+or with `uv run zulipchat-mcp-integrate` from a source checkout.
 
 Four bundled skills provide ordinary Zulip operations, topic-bound session
 control, deliberate notifications, and a bounded work loop. They use the

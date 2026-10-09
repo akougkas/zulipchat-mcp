@@ -1,6 +1,6 @@
 # Zulip API coverage and efficient agent access
 
-Reviewed on 2026-10-09 for unpublished v0.7.4. The review used Zulip's complete
+Reviewed on 2026-10-09 for v0.7.4. The review used Zulip's complete
 [canonical OpenAPI](https://github.com/zulip/zulip/blob/main/zerver/openapi/zulip.yaml),
 [real-time event documentation](https://zulip.com/api/real-time-events),
 [HTTP headers and rate limits](https://zulip.com/api/http-headers), and the

@@ -2,7 +2,7 @@
 
 ## Current Status (v0.7.4)
 
-**Development**: v0.7.4 is prepared locally and unpublished. Latest published stable: [v0.7.3 on PyPI](https://pypi.org/project/zulipchat-mcp/0.7.3/). Install stable: `uvx zulipchat-mcp`.
+**Current release**: v0.7.4 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:

@@ -4,8 +4,7 @@
 
 | Version | Status |
 | --- | --- |
-| Latest published stable release (currently 0.7.3) | Supported |
-| 0.7.4 | Unpublished development branch |
+| Latest published stable release (currently 0.7.4) | Supported |
 | Older releases | Upgrade to the latest stable release; fixes are not backported automatically |
 
 ## Responsible disclosure

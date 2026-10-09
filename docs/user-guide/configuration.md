@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents runtime configuration for ZulipChat MCP v0.7.4 (prepared, unpublished). The tool profile option is new in v0.7.4.
+This page documents runtime configuration for ZulipChat MCP v0.7.4. The tool profile option is new in v0.7.4.
 
 ## Recommended setup
 

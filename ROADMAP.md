@@ -1,12 +1,9 @@
 # Roadmap
 
-## v0.7.4 (Current)
-
-Development is on `v074`. The latest published stable release is **v0.7.3**;
-v0.7.4 has not been pushed, tagged, released, or published.
+## v0.7.4 (Current release)
 
 - Correct auxiliary `uvx` commands and gate explicit package sources in CI.
-- Preserve Olivier Durif's community PR #22, allow compatible FastMCP 4 updates,
+- Merge Olivier Durif's community PR #22, allow compatible FastMCP 4 updates,
   refresh the full lockfile, and test the minimum and latest allowed versions.
 - Package four Agent Skills, serve them through MCP Resources and SEP-2640,
   and export native configuration for Claude Code, Codex, OpenCode, Copilot CLI,
@@ -32,10 +29,8 @@ organization switching are not implemented in v0.7.4.
 Runtime organization switching needs a separate design for listener shutdown,
 pending approvals, tasks, and HTTP caller isolation before it can be offered.
 
-## Distribution after release approval
+## Distribution follow-up
 
-- Publish the prepared artifact and notify reporters with credit and upgrade
-  instructions. Keep the community PR open until the local work is published.
 - Validate the MCP Registry entry and submit supported plugin packages to host
   directories that accept this format. Local schema validation does not imply
   directory acceptance or listing.

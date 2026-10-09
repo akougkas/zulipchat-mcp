@@ -21,9 +21,6 @@
 
 ## Quick Start
 
-This branch prepares **v0.7.4**; the latest published stable package is
-**v0.7.3**. Run `uv sync` and `uv run zulipchat-mcp` to test this checkout.
-
 ```bash
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
@@ -49,7 +46,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 - **Switch identities** — post as yourself or as a bot, in the same session
 - **Monitor activity** — search recent messages, get stream info, check who's online
 - **Bind sessions to Zulip topics** — give long-running agent sessions a stable control topic
-- **Receive ordinary bot mentions** — an event-fed local inbox lets a configured host wake an agent and reply in the source topic, without `/reply` for conversation
+- **Receive ordinary bot mentions** — an event-fed local inbox that your own host adapter polls to wake an agent and reply in the source topic, without `/reply` for conversation. The server is the transport; it does not launch or supervise coding agents
 - **Reuse dated snapshots** — short-lived message caches and rate-aware request admission reduce repeated API reads
 - **Request approvals in-topic** — owner replies with `/approve REQUEST_ID` or `/deny REQUEST_ID` in the session topic; each decision names the request it answers
 - **Load Agent Skills** — four packaged instructions for messaging, session control, notifications, and bounded work loops, available as local files and MCP Resources
@@ -58,16 +55,15 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 ### Agent setup in v0.7.4
 
 ```bash
-# From this unpublished checkout; substitute another supported client as needed.
-uv run zulipchat-mcp-integrate export --client clio-coder \
+# Substitute another supported client as needed.
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client clio-coder \
   --output-dir /absolute/path/to/project \
   --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
 ```
 
 Exports support `claude-code`, `codex`, `opencode`, `copilot`, `vscode`,
 `antigravity-cli`, `clio-coder`, and `generic`. Add `--mode plugin` for a package.
-After publication, run the exporter with
-`uvx --from zulipchat-mcp zulipchat-mcp-integrate`. Host trust remains explicit;
+Host trust remains explicit;
 Clio configures MCP execution separately from plugin content. See the
 [capability matrix](docs/integrations/agent-skills.md),
 [Clio guide](docs/integrations/clio-coder.md), and
@@ -78,7 +74,9 @@ both expose nine core reads or 23 extended reads. The default full profile
 retains 20/60 tools. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
 for cache freshness, rate limits and the boundary between message transport and
 host execution. The [live Luna experiment](docs/testing/clio-bot-mentions.md)
-records normal mention-to-bot replies from a real Clio TUI.
+records normal mention-to-bot replies from a real Clio TUI driven by a private,
+unshipped host adapter. Other hosts were tested through exported configuration
+and fake-credential checks, not live sessions.
 
 ## Two-Tier Tool Architecture
 

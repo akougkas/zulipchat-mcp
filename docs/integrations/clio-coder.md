@@ -9,33 +9,31 @@ client. No changes to the Clio repository are required.
 
 A later, authorized experiment also exercised the installed interactive Clio
 TUI against live Zulip using a local v0.7.4 wheel in a temporary project. Both
-the configured Codex target and a smaller local Dynamo Qwopus target discovered
+the configured Codex target and a smaller local Qwopus target discovered
 the server and called the reviewed account, channel, search, and message reads.
 The local model also constructed narrows and summarized the retrieved discussion.
 This establishes those read operations, not every discovered tool or the write
 and approval workflows. See the [experiment notes](../testing/clio-live-readonly.md).
 
 A subsequent Generic-bot experiment used **Luna** in a dedicated visible TUI.
-Four normal owner mentions woke Clio and produced one bot reply each in the
-source topic, including a five-message summary with correct UTC dates and IDs.
-Its host adapter and native approvals were scoped to that private
-project; see [live bot mentions](../testing/clio-bot-mentions.md). The MCP exporter
-does not install an unattended launcher.
+A private experiment host adapter turned four normal owner mentions into Clio
+turns, each producing one bot reply in the source topic, including a
+five-message summary with correct UTC dates and IDs. That adapter and its native
+approvals were scoped to one private project and are not shipped; see
+[live bot mentions](../testing/clio-bot-mentions.md). The MCP exporter does not
+install an unattended launcher or coding runner.
 
 ## Configure a project
 
-From this unpublished checkout:
-
 ```bash
-uv run zulipchat-mcp-integrate export --client clio-coder \
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client clio-coder \
   --output-dir /absolute/path/to/project \
   --zulip-config-file /absolute/path/to/.zuliprc \
   --zulip-bot-config-file /absolute/path/to/.zuliprc-bot --extended-tools
 ```
 
-After publication use
-`uvx --from zulipchat-mcp zulipchat-mcp-integrate` for the same export. The
-generated `.clio-coder/mcp.yaml` has Clio's strict version 1 schema:
+From a source checkout, `uv run zulipchat-mcp-integrate` performs the same
+export. The generated `.clio-coder/mcp.yaml` has Clio's strict version 1 schema:
 
 ```yaml
 version: 1

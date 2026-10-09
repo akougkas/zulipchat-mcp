@@ -1,7 +1,7 @@
 # Usable, measurable Zulip control of coding agents
 
 Design for review, 2026-10-09. Functional baseline: ZulipChat MCP `a5e258e`,
-branch `v074`, unpublished v0.7.4. The Clio checkout was initially observed at
+branch `v074`, pre-release v0.7.4. The Clio checkout was initially observed at
 `f7db7f864` and remained under concurrent development; the installed host is
 reported as v0.6.2-rc.3. Interface findings describe the observed source, not a
 frozen artifact or independently established binary/source equivalence.
@@ -63,11 +63,11 @@ or calling live APIs during this pass:
 
 | Evidence | What it establishes | What it does not establish |
 | --- | --- | --- |
-| `/tmp/zulipchat-clio-live-pI74VO/TEST-REPORT.md` and `CLIO-TEAM-HANDOFF.md` | Installed Clio TUI/gateway, six reviewed read tools, Sol and local `dynamo/qwopus3.8-27b-flash-v2` via LiteLLM; GET-only upstream effects; 60 overlapping entries representing 23 messages; 14 detail reads | Live writes, approvals, launch/control, or correctness of every summary claim |
+| Private experiment test report and Clio team handoff | Installed Clio TUI/gateway, six reviewed read tools, Sol and local `qwopus3.8-27b-flash-v2` via LiteLLM; GET-only upstream effects; 60 overlapping entries representing 23 messages; 14 detail reads | Live writes, approvals, launch/control, or correctness of every summary claim |
 | [Live experiment](../testing/clio-live-readonly.md), [Clio integration](../integrations/clio-coder.md), [session workflow](../integrations/agent-workflow.md) | Scope guards, discovery limitation, host export and attached-session workflow | Discovery of 60 tools is not certification of 60 operations |
 | [v0.7.4 audit](../releases/v0.7.4-audit.md), [testing guide](../testing/README.md), [skills integration](../integrations/agent-skills.md) | Recorded 861 passing tests at current/minimum dependencies, 72.87%/72.92% coverage; source/wheel and legacy/modern smoke; single-instance limitations | These are prior results, not tests rerun by this design pass |
-| Permitted extra `evidence/acp-initialize.json` in that experiment directory | Independently performed installed-Clio `initialize` with empty isolated directories: ACP v1, `loadSession`, session list/resume/close/delete and Clio extensions; `sessionStarted=false`, `modelInvoked=false`, `credentialFilesUsed=false` | Session execution, permission behavior, confinement, task ceilings, or successful recovery |
-| `ASTRA-POLICY-FAILURE-ADDENDUM.md` in that directory | Anthony's supplied transcript: repeated deterministic denials, unverified-recipient send attempt, confusing classifications and approvals | No successful send; no evidence explaining where the attempted address came from |
+| Permitted private ACP initialization evidence from that experiment | Independently performed installed-Clio `initialize` with empty isolated directories: ACP v1, `loadSession`, session list/resume/close/delete and Clio extensions; `sessionStarted=false`, `modelInvoked=false`, `credentialFilesUsed=false` | Session execution, permission behavior, confinement, task ceilings, or successful recovery |
+| Private policy-failure addendum from that experiment | Anthony's supplied transcript: repeated deterministic denials, unverified-recipient send attempt, confusing classifications and approvals | No successful send; no evidence explaining where the attempted address came from |
 
 Anthony/root subsequently reported two packaged skills tightened to stop
 unchanged policy-denial retries, require supplied/verified recipients, and
@@ -168,7 +168,7 @@ runner receipts, and host supervision are missing.
 
 ### Clio contracts verified in source
 
-The paths in this table are relative to `/home/akougkas/iowarp/clio-coder` in the
+The paths in this table are relative to a local Clio Coder checkout in the
 observed working tree; names identify inspected implementations, not speculative
 APIs. Recheck these interfaces against the binary used by an implementation test.
 
