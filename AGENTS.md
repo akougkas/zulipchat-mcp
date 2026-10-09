@@ -1,8 +1,8 @@
 # Repository Guidelines
 
-## Current Status (v0.7.5)
+## Current Status (v0.7.6)
 
-**Current release**: v0.7.5 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
+**Current release**: v0.7.6 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:
@@ -15,7 +15,7 @@
 - `uv run zulipchat-mcp --zulip-config-file ~/.zuliprc [--enable-listener]` — run server locally.
 - `uvx zulipchat-mcp` — quick run via uvx shim.
 - Companion commands require an explicit package source: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help` (also applies to setup and hook commands).
-- `uv run python scripts/release_preflight.py --version 0.7.5 --allow-dirty` — validate versions, documentation package sources, and release metadata. CI also runs this gate.
+- `uv run python scripts/release_preflight.py --version 0.7.6 --allow-dirty` — validate versions, documentation package sources, and release metadata. CI also runs this gate.
 - `uv run pytest -q` — run tests. Use `-m "not slow and not integration"` to skip long tests; `--cov=src` for coverage. Gate is set to 60%.
 - `uv run ruff check .` — lint; use Black on changed Python files; `uv run mypy src` — type-check.
 
@@ -73,6 +73,9 @@ channel IDs, commits its cursor with a durable work queue, wakes the coding
 agent and replies in the source topic. Ordinary mention-driven work does not
 require `/reply`; explicit question/approval correlation remains available.
 MCP never launches a coding process or treats mention text as executable code.
+`direct_messages=True` reads direct messages to the bot the same way. Only
+senders admitted by `--mention-allow` (default: the owner) are returned; others
+are listed in `ignored_unauthorized` without content.
 
 ### Zulip API efficiency (v0.7.4)
 - SDK queries share a per-process budget by normalized realm/principal, with

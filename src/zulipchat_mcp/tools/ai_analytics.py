@@ -481,22 +481,30 @@ def register_ai_analytics_tools(mcp: FastMCP) -> None:
         get_daily_summary,
         name="get_daily_summary",
         description="Get basic daily message summary",
+        title="Get daily summary",
+        idempotent=True,
     )
     register_tool(
         mcp,
         analyze_stream_with_llm,
         name="analyze_stream_with_llm",
         description="Fetch stream data and analyze with LLM for sophisticated insights",
+        title="Analyze stream with LLM",
+        idempotent=True,
     )
     register_tool(
         mcp,
         analyze_team_activity_with_llm,
         name="analyze_team_activity_with_llm",
         description="Analyze team activity across multiple streams with LLM insights",
+        title="Analyze team activity with LLM",
+        idempotent=True,
     )
     register_tool(
         mcp,
         intelligent_report_generator,
         name="intelligent_report_generator",
         description="Generate intelligent reports using LLM analysis of team data",
+        title="Generate report with LLM",
+        idempotent=True,
     )

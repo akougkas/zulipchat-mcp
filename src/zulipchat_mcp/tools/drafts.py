@@ -207,17 +207,31 @@ def register_drafts_tools(mcp: FastMCP) -> None:
         get_drafts,
         name="get_drafts",
         description="Get all drafts for current user",
+        title="Get drafts",
+        idempotent=True,
     )
     register_tool(
         mcp,
         create_draft,
         name="create_draft",
         description="Create a draft using Zulip's native API",
+        title="Create draft",
     )
     register_tool(
         mcp,
         edit_draft,
         name="edit_draft",
         description="Edit a draft's attributes",
+        title="Edit draft",
+        destructive=True,
+        idempotent=True,
     )
-    register_tool(mcp, delete_draft, name="delete_draft", description="Delete a draft")
+    register_tool(
+        mcp,
+        delete_draft,
+        name="delete_draft",
+        description="Delete a draft",
+        title="Delete draft",
+        destructive=True,
+        idempotent=True,
+    )

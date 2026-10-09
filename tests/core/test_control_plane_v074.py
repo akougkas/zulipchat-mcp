@@ -152,6 +152,16 @@ def test_poll_filters_audit_and_explicit_ack_allows_replay(coordinator, monkeypa
     assert any(event["direction"] == "outbound" for event in audit["events"])
 
 
+def test_unscoped_empty_poll_explains_mention_polling(coordinator, monkeypatch):
+    monkeypatch.setattr(agents, "DatabaseManager", lambda: coordinator.db)
+    monkeypatch.setattr(agents, "ensure_listener", lambda: None)
+    result = agents.poll_agent_events()
+    assert result["events"] == [] and "mentions_stream" in result["hint"]
+    session = bind_session(coordinator)
+    scoped = agents.poll_agent_events(session_id=session["session_id"])
+    assert "hint" not in scoped
+
+
 def test_delivered_message_with_failed_persistence_returns_partial_without_cancelling_request(
     coordinator, monkeypatch
 ):

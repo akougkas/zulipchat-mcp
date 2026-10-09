@@ -149,7 +149,7 @@ node --import /absolute/path/to/clio-coder/node_modules/tsx/dist/loader.mjs \
   --clio-repo /absolute/path/to/clio-coder \
   --server-command /absolute/path/to/venv/bin/zulipchat-mcp \
   --integrate-command /absolute/path/to/venv/bin/zulipchat-mcp-integrate \
-  --expected-version 0.7.5
+  --expected-version 0.7.6
 ```
 
 The check creates and removes its own temporary project and fake credentials.

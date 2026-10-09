@@ -29,6 +29,17 @@ def isolated_state_home(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
 
 
+@pytest.fixture(autouse=True)
+def fresh_duplicate_send_window():
+    """Each test starts without remembered sends, under either import path."""
+    import sys
+
+    for name in ("zulipchat_mcp.tools.messaging", "src.zulipchat_mcp.tools.messaging"):
+        module = sys.modules.get(name)
+        if module is not None:
+            module._recent_sends.clear()
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for async tests."""

@@ -321,6 +321,7 @@ def register_event_management_tools(mcp: FastMCP) -> None:
         listen_events,
         name="listen_events",
         description="Comprehensive stateless event listener with webhook integration",
+        title="Listen for events",
         task=listener_task,
     )
     mcp.tool(name="deregister_events", description="Deregister event queue")(

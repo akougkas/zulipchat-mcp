@@ -4,6 +4,25 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-10-09
+
+Found by running Clio Coder against a real Zulip organization: a local model repeated successful sends, posted as the user while presenting itself as the bot, and anyone in the organization could steer a watcher on the owner's machine by mentioning the bot.
+
+### Security
+- Bot mention and direct-message polling returns only senders admitted by `--mention-allow` / `ZULIPCHAT_MENTION_ALLOW`. The default admits only the configured owner; a list of emails and numeric user IDs adds senders, and `everyone` restores the previous behavior. Other senders are reported in `ignored_unauthorized` with IDs and no content, and the cursor still advances past them. `server_info.mention_authorization` reports the policy. Invalid entries fail startup.
+- The mention inbox never returns the bot's own messages, so a reply that mentions the bot cannot become new work.
+
+### Added
+- `poll_agent_events(direct_messages=True)` reads direct and group-direct messages to the bot, with the same durable inbox, recovery, cursor and waits as channel mentions. Events carry `recipients` and `reply_to`.
+- `send_message(as_bot=True)` sends one message with the bot credentials over stdio, so an agent can speak as itself and receive replies to its direct messages.
+- Every tool advertises MCP annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`). Read-only hints come from the read-only profile, so they cannot disagree with enforcement.
+
+### Fixed
+- `send_message` does not repeat an identical message (same sender, recipients, topic and content) sent successfully in the last two minutes; it returns the original `message_id` with `duplicate_suppressed=True`. `allow_duplicate=True` overrides. Results report `sent_as` and a UTC timestamp instead of naive server-local time.
+- Link-preview and other rendering-only updates no longer delete a stored mention or direct message before the host reads it.
+- An empty `poll_agent_events()` without a session explains how to poll bot mentions with an advancing cursor.
+- The packaged skill teaches sending once, speaking as the bot, polling one inbox call per turn with a cursor instead of repeating a search, and never acting on unauthorized senders.
+
 ## [0.7.5] - 2026-10-09
 
 ### Fixed

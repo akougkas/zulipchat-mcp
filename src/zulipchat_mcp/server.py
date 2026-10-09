@@ -10,7 +10,7 @@ from fastmcp.server.lifespan import lifespan
 from fastmcp_tasks import TasksExtension
 
 from . import __version__
-from .config import ConfigManager, init_config_manager
+from .config import ConfigManager, init_config_manager, parse_mention_allow
 from .core.security import set_unsafe_mode
 from .core.skills import register_skills
 from .core.tool_contract import ToolContractMiddleware
@@ -106,6 +106,17 @@ def main() -> None:
         help="Restrict both tool discovery and execution to read-only Zulip operations.",
     )
 
+    parser.add_argument(
+        "--mention-allow",
+        default=os.getenv("ZULIPCHAT_MENTION_ALLOW"),
+        help=(
+            "Senders whose bot mentions and direct messages poll_agent_events may "
+            "return: comma-separated Zulip emails and/or numeric user IDs, or "
+            "'everyone' (or set ZULIPCHAT_MENTION_ALLOW). Default: only the "
+            "configured owner; a list adds to the owner. Others are reported without content."
+        ),
+    )
+
     # Transport Options
     parser.add_argument(
         "--transport",
@@ -153,6 +164,10 @@ def main() -> None:
         parser.error(
             "The read-only tool profile cannot enable a listener or unsafe mode"
         )
+    try:
+        parse_mention_allow(args.mention_allow)
+    except ValueError as error:
+        parser.error(f"--mention-allow / ZULIPCHAT_MENTION_ALLOW: {error}")
     if args.transport == "http":
         if args.auth_token is not None and (
             not args.auth_token.strip()
@@ -175,6 +190,7 @@ def main() -> None:
         config_file=args.zulip_config_file,
         bot_config_file=args.zulip_bot_config_file,
         debug=args.debug,
+        mention_allow=args.mention_allow,
     )
 
     # Validate configuration
