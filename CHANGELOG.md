@@ -21,6 +21,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 - Add `file_content_base64` for strict, bounded arbitrary-binary uploads, including HTTP. Existing text and stdio local-file inputs remain available.
 
 ### Fixed
+- Report the effective selected-file realm and user/bot principals in `server_info`, rather than missing or conflicting ambient values. Diagnostics remain network-free and exclude API keys; covered by file, separate-bot, and environment regressions discovered during the real Clio integration experiment.
 - Preserve Olivier Durif's original community commit relaxing FastMCP to `fastmcp[tasks]>=4.0.4,<5` (PR #22, @odurif0). His initial lockfile update to 4.0.10 is followed by the complete dependency refresh to 4.1.0.
 - Accept session-owner replies when the owner and transport use the same account. Suppress outbound echoes using persisted message IDs, send/receive serialization, and Zulip SDK client attribution across MCP and hook processes.
 - Establish listener readiness before posting interactive requests. Recover active session messages after expired event queues using durable per-session message cursors, registration-before-backfill, overlap deduplication, and Zulip's integer-second timestamp precision. Storage read failures cannot silently acknowledge unprocessed input or declare recovery complete.

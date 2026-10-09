@@ -7,6 +7,14 @@ fake credentials, then registered an agent profile and bound a session using
 local state. Source and installed-wheel checks use Clio's actual TypeScript
 client. No changes to the Clio repository are required.
 
+A later, authorized experiment also exercised the installed interactive Clio
+TUI against live Zulip using a local v0.7.4 wheel in a temporary project. Both
+the configured Codex target and a smaller local Dynamo Qwopus target discovered
+the server and called the reviewed account, channel, search, and message reads.
+The local model also constructed narrows and summarized the retrieved discussion.
+This establishes those read operations, not every discovered tool or the write
+and approval workflows. See the [experiment notes](../testing/clio-live-readonly.md).
+
 ## Configure a project
 
 From this unpublished checkout:
@@ -77,6 +85,20 @@ or register the content through Clio's library workflow and configure/trust
 the native MCP YAML separately. A content plugin does not install hooks or
 bypass host permissions. Clio's current stdio client uses the legacy protocol;
 the server preserves that compatibility alongside the modern protocol.
+
+## Constrained read-only experiments
+
+Clio v0.6.2-rc.3 supports per-tool `toolActionClasses` in the declaration. Review
+and classify individual read operations; keep the full server's trust class as
+`execute` because it also exposes writes. The declaration digest includes these
+overrides, so changing them requires a new trust decision.
+
+The headless `--allow-tools` option currently prevents server-specific MCP
+discovery even when the named MCP capabilities are admitted. The normal TUI
+can discover the trusted server. An instruction to perform only reads does not
+disable the MCP write tools: the live experiment additionally used a temporary
+server middleware allowlist and an HTTP guard. Clio's `run --read-only` flag
+applies to fleet dispatch with `--agent`, not the main agent.
 
 ## Repeat the fake-only integration check
 
