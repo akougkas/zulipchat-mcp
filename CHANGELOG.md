@@ -19,6 +19,7 @@ Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plug
 - `get_streams` and `get_users` return a compact summary per stream or user by default. Raw Zulip objects carry dozens of permission and avatar fields, so a 44-stream or 100-user organization exceeded the 16 KB result budget Clio Coder gives a model and arrived truncated. Pass `verbose=True` for the previous raw objects. The compact user summary omits `delivery_email`.
 
 ### Fixed
+- `search_messages` names `after_time`/`before_time` and the expected ISO 8601 form when a time cannot be parsed, instead of returning a bare `month must be in 1..12` error.
 - An account database that cannot be opened for a reason other than a lock (for example a read-only file system) is no longer reported as locked by another process.
 - The Clio smoke check accepts MCP 2026-07-28 and verifies the exported classes against tool annotations.
 - The Clio guide describes Clio 0.7.0: per-tool classes, executing plugin servers, `mcp test`, `--network` trust for workers, and the read-only worker setup.

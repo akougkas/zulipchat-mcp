@@ -322,10 +322,17 @@ async def search_messages(
             if days <= 0:
                 return {"status": "error", "error": "last_days must be positive"}
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        if after_time is not None:
-            after = parse_time(after_time)
+        try:
+            after = parse_time(after_time) if after_time is not None else None
+            before = parse_time(before_time) if before_time is not None else None
+        except ValueError as e:
+            return {
+                "status": "error",
+                "error": "after_time/before_time must be ISO 8601, e.g. "
+                f"2026-11-08 or 2026-11-08T00:00:00Z ({e})",
+            }
+        if after is not None:
             cutoff = max(cutoff, after) if cutoff else after
-        before = parse_time(before_time) if before_time is not None else None
         if cutoff and before and cutoff > before:
             return {
                 "status": "error",

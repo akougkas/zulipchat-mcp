@@ -160,6 +160,14 @@ class TestSearchTools:
         assert args["anchor"] == "newest"
 
     @pytest.mark.asyncio
+    async def test_invalid_time_names_the_parameter(self, mock_deps):
+        result = await search_messages(after_time="2026-13-45")
+
+        assert result["status"] == "error"
+        assert "after_time/before_time must be ISO 8601" in result["error"]
+        mock_deps.get_messages_raw.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_newest_time_filter_with_stream_starts_at_newest(self, mock_deps):
         """A lower time bound must not turn newest search into an oldest sample."""
         now = datetime.now()
