@@ -59,10 +59,10 @@ class ToolContractMiddleware(Middleware):
 
     async def on_call_tool(
         self, context: MiddlewareContext[Any], call_next: Any
-    ) -> ToolResult:
+    ) -> Any:
         name = context.message.name
         if self.read_only and name not in READ_ONLY_TOOLS:
-            data = {
+            denied = {
                 "status": "error",
                 "error": "The read-only tool profile does not permit this tool",
                 "error_code": "POLICY_DENIED",
@@ -70,9 +70,12 @@ class ToolContractMiddleware(Middleware):
                 "tool": name,
                 "profile": "read-only",
             }
-            return ToolResult(structured_content=data, is_error=True)
+            return ToolResult(structured_content=denied, is_error=True)
 
         result = await call_next(context)
+        # A task-augmented call returns a task handle, not a tool result.
+        if not isinstance(result, ToolResult):
+            return result
         data = result.structured_content
         if not isinstance(data, dict):
             return result

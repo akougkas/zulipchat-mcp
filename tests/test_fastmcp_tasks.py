@@ -7,6 +7,7 @@ from fastmcp import Client, FastMCP
 from fastmcp.utilities.tasks import TASKS_EXTENSION_ID
 from fastmcp_tasks import TasksExtension, call_tool_task
 
+from zulipchat_mcp.core.tool_contract import ToolContractMiddleware
 from zulipchat_mcp.tools import register_core_tools, register_extended_tools
 
 
@@ -29,6 +30,7 @@ async def test_task_enabled_wait_tool_completes_with_real_protocol(mode, monkeyp
     mcp = FastMCP("task-execution-contract", tasks=False)
     mcp.add_extension(TasksExtension())
     register_core_tools(mcp)
+    mcp.add_middleware(ToolContractMiddleware())
     async with Client(mcp, mode=mode, timeout=10) as client:
         if mode == "legacy":
             assert await client.ping()
