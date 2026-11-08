@@ -7,6 +7,7 @@ import jsonschema
 import pytest
 import yaml
 
+from zulipchat_mcp.core.tool_contract import READ_ONLY_TOOLS
 from zulipchat_mcp.integrations.agent_package import (
     LAYOUTS,
     _parse,
@@ -147,7 +148,7 @@ def test_opencode_export_refuses_competing_jsonc_configuration(tmp_path):
 def test_portable_plugin_matches_published_schemas(tmp_path):
     export_agent_package(
         tmp_path,
-        client="clio-coder",
+        client="generic",
         mode="plugin",
         zulip_config_file="/home/test/.zuliprc",
         extended_tools=True,
@@ -160,6 +161,40 @@ def test_portable_plugin_matches_published_schemas(tmp_path):
         )
     assert len(list((tmp_path / "skills").glob("*/SKILL.md"))) == 4
     assert not (tmp_path / "hooks").exists()
+
+
+@pytest.mark.parametrize("extended", [False, True])
+def test_clio_exports_classify_every_tool_from_its_annotations(tmp_path, extended):
+    export_agent_package(
+        tmp_path,
+        client="clio-coder",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=extended,
+    )
+    export_agent_package(
+        tmp_path / "plugin",
+        client="clio-coder",
+        mode="plugin",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=extended,
+    )
+    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
+        0
+    ]
+    plugin = json.loads((tmp_path / "plugin/mcp.json").read_text())["mcpServers"][
+        "zulipchat"
+    ]
+    classes = server["toolActionClasses"]
+    assert plugin["toolActionClasses"] == classes
+    assert plugin["timeoutMs"] == server["timeoutMs"] == 900000
+    assert "actionClass" not in server
+    assert len(classes) == (60 if extended else 20)
+    assert {name for name, cls in classes.items() if cls == "read"} <= READ_ONLY_TOOLS
+    assert classes["get_message"] == "read"
+    assert classes["send_message"] == "execute"
+    assert classes["edit_message"] == "destructive"
+    if extended:
+        assert classes["delete_draft"] == "destructive"
 
 
 def test_claude_reexport_replaces_owned_hooks_and_preserves_unrelated_commands(
@@ -289,3 +324,19 @@ def test_checked_in_integration_skills_match_packaged_skills():
     assert (
         expected and not stale
     ), "Run scripts/sync_integration_templates.py to refresh: " + ", ".join(stale)
+
+
+def test_read_only_clio_export_runs_in_a_read_only_sandbox(tmp_path):
+    export_agent_package(
+        tmp_path,
+        client="clio-coder",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=True,
+        tool_profile="read-only",
+    )
+    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
+        0
+    ]
+    assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
+    assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
+    assert set(server["toolActionClasses"].values()) == {"read"}

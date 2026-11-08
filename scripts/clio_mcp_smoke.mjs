@@ -45,6 +45,11 @@ try {
   assert.deepEqual(config.diagnostics, []);
   assert.equal(config.servers.length, 1);
   assert.equal(config.servers[0].timeoutMs, 900000);
+  const classes = config.servers[0].toolActionClasses;
+  assert.equal(Object.keys(classes).length, 60);
+  assert.equal(classes.get_message, "read");
+  assert.equal(classes.send_message, "execute");
+  assert.equal(classes.delete_draft, "destructive");
   const validated = validateLibraryPackage(path.join(workspace, "plugin"), { cwd: workspace });
   assert.equal(validated.valid, true, JSON.stringify(validated.diagnostics));
   console.log("ok: actual Clio config parser and portable plugin validator");
@@ -54,8 +59,13 @@ try {
     args: config.servers[0].args.slice(1), cwd: workspace, env: fakeEnv,
   }, { workspaceRoot: workspace, initializeTimeoutMs: 60000, requestTimeoutMs: 20000 });
   const discovered = await client.initialize();
-  assert.equal(discovered.protocolVersion, "2025-06-18");
-  assert.equal((await client.listTools()).tools.length, 60);
+  // Clio 0.7 negotiates the modern protocol; older Clio releases the legacy one.
+  assert(["2026-07-28", "2025-06-18"].includes(discovered.protocolVersion), discovered.protocolVersion);
+  const tools = (await client.listTools()).tools;
+  assert.equal(tools.length, 60);
+  for (const tool of tools) {
+    assert.equal(tool.annotations?.readOnlyHint === true, classes[tool.name] === "read", tool.name);
+  }
   const info = await client.callTool("server_info", {});
   assert.equal(info.isError, false);
   assert.equal(info.structuredContent.version, values["expected-version"]);
@@ -70,7 +80,7 @@ try {
     external_session_id: "clio-smoke", project_dir: workspace,
   });
   assert.equal(bound.structuredContent.status, "success");
-  console.log(`ok: Clio MCP 2025-06-18, 60 tools, server_info v${values["expected-version"]}, profile/session binding`);
+  console.log(`ok: Clio MCP ${discovered.protocolVersion}, 60 tools, server_info v${values["expected-version"]}, profile/session binding`);
 } finally {
   if (client) await client.close();
   rmSync(workspace, { recursive: true, force: true });

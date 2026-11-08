@@ -36,9 +36,15 @@ LAYOUTS = {
 
 
 def portable_plugin_files(
-    base: dict[str, Any], server_id: str = "zulipchat"
+    base: dict[str, Any],
+    server_id: str = "zulipchat",
+    host_fields: dict[str, Any] | None = None,
 ) -> dict[str, str]:
-    """Render Agent Plugins 1.0.0 without imposing host-specific permissions."""
+    """Render Agent Plugins 1.0.0 without imposing host-specific permissions.
+
+    host_fields extends the server entry for a host that reads more than the
+    portable schema, such as Clio's per-tool action classes.
+    """
     manifest = {
         "$schema": PLUGIN_SCHEMA,
         "name": "zulipchat",
@@ -52,7 +58,7 @@ def portable_plugin_files(
     }
     mcp = {
         "$schema": MCP_SCHEMA,
-        "mcpServers": {server_id: {"type": "stdio", **base}},
+        "mcpServers": {server_id: {"type": "stdio", **base, **(host_fields or {})}},
     }
     return {
         "plugin.json": json.dumps(manifest, indent=2) + "\n",
@@ -142,16 +148,27 @@ def export_agent_package(
     extended_tools: bool = False,
     force: bool = False,
     server_id: str = "zulipchat",
+    tool_profile: str = "full",
 ) -> list[dict[str, str]]:
     """Export host assets; never install, trust, or launch a coding agent."""
-    from .registry import _build_base_config, _render_for_client, validate_server_id
+    from .registry import (
+        _build_base_config,
+        _render_for_client,
+        clio_server_fields,
+        validate_server_id,
+    )
 
     validate_server_id(server_id)
 
-    base = _build_base_config(zulip_config_file, zulip_bot_config_file, extended_tools)
+    base = _build_base_config(
+        zulip_config_file, zulip_bot_config_file, extended_tools, tool_profile
+    )
     if mode == "plugin":
+        host_fields = clio_server_fields(base) if client == "clio-coder" else None
         return write_package(
-            output_dir, portable_plugin_files(base, server_id), force=force
+            output_dir,
+            portable_plugin_files(base, server_id, host_fields),
+            force=force,
         )
     if mode != "standalone" or client not in LAYOUTS:
         raise ValueError(f"Unsupported standalone export client/mode: {client}/{mode}")

@@ -40,16 +40,71 @@ def _build_base_config(
     zulip_config_file: str,
     zulip_bot_config_file: str | None,
     extended_tools: bool,
+    tool_profile: str = "full",
 ) -> dict[str, Any]:
     args = ["zulipchat-mcp", "--zulip-config-file", zulip_config_file]
     if zulip_bot_config_file:
         args.extend(["--zulip-bot-config-file", zulip_bot_config_file])
     if extended_tools:
         args.append("--extended-tools")
+    if tool_profile == "read-only":
+        args.extend(["--tool-profile", "read-only"])
 
     return {
         "command": "uvx",
         "args": args,
+    }
+
+
+CLIO_TIMEOUT_MS = 900000
+
+
+def clio_tool_action_classes(
+    extended_tools: bool, read_only: bool = False
+) -> dict[str, str]:
+    """Map each registered tool to a Clio action class from its MCP annotations.
+
+    Clio applies these per-tool classes only after the operator trusts the
+    exact declaration, so read tools need no approval while writes still do.
+    """
+    import asyncio
+
+    from fastmcp import FastMCP
+
+    from ..core.tool_contract import READ_ONLY_TOOLS
+    from ..tools import register_core_tools, register_extended_tools
+
+    mcp: FastMCP[Any] = FastMCP("zulipchat-export")
+    register_core_tools(mcp)
+    if extended_tools:
+        register_extended_tools(mcp)
+    classes = {}
+    for tool in asyncio.run(mcp.list_tools()):
+        if read_only and tool.name not in READ_ONLY_TOOLS:
+            continue
+        hints = tool.annotations
+        if hints is not None and hints.read_only_hint:
+            classes[tool.name] = "read"
+        elif hints is not None and hints.destructive_hint:
+            classes[tool.name] = "destructive"
+        else:
+            classes[tool.name] = "execute"
+    return dict(sorted(classes.items()))
+
+
+def clio_server_fields(base: dict[str, Any]) -> dict[str, Any]:
+    """Clio declaration fields shared by its YAML and plugin exports.
+
+    Clio runs a worker's MCP server where the account database is read-only,
+    so a read-only profile keeps its local state in a private temporary file.
+    """
+    read_only = "--tool-profile" in base["args"]
+    return {
+        "args": [*base["args"], "--ephemeral-state"] if read_only else base["args"],
+        "timeoutMs": CLIO_TIMEOUT_MS,
+        "toolActionClasses": clio_tool_action_classes(
+            "--extended-tools" in base["args"], read_only
+        ),
     }
 
 
@@ -131,7 +186,7 @@ def _render_for_client(
         return yaml.safe_dump(
             {
                 "version": 1,
-                "servers": [{"id": server_id, **base, "timeoutMs": 900000}],
+                "servers": [{"id": server_id, **base, **clio_server_fields(base)}],
             },
             sort_keys=False,
         )
@@ -197,6 +252,9 @@ def main() -> None:
     print_parser.add_argument("--zulip-bot-config-file")
     print_parser.add_argument("--extended-tools", action="store_true")
     print_parser.add_argument(
+        "--tool-profile", choices=["full", "read-only"], default="full"
+    )
+    print_parser.add_argument(
         "--server-id",
         default="zulipchat",
         help=(
@@ -246,6 +304,12 @@ def main() -> None:
     )
     export_parser.add_argument("--extended-tools", action="store_true")
     export_parser.add_argument(
+        "--tool-profile",
+        choices=["full", "read-only"],
+        default="full",
+        help="read-only: expose and permit only read tools (not for claude-code)",
+    )
+    export_parser.add_argument(
         "--server-id",
         default="zulipchat",
         help=(
@@ -279,6 +343,7 @@ def main() -> None:
             args.zulip_config_file,
             args.zulip_bot_config_file,
             args.extended_tools,
+            args.tool_profile,
         )
         try:
             server_id = validate_server_id(args.server_id)
@@ -298,6 +363,13 @@ def main() -> None:
         options: dict[str, str] = (
             {} if args.client == "claude-code" else {"client": args.client}
         )
+        if args.tool_profile != "full":
+            if args.client == "claude-code":
+                export_parser.error(
+                    "--tool-profile read-only is not supported for claude-code "
+                    "exports; its hooks post lifecycle messages"
+                )
+            options["tool_profile"] = args.tool_profile
         if args.server_id != "zulipchat":
             if args.client == "claude-code":
                 export_parser.error(
