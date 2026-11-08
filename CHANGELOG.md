@@ -4,7 +4,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.8.0] - UNRELEASED
+## [0.8.0] - 2026-11-08
 
 Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plugin `mcp.json` servers after trust, and runs only `read`-classed MCP tools in read-only runs and workers.
 
@@ -25,6 +25,9 @@ Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plug
 - An account database that cannot be opened for a reason other than a lock (for example a read-only file system) is no longer reported as locked by another process.
 - The Clio smoke check accepts MCP 2026-07-28 and verifies the exported classes against tool annotations.
 - The Clio guide describes Clio 0.7.0: per-tool classes, executing plugin servers, `mcp test`, `--network` trust for workers, and the read-only worker setup.
+
+### Known issues
+- Clio Coder 0.7.0 (outside this package): the task-board reminder can tell the model to call `tasks` when a run's `--allow-tools` list omits it. The model then loops and Clio's loop guard disables tools. Workaround: include `tasks` in `--allow-tools`, or avoid numbered multi-step instructions in restricted runs. This is tracked in Clio Coder and does not block this release.
 
 ## [0.7.6] - 2026-10-09
 

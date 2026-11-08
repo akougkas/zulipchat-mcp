@@ -5,6 +5,8 @@
 - Export per-tool Clio action classes so trusted servers work in Clio 0.7 read-only runs.
 - Export a read-only Clio declaration for sandboxed read-only workers.
 - Run read-only servers with an ephemeral state database where state is not writable.
+- Keep message reads within client result budgets: compact stream and user listings, Markdown message content and cursor paging for search.
+- Complete task-augmented calls such as `wait_for_response` for clients that declare the MCP Tasks extension.
 
 ## v0.7.6
 
