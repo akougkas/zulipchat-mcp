@@ -178,6 +178,18 @@ inbox are unavailable in that mode. A worker recipe names the exact
 capabilities it may call, such as `mcp_zulipchat-read__search_messages`, and
 uses `capabilityClass: read-only`.
 
+Add the experimental `--reader-agent` flag to that export to also write such a
+recipe, `.clio-coder/agents/<server-id>-reader.md`, bound to the exported server
+id. It searches and reads messages and returns findings cited by message ID,
+channel, topic and UTC date:
+
+```bash
+clio-coder run --agent zulipchat-read-reader --read-only \
+  "Summarize this week's decisions in channel general."
+```
+
+The flag works only for standalone Clio exports with `--tool-profile read-only`.
+
 ## Repeat the fake-only integration check
 
 With Clio's development dependencies installed, run this from the ZulipChat
