@@ -12,6 +12,7 @@ Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plug
 - Clio Coder exports (`.clio-coder/mcp.yaml` and plugin `mcp.json`) declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit or delete existing content, and `execute` otherwise. A server trusted as `execute` can now be used in Clio read-only runs, where reads work and writes are refused before reaching Zulip. Other clients still receive plain Agent Plugins 1.0.0 content.
 - `zulipchat-mcp-integrate print|export --tool-profile read-only` exports a read-only declaration. For Clio it adds `--ephemeral-state` and classes only the read tools, so a sandboxed read-only worker can start the server. Claude Code exports reject it because their hooks post messages.
 - `--ephemeral-state` (requires `--tool-profile read-only`) keeps local state in a private temporary database removed at exit, instead of the account database.
+- `search_messages` and `get_message` accept `content_format="markdown"` to return message source text instead of rendered HTML. On the grc-iit realm this made 50-message windows 2.5 to 4 times smaller in content and left far fewer messages at the excerpt cap. Rendered HTML remains the default.
 - `get_stream_topics` accepts `stream_name` as an alternative to `stream_id`.
 
 ### Changed

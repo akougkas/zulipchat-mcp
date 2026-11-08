@@ -165,6 +165,12 @@ class TestMessagingTools:
         result = await get_message(1)
         assert result["status"] == "success"
         assert result["message"]["content"] == "original"
+        assert result["content_format"] == "rendered_html"
+        mock_deps.get_message.assert_called_with(1)
+
+        result = await get_message(1, content_format="markdown")
+        assert result["content_format"] == "markdown"
+        mock_deps.get_message.assert_called_with(1, apply_markdown=False)
 
         # Not found
         mock_deps.get_message.return_value = {"result": "error", "msg": "Not found"}

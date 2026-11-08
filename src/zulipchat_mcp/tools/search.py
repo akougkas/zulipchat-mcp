@@ -220,8 +220,13 @@ async def search_messages(
     limit: int = 50,
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
     fresh: bool = False,
+    content_format: Literal["rendered_html", "markdown"] = "rendered_html",
 ) -> dict[str, Any]:
-    """Advanced search with fuzzy user resolution and comprehensive filtering."""
+    """Advanced search with fuzzy user resolution and comprehensive filtering.
+
+    content_format="markdown" returns the source text, typically several times
+    smaller than rendered HTML and better for quoting.
+    """
     client = get_client()
 
     try:
@@ -351,7 +356,7 @@ async def search_messages(
             num_after=num_after,
             include_anchor=True,
             client_gravatar=True,
-            apply_markdown=True,
+            apply_markdown=content_format == "rendered_html",
             use_cache=not fresh,
         )
 
@@ -383,7 +388,7 @@ async def search_messages(
                         "timestamp_utc": datetime.fromtimestamp(
                             msg["timestamp"], tz=timezone.utc
                         ).isoformat(),
-                        "content_format": "rendered_html",
+                        "content_format": content_format,
                         "content_truncated": len(msg["content"]) > 1000,
                         "content": (
                             msg["content"][:1000] + "..."

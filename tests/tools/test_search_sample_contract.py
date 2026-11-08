@@ -52,6 +52,14 @@ async def test_registered_search_reports_actual_sample_and_preserves_upstream_er
         assert result["messages"][0]["timestamp_utc"] == "2023-11-14T22:13:23+00:00"
         assert result["messages"][0]["content_format"] == "rendered_html"
         assert upstream.get_messages_raw.call_args.kwargs["use_cache"] is False
+        assert upstream.get_messages_raw.call_args.kwargs["apply_markdown"] is True
+        markdown = (
+            await client.call_tool(
+                "search_messages", {"limit": 1, "content_format": "markdown"}
+            )
+        ).data
+        assert markdown["messages"][0]["content_format"] == "markdown"
+        assert upstream.get_messages_raw.call_args.kwargs["apply_markdown"] is False
         upstream.get_messages_raw.return_value = {
             "result": "error",
             "code": "RATE_LIMIT_HIT",

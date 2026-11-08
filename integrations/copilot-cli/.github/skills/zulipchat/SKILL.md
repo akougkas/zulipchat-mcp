@@ -55,7 +55,9 @@ policy. Distinguish this from a transient failure or invalid arguments.
 For `search_messages`, pass `after_time` and `before_time` as ISO 8601 strings
 such as `2026-10-01T00:00:00Z`, rather than Unix timestamp strings. Search
 excerpts are capped at 1000 characters; use `get_message` on selected returned
-IDs when full content matters. Count duplicate IDs across overlapping searches
+IDs when full content matters. For wide windows pass `content_format="markdown"`
+and a limit near 20; rendered HTML is several times larger and hosts truncate
+large results. Count duplicate IDs across overlapping searches
 separately from distinct messages. Check the result's `status` even when the
 host displays a successful MCP call. Date historical announcements and qualify
 linked issue status unless that source was also inspected.

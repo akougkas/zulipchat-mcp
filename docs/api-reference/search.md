@@ -62,7 +62,7 @@ await advanced_search(
 - `advanced_search` also supports topic-name search when `stream` is supplied.
   Failed scopes are included in the results and produce `status="partial"` or
   `status="error"`. Counts and aggregations describe the returned sample.
-- Message excerpts include UTC dates, `content_format` and truncation state.
+- Message excerpts include UTC dates, `content_format` and truncation state. Pass `content_format="markdown"` for source text instead of rendered HTML; it is typically several times smaller, which keeps larger windows within a client's result budget.
   The `sample` describes fetched versus returned counts, interval/order bounds,
   backend boundaries, retrieval time and cache provenance. Use selected message
   IDs for full reads; a rendered excerpt is not raw Markdown.

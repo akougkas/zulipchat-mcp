@@ -4,7 +4,7 @@
 
 - `send_message(type, to, content, topic=None)`
 - `edit_message(message_id, content=None, topic=None, stream_id=None, propagate_mode="change_one", ...)`
-- `get_message(message_id, fresh=False)`
+- `get_message(message_id, fresh=False, content_format="rendered_html")`: `content_format="markdown"` returns the source text
 - `add_reaction(message_id, emoji_name, emoji_code=None, reaction_type="unicode_emoji")`
 - `manage_message_flags(flag, action, scope="narrow", stream_id=None, topic_name=None, sender_email=None, narrow=None)`
 

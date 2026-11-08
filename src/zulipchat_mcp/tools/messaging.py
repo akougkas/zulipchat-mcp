@@ -230,22 +230,28 @@ async def edit_message(
         return api_error(result, "Failed to edit message")
 
 
-async def get_message(message_id: int, fresh: bool = False) -> dict[str, Any]:
-    """Get a single message by ID."""
+async def get_message(
+    message_id: int,
+    fresh: bool = False,
+    content_format: Literal["rendered_html", "markdown"] = "rendered_html",
+) -> dict[str, Any]:
+    """Get a single message by ID; content_format="markdown" returns source text."""
     if not isinstance(message_id, int) or message_id <= 0:
         return {"status": "error", "error": "Invalid message ID"}
 
     client = get_client()
 
     try:
-        result = await asyncio.to_thread(
-            client.get_message, message_id, **({"fresh": True} if fresh else {})
-        )
+        options: dict[str, Any] = {"fresh": True} if fresh else {}
+        if content_format == "markdown":
+            options["apply_markdown"] = False
+        result = await asyncio.to_thread(client.get_message, message_id, **options)
 
         if result.get("result") == "success":
             response = {
                 "status": "success",
                 "message": result.get("message", {}),
+                "content_format": content_format,
             }
             if "_cache" in result:
                 response["cache"] = result["_cache"]
