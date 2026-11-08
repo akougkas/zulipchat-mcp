@@ -1,6 +1,12 @@
 # Roadmap
 
-## v0.7.6 (Current release)
+## v0.7.7 (Current release)
+
+- Export per-tool Clio action classes so trusted servers work in Clio 0.7 read-only runs.
+- Export a read-only Clio declaration for sandboxed read-only workers.
+- Run read-only servers with an ephemeral state database where state is not writable.
+
+## v0.7.6
 
 - Enforce owner-only bot mention and direct-message polling, with `--mention-allow`.
 - Read direct messages to the bot; send as the bot per message.

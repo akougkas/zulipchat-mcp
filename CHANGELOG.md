@@ -4,6 +4,20 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.7.7] - UNRELEASED
+
+Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plugin `mcp.json` servers after trust, and runs only `read`-classed MCP tools in read-only runs and workers.
+
+### Added
+- Clio Coder exports (`.clio-coder/mcp.yaml` and plugin `mcp.json`) declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit or delete existing content, and `execute` otherwise. A server trusted as `execute` can now be used in Clio read-only runs, where reads work and writes are refused before reaching Zulip. Other clients still receive plain Agent Plugins 1.0.0 content.
+- `zulipchat-mcp-integrate print|export --tool-profile read-only` exports a read-only declaration. For Clio it adds `--ephemeral-state` and classes only the read tools, so a sandboxed read-only worker can start the server. Claude Code exports reject it because their hooks post messages.
+- `--ephemeral-state` (requires `--tool-profile read-only`) keeps local state in a private temporary database removed at exit, instead of the account database.
+
+### Fixed
+- An account database that cannot be opened for a reason other than a lock (for example a read-only file system) is no longer reported as locked by another process.
+- The Clio smoke check accepts MCP 2026-07-28 and verifies the exported classes against tool annotations.
+- The Clio guide describes Clio 0.7.0: per-tool classes, executing plugin servers, `mcp test`, `--network` trust for workers, and the read-only worker setup.
+
 ## [0.7.6] - 2026-10-09
 
 Found by running Clio Coder against a real Zulip organization: a local model repeated successful sends, posted as the user while presenting itself as the bot, and anyone in the organization could steer a watcher on the owner's machine by mentioning the bot.
