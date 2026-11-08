@@ -4,7 +4,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.7.7] - UNRELEASED
+## [0.8.0] - UNRELEASED
 
 Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plugin `mcp.json` servers after trust, and runs only `read`-classed MCP tools in read-only runs and workers.
 

@@ -1,6 +1,6 @@
 # Clio Coder
 
-The v0.7.7 integration was checked against Clio Coder 0.7.0 (tag `v070`). Clio
+The v0.8.0 integration was checked against Clio Coder 0.7.0 (tag `v070`). Clio
 negotiated MCP 2026-07-28, discovered all 60 extended tools with their
 annotations, and applied the exported per-tool action classes. Checks used a
 mock Zulip server and a local model through Clio's headless `run`, its
@@ -190,7 +190,7 @@ node --import /absolute/path/to/clio-coder/node_modules/tsx/dist/loader.mjs \
   --clio-repo /absolute/path/to/clio-coder \
   --server-command /absolute/path/to/venv/bin/zulipchat-mcp \
   --integrate-command /absolute/path/to/venv/bin/zulipchat-mcp-integrate \
-  --expected-version 0.7.7
+  --expected-version 0.8.0
 ```
 
 The check creates and removes its own temporary project and fake credentials.

@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.7.7 (Current release)
+## v0.8.0 (Current release)
 
 - Export per-tool Clio action classes so trusted servers work in Clio 0.7 read-only runs.
 - Export a read-only Clio declaration for sandboxed read-only workers.
