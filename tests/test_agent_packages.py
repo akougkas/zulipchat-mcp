@@ -340,38 +340,3 @@ def test_read_only_clio_export_runs_in_a_read_only_sandbox(tmp_path):
     assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
     assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
     assert set(server["toolActionClasses"].values()) == {"read"}
-
-
-def test_reader_agent_is_bound_to_the_read_only_server_id(tmp_path):
-    export_agent_package(
-        tmp_path,
-        client="clio-coder",
-        zulip_config_file="/home/test/.zuliprc",
-        tool_profile="read-only",
-        server_id="zulipchat-grc",
-        reader_agent=True,
-    )
-    recipe = (tmp_path / ".clio-coder/agents/zulipchat-grc-reader.md").read_text()
-    front = yaml.safe_load(recipe.split("---")[1])
-    tools = [*front["tools"]["required"], *front["tools"]["optional"]]
-    assert front["capabilityClass"] == "read-only"
-    assert all(tool.startswith("mcp_zulipchat-grc__") for tool in tools)
-    assert {tool.split("__")[1] for tool in tools} <= READ_ONLY_TOOLS
-
-
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"client": "clio-coder"},
-        {"client": "clio-coder", "tool_profile": "read-only", "mode": "plugin"},
-        {"client": "codex", "tool_profile": "read-only"},
-    ],
-)
-def test_reader_agent_requires_a_read_only_clio_project_export(tmp_path, options):
-    with pytest.raises(ValueError, match="--reader-agent"):
-        export_agent_package(
-            tmp_path,
-            zulip_config_file="/home/test/.zuliprc",
-            reader_agent=True,
-            **options,
-        )

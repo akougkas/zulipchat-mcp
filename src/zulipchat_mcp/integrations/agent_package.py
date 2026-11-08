@@ -69,45 +69,6 @@ def portable_plugin_files(
     }
 
 
-CLIO_READER_TOOLS = (
-    "get_message",
-    "get_streams",
-    "get_stream_topics",
-    "get_users",
-    "server_info",
-)
-
-
-def clio_reader_agent(server_id: str) -> str:
-    """Render a read-only Clio worker recipe bound to one server id."""
-    optional = ", ".join(f"mcp_{server_id}__{tool}" for tool in CLIO_READER_TOOLS)
-    return f"""---
-version: 1
-name: Zulip Reader ({server_id})
-description: Reads Zulip channels, topics and messages through the {server_id} MCP server and reports cited findings. Read-only; never posts.
-tools:
-  required: [mcp_{server_id}__search_messages]
-  optional: [{optional}]
-skills: []
-audience: custom
-category: research
-capabilityClass: read-only
-latencyClass: fast
-projectContextTier: none
-budget: {{toolCalls: 12, readReserve: 3, synthesis: true}}
-resultContract: {{kind: research-report}}
-tags: [zulip, chat, messages]
----
-
-# Zulip Reader
-
-You read a Zulip organization through the {server_id} MCP tools you were given and answer the task from what you read.
-Cite each finding with the message ID, channel, topic and UTC date it came from.
-A search result is a sample, never a complete archive; say so when completeness matters.
-Your entire final response is one JSON object and nothing else, with no prose or code fence around it: `{{"source":"local","findings":[{{"claim":"...","evidence":"message <id> in <channel>/<topic> at <UTC date>"}}]}}`.
-"""
-
-
 def _parse(content: str, suffix: str) -> dict[str, Any]:
     if suffix == ".toml":
         payload = tomllib.loads(content)
@@ -188,7 +149,6 @@ def export_agent_package(
     force: bool = False,
     server_id: str = "zulipchat",
     tool_profile: str = "full",
-    reader_agent: bool = False,
 ) -> list[dict[str, str]]:
     """Export host assets; never install, trust, or launch a coding agent."""
     from .registry import (
@@ -199,13 +159,6 @@ def export_agent_package(
     )
 
     validate_server_id(server_id)
-    if reader_agent and (
-        client != "clio-coder" or mode != "standalone" or tool_profile != "read-only"
-    ):
-        raise ValueError(
-            "--reader-agent needs --client clio-coder, standalone mode and "
-            "--tool-profile read-only"
-        )
 
     base = _build_base_config(
         zulip_config_file, zulip_bot_config_file, extended_tools, tool_profile
@@ -231,10 +184,6 @@ def export_agent_package(
             for relative, content in skill_files().items()
         },
     }
-    if reader_agent:
-        documents[f".clio-coder/agents/{server_id}-reader.md"] = clio_reader_agent(
-            server_id
-        )
 
     def merge(current: str, incoming: str) -> str:
         return _merge_config(

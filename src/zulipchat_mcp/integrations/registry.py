@@ -317,14 +317,6 @@ def main() -> None:
             "Use one id per Zulip organization, e.g. zulipchat-grc."
         ),
     )
-    export_parser.add_argument(
-        "--reader-agent",
-        action="store_true",
-        help=(
-            "Experimental, clio-coder with --tool-profile read-only: also write a "
-            "read-only worker recipe, .clio-coder/agents/<server-id>-reader.md"
-        ),
-    )
     export_parser.add_argument("--force", action="store_true")
 
     args = parser.parse_args()
@@ -368,7 +360,7 @@ def main() -> None:
             if args.client == "claude-code"
             else export_agent_package
         )
-        options: dict[str, Any] = (
+        options: dict[str, str] = (
             {} if args.client == "claude-code" else {"client": args.client}
         )
         if args.tool_profile != "full":
@@ -385,10 +377,6 @@ def main() -> None:
                     "its hooks bind one account per project"
                 )
             options["server_id"] = args.server_id
-        if args.reader_agent:
-            if args.client != "clio-coder":
-                export_parser.error("--reader-agent is only for clio-coder exports")
-            options["reader_agent"] = True
         try:
             results = exporter(
                 Path(args.output_dir),
