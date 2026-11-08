@@ -70,6 +70,18 @@ class TestDatabaseManager:
 
         assert mock_duckdb.connect.call_count == 3
 
+    def test_init_reports_unwritable_database_without_claiming_a_lock(
+        self, mock_duckdb, tmp_path
+    ):
+        mock_duckdb.connect.side_effect = duckdb.IOException(
+            'IO Error: Cannot open file "x.duckdb": Read-only file system'
+        )
+        with pytest.raises(DatabaseLockedError) as error:
+            DatabaseManager(str(tmp_path / "test.db"), max_retries=3)
+        assert "could not be opened" in str(error.value)
+        assert "locked" not in str(error.value)
+        assert mock_duckdb.connect.call_count == 1
+
     def test_dead_lock_holder_preserves_recovery_wal(self, mock_duckdb, tmp_path):
         db_path = tmp_path / "test.db"
         db = DatabaseManager(str(db_path))

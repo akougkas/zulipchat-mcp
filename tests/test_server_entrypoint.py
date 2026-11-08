@@ -233,3 +233,36 @@ def test_read_only_profile_rejects_mutating_startup_flags(monkeypatch, flag):
             server.main()
     assert exc.value.code == 2
     init.assert_not_called()
+
+
+def test_ephemeral_state_requires_read_only_profile(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["zulipchat-mcp", "--ephemeral-state"])
+    with patch.object(server, "init_config_manager") as init:
+        with pytest.raises(SystemExit) as exc:
+            server.main()
+    assert exc.value.code == 2
+    init.assert_not_called()
+
+
+def test_ephemeral_state_uses_a_private_temporary_database(monkeypatch, tmp_path):
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    monkeypatch.setenv("ZULIPCHAT_DB_PATH", "/account/state.duckdb")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["zulipchat-mcp", "--tool-profile", "read-only", "--ephemeral-state"],
+    )
+    cfg = MagicMock()
+    cfg.validate_config.return_value = True
+    with (
+        patch.object(server, "init_config_manager", return_value=cfg),
+        patch.object(server, "init_database") as init_database,
+        patch.object(server, "FastMCP"),
+        patch.object(server, "register_core_tools"),
+        patch("atexit.register") as register_cleanup,
+    ):
+        server.main()
+    db_path = init_database.call_args.args[0]
+    state_dir = register_cleanup.call_args.args[1]
+    assert db_path.startswith(str(tmp_path))
+    assert db_path.startswith(state_dir)

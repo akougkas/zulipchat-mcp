@@ -183,6 +183,7 @@ Add to your MCP configuration:
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
 | `--extended-tools` | Register all 60 tools instead of the 20-tool core set |
 | `--tool-profile {full,read-only}` | Filter discovery and enforce read-only Zulip calls; default: `full` |
+| `--ephemeral-state` | With `--tool-profile read-only`, keep local state in a temporary database removed at exit (for sandboxes with no writable state directory) |
 | `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
 | `--host HOST` | Bind host for HTTP transport (default: `127.0.0.1`) |
 | `--port PORT` | Bind port for HTTP transport (default: `8000`) |

@@ -35,6 +35,7 @@ zulipchat-mcp [options]
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
 - `--extended-tools`: Register all 60 tools instead of the 20-tool core set
 - `--tool-profile {full,read-only}`: Enforce the selected Zulip tool surface (`full` by default)
+- `--ephemeral-state`: Requires `--tool-profile read-only`. Keeps local state in a private temporary database removed at exit, instead of the account database. Use it where the state directory is not writable, such as a Clio read-only worker sandbox. Sessions, approvals and the mention inbox do not persist.
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)

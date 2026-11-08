@@ -29,10 +29,12 @@ class DatabaseLockedError(Exception):
     def __init__(self, db_path: str, original_error: Exception):
         self.db_path = db_path
         self.original_error = original_error
-        super().__init__(
-            f"Database is locked after max retries: {db_path}. "
-            f"Original error: {original_error}"
+        problem = (
+            "Database is locked after max retries"
+            if "lock" in str(original_error).lower()
+            else "Database could not be opened"
         )
+        super().__init__(f"{problem}: {db_path}. Original error: {original_error}")
 
 
 class DatabaseManager:

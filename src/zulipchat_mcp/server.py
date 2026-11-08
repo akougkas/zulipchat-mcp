@@ -105,6 +105,16 @@ def main() -> None:
         default="full",
         help="Restrict both tool discovery and execution to read-only Zulip operations.",
     )
+    parser.add_argument(
+        "--ephemeral-state",
+        action="store_true",
+        help=(
+            "Keep local state in a private temporary database removed at exit "
+            "instead of the account database. Requires --tool-profile read-only; "
+            "for hosts that run the server where the account database is not "
+            "writable, such as a sandboxed read-only worker."
+        ),
+    )
 
     parser.add_argument(
         "--mention-allow",
@@ -164,6 +174,8 @@ def main() -> None:
         parser.error(
             "The read-only tool profile cannot enable a listener or unsafe mode"
         )
+    if args.ephemeral_state and args.tool_profile != "read-only":
+        parser.error("--ephemeral-state requires --tool-profile read-only")
     try:
         parse_mention_allow(args.mention_allow)
     except ValueError as error:
@@ -210,7 +222,17 @@ def main() -> None:
     # Initialize database (optional for agent features)
     if database_available:
         try:
+            ephemeral_path = None
+            if args.ephemeral_state:
+                import atexit
+                import shutil
+                import tempfile
+
+                state_dir = tempfile.mkdtemp(prefix="zulipchat-mcp-")
+                atexit.register(shutil.rmtree, state_dir, ignore_errors=True)
+                ephemeral_path = os.path.join(state_dir, "zulipchat.duckdb")
             database = init_database(
+                ephemeral_path,
                 account_fingerprint=config_manager.resolved_account().fingerprint,
                 associate_existing=args.associate_existing_db,
             )
