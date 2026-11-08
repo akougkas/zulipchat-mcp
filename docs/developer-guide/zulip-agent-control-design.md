@@ -560,10 +560,12 @@ Never announce the wire/application mismatch fixed until real MCP tests pass.
 Current [search](../../src/zulipchat_mcp/tools/search.py) parses ISO strings,
 assumes UTC for naive dates, uses date anchoring plus post-fetch bounds, returns
 one bounded sample, retains integer timestamps, truncates rendered HTML at
-1,000 characters, and exposes `found`, anchor and narrow but not a complete
-cursor/exhaustion contract. [Message retrieval](../../src/zulipchat_mcp/tools/messaging.py)
-returns SDK content without a public rendering option. Do not describe these
-as exhaustive pagination today.
+1,000 characters, and exposes `found`, anchor and narrow. Since 0.8.0 it also
+returns an exclusive message-ID `next_cursor` bound to account, filters, window
+and order, with `completeness`, and both search and
+[message retrieval](../../src/zulipchat_mcp/tools/messaging.py) accept
+`content_format="markdown"`. Cross-page distinct counts and a pinned
+high-watermark remain open.
 
 Add `timestamp_utc` in canonical `YYYY-MM-DDTHH:MM:SSZ` beside existing integer
 `timestamp`, and `fetched_at_utc`/`as_of_utc`. Document inclusive time bounds,

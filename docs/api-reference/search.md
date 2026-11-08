@@ -66,6 +66,14 @@ await advanced_search(
   The `sample` describes fetched versus returned counts, interval/order bounds,
   backend boundaries, retrieval time and cache provenance. Use selected message
   IDs for full reads; a rendered excerpt is not raw Markdown.
+- Paging: `sample.next_cursor` is set while more matches remain in the
+  requested window, and `sample.completeness` is `partial`. Repeat the same call
+  with `cursor=<next_cursor>` to fetch the next page, which starts after that
+  message. The cursor is bound to the account, filters, time window and order,
+  and is rejected for any other search. When `next_cursor` is null,
+  `completeness` is `exhausted_visible_query`: every message visible to this
+  identity in the window has been returned. Response metadata precedes
+  `messages`, so a host that truncates a long result still shows it.
 - Successful windows are cached for 15 seconds by identity and exact upstream
   request. `fresh=True` bypasses reuse. Honor returned `RATE_LIMIT_HIT` retry
   delays rather than repeating a throttled query. See [API efficiency](../developer-guide/zulip-api-proxy.md).

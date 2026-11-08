@@ -13,6 +13,7 @@ Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plug
 - `zulipchat-mcp-integrate print|export --tool-profile read-only` exports a read-only declaration. For Clio it adds `--ephemeral-state` and classes only the read tools, so a sandboxed read-only worker can start the server. Claude Code exports reject it because their hooks post messages.
 - `--ephemeral-state` (requires `--tool-profile read-only`) keeps local state in a private temporary database removed at exit, instead of the account database.
 - `search_messages` and `get_message` accept `content_format="markdown"` to return message source text instead of rendered HTML. On the grc-iit realm this made 50-message windows 2.5 to 4 times smaller in content and left far fewer messages at the excerpt cap. Rendered HTML remains the default.
+- `search_messages` returns `sample.next_cursor` and `sample.completeness`. Repeating the call with `cursor=` fetches the next page after the last returned message; the cursor is bound to the account, filters, window and order. Response metadata now precedes `messages`, so a client that truncates a long result still shows the paging state. In a grc-iit battle test, a model without a cursor looped on overlapping time windows for more than 20 calls.
 - `get_stream_topics` accepts `stream_name` as an alternative to `stream_id`.
 
 ### Changed

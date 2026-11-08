@@ -5,6 +5,8 @@ Analytics moved to ai_analytics.py for LLM elicitation.
 """
 
 import asyncio
+import hashlib
+import json
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -221,11 +223,14 @@ async def search_messages(
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
     fresh: bool = False,
     content_format: Literal["rendered_html", "markdown"] = "rendered_html",
+    cursor: str | None = None,
 ) -> dict[str, Any]:
     """Advanced search with fuzzy user resolution and comprehensive filtering.
 
     content_format="markdown" returns the source text, typically several times
-    smaller than rendered HTML and better for quoting.
+    smaller than rendered HTML and better for quoting. When sample.next_cursor
+    is set, repeat the same call with cursor=<next_cursor> for the next page;
+    no next_cursor means the query is exhausted.
     """
     client = get_client()
 
@@ -341,13 +346,43 @@ async def search_messages(
         cutoff_ts = cutoff.timestamp() if cutoff else None
         before_ts = before.timestamp() if before else None
 
+        # A cursor is valid only for the same account, filters and order.
+        query_key = hashlib.sha256(
+            json.dumps(
+                [
+                    str(client.current_email),
+                    str(client.identity),
+                    str(client.read_snapshots.realm),
+                    narrow,
+                    str(last_hours),
+                    str(last_days),
+                    str(after_time),
+                    str(before_time),
+                    sort_by,
+                ],
+                default=str,
+            ).encode()
+        ).hexdigest()[:16]
+        cursor_id: int | None = None
+        if cursor is not None:
+            cursor_message, _, cursor_key = cursor.partition(":")
+            if cursor_key != query_key or not cursor_message.isdigit():
+                return {
+                    "status": "error",
+                    "error": "cursor does not belong to this search; repeat the "
+                    "call that returned it with the same filters, or omit cursor",
+                }
+            cursor_id = int(cursor_message)
+
         # Fetch from the requested end of the interval. Anchoring at its start
         # for a newest-first query silently returns the oldest matching sample.
         oldest_first = sort_by == "oldest"
         anchor = "oldest" if oldest_first else "newest"
         anchor_date = None
         boundary = cutoff if oldest_first else before
-        if boundary:
+        if cursor_id is not None:
+            anchor = str(cursor_id)
+        elif boundary:
             anchor = "date"
             anchor_date = boundary.isoformat()
         num_before = 0 if oldest_first else limit
@@ -361,7 +396,7 @@ async def search_messages(
             narrow=cast(list[dict[str, Any]], narrow),
             num_before=num_before,
             num_after=num_after,
-            include_anchor=True,
+            include_anchor=cursor_id is None,
             client_gravatar=True,
             apply_markdown=content_format == "rendered_html",
             use_cache=not fresh,
@@ -372,16 +407,31 @@ async def search_messages(
             fetched_count = len(messages)
 
             # Post-fetch time filtering (anchor_date positions anchor, doesn't filter)
-            if cutoff_ts is not None:
-                messages = [m for m in messages if m["timestamp"] >= cutoff_ts]
-            if before_ts is not None:
-                messages = [m for m in messages if m["timestamp"] <= before_ts]
-
+            in_window = [
+                m
+                for m in messages
+                if (cutoff_ts is None or m["timestamp"] >= cutoff_ts)
+                and (before_ts is None or m["timestamp"] <= before_ts)
+            ]
+            if oldest_first:
+                reached_end = bool(result.get("found_newest")) or any(
+                    before_ts is not None and m["timestamp"] > before_ts
+                    for m in messages
+                )
+            else:
+                reached_end = bool(result.get("found_oldest")) or any(
+                    cutoff_ts is not None and m["timestamp"] < cutoff_ts
+                    for m in messages
+                )
+            more = len(in_window) > limit or not reached_end
             messages = sorted(
-                messages,
+                in_window,
                 key=lambda message: (message["timestamp"], message["id"]),
                 reverse=not oldest_first,
             )[:limit]
+            next_cursor = (
+                f"{messages[-1]['id']}:{query_key}" if more and messages else None
+            )
 
             # Process messages for response
             processed_messages = []
@@ -410,9 +460,10 @@ async def search_messages(
                     }
                 )
 
+            # Metadata precedes messages so a host that truncates long results
+            # still shows the paging state.
             return {
                 "status": "success",
-                "messages": processed_messages,
                 "found": len(processed_messages),
                 "sample": {
                     "coverage": "single_api_window",
@@ -424,6 +475,10 @@ async def search_messages(
                     ),
                     "found_oldest": result.get("found_oldest"),
                     "found_newest": result.get("found_newest"),
+                    "completeness": (
+                        "partial" if next_cursor else "exhausted_visible_query"
+                    ),
+                    "next_cursor": next_cursor,
                     "after_time_utc": cutoff.isoformat() if cutoff else None,
                     "before_time_utc": before.isoformat() if before else None,
                     "ordering": "oldest_first" if oldest_first else "newest_first",
@@ -433,6 +488,7 @@ async def search_messages(
                 "anchor": result.get("anchor"),
                 "narrow_applied": narrow,
                 "sort_by": sort_by,
+                "messages": processed_messages,
             }
         else:
             return api_error(result, "Search failed")

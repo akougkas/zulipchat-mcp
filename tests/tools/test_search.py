@@ -160,6 +160,52 @@ class TestSearchTools:
         assert args["anchor"] == "newest"
 
     @pytest.mark.asyncio
+    async def test_cursor_pages_exclusively_and_is_bound_to_the_query(self, mock_deps):
+        def message(message_id):
+            return {
+                "id": message_id,
+                "sender_full_name": "U",
+                "sender_email": "e",
+                "timestamp": message_id,
+                "content": "c",
+                "type": "stream",
+            }
+
+        mock_deps.get_messages_raw.return_value = {
+            "result": "success",
+            "messages": [message(1), message(2), message(3)],
+            "found_newest": False,
+        }
+        first = await search_messages(stream="general", sort_by="oldest", limit=2)
+        assert [m["id"] for m in first["messages"]] == [1, 2]
+        assert first["sample"]["completeness"] == "partial"
+        assert list(first)[-1] == "messages"
+        cursor = first["sample"]["next_cursor"]
+
+        mock_deps.get_messages_raw.return_value = {
+            "result": "success",
+            "messages": [message(3)],
+            "found_newest": True,
+        }
+        second = await search_messages(
+            stream="general", sort_by="oldest", limit=2, cursor=cursor
+        )
+        call = mock_deps.get_messages_raw.call_args[1]
+        assert call["anchor"] == "2"
+        assert call["include_anchor"] is False
+        assert [m["id"] for m in second["messages"]] == [3]
+        assert second["sample"]["next_cursor"] is None
+        assert second["sample"]["completeness"] == "exhausted_visible_query"
+
+        calls = mock_deps.get_messages_raw.call_count
+        other = await search_messages(
+            stream="random", sort_by="oldest", limit=2, cursor=cursor
+        )
+        assert other["status"] == "error"
+        assert "cursor" in other["error"]
+        assert mock_deps.get_messages_raw.call_count == calls
+
+    @pytest.mark.asyncio
     async def test_invalid_time_names_the_parameter(self, mock_deps):
         result = await search_messages(after_time="2026-13-45")
 
