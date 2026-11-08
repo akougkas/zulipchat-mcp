@@ -12,12 +12,24 @@ from fastmcp import FastMCP
 from ..config import get_client
 from ..core.api_errors import api_error
 
+# Raw Zulip stream objects carry ~30 permission/group fields each; a realm with
+# a few dozen streams then exceeds typical MCP client result budgets.
+STREAM_SUMMARY_FIELDS = (
+    "stream_id",
+    "name",
+    "description",
+    "invite_only",
+    "is_web_public",
+    "is_archived",
+)
+
 
 async def get_streams(
     include_subscribed: bool = True,
     include_public: bool = True,
+    verbose: bool = False,
 ) -> dict[str, Any]:
-    """Get list of streams (READ-ONLY)."""
+    """Get list of streams (READ-ONLY). Set verbose for raw Zulip objects."""
     client = get_client()
 
     try:
@@ -28,6 +40,11 @@ async def get_streams(
         )
         if result.get("result") == "success":
             streams = result.get("streams", [])
+            if not verbose:
+                streams = [
+                    {key: stream[key] for key in STREAM_SUMMARY_FIELDS if key in stream}
+                    for stream in streams
+                ]
 
             return {
                 "status": "success",

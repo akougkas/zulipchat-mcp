@@ -3,7 +3,7 @@
 ## Core tools
 
 - `resolve_user(name)`
-- `get_users(client_gravatar=True, include_custom_profile_fields=False, user_ids=None)`
+- `get_users(client_gravatar=True, include_custom_profile_fields=False, user_ids=None, verbose=False)`: returns `user_id`, `full_name`, `email`, `role`, `is_bot`, `is_active`, `timezone` (and `profile_data` when requested) per user; `verbose=True` returns raw Zulip user objects
 - `get_own_user()`
 
 ## Extended tools

@@ -70,6 +70,22 @@ class TestUsersTools:
         assert result["users"][0]["user_id"] == 1
 
     @pytest.mark.asyncio
+    async def test_get_users_compact_unless_verbose(self, mock_deps):
+        raw = {
+            "user_id": 1,
+            "full_name": "U",
+            "email": "u1@e.com",
+            "delivery_email": "private@e.com",
+            "avatar_url": "https://a",
+        }
+        mock_deps.get_users.return_value = {"result": "success", "members": [raw]}
+
+        assert (await get_users())["users"] == [
+            {"user_id": 1, "full_name": "U", "email": "u1@e.com"}
+        ]
+        assert (await get_users(verbose=True))["users"] == [raw]
+
+    @pytest.mark.asyncio
     async def test_get_user_by_id(self, mock_deps):
         """Test get_user_by_id."""
         result = await get_user_by_id(1)

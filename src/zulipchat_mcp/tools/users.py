@@ -20,12 +20,25 @@ def validate_email(email: str) -> bool:
     return bool(re.match(pattern, email))
 
 
+USER_SUMMARY_FIELDS = (
+    "user_id",
+    "full_name",
+    "email",
+    "role",
+    "is_bot",
+    "is_active",
+    "timezone",
+    "profile_data",
+)
+
+
 async def get_users(
     client_gravatar: bool = True,
     include_custom_profile_fields: bool = False,
     user_ids: list[int] | None = None,
+    verbose: bool = False,
 ) -> dict[str, Any]:
-    """Get all users in organization (READ-ONLY)."""
+    """Get all users in organization (READ-ONLY). Set verbose for raw objects."""
     client = get_client()
 
     try:
@@ -41,6 +54,11 @@ async def get_users(
             # Filter by user_ids if specified
             if user_ids is not None:
                 users = [user for user in users if user.get("user_id") in user_ids]
+            if not verbose:
+                users = [
+                    {key: user[key] for key in USER_SUMMARY_FIELDS if key in user}
+                    for user in users
+                ]
 
             return {
                 "status": "success",

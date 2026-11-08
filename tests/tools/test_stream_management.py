@@ -45,6 +45,32 @@ class TestGetStreams:
         )
 
     @pytest.mark.asyncio
+    async def test_get_streams_compact_unless_verbose(self, mock_deps):
+        """Default output drops Zulip permission/group fields."""
+        raw = {
+            "name": "general",
+            "stream_id": 1,
+            "description": "d",
+            "invite_only": False,
+            "can_administer_channel_group": {"direct_members": [7]},
+            "stream_post_policy": 1,
+        }
+        mock_deps.get_streams.return_value = {"result": "success", "streams": [raw]}
+
+        compact = await get_streams()
+        verbose = await get_streams(verbose=True)
+
+        assert compact["streams"] == [
+            {
+                "stream_id": 1,
+                "name": "general",
+                "description": "d",
+                "invite_only": False,
+            }
+        ]
+        assert verbose["streams"] == [raw]
+
+    @pytest.mark.asyncio
     async def test_get_streams_filter_public(self, mock_deps):
         """Subscribed public streams remain when discovery of other public streams is off."""
         mock_deps.get_streams.return_value = {

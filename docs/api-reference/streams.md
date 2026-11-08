@@ -2,9 +2,9 @@
 
 ## Core tools
 
-- `get_streams(include_subscribed=True, include_public=True)`
+- `get_streams(include_subscribed=True, include_public=True, verbose=False)`: returns `stream_id`, `name`, `description`, `invite_only`, `is_web_public` and `is_archived` per stream; `verbose=True` returns raw Zulip stream objects
 - `get_stream_info(stream_name=None, stream_id=None, include_subscribers=False, include_topics=False)`
-- `get_stream_topics(stream_id, max_results=100)`
+- `get_stream_topics(stream_id=None, max_results=100, stream_name=None)`: pass either the ID or the name
 
 ## Extended tools
 

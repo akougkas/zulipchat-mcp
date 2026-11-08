@@ -16,11 +16,26 @@ from ..core.api_errors import api_error
 from ..core.security import is_unsafe_mode
 
 
-async def get_stream_topics(stream_id: int, max_results: int = 100) -> dict[str, Any]:
-    """Get recent topics for a stream (READ-ONLY)."""
+async def get_stream_topics(
+    stream_id: int | None = None,
+    max_results: int = 100,
+    stream_name: str | None = None,
+) -> dict[str, Any]:
+    """Get recent topics for a stream by ID or name (READ-ONLY)."""
+    if stream_id is None and not stream_name:
+        return {
+            "status": "error",
+            "error": "Either stream_id or stream_name is required",
+        }
     client = get_client()
 
     try:
+        if stream_id is None:
+            name = str(stream_name)
+            id_result = await asyncio.to_thread(client.get_stream_id, name)
+            if id_result.get("result") != "success":
+                return api_error(id_result, f"Stream '{name}' not found")
+            stream_id = int(id_result["stream_id"])
         result = await asyncio.to_thread(client.get_stream_topics, stream_id)
         if result.get("result") == "success":
             topics = result.get("topics", [])

@@ -52,6 +52,18 @@ class TestTopicManagementTools:
         assert result["count"] == 1
 
     @pytest.mark.asyncio
+    async def test_get_stream_topics_by_name(self, mock_deps):
+        client, _, _ = mock_deps
+        client.get_stream_id.return_value = {"result": "success", "stream_id": 9}
+        client.get_stream_topics.return_value = {"result": "success", "topics": []}
+
+        result = await get_stream_topics(stream_name="Clio")
+
+        assert result["stream_id"] == 9
+        client.get_stream_topics.assert_called_once_with(9)
+        assert (await get_stream_topics())["status"] == "error"
+
+    @pytest.mark.asyncio
     async def test_agents_channel_topic_ops_no_bot(self, mock_deps):
         """Test missing bot credentials."""
         _, _, config = mock_deps
