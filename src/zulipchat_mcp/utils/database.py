@@ -10,13 +10,17 @@ import os
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
 logger = logging.getLogger(__name__)
+
+# How long session events and settled requests stay: they hold message text and
+# hook payloads (commands, file contents), and nothing reads them after that.
+RETENTION_DAYS = 30
 
 
 class AccountBindingError(RuntimeError):
@@ -359,6 +363,14 @@ class DatabaseManager:
           );
         """)
 
+    def prune(self) -> None:
+        """Delete expired rows; called once the database is bound to its account."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+        # agent_events held every message of a bound topic and was never read.
+        self.execute("DELETE FROM agent_events")
+        self.execute("DELETE FROM session_events WHERE created_at < ?", [cutoff])
+        self.execute("DELETE FROM agent_requests WHERE created_at < ?", [cutoff])
+
     def execute(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> None:
@@ -671,6 +683,10 @@ def init_database(
             candidate.bind_account(
                 account_fingerprint, associate_existing=associate_existing
             )
+            try:
+                candidate.prune()
+            except Exception as error:  # retention must never block startup
+                logger.warning("Could not prune expired state: %s", error)
     except Exception as error:
         _db_manager = None
         DatabaseManager._instance = None

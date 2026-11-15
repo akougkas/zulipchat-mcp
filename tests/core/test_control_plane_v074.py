@@ -9,9 +9,10 @@ import pytest
 
 from tests.core.test_agent_control_regressions import bind_session, inbound
 from tests.core.test_agent_control_regressions import coordinator as coordinator
+from zulipchat_mcp.core.agent_control import AgentCoordinator
 from zulipchat_mcp.services.message_listener import MessageListener
 from zulipchat_mcp.tools import agents
-from zulipchat_mcp.utils import database
+from zulipchat_mcp.utils import database, database_manager
 
 
 def test_database_rejects_other_account_and_requires_explicit_legacy_association(
@@ -499,3 +500,80 @@ def test_hook_echo_is_suppressed_across_processes_before_persistence(
         consumer.close()
         producer.close()
     assert process.exitcode == 0
+
+
+def test_bound_database_drops_expired_and_unread_rows(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(database.DatabaseManager, "_instance", None)
+    monkeypatch.setattr(database, "_db_manager", None)
+    path = str(tmp_path / "state.duckdb")
+    storage = database.init_database(path, account_fingerprint="acct")
+    monkeypatch.setattr(database_manager, "get_database", lambda: storage)
+    bot = MagicMock(current_email="bot@example.com")
+    bot.send_message.return_value = {"result": "success", "id": 10}
+    coordinator = AgentCoordinator(
+        db=database_manager.DatabaseManager(), bot_client=bot
+    )
+    session = bind_session(coordinator)
+    old = coordinator.create_request(session_id=session["session_id"], prompt="old")
+    new = coordinator.create_request(session_id=session["session_id"], prompt="new")
+    coordinator.record_inbound_message(inbound(session, "/status", 51))
+    long_ago = datetime.now(timezone.utc) - timedelta(days=database.RETENTION_DAYS + 1)
+    storage.execute(
+        "UPDATE agent_requests SET created_at=? WHERE request_id=?",
+        [long_ago, old["request_id"]],
+    )
+    storage.execute(
+        "UPDATE session_events SET created_at=? WHERE request_id=?",
+        [long_ago, old["request_id"]],
+    )
+    storage.execute(
+        "INSERT INTO agent_events VALUES ('zulip:1', 1, 't', 'x@example.com', "
+        "'someone else wrote this', ?, FALSE)",
+        [datetime.now(timezone.utc)],
+    )
+
+    monkeypatch.setattr(database.DatabaseManager, "_instance", None)
+    reopened = database.init_database(path, account_fingerprint="acct")
+    count = lambda sql: reopened.query_one_as_dict(sql)["n"]  # noqa: E731
+    assert count("SELECT count(*) AS n FROM agent_events") == 0
+    assert coordinator.db.get_agent_request(old["request_id"]) is None
+    assert coordinator.db.get_agent_request(new["request_id"])["status"] == "pending"
+    assert (
+        count(
+            "SELECT count(*) AS n FROM session_events "
+            f"WHERE request_id='{old['request_id']}'"
+        )
+        == 0
+    )
+    assert (
+        count("SELECT count(*) AS n FROM session_events WHERE event_type='command'")
+        == 1
+    )
+    assert coordinator.db.get_agent_session_for_topic(
+        session["stream_name"], session["topic_name"]
+    )
+
+
+async def test_listener_keeps_no_copy_of_other_members_text(coordinator):
+    session = bind_session(coordinator)
+    listener = MessageListener(coordinator.bot_client, coordinator.db)
+    stranger = inbound(session, "a plan somebody else wrote", 61)
+    stranger["sender_email"] = "other@example.com"
+    await listener._process_message(stranger)
+    await listener._process_message(inbound(session, "/status", 62))
+    storage = coordinator.db._db
+
+    def count(sql):
+        return storage.query_one_as_dict(sql)["n"]
+
+    assert count("SELECT count(*) AS n FROM agent_events") == 0
+    assert (
+        count(
+            "SELECT count(*) AS n FROM session_events "
+            "WHERE content LIKE '%somebody else%'"
+        )
+        == 0
+    )
+    assert coordinator.db.get_listener_message_cursor(session["session_id"]) == 62

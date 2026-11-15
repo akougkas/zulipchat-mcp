@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import uuid as _uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -292,14 +291,16 @@ class MessageListener:
                 raise RuntimeError("Failed to persist listener cursor")
 
     async def _process_message(self, message: dict[str, Any]) -> None:
-        """Process a message event: update pending input requests and store as agent event."""
+        """Route a message event to its bound session and advance that cursor.
+
+        The session event written by the coordinator is the only copy kept:
+        nothing else stores the text of a bound topic's messages.
+        """
         if not message:
             return
         invalidate_realm_snapshots(self.client.base_url)
 
-        sender_email = message.get("sender_email")
         topic = message.get("subject") or message.get("topic")
-        content = message.get("content")
 
         # Session-aware routing, owner policy, and request persistence.
         # Legacy requests lack a verifiable session/owner binding and must not
@@ -317,18 +318,3 @@ class MessageListener:
             self.db.save_listener_message_cursor(
                 str(session["session_id"]), message["id"]
             )
-        if result.get("reason") in {"outbound_echo", "duplicate"}:
-            return
-
-        # Always store as agent_event for poll_agent_events()
-        result = self.db.create_agent_event(
-            event_id=(
-                f"zulip:{message['id']}" if message.get("id") else str(_uuid.uuid4())
-            ),
-            zulip_message_id=message.get("id"),
-            topic=str(topic) if topic else "",
-            sender_email=sender_email or "",
-            content=content or "",
-        )
-        if result.get("status") == "error":
-            raise RuntimeError("Failed to persist agent event")

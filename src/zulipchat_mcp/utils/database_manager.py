@@ -491,33 +491,3 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to get listener state: {e}")
             raise
-
-    # Agent chat events
-    def create_agent_event(
-        self,
-        event_id: str,
-        zulip_message_id: int | None,
-        topic: str,
-        sender_email: str,
-        content: str,
-    ) -> dict[str, Any]:
-        try:
-            self._db.execute(
-                """
-                INSERT INTO agent_events (id, zulip_message_id, topic, sender_email, content, created_at, acked)
-                VALUES (?, ?, ?, ?, ?, ?, FALSE)
-                ON CONFLICT (id) DO NOTHING
-                """,
-                [
-                    event_id,
-                    zulip_message_id,
-                    topic,
-                    sender_email,
-                    content,
-                    datetime.now(timezone.utc),
-                ],
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to create agent event: {e}")
-            return {"status": "error", "error": str(e)}
