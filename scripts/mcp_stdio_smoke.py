@@ -87,7 +87,7 @@ async def _smoke_connection(
         if missing:
             raise AssertionError(f"Missing required tools: {missing}")
         expected_count = (
-            (23 if extended else 9) if read_only else (60 if extended else 20)
+            (22 if extended else 7) if read_only else (55 if extended else 21)
         )
         if len(tools) != expected_count:
             raise AssertionError(f"Expected {expected_count} tools, got {len(tools)}")
