@@ -733,13 +733,10 @@ class ZulipClientWrapper:
         return response
 
     def register(self, **kwargs: Any) -> dict[str, Any]:
-        """Register an event queue (events API)."""
-        if hasattr(self.client, "register"):
-            try:
-                return self.client.register(**kwargs)
-            except TypeError:
-                return self.client.register(kwargs)
-        return self.client.call_endpoint("register", method="POST", request=kwargs)
+        """Register an event queue, with narrow operators in the server's names."""
+        if kwargs.get("narrow"):
+            kwargs["narrow"] = wire_narrow(kwargs["narrow"], self.supports)
+        return self.client.register(**kwargs)
 
     def deregister(self, queue_id: str, timeout: float | None = None) -> dict[str, Any]:
         """Delete an event queue by ID."""
