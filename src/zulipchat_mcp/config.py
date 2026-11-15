@@ -28,18 +28,28 @@ try:
 
     from dotenv import dotenv_values
 
-    # Load .env file for development (only current directory).
-    # Blank entries are skipped rather than exported. A templated .env leaves
-    # keys like `ZULIP_SITE=` present but empty, and the Zulip SDK reads those
-    # variables whenever its constructor arg is None, so exporting "" would
-    # shadow an explicit --zulip-config-file and fail with an opaque
-    # "No host supplied" URL error. Existing environment values still win,
-    # matching load_dotenv's default override=False behaviour.
+    # Load credentials from a .env file for development (current directory).
+    # Hosts start this server inside the project they have open, so that file
+    # can belong to an untrusted checkout. It supplies credentials and nothing
+    # else: never a config file path, a proxy, a CA bundle, TLS settings or a
+    # policy. A credential set comes from one source, so a key from the real
+    # environment is never paired with a site from the file.
+    # Blank entries are skipped: a templated .env leaves keys like `ZULIP_SITE=`
+    # present but empty, and the Zulip SDK would read "" over a config file.
+    _USER_KEYS = ("ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE")
+    _BOT_KEYS = ("ZULIP_BOT_EMAIL", "ZULIP_BOT_API_KEY")
     env_path = Path.cwd() / ".env"
     if env_path.exists():
-        for _key, _value in dotenv_values(env_path).items():
-            if _value and _value.strip() and _key not in os.environ:
-                os.environ[_key] = _value
+        _file = dotenv_values(env_path)
+        _present = {key for key in (*_USER_KEYS, *_BOT_KEYS) if key in os.environ}
+        for _keys in (
+            _USER_KEYS if not _present else (),
+            _BOT_KEYS if not _present.intersection(_BOT_KEYS) else (),
+        ):
+            for _key in _keys:
+                _value = _file.get(_key)
+                if _value and _value.strip():
+                    os.environ[_key] = _value
 except ImportError:
     # python-dotenv not available, skip loading .env
     pass

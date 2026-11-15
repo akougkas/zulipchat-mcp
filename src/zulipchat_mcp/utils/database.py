@@ -624,15 +624,21 @@ def default_database_path(account_fingerprint: str | None = None) -> str:
     """Return the default database path for an account.
 
     Account state lives under ``$XDG_STATE_HOME/zulipchat-mcp`` so every
-    project and host shares one database per account. A 0.7.4 database in the
-    working directory's ``.mcp/zulipchat/accounts`` keeps being used.
+    project and host shares one database per account. A database in the
+    working directory is never picked up: the server runs inside whatever
+    project a host has open, and session owners and approvals live in this
+    file. A 0.7.4 database there is used only when ZULIPCHAT_DB_PATH names it.
     """
     if not account_fingerprint:
         return ".mcp/zulipchat/zulipchat.duckdb"
     relative = Path("accounts") / account_fingerprint / "zulipchat.duckdb"
     working_directory = Path(".mcp/zulipchat") / relative
     if working_directory.exists():
-        return str(working_directory)
+        logger.warning(
+            "Ignoring %s in the working directory; set ZULIPCHAT_DB_PATH to it "
+            "to keep using that database",
+            working_directory,
+        )
     state_home = os.getenv("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
     return str(Path(state_home) / "zulipchat-mcp" / relative)
 

@@ -83,3 +83,63 @@ def test_blank_env_vars_do_not_shadow_config_file(monkeypatch, tmp_path) -> None
     assert cm.config.config_file == str(zuliprc)
     assert cm.validate_config() is True
     assert cm.has_bot_credentials() is False
+
+
+def _import_config_in(directory, environment):
+    import json
+    import subprocess
+    import sys
+
+    wanted = (
+        "ZULIP_CONFIG_FILE ZULIP_EMAIL ZULIP_API_KEY ZULIP_SITE ZULIP_BOT_EMAIL "
+        "ZULIP_BOT_API_KEY HTTPS_PROXY REQUESTS_CA_BUNDLE ZULIP_ALLOW_INSECURE "
+        "ZULIPCHAT_MENTION_ALLOW ZULIPCHAT_DB_PATH"
+    )
+    script = (
+        "import json, os, zulipchat_mcp.config; "
+        f"print(json.dumps({{k: os.environ.get(k) for k in {wanted.split()!r}}}))"
+    )
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("ZULIP")}
+    for key in ("HTTPS_PROXY", "REQUESTS_CA_BUNDLE"):
+        clean.pop(key, None)
+    done = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=directory,
+        env={**clean, **environment},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return {k: v for k, v in json.loads(done.stdout).items() if v is not None}
+
+
+def test_dotenv_in_the_working_directory_supplies_credentials_and_nothing_else(
+    tmp_path,
+) -> None:
+    (tmp_path / ".env").write_text(
+        "ZULIP_CONFIG_FILE=./planted.zuliprc\n"
+        "HTTPS_PROXY=http://evil.example:8080\n"
+        "REQUESTS_CA_BUNDLE=./ca.pem\n"
+        "ZULIP_ALLOW_INSECURE=true\n"
+        "ZULIPCHAT_MENTION_ALLOW=everyone\n"
+        "ZULIPCHAT_DB_PATH=./planted.duckdb\n"
+        "ZULIP_EMAIL=dev@example.com\nZULIP_API_KEY=devkey\n"
+        "ZULIP_SITE=https://dev.example.com\n"
+        "ZULIP_BOT_EMAIL=bot@example.com\nZULIP_BOT_API_KEY=botkey\n"
+    )
+    assert _import_config_in(tmp_path, {}) == {
+        "ZULIP_EMAIL": "dev@example.com",
+        "ZULIP_API_KEY": "devkey",
+        "ZULIP_SITE": "https://dev.example.com",
+        "ZULIP_BOT_EMAIL": "bot@example.com",
+        "ZULIP_BOT_API_KEY": "botkey",
+    }
+    # A real key is never paired with a site from the file, in either set.
+    real = {"ZULIP_EMAIL": "me@example.com", "ZULIP_API_KEY": "realkey"}
+    assert _import_config_in(tmp_path, real) == {
+        **real,
+        "ZULIP_BOT_EMAIL": "bot@example.com",
+        "ZULIP_BOT_API_KEY": "botkey",
+    }
+    bot = {"ZULIP_BOT_API_KEY": "realbotkey"}
+    assert _import_config_in(tmp_path, bot) == bot

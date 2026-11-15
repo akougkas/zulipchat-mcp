@@ -48,20 +48,18 @@ def test_empty_database_can_bind_and_scoped_defaults_do_not_reuse_legacy_state(
     assert "account-a" in first.db_path and "account-b" in second.db_path
 
 
-def test_default_account_database_uses_xdg_state_and_keeps_074_working_directory_state(
+def test_default_account_database_uses_xdg_state_never_the_working_directory(
     tmp_path, monkeypatch
 ):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
-    assert database.default_database_path("acct") == str(
-        tmp_path / "state/zulipchat-mcp/accounts/acct/zulipchat.duckdb"
-    )
-    legacy = tmp_path / ".mcp/zulipchat/accounts/acct/zulipchat.duckdb"
-    legacy.parent.mkdir(parents=True)
-    legacy.touch()
-    assert database.default_database_path("acct") == (
-        ".mcp/zulipchat/accounts/acct/zulipchat.duckdb"
-    )
+    state = str(tmp_path / "state/zulipchat-mcp/accounts/acct/zulipchat.duckdb")
+    assert database.default_database_path("acct") == state
+    # A checkout can ship this path with planted session owners and approvals.
+    planted = tmp_path / ".mcp/zulipchat/accounts/acct/zulipchat.duckdb"
+    planted.parent.mkdir(parents=True)
+    planted.touch()
+    assert database.default_database_path("acct") == state
     monkeypatch.delenv("XDG_STATE_HOME")
     assert database.default_database_path("other").startswith(
         str(Path.home() / ".local/state/zulipchat-mcp/accounts/other")

@@ -2,7 +2,10 @@
 
 ## Configuration (`config.py`)
 
-- Loads `.env` from current working directory when present.
+- Reads only the five credential variables (`ZULIP_EMAIL`, `ZULIP_API_KEY`,
+  `ZULIP_SITE`, `ZULIP_BOT_EMAIL`, `ZULIP_BOT_API_KEY`) from a `.env` in the
+  current working directory, and only when the real environment sets none of
+  that credential set.
 - Supports `zuliprc` file path discovery and explicit paths.
 - Maintains current identity (`user` or `bot`).
 - Exposes `get_client()` and `get_bot_client()` wrappers.

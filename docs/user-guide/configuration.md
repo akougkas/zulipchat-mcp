@@ -115,7 +115,7 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
-- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `$XDG_STATE_HOME/zulipchat-mcp/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb` (normally `~/.local/state/...`), shared by every project and host using that account. A v0.7.4 database at `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/` in the server's working directory keeps being used.
+- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `$XDG_STATE_HOME/zulipchat-mcp/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb` (normally `~/.local/state/...`), shared by every project and host using that account. A database in the server's working directory is never picked up on its own, because hosts start the server inside whatever project is open. To keep using a v0.7.4 database at `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb`, set `ZULIPCHAT_DB_PATH` to its absolute path.
 - `ZULIPCHAT_MENTION_ALLOW` / `--mention-allow`: senders whose bot mentions and direct messages `poll_agent_events` returns. Default: only the configured owner. A comma-separated list of emails and numeric user IDs adds senders; `everyone` admits all. Other senders are reported without content. In realms that hide email addresses, list the owner's numeric user ID.
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value

@@ -66,7 +66,13 @@ Target response times:
 ### Credential handling
 
 - Credentials are read from `zuliprc` and/or environment variables.
-- `.env` is loaded from current working directory only.
+- A `.env` in the current working directory supplies only `ZULIP_EMAIL`,
+  `ZULIP_API_KEY`, `ZULIP_SITE`, `ZULIP_BOT_EMAIL` and `ZULIP_BOT_API_KEY`, and
+  only when the real environment sets none of that credential set. Every other
+  key in it is ignored: hosts start the server inside the open project, so the
+  file may belong to an untrusted checkout. A database under `.mcp/zulipchat/`
+  in the working directory is likewise used only when `ZULIPCHAT_DB_PATH`
+  names it.
 - Zulip credentials authenticate calls to the configured Zulip organization.
   File downloads validate their URL and destination before using credentials.
 - The server calls no LLM. Tools return Zulip data to the calling agent, which
