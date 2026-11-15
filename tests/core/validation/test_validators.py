@@ -107,7 +107,11 @@ class TestParameterValidator:
         # Let's adjust mock schema for realistic basic usage
         # Usually required params are basic.
 
-        _params = {"req_basic": "valid", "opt_basic": 20, "extra": "ignore me"}  # noqa: F841
+        _params = {
+            "req_basic": "valid",
+            "opt_basic": 20,
+            "extra": "ignore me",
+        }  # noqa: F841
 
         # In basic mode, we only expect basic params.
         # But wait, logic says:

@@ -8,17 +8,11 @@ import pytest
 from src.zulipchat_mcp.tools.agents import (
     agent_message,
     close_agent_session,
-    complete_task,
     ensure_agent_session,
-    list_instances,
     list_sessions,
-    manage_task,
     poll_agent_events,
     register_agent,
     request_user_input,
-    send_agent_status,
-    start_task,
-    update_task_progress,
     wait_for_response,
 )
 
@@ -133,12 +127,6 @@ class TestAgentTools:
             "req-1", timeout_seconds=5
         )
 
-    def test_send_agent_status(self, mock_db):
-        mock_db.get_agent_profile.return_value = {"agent_type": "claude-code"}
-        result = send_agent_status("agent-1", "working")
-        assert result["status"] == "success"
-        mock_db.create_agent_status.assert_called_once()
-
     def test_request_user_input(self, mock_coordinator):
         result = request_user_input(
             "sess-1",
@@ -149,21 +137,6 @@ class TestAgentTools:
         assert result["status"] == "success"
         assert result["request_id"] == "req-1"
         mock_coordinator.create_request.assert_called_once()
-
-    def test_start_task(self, mock_db):
-        result = start_task("agent-1", "Task")
-        assert result["status"] == "success"
-        mock_db.execute.assert_called()
-
-    def test_update_task_progress(self, mock_db):
-        result = update_task_progress("task-1", 50, "working")
-        assert result["status"] == "success"
-        mock_db.execute.assert_called()
-
-    def test_complete_task(self, mock_db):
-        result = complete_task("task-1")
-        assert result["status"] == "success"
-        mock_db.execute.assert_called()
 
     def test_list_sessions(self, mock_db):
         mock_db.list_agent_sessions.return_value = [
@@ -177,12 +150,6 @@ class TestAgentTools:
         result = list_sessions()
         assert result["status"] == "success"
         assert len(result["sessions"]) == 1
-
-    def test_list_instances_alias(self, mock_db):
-        mock_db.list_agent_sessions.return_value = [{"session_id": "sess-1"}]
-        result = list_instances()
-        assert result["status"] == "success"
-        assert result["instances"][0]["session_id"] == "sess-1"
 
     def test_close_agent_session(self, mock_db, mock_coordinator):
         mock_db.get_agent_session.return_value = {
@@ -206,21 +173,3 @@ class TestAgentTools:
         mock_db.ack_session_events.assert_called_once_with(
             ["evt-1"], session_id="sess-1", agent_id=None
         )
-
-    def test_manage_task_dispatch(self):
-        with patch("src.zulipchat_mcp.tools.agents.start_task") as mock_start:
-            mock_start.return_value = {"status": "success"}
-            result = manage_task(action="start", agent_id="agent-1", name="Task")
-            assert result["status"] == "success"
-
-        with patch(
-            "src.zulipchat_mcp.tools.agents.update_task_progress"
-        ) as mock_update:
-            mock_update.return_value = {"status": "success"}
-            result = manage_task(action="update", task_id="task-1", progress=25)
-            assert result["status"] == "success"
-
-        with patch("src.zulipchat_mcp.tools.agents.complete_task") as mock_complete:
-            mock_complete.return_value = {"status": "success"}
-            result = manage_task(action="complete", task_id="task-1")
-            assert result["status"] == "success"

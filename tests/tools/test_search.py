@@ -8,9 +8,7 @@ import pytest
 from src.zulipchat_mcp.tools.search import (
     AmbiguousUserError,
     UserNotFoundError,
-    advanced_search,
     check_messages_match_narrow,
-    construct_narrow,
     resolve_user_identifier,
     search_messages,
 )
@@ -153,7 +151,7 @@ class TestSearchTools:
 
         assert result["status"] == "success"
         assert len(result["messages"]) == 1
-        assert result["messages"][0]["content"] == "recent"
+        assert result["messages"][0]["text"] == "recent"
 
         # Without a narrow, fallback uses anchor="newest" (avoids server timeout)
         args = mock_deps.get_messages_raw.call_args[1]
@@ -194,7 +192,7 @@ class TestSearchTools:
         assert call["anchor"] == "2"
         assert call["include_anchor"] is False
         assert [m["id"] for m in second["messages"]] == [3]
-        assert second["sample"]["next_cursor"] is None
+        assert "next_cursor" not in second["sample"]
         assert second["sample"]["completeness"] == "exhausted_visible_query"
 
         calls = mock_deps.get_messages_raw.call_count
@@ -255,67 +253,6 @@ class TestSearchTools:
         narrow = args["narrow"]
         # Should be resolved email
         assert {"operator": "sender", "operand": "user@example.com"} in narrow
-
-    @pytest.mark.asyncio
-    async def test_advanced_search_aggregations(self, mock_deps):
-        """Test advanced search aggregations."""
-        mock_deps.get_messages_raw.return_value = {
-            "result": "success",
-            "messages": [
-                {
-                    "id": 1,
-                    "sender_full_name": "U1",
-                    "sender_email": "e1",
-                    "timestamp": 100,
-                    "content": "c",
-                    "type": "stream",
-                    "display_recipient": "s1",
-                },
-                {
-                    "id": 2,
-                    "sender_full_name": "U1",
-                    "sender_email": "e1",
-                    "timestamp": 100,
-                    "content": "c",
-                    "type": "stream",
-                    "display_recipient": "s1",
-                },
-                {
-                    "id": 3,
-                    "sender_full_name": "U2",
-                    "sender_email": "e2",
-                    "timestamp": 100,
-                    "content": "c",
-                    "type": "stream",
-                    "display_recipient": "s2",
-                },
-            ],
-        }
-
-        result = await advanced_search(
-            query="",
-            search_type=["messages"],
-            aggregations=["count_by_user", "count_by_stream"],
-        )
-
-        assert result["status"] == "success"
-        agg = result["results"]["aggregations"]
-        assert agg["count_by_user"]["U1"] == 2
-        assert agg["count_by_user"]["U2"] == 1
-        assert agg["count_by_stream"]["s1"] == 2
-
-    @pytest.mark.asyncio
-    async def test_construct_narrow(self):
-        """Test narrow construction."""
-        result = await construct_narrow(
-            stream="general", has_image=True, is_private=False
-        )
-        assert result["status"] == "success"
-        narrow = result["narrow"]
-
-        assert {"operator": "stream", "operand": "general"} in narrow
-        assert {"operator": "has", "operand": "image"} in narrow
-        assert {"operator": "is", "operand": "private", "negated": True} in narrow
 
     @pytest.mark.asyncio
     async def test_check_messages_match_narrow(self, mock_deps):

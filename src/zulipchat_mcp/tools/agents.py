@@ -3,20 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import time
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from ..config import get_client, get_config_manager
+from ..config import get_config_manager
 from ..core.agent_control import AgentCoordinator
-from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
 from ..utils.metrics import Timer, track_tool_call, track_tool_error
-from .registration import optional_background_task
 
 logger = get_logger(__name__)
 
@@ -170,29 +166,6 @@ async def wait_for_response(
             return {"status": "error", "error": str(e)}
 
 
-def send_agent_status(agent_id: str, status: str, message: str = "") -> dict[str, Any]:
-    """Store an agent lifecycle status update."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "send_agent_status"}):
-        track_tool_call("send_agent_status")
-        try:
-            profile = DatabaseManager().get_agent_profile(agent_id)
-            if profile is None:
-                return {"status": "error", "error": "Agent not found"}
-            status_id = str(uuid.uuid4())
-            persisted = DatabaseManager().create_agent_status(
-                status_id=status_id,
-                agent_type=str(profile["agent_type"]),
-                status=status,
-                message=message,
-            )
-            if persisted.get("status") != "success":
-                return persisted
-            return {"status": "success", "status_id": status_id, "agent_id": agent_id}
-        except Exception as e:
-            track_tool_error("send_agent_status", type(e).__name__)
-            return {"status": "error", "error": str(e)}
-
-
 def request_user_input(
     session_id: str,
     question: str,
@@ -220,84 +193,6 @@ def request_user_input(
             return {"status": "error", "error": str(e)}
 
 
-def start_task(agent_id: str, name: str, description: str = "") -> dict[str, Any]:
-    """Start a tracked task for an agent."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "start_task"}):
-        track_tool_call("start_task")
-        try:
-            task_id = str(uuid.uuid4())
-            db = DatabaseManager()
-            db.execute(
-                """
-                INSERT INTO tasks
-                (task_id, agent_id, name, description, status, progress, started_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    task_id,
-                    agent_id,
-                    name,
-                    description,
-                    "started",
-                    0,
-                    datetime.now(timezone.utc),
-                ),
-            )
-            return {"status": "success", "task_id": task_id}
-        except Exception as e:
-            track_tool_error("start_task", type(e).__name__)
-            return {"status": "error", "error": str(e)}
-
-
-def update_task_progress(
-    task_id: str, progress: int, status: str = ""
-) -> dict[str, Any]:
-    """Update task progress."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "update_task_progress"}):
-        track_tool_call("update_task_progress")
-        try:
-            db = DatabaseManager()
-            update_sql = "UPDATE tasks SET progress = ?"
-            params: list[Any] = [progress]
-            if status:
-                update_sql += ", status = ?"
-                params.append(status)
-            update_sql += " WHERE task_id = ?"
-            params.append(task_id)
-            db.execute(update_sql, params)
-            return {"status": "success", "message": "Progress updated"}
-        except Exception as e:
-            track_tool_error("update_task_progress", type(e).__name__)
-            return {"status": "error", "error": str(e)}
-
-
-def complete_task(task_id: str, outputs: str = "", metrics: str = "") -> dict[str, Any]:
-    """Complete a tracked task."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "complete_task"}):
-        track_tool_call("complete_task")
-        try:
-            db = DatabaseManager()
-            db.execute(
-                """
-                UPDATE tasks
-                SET status = ?, progress = ?, completed_at = ?, outputs = ?, metrics = ?
-                WHERE task_id = ?
-                """,
-                (
-                    "completed",
-                    100,
-                    datetime.now(timezone.utc),
-                    outputs,
-                    metrics,
-                    task_id,
-                ),
-            )
-            return {"status": "success", "message": "Task completed"}
-        except Exception as e:
-            track_tool_error("complete_task", type(e).__name__)
-            return {"status": "error", "error": str(e)}
-
-
 def list_sessions(
     agent_id: str | None = None, include_closed: bool = True
 ) -> dict[str, Any]:
@@ -316,14 +211,6 @@ def list_sessions(
         except Exception as e:
             track_tool_error("list_sessions", type(e).__name__)
             return {"status": "error", "error": str(e)}
-
-
-def list_instances() -> dict[str, Any]:
-    """Compatibility wrapper returning agent sessions under the old name."""
-    result = list_sessions()
-    if result.get("status") != "success":
-        return result
-    return {"status": "success", "instances": result["sessions"]}
 
 
 def close_agent_session(
@@ -592,199 +479,3 @@ def _poll_bot_mentions(
         "ignored_unauthorized": ignored,
         "authorization": policy.mode,
     }
-
-
-async def teleport_chat(
-    to: str,
-    message: str,
-    wait_for_reply: bool = False,
-    reply_timeout: int = 300,
-    channel: str | None = None,
-    topic: str | None = None,
-) -> dict[str, Any]:
-    """Send a message to a Zulip user or channel with identity-aware routing."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "teleport_chat"}):
-        track_tool_call("teleport_chat")
-        try:
-            config = get_config_manager()
-            target = to.strip()
-
-            is_channel = target.startswith("#") or channel is not None
-            resolved_channel = channel or (
-                target.lstrip("#") if target.startswith("#") else None
-            )
-
-            if is_channel and resolved_channel:
-                client = get_client()
-                result = await asyncio.to_thread(
-                    client.send_message,
-                    message_type="stream",
-                    to=resolved_channel,
-                    content=message,
-                    topic=topic or "general",
-                )
-                identity_used = client.identity
-                target_email = None
-            else:
-                user_client = get_client()
-                user_cache = user_client.user_cache
-                target_email = target
-                if "@" not in target:
-                    if user_cache.get_users() is None:
-                        await asyncio.to_thread(user_client.get_users)
-                    resolution = user_cache.resolve_user(target)
-                    if not resolution.get("email"):
-                        return {
-                            "status": "error",
-                            "error": f"Could not resolve user: {target}",
-                        }
-                    target_email = str(resolution["email"])
-
-                await asyncio.to_thread(lambda: user_client.client)
-                user_email = user_client.current_email
-                is_self_dm = user_cache.is_same_user(target_email, user_email or "")
-
-                if is_self_dm and config.has_bot_credentials():
-                    client = _get_client_bot()
-                    identity_used = "bot"
-                else:
-                    client = user_client
-                    identity_used = user_client.identity
-
-                result = await asyncio.to_thread(
-                    client.send_message,
-                    message_type="private",
-                    to=[target_email],
-                    content=message,
-                )
-
-            if result.get("result") != "success":
-                return api_error(result, "Failed to send")
-
-            response: dict[str, Any] = {
-                "status": "success",
-                "message_id": result.get("id"),
-                "identity": identity_used,
-                "target": resolved_channel if is_channel else target_email,
-            }
-
-            if wait_for_reply:
-                # Scope replies to this conversation and this send. The legacy
-                # event table lacks stream/DM identity and can contain old replies.
-                narrow: list[dict[str, Any]] = (
-                    [
-                        {"operator": "stream", "operand": resolved_channel},
-                        {"operator": "topic", "operand": topic or "general"},
-                    ]
-                    if is_channel
-                    else [{"operator": "dm", "operand": target_email}]
-                )
-                cursor = int(result["id"])
-                start = time.monotonic()
-                while time.monotonic() - start < reply_timeout:
-                    replies = await asyncio.to_thread(
-                        client.get_messages_raw,
-                        anchor=str(cursor),
-                        num_before=0,
-                        num_after=50,
-                        narrow=narrow,
-                        include_anchor=False,
-                        apply_markdown=False,
-                    )
-                    if replies.get("result") != "success":
-                        response["reply_error"] = replies.get(
-                            "msg", "Failed to fetch replies"
-                        )
-                        return response
-                    for reply in sorted(
-                        replies.get("messages", []), key=lambda item: item["id"]
-                    ):
-                        if reply["id"] <= cursor:
-                            continue
-                        cursor = reply["id"]
-                        sender = reply.get("sender_email", "")
-                        if (
-                            sender
-                            and sender.lower()
-                            != str(client.current_email or "").lower()
-                        ):
-                            response["reply"] = reply.get("content")
-                            response["reply_from"] = sender
-                            return response
-                    await asyncio.sleep(2)
-                response["reply"] = None
-                response["reply_timeout"] = True
-
-            return response
-        except Exception as e:
-            track_tool_error("teleport_chat", type(e).__name__)
-            return {"status": "error", "error": str(e)}
-
-
-def manage_task(
-    action: str,
-    agent_id: str | None = None,
-    task_id: str | None = None,
-    name: str = "",
-    description: str = "",
-    progress: int = 0,
-    status: str = "",
-    outputs: str = "",
-    metrics: str = "",
-) -> dict[str, Any]:
-    """Dispatch task lifecycle actions."""
-    if action == "start":
-        if not agent_id:
-            return {"status": "error", "error": "agent_id required to start a task"}
-        return start_task(agent_id, name, description)
-    if action == "update":
-        if not task_id:
-            return {"status": "error", "error": "task_id required to update a task"}
-        return update_task_progress(task_id, progress, status)
-    if action == "complete":
-        if not task_id:
-            return {"status": "error", "error": "task_id required to complete a task"}
-        return complete_task(task_id, outputs, metrics)
-    return {"status": "error", "error": f"Unknown action: {action}"}
-
-
-def register_agent_tools(mcp: Any) -> None:
-    """Compatibility registrar for direct agent-tool registration."""
-    interactive_task = optional_background_task(poll_seconds=2)
-    for tool in (
-        register_agent,
-        ensure_agent_session,
-        agent_message,
-        request_user_input,
-        send_agent_status,
-        start_task,
-        update_task_progress,
-        complete_task,
-        list_sessions,
-        list_instances,
-        close_agent_session,
-        poll_agent_events,
-    ):
-        mcp.tool()(tool)
-    mcp.tool(task=interactive_task)(teleport_chat)
-    mcp.tool(task=interactive_task)(wait_for_response)
-
-
-__all__ = [
-    "teleport_chat",
-    "register_agent",
-    "ensure_agent_session",
-    "agent_message",
-    "request_user_input",
-    "wait_for_response",
-    "send_agent_status",
-    "start_task",
-    "update_task_progress",
-    "complete_task",
-    "list_sessions",
-    "list_instances",
-    "close_agent_session",
-    "poll_agent_events",
-    "manage_task",
-    "register_agent_tools",
-]

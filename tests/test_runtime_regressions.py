@@ -9,7 +9,7 @@ import pytest
 
 from zulipchat_mcp.core.error_handling import RateLimitConfig, RateLimiter
 from zulipchat_mcp.services.message_listener import MessageListener
-from zulipchat_mcp.tools import agents, mark_messaging, search, users
+from zulipchat_mcp.tools import mark_messaging, search, users
 
 
 @pytest.mark.asyncio
@@ -146,28 +146,3 @@ async def test_search_honors_upper_time_bound_sort_and_limit(monkeypatch):
         1970, 1, 1, 0, 0, 6, tzinfo=timezone.utc
     )
     assert args["num_after"] == 0
-
-
-@pytest.mark.asyncio
-async def test_teleport_reply_is_scoped_and_newer_than_send(monkeypatch):
-    client = MagicMock(identity="user", current_email="owner@example.com")
-    client.send_message.return_value = {"result": "success", "id": 100}
-    client.get_messages_raw.return_value = {
-        "result": "success",
-        "messages": [
-            {"id": 99, "sender_email": "other@example.com", "content": "old"},
-            {"id": 101, "sender_email": "owner@example.com", "content": "self"},
-            {"id": 102, "sender_email": "other@example.com", "content": "new reply"},
-        ],
-    }
-    monkeypatch.setattr(agents, "get_client", lambda: client)
-    monkeypatch.setattr(agents, "get_config_manager", MagicMock())
-    result = await agents.teleport_chat(
-        "#selected", "question", topic="specific", wait_for_reply=True
-    )
-    assert result["reply"] == "new reply"
-    assert client.get_messages_raw.call_args.kwargs["narrow"] == [
-        {"operator": "stream", "operand": "selected"},
-        {"operator": "topic", "operand": "specific"},
-    ]
-    assert client.get_messages_raw.call_args.kwargs["anchor"] == "100"

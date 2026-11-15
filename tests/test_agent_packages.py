@@ -188,7 +188,10 @@ def test_clio_exports_classify_every_tool_from_its_annotations(tmp_path, extende
     assert plugin["toolActionClasses"] == classes
     assert plugin["timeoutMs"] == server["timeoutMs"] == 900000
     assert "actionClass" not in server
-    assert len(classes) == (60 if extended else 20)
+    from tests.tools.test_tool_tiers import EXTENDED_TOOL_COUNT
+    from zulipchat_mcp.tools import CORE_TOOLS
+
+    assert len(classes) == (EXTENDED_TOOL_COUNT if extended else len(CORE_TOOLS))
     assert {name for name, cls in classes.items() if cls == "read"} <= READ_ONLY_TOOLS
     assert classes["get_message"] == "read"
     assert classes["send_message"] == "execute"

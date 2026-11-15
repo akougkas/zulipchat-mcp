@@ -61,14 +61,6 @@ def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
     assert all(len(topic) <= 60 for topic in topics)
 
 
-@pytest.mark.asyncio
-async def test_narrow_builder_does_not_substitute_text_search_for_time_filters():
-    result = await search.construct_narrow(stream="private", after_time="2026-09-01")
-    assert result["status"] == "error"
-    assert "search_messages" in result["error"]
-    assert "narrow" not in result
-
-
 def test_metrics_exposition_escapes_labels_and_declares_each_family_once():
     from zulipchat_mcp.utils.metrics import get_metrics_text, metrics
 

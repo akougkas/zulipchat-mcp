@@ -8,8 +8,6 @@ from src.zulipchat_mcp.tools.agents import (
     close_agent_session,
     ensure_agent_session,
     register_agent,
-    start_task,
-    update_task_progress,
 )
 
 
@@ -78,25 +76,6 @@ class TestAgentOperations:
         assert result["created"] is False
 
     @pytest.mark.asyncio
-    async def test_start_task_success(self, mock_deps):
-        result = start_task("agent-1", "Task 1", "Description")
-        assert result["status"] == "success"
-        mock_deps["db"].execute.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_update_progress_valid_range(self, mock_deps):
-        result = update_task_progress("task-1", 50, "working")
-        assert result["status"] == "success"
-        sql, params = mock_deps["db"].execute.call_args[0]
-        assert sql.startswith("UPDATE tasks SET progress = ?")
-        assert 50 in params
-
-    @pytest.mark.asyncio
-    async def test_update_progress_negative(self, mock_deps):
-        result = update_task_progress("task-1", -10)
-        assert result["status"] == "success"
-
-    @pytest.mark.asyncio
     async def test_close_session_success(self, mock_deps):
         mock_deps["db"].get_agent_session.return_value = {
             "session_id": "sess-1",
@@ -108,10 +87,3 @@ class TestAgentOperations:
         assert result["status"] == "success"
         mock_deps["db"].update_agent_session.assert_called_once()
         mock_deps["coordinator"].send_session_message.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_database_lock_retry(self, mock_deps):
-        mock_deps["db"].execute.side_effect = Exception("Database is locked")
-        result = start_task("agent", "task")
-        assert result["status"] == "error"
-        assert "Database is locked" in result["error"]

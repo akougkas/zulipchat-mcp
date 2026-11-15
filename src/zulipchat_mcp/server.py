@@ -10,7 +10,12 @@ from fastmcp.server.lifespan import lifespan
 from fastmcp_tasks import TasksExtension
 
 from . import __version__
-from .config import ConfigManager, init_config_manager, parse_mention_allow
+from .config import (
+    ConfigManager,
+    init_config_manager,
+    parse_mention_allow,
+    set_current_identity,
+)
 from .core.security import set_unsafe_mode
 from .core.skills import register_skills
 from .core.tool_contract import ToolContractMiddleware
@@ -101,9 +106,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--tool-profile",
-        choices=["full", "read-only"],
+        choices=["full", "read-only", "bot"],
         default="full",
-        help="Restrict both tool discovery and execution to read-only Zulip operations.",
+        help=(
+            "Restrict tool discovery and execution. read-only: Zulip reads only. "
+            "bot: a Zulip-invoked session that waits for owner mentions, reads "
+            "with the bot's visibility and replies only where it was asked."
+        ),
     )
     parser.add_argument(
         "--ephemeral-state",
@@ -174,6 +183,15 @@ def main() -> None:
         parser.error(
             "The read-only tool profile cannot enable a listener or unsafe mode"
         )
+    if args.tool_profile == "bot" and (
+        args.unsafe
+        or not args.zulip_bot_config_file
+        and not os.getenv("ZULIP_BOT_EMAIL")
+    ):
+        parser.error(
+            "The bot tool profile needs bot credentials (--zulip-bot-config-file "
+            "or ZULIP_BOT_EMAIL/ZULIP_BOT_API_KEY) and cannot run unsafe"
+        )
     if args.ephemeral_state and args.tool_profile != "read-only":
         parser.error("--ephemeral-state requires --tool-profile read-only")
     try:
@@ -216,6 +234,10 @@ def main() -> None:
 
     # Set global safety mode context
     set_unsafe_mode(args.unsafe)
+    if args.tool_profile == "bot":
+        # Every read and write uses the bot, so an answer posted in a channel
+        # can only contain what the bot could already see there.
+        set_current_identity("bot")
     if args.unsafe:
         logger.warning("RUNNING IN UNSAFE MODE - Dangerous tools enabled")
 
@@ -282,11 +304,16 @@ def main() -> None:
         version=__version__,
         website_url="https://github.com/akougkas/zulipchat-mcp",
         instructions=(
-            "Use ZulipChat MCP to bind coding agents to Zulip topics, send lifecycle "
-            "updates, request approvals, and read steering commands from the topic owner."
+            "Zulip for coding agents. send_message takes names; search_messages "
+            "reads threads and unread mail compactly; wait_for_mentions and reply "
+            "let the owner drive the agent from Zulip; teleport_chat hands a "
+            "conversation over to Zulip."
         ),
         on_duplicate="warn",
         auth=auth,
+        # The tool set is fixed for the life of the process; 2026-07-28 clients
+        # may reuse the listing for an hour instead of refetching it.
+        cache_ttl=3600,
         # FastMCP protocol tasks are enabled per long-running tool. Keeping the
         # server default forbidden prevents sync/fast tools from being advertised
         # as task-capable by accident.
@@ -299,9 +326,7 @@ def main() -> None:
     # present. Defaults read FASTMCP_DOCKET_* env vars, unchanged from v3.
     mcp.add_extension(TasksExtension())
     mcp.add_middleware(
-        ToolContractMiddleware(
-            read_only=args.tool_profile == "read-only", transport=args.transport
-        )
+        ToolContractMiddleware(profile=args.tool_profile, transport=args.transport)
     )
     register_skills(mcp)
 

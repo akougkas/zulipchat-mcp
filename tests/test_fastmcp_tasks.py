@@ -61,7 +61,12 @@ async def test_task_support_is_opt_in_for_long_running_tools() -> None:
         name for name, tool in tools.items() if tool.task_config.supports_tasks()
     }
 
-    assert task_tools == {"listen_events", "teleport_chat", "wait_for_response"}
+    assert task_tools == {
+        "listen_events",
+        "teleport_chat",
+        "wait_for_mentions",
+        "wait_for_response",
+    }
     assert tools["teleport_chat"].task_config.mode == "optional"
     assert tools["wait_for_response"].task_config.mode == "optional"
     assert tools["listen_events"].task_config.mode == "optional"
