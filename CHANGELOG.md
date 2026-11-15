@@ -4,7 +4,7 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.8.0] - Unreleased
+## [0.8.0] - 2026-11-15
 
 Checked on MCP 2026-07-28 through a stdio smoke and real MCP clients against a mock Zulip. A new local bridge gives any ACP coding agent (Claude Code, Codex, OpenCode, Goose, Gemini CLI, Clio Coder) its own Zulip bot, so the owner talks to agents on their machine from any device, and it replaces the topic-bound agent control plane of 0.7. Ordinary Zulip work takes fewer calls and far fewer tokens.
 
