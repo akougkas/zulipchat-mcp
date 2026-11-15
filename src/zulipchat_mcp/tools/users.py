@@ -469,6 +469,37 @@ async def manage_user_mute(
         return await unmute_user(muted_user_id)
 
 
+async def set_typing(
+    op: Literal["start", "stop"],
+    to: list[int] | None = None,
+    stream_id: int | None = None,
+    topic: str | None = None,
+) -> dict[str, Any]:
+    """Send a typing start/stop notification to users or a channel topic."""
+    if (to is None) == (stream_id is None):
+        return {"status": "error", "error": "Provide exactly one of to or stream_id"}
+    if stream_id is not None and not topic:
+        return {"status": "error", "error": "topic is required with stream_id"}
+    client = get_client()
+    try:
+        request: dict[str, Any] = {"op": op}
+        if to is not None:
+            request["type"] = "direct" if client.supports(174) else "private"
+            request["to"] = to
+        else:
+            request["type"] = "channel" if client.supports(248) else "stream"
+            request["stream_id"] = stream_id
+            request["topic"] = topic
+        result = await asyncio.to_thread(
+            client.client.call_endpoint, "typing", method="POST", request=request
+        )
+        if result.get("result") != "success":
+            return api_error(result, "Failed to send typing notification")
+        return {"status": "success", "op": op}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 def register_users_tools(mcp: FastMCP) -> None:
     """Register clean READ-ONLY user tools with the MCP server."""
     mcp.tool(
