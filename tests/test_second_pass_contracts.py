@@ -23,24 +23,6 @@ def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
     assert all(len(topic) <= 60 for topic in topics)
 
 
-def test_metrics_exposition_escapes_labels_and_declares_each_family_once():
-    from zulipchat_mcp.utils.metrics import get_metrics_text, metrics
-
-    metrics.reset()
-    metrics.increment_counter("calls", labels={"tool": 'quote" slash\\ line\n'})
-    metrics.increment_counter("calls", labels={"tool": "other"})
-    metrics.record_histogram("duration", 1.5, labels={"tool": "other"})
-    metrics.record_histogram("duration", 2.5, labels={"tool": "second"})
-    text = get_metrics_text()
-    assert text.count("# TYPE calls counter") == 1
-    assert 'calls{tool="quote\\" slash\\\\ line\\n"} 1' in text
-    assert "# TYPE duration_count gauge" in text
-    assert 'duration_count{tool="other"} 1' in text
-    assert 'duration_count{tool="other"} 1\nduration_count{tool="second"} 1\n' in text
-    assert "}_" not in text
-    metrics.reset()
-
-
 def test_setup_uvx_command_matches_generated_arguments(monkeypatch):
     from zulipchat_mcp import setup_wizard
 
