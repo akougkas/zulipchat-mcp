@@ -9,7 +9,7 @@
     allow = []            # Zulip user IDs admitted besides the bot's owner
     idle_minutes = 30     # stop an idle agent process; its session resumes later
     question_minutes = 30 # unanswered permission requests and questions expire
-    zulip_tools = true    # give the agent this server's Zulip tools, as the bot
+    zulip_tools = "ask"   # "ask": only ask_owner; true: every tool, as the bot; false
     env = {}              # extra environment for the agent process
 
 The bot's owner in Zulip is always admitted; nobody else is unless listed.
@@ -56,7 +56,7 @@ class AgentConfig:
     allow: frozenset[int] = frozenset()
     idle_minutes: float = 30
     question_minutes: float = 30
-    zulip_tools: bool = True
+    zulip_tools: bool | str = "ask"
     env: dict[str, str] = field(default_factory=dict)
 
     def permits_dir(self, path: Path) -> bool:
@@ -106,6 +106,9 @@ def load_agent(path: Path) -> AgentConfig:
     allow = raw.get("allow", [])
     if not all(type(item) is int and item > 0 for item in allow):
         raise ValueError(f"{path.name}: allow takes numeric Zulip user IDs")
+    tools = raw.get("zulip_tools", "ask")
+    if type(tools) is not bool and tools != "ask":
+        raise ValueError(f'{path.name}: zulip_tools is false, "ask" or true')
     env = raw.get("env", {})
     if not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
         raise ValueError(f"{path.name}: env values must be strings")
@@ -118,7 +121,7 @@ def load_agent(path: Path) -> AgentConfig:
         allow=frozenset(allow),
         idle_minutes=float(raw.get("idle_minutes", 30)),
         question_minutes=float(raw.get("question_minutes", 30)),
-        zulip_tools=bool(raw.get("zulip_tools", True)),
+        zulip_tools=tools,
         env=dict(env),
     )
     if not config.permits_dir(cwd):

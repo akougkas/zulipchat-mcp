@@ -110,3 +110,32 @@ async def test_capabilities_apply_without_an_initial_list_and_over_http():
         assert info["enabled_tool_count"] == 1
         assert info["transport"] == "http"
         assert info["identity_switching"] is False
+
+
+@pytest.mark.asyncio
+async def test_ask_owner_profile_exposes_one_tool_and_refuses_the_rest():
+    server = FastMCP("ask-owner-contract")
+    reached = AsyncMock(return_value={"status": "success"})
+
+    @server.tool
+    async def send_message() -> dict:
+        return await reached()
+
+    @server.tool
+    async def search_messages() -> dict:
+        return await reached()
+
+    @server.tool
+    def ask_owner(question: str) -> dict:
+        return {"status": "pending", "question": question}
+
+    server.add_middleware(ToolContractMiddleware(profile="ask-owner"))
+    async with Client(server) as client:
+        assert [tool.name for tool in await client.list_tools()] == ["ask_owner"]
+        for name in ("send_message", "search_messages"):
+            result = await client.call_tool(name, {}, raise_on_error=False)
+            assert result.structured_content["error_code"] == "POLICY_DENIED"
+        assert (await client.call_tool("ask_owner", {"question": "ok?"})).data[
+            "status"
+        ] == "pending"
+    reached.assert_not_called()

@@ -80,7 +80,7 @@ def cmd_add(args: argparse.Namespace) -> int:
         "allow = []\n"
         "idle_minutes = 30\n"
         "question_minutes = 30\n"
-        "zulip_tools = true\n"
+        'zulip_tools = "ask"\n'
     )
     target.chmod(0o600)
     load_agent(target)

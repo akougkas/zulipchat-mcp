@@ -39,6 +39,9 @@ READ_ONLY_TOOLS = frozenset(
 PROFILE_TOOLS: dict[str, frozenset[str] | None] = {
     "full": None,
     "read-only": READ_ONLY_TOOLS,
+    # What the agent bridge gives an agent by default: a way to ask its owner
+    # in its own conversation, with no read of anyone else's text.
+    "ask-owner": frozenset({"ask_owner"}),
 }
 
 

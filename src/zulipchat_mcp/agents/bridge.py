@@ -866,6 +866,11 @@ class AgentBridge:
     def _mcp_servers(self, conversation: Conversation) -> list[dict[str, Any]]:
         if not self.config.zulip_tools:
             return []
+        # "ask" gives the agent a way to reach its owner and nothing that reads
+        # other people's messages or writes anywhere else.
+        profile = (
+            ["--tool-profile", "ask-owner"] if self.config.zulip_tools == "ask" else []
+        )
         return [
             {
                 "name": "zulipchat",
@@ -875,6 +880,7 @@ class AgentBridge:
                     "zulipchat_mcp.server",
                     "--zulip-config-file",
                     str(self.config.zuliprc),
+                    *profile,
                 ],
                 "env": [
                     {"name": "ZULIPCHAT_AGENT_STATE", "value": str(self.store.path)},

@@ -101,9 +101,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--tool-profile",
-        choices=["full", "read-only"],
+        choices=["full", "read-only", "ask-owner"],
         default="full",
-        help="Restrict both tool discovery and execution to read-only Zulip operations.",
+        help=(
+            "Restrict tool discovery and execution: read-only permits only Zulip "
+            "reads; ask-owner permits only ask_owner, for agents launched by "
+            "zulipchat-mcp-agents."
+        ),
     )
     parser.add_argument(
         "--ephemeral-state",
@@ -274,7 +278,9 @@ def main() -> None:
         version=__version__,
         website_url="https://github.com/akougkas/zulipchat-mcp",
         instructions=(
-            "Zulip for coding agents. send_message takes names; search_messages "
+            "ask_owner asks the owner of this Zulip conversation a question."
+            if args.tool_profile == "ask-owner"
+            else "Zulip for coding agents. send_message takes names; search_messages "
             "reads threads and unread messages compactly; teleport_chat hands the "
             "conversation to the owner's agent bot in Zulip."
         ),
@@ -297,7 +303,8 @@ def main() -> None:
     mcp.add_middleware(
         ToolContractMiddleware(profile=args.tool_profile, transport=args.transport)
     )
-    register_skills(mcp)
+    if args.tool_profile != "ask-owner":  # the skills describe tools it lacks
+        register_skills(mcp)
 
     logger.info("FastMCP initialized successfully")
 

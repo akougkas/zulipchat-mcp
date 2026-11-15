@@ -78,3 +78,17 @@ def test_questions_answer_once_oldest_first_and_expire(tmp_path):
     assert not store.answer(expired, "now")
     assert store.question(first)["answer"] == "allow"
     assert time.time() > store.question(expired)["deadline"]
+
+
+def test_zulip_tools_defaults_to_ask_and_rejects_other_values(tmp_path):
+    base = 'zuliprc = "z"\ncommand = ["x"]\n'
+    assert load_agent(write(tmp_path, base)).zulip_tools == "ask"
+    assert (
+        load_agent(write(tmp_path, base + "zulip_tools = true\n")).zulip_tools is True
+    )
+    assert (
+        load_agent(write(tmp_path, base + "zulip_tools = false\n")).zulip_tools is False
+    )
+    for bad in ('"all"', "1"):
+        with pytest.raises(ValueError, match="zulip_tools"):
+            load_agent(write(tmp_path, base + f"zulip_tools = {bad}\n"))

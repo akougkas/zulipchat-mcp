@@ -601,3 +601,24 @@ async def test_an_owner_change_while_running_stops_the_bridge(make_bridge, monke
     assert not bridge.admitted({"sender_id": STRANGER})
     assert not bridge.admitted({"sender_id": 42})
     assert bridge.store.owner() == OWNER
+
+
+def test_an_agent_gets_only_ask_owner_unless_all_tools_are_granted(make_bridge):
+    import dataclasses
+
+    build, _ = make_bridge
+    bridge = build()
+    conversation = bridge_module.Conversation("dm:7", {}, bridge.config.cwd)
+    assert bridge._mcp_servers(conversation) == []  # zulip_tools = false
+    assert "ask_owner" not in bridge._preface(
+        bridge_module.Conversation("dm:7", {"type": "private"}, bridge.config.cwd)
+    )
+
+    bridge.config = dataclasses.replace(bridge.config, zulip_tools="ask")
+    (server,) = bridge._mcp_servers(conversation)
+    assert server["args"][-2:] == ["--tool-profile", "ask-owner"]
+    assert not any(item["name"].startswith("ZULIP_") for item in server["env"])
+
+    bridge.config = dataclasses.replace(bridge.config, zulip_tools=True)
+    (server,) = bridge._mcp_servers(conversation)
+    assert "--tool-profile" not in server["args"]

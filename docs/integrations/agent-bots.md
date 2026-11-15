@@ -146,7 +146,7 @@ allowed_dirs = ["~/projects"]
 allow = []
 idle_minutes = 30
 question_minutes = 30
-zulip_tools = true
+zulip_tools = "ask"
 env = {}
 ```
 
@@ -159,7 +159,7 @@ env = {}
 | `allow` | `[]` | Numeric Zulip user IDs heard besides the bot's owner. |
 | `idle_minutes` | `30` | Stop an idle agent process; its session resumes later. |
 | `question_minutes` | `30` | Lifetime of permission requests and `ask_owner` questions. |
-| `zulip_tools` | `true` | Give the agent this server's Zulip tools, acting as the bot. |
+| `zulip_tools` | `"ask"` | `"ask"`: only `ask_owner`. `true`: every tool of this server, acting as the bot. `false`: none. |
 | `env` | `{}` | Extra environment variables (strings) for the agent. |
 
 File names are the agent names: lowercase, starting with a letter, at most 32
@@ -175,10 +175,16 @@ The agent inherits the bridge's environment with every variable whose name
 starts with `ZULIP` removed, plus the file's `env`. That keeps Zulip
 credentials out of the agent's environment. It does not keep them from the
 agent: the agent runs as you and can read any file you can, including your
-zuliprc files. With `zulip_tools = true`, the bridge passes the agent an
+zuliprc files. Unless `zulip_tools = false`, the bridge passes the agent an
 MCP server over ACP `mcpServers`: this package's server, run with the bot's
-zuliprc. The agent's Zulip tools therefore read and post as the bot. That server
-also registers `ask_owner`:
+zuliprc. By default (`"ask"`) it runs with `--tool-profile ask-owner` and
+offers one tool, `ask_owner`: the agent can reach you in its own conversation
+and cannot read channels or message anyone else through it. With
+`zulip_tools = true` the agent gets the server's whole tool set as the bot: it
+reads every channel the bot can read and posts wherever the bot can post. Set
+that only for a bot whose channels you would let steer the agent.
+
+`ask_owner`:
 
 ```text
 ask_owner(question, question_id=None, wait_seconds=300)
