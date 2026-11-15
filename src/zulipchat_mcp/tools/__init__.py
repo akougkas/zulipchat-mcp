@@ -258,11 +258,20 @@ def register_extended_tools(mcp: FastMCP) -> None:
         register_events,
     )
     from .files import manage_files, upload_file
-    from .mark_messaging import update_message_flags_for_narrow
+    from .mark_messaging import get_read_receipts, update_message_flags_for_narrow
     from .messaging import cross_post_message
-    from .schedule_messaging import get_scheduled_messages, manage_scheduled_message
+    from .schedule_messaging import (
+        get_scheduled_messages,
+        manage_reminders,
+        manage_scheduled_message,
+    )
     from .search import check_messages_match_narrow, get_daily_summary
     from .stream_management import get_stream_info
+    from .topic_management import (
+        get_message_history,
+        resolve_topic,
+        set_topic_visibility,
+    )
     from .users import (
         get_own_user,
         get_presence,
@@ -272,6 +281,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
         get_user_presence,
         get_user_status,
         manage_user_mute,
+        set_typing,
         update_status,
     )
 
@@ -322,6 +332,18 @@ def register_extended_tools(mcp: FastMCP) -> None:
             "List scheduled messages",
         ),
         (
+            get_read_receipts,
+            "get_read_receipts",
+            "List who has read a Zulip message.",
+            "Get read receipts",
+        ),
+        (
+            get_message_history,
+            "get_message_history",
+            "Show a Zulip message's edit history.",
+            "Get message history",
+        ),
+        (
             check_messages_match_narrow,
             "check_messages_match_narrow",
             "Check which message IDs match a Zulip narrow.",
@@ -362,6 +384,39 @@ def register_extended_tools(mcp: FastMCP) -> None:
         destructive=True,
     )
     register_drafts_tools(mcp)
+    register_tool(
+        mcp,
+        resolve_topic,
+        name="resolve_topic",
+        description="Mark a Zulip topic resolved (✔) or unresolve it.",
+        title="Resolve topic",
+        destructive=True,
+        idempotent=True,
+    )
+    register_tool(
+        mcp,
+        set_topic_visibility,
+        name="set_topic_visibility",
+        description="Follow, mute or unmute a Zulip topic for yourself.",
+        title="Set topic visibility",
+        idempotent=True,
+    )
+    register_tool(
+        mcp,
+        manage_reminders,
+        name="manage_reminders",
+        description="List, create or delete Zulip reminders about a message.",
+        title="Manage reminders",
+        destructive=True,
+    )
+    register_tool(
+        mcp,
+        set_typing,
+        name="set_typing",
+        description="Show or clear a typing indicator in a Zulip conversation.",
+        title="Set typing",
+        idempotent=True,
+    )
 
     # Raw event queues
     register_tool(

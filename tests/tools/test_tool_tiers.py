@@ -41,7 +41,7 @@ class ToolCountingMCP:
 # --- Core vs Extended registration tests ---
 
 
-EXTENDED_TOOL_COUNT = 49
+EXTENDED_TOOL_COUNT = 55
 
 
 class TestToolRegistration:

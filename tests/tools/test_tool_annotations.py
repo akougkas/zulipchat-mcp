@@ -21,6 +21,8 @@ DESTRUCTIVE = {
     "delete_draft",
     "manage_scheduled_message",
     "manage_files",
+    "resolve_topic",
+    "manage_reminders",
 }
 
 # Tools that never reach Zulip (local state or pure computation).
@@ -35,6 +37,9 @@ LOCAL_ONLY = {
 IDEMPOTENT_WRITES = {
     "edit_message",
     "add_reaction",
+    "resolve_topic",
+    "set_topic_visibility",
+    "set_typing",
     "update_status",
     "manage_user_mute",
     "manage_message_flags",
@@ -78,7 +83,7 @@ async def _annotations(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 21), (True, 49)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 21), (True, 55)])
 async def test_every_tool_advertises_complete_annotations(mode, extended, count):
     wire = await _annotations(extended=extended, read_only=False, mode=mode)
     assert len(wire) == count
@@ -88,7 +93,7 @@ async def test_every_tool_advertises_complete_annotations(mode, extended, count)
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 20)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 22)])
 async def test_read_only_hint_is_exactly_the_read_only_profile(mode, extended, count):
     full = await _annotations(extended=extended, read_only=False, mode=mode)
     read_only_hinted = {n for n, d in full.items() if d["readOnlyHint"]}

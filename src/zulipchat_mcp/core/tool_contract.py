@@ -29,6 +29,8 @@ READ_ONLY_TOOLS = frozenset(
         "check_messages_match_narrow",
         "get_scheduled_messages",
         "get_drafts",
+        "get_read_receipts",
+        "get_message_history",
         "get_daily_summary",
         "list_sessions",
     }

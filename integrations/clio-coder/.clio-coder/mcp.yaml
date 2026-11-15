@@ -24,8 +24,10 @@ servers:
     get_drafts: read
     get_events: execute
     get_message: read
+    get_message_history: read
     get_own_user: read
     get_presence: read
+    get_read_receipts: read
     get_scheduled_messages: read
     get_stream_info: read
     get_stream_topics: read
@@ -40,6 +42,7 @@ servers:
     listen_events: execute
     manage_files: destructive
     manage_message_flags: execute
+    manage_reminders: destructive
     manage_scheduled_message: destructive
     manage_user_mute: execute
     poll_agent_events: execute
@@ -47,10 +50,13 @@ servers:
     register_events: execute
     reply: execute
     request_user_input: execute
+    resolve_topic: destructive
     resolve_user: read
     search_messages: read
     send_message: execute
     server_info: read
+    set_topic_visibility: execute
+    set_typing: execute
     switch_identity: execute
     teleport_chat: execute
     update_message_flags_for_narrow: execute
