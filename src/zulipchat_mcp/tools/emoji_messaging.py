@@ -28,8 +28,11 @@ async def add_reaction(
     reaction_type: Literal[
         "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
     ] = "unicode_emoji",
+    remove: bool = False,
 ) -> dict[str, Any]:
-    """Add emoji reaction to message with validation."""
+    """Add an emoji reaction to a message, or take it back with remove=True."""
+    if remove:
+        return await remove_reaction(message_id, emoji_name, emoji_code, reaction_type)
     if not isinstance(message_id, int) or message_id <= 0:
         return {
             "status": "error",
@@ -118,22 +121,6 @@ async def remove_reaction(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-async def toggle_reaction(
-    message_id: int,
-    emoji_name: str,
-    action: Literal["add", "remove"] = "add",
-    emoji_code: str | None = None,
-    reaction_type: Literal[
-        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
-    ] = "unicode_emoji",
-) -> dict[str, Any]:
-    """Add or remove an emoji reaction."""
-    if action == "add":
-        return await add_reaction(message_id, emoji_name, emoji_code, reaction_type)
-    else:
-        return await remove_reaction(message_id, emoji_name, emoji_code, reaction_type)
 
 
 def register_emoji_messaging_tools(mcp: FastMCP) -> None:

@@ -65,7 +65,7 @@ class TestMessagingTools:
         assert result["status"] == "success"
 
         mock_deps.send_message.assert_called_with(
-            "private", "user@example.com", "hello", None
+            "private", ["user@example.com"], "hello", None
         )
 
     @pytest.mark.asyncio
@@ -77,8 +77,7 @@ class TestMessagingTools:
         assert mock_deps.send_message.call_count == 1
         assert repeat["duplicate_suppressed"] is True
         assert repeat["message_id"] == first["message_id"] == 100
-        assert first["sent_as"] == {"identity": "user", "email": "user@example.com"}
-        assert first["timestamp"].endswith("+00:00")
+        assert first["sent_as"] == "user"
 
         await send_message(
             "private", ["a@x.com", "b@x.com"], "hi", allow_duplicate=True
@@ -108,7 +107,7 @@ class TestMessagingTools:
             ),
         ):
             result = await send_message("private", "jaime@x.com", "hi", as_bot=True)
-        assert result["sent_as"] == {"identity": "bot", "email": "bot@x.com"}
+        assert result["sent_as"] == "bot"
         mock_deps.send_message.assert_not_called()
 
         config.has_bot_credentials.return_value = False
@@ -220,3 +219,68 @@ class TestMessagingTools:
         result = await cross_post_message(1, ["stream2"])
         assert result["status"] == "error"
         assert "Source message not found" in result["error"]
+
+
+class TestRecipientResolution:
+    """Direct messages by name resolve to exactly one person or send nothing."""
+
+    ROSTER = {
+        "result": "success",
+        "members": [
+            {"user_id": 7, "full_name": "Jaime Cernuda", "email": "j@x.com"},
+            {"user_id": 8, "full_name": "Jamie Lee", "email": "jl@x.com"},
+            {"user_id": 9, "full_name": "Anthony Kougkas", "email": "a@x.com"},
+            {"user_id": 10, "full_name": "Anna Smith", "email": "an@x.com"},
+            {"user_id": 11, "full_name": "Old Hand", "is_active": False},
+        ],
+    }
+
+    @pytest.fixture
+    def client(self):
+        client = MagicMock()
+        client.get_users.return_value = self.ROSTER
+        client.send_message.return_value = {
+            "result": "success",
+            "id": 5,
+            "message_link": "https://x/#narrow/near/5",
+        }
+        with patch("src.zulipchat_mcp.tools.messaging.get_client", return_value=client):
+            yield client
+
+    @pytest.mark.asyncio
+    async def test_first_name_resolves_to_user_id_and_returns_link(self, client):
+        result = await send_message("direct", "jaime", "PR is ready")
+        client.send_message.assert_called_once_with("private", [7], "PR is ready", None)
+        assert result["message_link"] == "https://x/#narrow/near/5"
+
+    @pytest.mark.asyncio
+    async def test_near_miss_name_sends_nothing(self, client):
+        result = await send_message("direct", "Jaimie", "hi")
+        client.send_message.assert_not_called()
+        assert result["error_code"] == "UNKNOWN_RECIPIENT"
+        assert result["retryable"] is False
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_prefix_returns_candidates(self, client):
+        result = await send_message("direct", "an", "hi")
+        client.send_message.assert_not_called()
+        assert result["error_code"] == "AMBIGUOUS_RECIPIENT"
+        assert {c["user_id"] for c in result["candidates"]} == {9, 10}
+
+    @pytest.mark.asyncio
+    async def test_emails_and_ids_skip_the_roster(self, client):
+        await send_message("direct", ["a@x.com", "12", 13], "hi")
+        client.get_users.assert_not_called()
+        client.send_message.assert_called_once_with(
+            "private", ["a@x.com", 12, 13], "hi", None
+        )
+
+    @pytest.mark.asyncio
+    async def test_inactive_users_never_match(self, client):
+        result = await send_message("direct", "Old Hand", "hi")
+        assert result["error_code"] == "UNKNOWN_RECIPIENT"
+
+    @pytest.mark.asyncio
+    async def test_channel_shorthand_strips_hash(self, client):
+        await send_message("channel", "#dev", "hi", "build")
+        client.send_message.assert_called_once_with("stream", "dev", "hi", "build")

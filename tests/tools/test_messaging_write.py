@@ -42,7 +42,7 @@ class TestSendMessage:
         result = await send_message("private", "user@example.com", "Hello")
         assert result["status"] == "success"
         mock_deps.send_message.assert_called_with(
-            "private", "user@example.com", "Hello", None
+            "private", ["user@example.com"], "Hello", None
         )
 
     @pytest.mark.asyncio

@@ -5,11 +5,11 @@ Reactions moved to emoji_messaging.py, bulk ops moved to mark_messaging.py.
 """
 
 import asyncio
+import difflib
 import hashlib
 import json
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastmcp import FastMCP
@@ -37,10 +37,11 @@ _recent_sends_lock = threading.Lock()
 def _send_key(
     client: ZulipClientWrapper,
     type: str,
-    to: str | list[str],
+    to: Any,
     content: str,
     topic: str | None,
 ) -> str:
+    type = {"private": "direct", "stream": "channel"}.get(type, type)
     recipients = sorted(
         str(item).strip().lower() for item in (to if isinstance(to, list) else [to])
     )
@@ -53,16 +54,82 @@ def _send_key(
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _match_people(people: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    """Exact full name, then first name, then full-name prefix; first rule wins."""
+    names = [(u, str(u.get("full_name", "")).casefold()) for u in people]
+    for matches in (
+        [u for u, name in names if name == query],
+        [u for u, name in names if name.split()[:1] == [query]],
+        [u for u, name in names if name.startswith(query)],
+    ):
+        if matches:
+            return matches
+    return []
+
+
+def _resolve_recipients(
+    client: ZulipClientWrapper, to: list[str | int]
+) -> list[str | int] | dict[str, Any]:
+    """Turn names into user IDs; emails and IDs pass through unchanged.
+
+    A name must match exactly one active user by full name, first name, or a
+    unique full-name prefix. Anything else returns candidates and sends nothing,
+    so a near-miss never reaches the wrong person.
+    """
+    names = [
+        item
+        for item in to
+        if isinstance(item, str) and "@" not in item and not item.strip().isdigit()
+    ]
+    if not names:
+        return [int(i) if isinstance(i, str) and i.isdigit() else i for i in to]
+    roster = client.get_users()
+    if roster.get("result") != "success":
+        return api_error(roster, "Failed to fetch users for name resolution")
+    people = [u for u in roster.get("members", []) if u.get("is_active", True)]
+    resolved: list[str | int] = []
+    for item in to:
+        if item not in names:
+            resolved.append(
+                int(item) if isinstance(item, str) and item.isdigit() else item
+            )
+            continue
+        query = str(item).strip().casefold()
+        matches = _match_people(people, query)
+        if len(matches) != 1:
+            close = difflib.get_close_matches(
+                query, [str(u.get("full_name", "")).casefold() for u in people], n=3
+            )
+            candidates = matches[:5] or [
+                u for u in people if str(u.get("full_name", "")).casefold() in close
+            ]
+            return {
+                "status": "error",
+                "error": f"'{item}' matches {len(matches) or 'no'} users; nothing was sent",
+                "error_code": "AMBIGUOUS_RECIPIENT" if matches else "UNKNOWN_RECIPIENT",
+                "candidates": [
+                    {"name": u.get("full_name"), "user_id": u.get("user_id")}
+                    for u in candidates
+                ],
+                "retryable": False,
+            }
+        resolved.append(int(matches[0]["user_id"]))
+    return resolved
+
+
 async def send_message(
-    type: Literal["stream", "private"],
-    to: str | list[str],
+    type: Literal["stream", "private", "channel", "direct"],
+    to: str | int | list[str | int],
     content: str,
     topic: str | None = None,
     allow_duplicate: bool = False,
     as_bot: bool = False,
 ) -> dict[str, Any]:
-    """Send a message to stream or user (immediate delivery only).
+    """Send a channel or direct message; direct recipients may be names.
 
+    type="direct" (or "private") takes names, emails or user IDs in to; a name
+    must match one person exactly or nothing is sent and candidates are
+    returned. type="channel" (or "stream") takes a channel name or ID plus topic.
     as_bot=True sends this one message with the configured bot credentials,
     which is how an agent speaks as itself; replies to a bot DM reach the bot.
 
@@ -110,7 +177,15 @@ async def send_message(
                     "Do not repeat it."
                 ),
             }
-    result = await _send_message(client, type, to, content, topic)
+    if type in ("private", "direct"):
+        items = to if isinstance(to, list) else [to]
+        recipients = await asyncio.to_thread(_resolve_recipients, client, items)
+        if isinstance(recipients, dict):
+            return recipients
+        result = await _send_message(client, "private", recipients, content, topic)
+    else:
+        channel = to.lstrip("#") if isinstance(to, str) else to
+        result = await _send_message(client, "stream", channel, content, topic)
     if result.get("status") == "success":
         with _recent_sends_lock:
             _recent_sends[key] = (now, result)
@@ -120,7 +195,7 @@ async def send_message(
 async def _send_message(
     client: ZulipClientWrapper,
     type: Literal["stream", "private"],
-    to: str | list[str],
+    to: Any,
     content: str,
     topic: str | None = None,
 ) -> dict[str, Any]:
@@ -141,15 +216,14 @@ async def _send_message(
     result = await asyncio.to_thread(client.send_message, type, to, safe_content, topic)
 
     if result.get("result") == "success":
-        return {
+        sent: dict[str, Any] = {
             "status": "success",
             "message_id": result.get("id"),
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "sent_as": {
-                "identity": getattr(client, "identity", None),
-                "email": getattr(client, "current_email", None),
-            },
+            "sent_as": getattr(client, "identity", None),
         }
+        if result.get("message_link"):
+            sent["message_link"] = result["message_link"]
+        return sent
     else:
         return api_error(result, "Failed to send message")
 
