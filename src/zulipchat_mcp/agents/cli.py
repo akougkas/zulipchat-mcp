@@ -48,16 +48,17 @@ def cmd_add(args: argparse.Namespace) -> int:
     elif args.owner_zuliprc:
         from ..config import ConfigManager
         from ..core.client import ZulipClientWrapper
-        from .provision import create_agent_bot, write_bot_zuliprc
+        from .provision import ProvisionError, create_agent_bot, write_bot_zuliprc
 
         owner = ZulipClientWrapper(
             ConfigManager(config_file=str(Path(args.owner_zuliprc).expanduser()))
         )
-        created = create_agent_bot(
-            owner, args.full_name or args.name.title(), args.short_name or args.name
-        )
-        if created.get("result") != "success":
-            print(f"Zulip refused to create the bot: {created.get('msg')}", file=sys.stderr)
+        try:
+            created = create_agent_bot(
+                owner, args.full_name or args.name.title(), args.short_name or args.name
+            )
+        except ProvisionError as error:
+            print(f"Zulip refused to create the bot: {error}", file=sys.stderr)
             return 1
         write_bot_zuliprc(
             zuliprc, created["email"], created["api_key"], owner.client.base_url
@@ -110,8 +111,13 @@ async def _serve(agents: list[AgentConfig]) -> None:
 
     bridges = [AgentBridge(agent) for agent in agents]
     loop = asyncio.get_running_loop()
+
+    def stop_all() -> None:
+        for bridge in bridges:
+            bridge.stop()
+
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: [b.stop() for b in bridges])
+        loop.add_signal_handler(sig, stop_all)
     results = await asyncio.gather(*(b.run() for b in bridges), return_exceptions=True)
     for agent, result in zip(agents, results, strict=True):
         if isinstance(result, Exception):

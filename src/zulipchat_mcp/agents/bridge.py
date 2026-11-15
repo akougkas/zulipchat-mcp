@@ -25,7 +25,7 @@ from ..services.bot_mentions import ALL_SCOPE, BotMentionInbox
 from ..utils.logging import get_logger
 from .acp import AcpAgent, AcpError
 from .config import AgentConfig
-from .provision import bot_owner_id
+from .provision import ProvisionError, bot_owner_id
 from .store import BridgeStore
 
 logger = get_logger(__name__)
@@ -130,7 +130,10 @@ class AgentBridge:
         if profile.get("result") != "success" or not profile.get("is_bot"):
             raise RuntimeError(f"{self.config.name}: zuliprc must belong to a bot")
         self.bot_id, self.bot_name = profile["user_id"], profile.get("full_name")
-        self.owner_id = await asyncio.to_thread(bot_owner_id, self.client)
+        try:
+            self.owner_id = await asyncio.to_thread(bot_owner_id, self.client)
+        except ProvisionError as error:
+            raise RuntimeError(f"{self.config.name}: {error}") from error
         if self.owner_id is None:
             raise RuntimeError(f"{self.config.name}: the bot has no owner in Zulip")
         logger.info(
@@ -353,9 +356,22 @@ class AgentBridge:
         )
         await agent.start()
         previous = conversation.session_id
-        conversation.session_id = await agent.open_session(
-            str(conversation.cwd), self._mcp_servers(conversation), previous
-        )
+        servers = self._mcp_servers(conversation)
+        try:
+            conversation.session_id = await agent.open_session(
+                str(conversation.cwd), servers, previous
+            )
+        except AcpError:
+            if previous is None:
+                raise
+            # Some agents hang or exit on a session they no longer know
+            # (goose); start over with a fresh process and a new session.
+            logger.warning("%s could not reopen %s", self.config.name, previous)
+            await agent.close()
+            await agent.start()
+            conversation.session_id = await agent.open_session(
+                str(conversation.cwd), servers, None
+            )
         conversation.agent = agent
         self.store.bind(
             conversation.key,
@@ -381,13 +397,21 @@ class AgentBridge:
         except AcpError as error:
             conversation.agent = None
             self.store.finish_turn(last["id"], "failed")
-            await self._post(conversation.destination, f"The agent stopped: {error}")
+            await self._post(
+                conversation.destination, f"The agent could not start: {error}"
+            )
             return
         finally:
             typing.cancel()
             await self._typing_stop(conversation.destination)
-        self.store.finish_turn(last["id"])
-        if result.stop_reason == "cancelled":
+        self.store.finish_turn(last["id"], "failed" if result.error else "done")
+        if not agent.alive:
+            conversation.agent = None
+        if result.stop_reason == "error":
+            body = (result.text.strip() + "\n\n" if result.text.strip() else "") + (
+                f"The agent failed: {result.error}"
+            )
+        elif result.stop_reason == "cancelled":
             body = result.text.strip() or "Stopped."
         elif result.text.strip():
             body = result.text.strip()
