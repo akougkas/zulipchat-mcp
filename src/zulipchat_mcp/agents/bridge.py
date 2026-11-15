@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..config import ConfigManager
+from ..config import ConfigManager, load_zuliprc_credentials
 from ..core.client import ZulipClientWrapper
 from ..services.bot_mentions import ALL_SCOPE, BotMentionInbox
 from ..utils.logging import get_logger
@@ -31,6 +31,9 @@ from .store import BridgeStore
 logger = get_logger(__name__)
 
 ZULIP_MESSAGE_LIMIT = 9500
+MAX_ANSWER_PARTS = 5  # one answer never floods a conversation
+PERMISSION_TARGET_LIMIT = 6000  # the approver must see what they approve
+OWNER_CHECK_SECONDS = 300
 TYPING_REFRESH_SECONDS = 8
 PROGRESS_DELAY_SECONDS = 20  # turns shorter than this post no status message
 PROGRESS_EVERY_SECONDS = 10
@@ -101,19 +104,65 @@ def _dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _fenced(text: str, limit: int = 600) -> str:
-    text = text if len(text) <= limit else text[:limit] + "…"
-    return "```\n" + text.replace("```", "ˋˋˋ") + "\n```"
+def _fenced(text: str, limit: int = PERMISSION_TARGET_LIMIT) -> str:
+    block = "```\n" + text[:limit].replace("```", "ˋˋˋ") + "\n```"
+    if len(text) > limit:
+        # Never let an approval cover text the approver could not read.
+        block += (
+            f"\n⚠️ Only the first {limit} of {len(text)} characters are shown. "
+            "Answer `no` unless you know the rest."
+        )
+    return block
+
+
+_MENTION = re.compile(r"@(?=\*)")
+_SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL", re.I)
+_SECRET_SHAPES = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"
+    r"|\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}"
+    r"|github_pat_[A-Za-z0-9_]{30,}|hf_[A-Za-z0-9]{30,}"
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16})",
+    re.S,
+)
+_ZULIPRC_KEY = re.compile(r"(?im)^(\s*key\s*=\s*)\S{20,}\s*$")
+
+
+def silence_mentions(text: str) -> str:
+    """Make every mention silent outside code blocks, so agent text pings nobody."""
+    parts = text.split("```")
+    parts[::2] = [_MENTION.sub("@_", part) for part in parts[::2]]
+    return "```".join(parts)
+
+
+def known_secrets(config: AgentConfig) -> list[str]:
+    """Secret values this process can see: they must never be posted to Zulip."""
+    values = {
+        value
+        for name, value in {**os.environ, **config.env}.items()
+        if _SECRET_NAME.search(name) and len(value) >= 12
+    }
+    try:
+        values.add(load_zuliprc_credentials(str(config.zuliprc))["api_key"])
+    except (OSError, ValueError, KeyError, LookupError):
+        pass  # the client reports an unusable zuliprc
+    return sorted(values, key=len, reverse=True)
+
+
+def redact(text: str, secrets: list[str]) -> str:
+    for secret in secrets:
+        text = text.replace(secret, "[redacted]")
+    text = _ZULIPRC_KEY.sub(r"\1[redacted]", text)
+    return _SECRET_SHAPES.sub("[redacted]", text)
 
 
 def describe_permission(params: dict[str, Any]) -> str:
     """Markdown for an ACP permission request, using Clio's decision facts if sent."""
     tool, meta = _dict(params.get("toolCall")), _dict(params.get("_meta"))
     decision, worker = _dict(meta.get(DECISION_META)), meta.get(WORKER_ASK_META)
-    title = (
+    title = str(
         decision.get("title") or tool.get("title") or tool.get("kind") or "an action"
     )
-    lines = [str(title)]
+    lines = [_line(title, 300)]
     raw = _dict(tool.get("rawInput"))
     target = decision.get("target") or next(
         (
@@ -132,7 +181,10 @@ def describe_permission(params: dict[str, Any]) -> str:
         target = "\n".join(paths[:5]) or None
     if target and target != title:
         lines.append(_fenced(str(target)))
-    lines += [f"- {line}" for line in decision.get("consequenceLines") or []]
+    lines += [
+        f"- {_line(line, 300)}"
+        for line in (decision.get("consequenceLines") or [])[:10]
+    ]
     if isinstance(worker, dict):
         lines.append(
             f"Asked by worker `{worker.get('agentId') or worker.get('requestedBy')}`."
@@ -234,8 +286,9 @@ class Conversation:
 class AgentBridge:
     """Serve one agent bot until stopped."""
 
-    def __init__(self, config: AgentConfig) -> None:
+    def __init__(self, config: AgentConfig, accept_owner: bool = False) -> None:
         self.config = config
+        self.accept_owner = accept_owner
         self.store = BridgeStore(config.state_path)
         manager = ConfigManager(config_file=str(config.zuliprc))
         self.client = ZulipClientWrapper(manager, use_bot_identity=False)
@@ -247,6 +300,8 @@ class AgentBridge:
             ALL_SCOPE,
         )
         self.conversations: dict[str, Conversation] = {}
+        self.secrets = known_secrets(config)
+        self._revoked = False
         self.owner_id: int | None = None
         self.bot_id: int | None = None
         self.bot_name: str | None = None
@@ -264,6 +319,13 @@ class AgentBridge:
             raise RuntimeError(f"{self.config.name}: {error}") from error
         if self.owner_id is None:
             raise RuntimeError(f"{self.config.name}: the bot has no owner in Zulip")
+        # An organization administrator can reassign a bot. The owner drives a
+        # local agent, so a new owner is never adopted from Zulip silently.
+        paired = self.store.owner()
+        if paired is None or self.accept_owner:
+            self.store.pair_owner(self.owner_id)
+        elif paired != self.owner_id:
+            raise RuntimeError(self._owner_changed(paired, self.owner_id))
         logger.info(
             "agent bot %s (%s) serving owner %s",
             self.config.name,
@@ -271,12 +333,41 @@ class AgentBridge:
             self.owner_id,
         )
         await self._report_interrupted_turns()
+        serving = self.owner_id
         reaper = asyncio.create_task(self._reap_idle())
+        watcher = asyncio.create_task(self._watch_owner())
         try:
             await self._listen()
         finally:
             reaper.cancel()
+            watcher.cancel()
             await self.shutdown()
+        if self.owner_id != serving:
+            raise RuntimeError(self._owner_changed(serving, self.owner_id))
+
+    def _owner_changed(self, paired: int, current: int | None) -> str:
+        return (
+            f"{self.config.name}: Zulip reports user {current} as this bot's owner, "
+            f"but the bridge is paired with user {paired}. Nobody is served. If you "
+            "changed the owner yourself, start once with "
+            "`zulipchat-mcp-agents run --accept-owner`."
+        )
+
+    async def _watch_owner(self) -> None:
+        """Stop serving as soon as the bot's owner in Zulip is someone else."""
+        while True:
+            await asyncio.sleep(OWNER_CHECK_SECONDS)
+            try:
+                current = await asyncio.to_thread(bot_owner_id, self.client)
+            except Exception as error:  # an outage is not an owner change
+                logger.warning("%s owner check failed: %s", self.config.name, error)
+                continue
+            if current != self.owner_id:
+                logger.error("%s: bot owner changed; stopping", self.config.name)
+                self.owner_id = current
+                self._revoked = True
+                self.stop()
+                return
 
     def stop(self) -> None:
         self._stop.set()
@@ -328,21 +419,36 @@ class AgentBridge:
     # Routing
     def admitted(self, message: dict[str, Any]) -> bool:
         sender = message.get("sender_id")
-        return type(sender) is int and (
-            sender == self.owner_id or sender in self.config.allow
+        return (
+            not self._revoked
+            and type(sender) is int
+            and (sender == self.owner_id or sender in self.config.allow)
         )
 
     async def route(self, message: dict[str, Any]) -> None:
         if not self.admitted(message):
             return  # strangers get nothing, not even a refusal
         key = conversation_key(message, self.bot_id)
-        text = strip_mention(
-            str(message.get("content", "")), self.bot_id, self.bot_name
-        )
         question = self.store.open_question(key)
         direct = message.get("type") == "private"
         if not direct and "mentioned" not in message.get("flags", []) and not question:
             return  # owner chatter in a topic the bot watches for answers
+        content = str(message.get("content", ""))
+        if message.get("content_truncated"):
+            # The inbox keeps 6000 characters; half an instruction is not one.
+            full = await asyncio.to_thread(
+                self.client.get_message, message["id"], apply_markdown=False, fresh=True
+            )
+            fetched = _dict(_dict(full).get("message")).get("content")
+            if not isinstance(fetched, str):
+                await self._post_to(
+                    message,
+                    "I could not read that long message in full, so I did not act "
+                    "on it. Send it again in shorter parts.",
+                )
+                return
+            content = fetched
+        text = strip_mention(content, self.bot_id, self.bot_name)
         if await self._answer(key, text, question, message):
             return
         if text.startswith("/"):
@@ -372,9 +478,9 @@ class AgentBridge:
         if not question:
             return False
         if question["kind"] == "permission":
-            verdict = words[0].casefold() if words else ""
-            if explicit:
-                verdict = words[0]
+            # The whole message must be the verdict: "ok, looking" said to a
+            # colleague in the same topic approves nothing.
+            verdict = words[0] if explicit else text.strip().rstrip(".!").casefold()
             if verdict not in _YES | _NO:
                 await self._post_to(
                     message,
@@ -573,7 +679,14 @@ class AgentBridge:
             body = result.text.strip()
         else:
             body = f"Finished ({result.stop_reason}) without a written answer."
-        for part in split_message(body):
+        parts = split_message(body)
+        if len(parts) > MAX_ANSWER_PARTS:
+            dropped = sum(len(part) for part in parts[MAX_ANSWER_PARTS:])
+            parts = [
+                *parts[:MAX_ANSWER_PARTS],
+                f"… {dropped} more characters were not posted.",
+            ]
+        for part in parts:
             await self._post(conversation.destination, part)
 
     def _preface(self, conversation: Conversation) -> str:
@@ -645,8 +758,15 @@ class AgentBridge:
     ) -> dict[str, Any]:
         """Relay an ACP permission request to Zulip; silence means no."""
         options = params.get("options") or []
+        offered = {_dict(option).get("kind") for option in options}
         body = (
             describe_permission(params)
+            + (
+                "\n⚠️ The agent offers no one-time approval: `yes` allows this kind "
+                "of action from now on."
+                if "allow_always" in offered and "allow_once" not in offered
+                else ""
+            )
             + "\nAnswer `yes` or `no`, or react 👍 or 👎. No answer within "
             + f"{self.config.question_minutes:g} min means no."
         )
@@ -789,7 +909,12 @@ class AgentBridge:
             self.store.finish_turn(turn["message_id"], "interrupted")
 
     # Zulip output
+    def _outbound(self, content: str) -> str:
+        """Everything posted for an agent: no live mentions, no known secrets."""
+        return silence_mentions(redact(content, self.secrets))
+
     async def _post(self, where: dict[str, Any], content: str) -> int | None:
+        content = self._outbound(content)
         response = await asyncio.to_thread(
             self.client.send_message,
             where["type"],
@@ -806,7 +931,7 @@ class AgentBridge:
     async def _edit(self, message_id: int, content: str) -> bool:
         response = await asyncio.to_thread(
             self.client.client.update_message,
-            {"message_id": message_id, "content": content},
+            {"message_id": message_id, "content": self._outbound(content)},
         )
         if response.get("result") != "success":
             logger.debug("status edit failed: %s", response.get("msg"))

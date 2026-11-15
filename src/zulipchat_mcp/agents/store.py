@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS questions(
     options TEXT NOT NULL, created REAL NOT NULL, deadline REAL NOT NULL,
     answer TEXT, answered REAL
 );
+CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
@@ -55,6 +56,18 @@ class BridgeStore:
                 yield db
         finally:
             db.close()
+
+    # The Zulip user this bridge was paired with on its first run.
+    def owner(self) -> int | None:
+        with self._db() as db:
+            row = db.execute("SELECT value FROM settings WHERE key='owner'").fetchone()
+        return int(row["value"]) if row else None
+
+    def pair_owner(self, user_id: int) -> None:
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO settings VALUES('owner', ?)", (str(user_id),)
+            )
 
     # Conversations
     def conversation(self, key: str) -> dict[str, Any] | None:
@@ -101,6 +114,8 @@ class BridgeStore:
         question_id = secrets.token_hex(2)
         now = time.time()
         with self._db() as db:
+            # IDs are four hex digits; old rows must not exhaust them.
+            db.execute("DELETE FROM questions WHERE deadline<?", (now - 86400,))
             db.execute(
                 "INSERT INTO questions VALUES(?,?,?,?,?,?,?,NULL,NULL)",
                 (

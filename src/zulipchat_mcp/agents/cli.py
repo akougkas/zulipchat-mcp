@@ -106,10 +106,10 @@ def cmd_list(_: argparse.Namespace) -> int:
     return status
 
 
-async def _serve(agents: list[AgentConfig]) -> None:
+async def _serve(agents: list[AgentConfig], accept_owner: bool = False) -> int:
     from .bridge import AgentBridge
 
-    bridges = [AgentBridge(agent) for agent in agents]
+    bridges = [AgentBridge(agent, accept_owner) for agent in agents]
     loop = asyncio.get_running_loop()
 
     def stop_all() -> None:
@@ -119,9 +119,12 @@ async def _serve(agents: list[AgentConfig]) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_all)
     results = await asyncio.gather(*(b.run() for b in bridges), return_exceptions=True)
+    failed = 0
     for agent, result in zip(agents, results, strict=True):
         if isinstance(result, Exception):
             print(f"{agent.name}: {result}", file=sys.stderr)
+            failed = 1
+    return failed
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -134,8 +137,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not agents:
         print(f"No agent bots declared in {config_dir()}", file=sys.stderr)
         return 1
-    asyncio.run(_serve(agents))
-    return 0
+    return asyncio.run(_serve(agents, args.accept_owner))
 
 
 def cmd_teleport(args: argparse.Namespace) -> int:
@@ -209,6 +211,11 @@ def main(argv: list[str] | None = None) -> int:
     run = sub.add_parser("run", help="Serve agent bots until stopped")
     run.add_argument("--agent", action="append", help="serve only these names")
     run.add_argument("--debug", action="store_true")
+    run.add_argument(
+        "--accept-owner",
+        action="store_true",
+        help="pair again after you changed a bot's owner in Zulip yourself",
+    )
     run.set_defaults(func=cmd_run)
     teleport = sub.add_parser(
         "teleport", help="Continue a local agent session in a DM with its bot"
