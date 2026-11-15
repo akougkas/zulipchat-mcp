@@ -30,14 +30,3 @@ def validate_emoji_for_agent(emoji_name: str) -> tuple[bool, str]:
 
     approved_list = ", ".join(list(APPROVED_EMOJI.keys())[:5]) + "..."
     return False, f"Emoji '{emoji_name}' not approved. Use: {approved_list}"
-
-
-def get_emoji_choices() -> list[dict[str, str]]:
-    """Return approved emoji choices for agents.
-
-    Returns:
-        List of dicts with 'name' and 'description' keys
-    """
-    return [
-        {"name": name, "description": desc} for name, desc in APPROVED_EMOJI.items()
-    ]

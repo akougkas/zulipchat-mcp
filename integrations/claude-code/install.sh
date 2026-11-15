@@ -11,11 +11,13 @@ elif [[ -f "$HOME/.zuliprc-bot" ]]; then
   BOT_ARGS=(--zulip-bot-config-file "$HOME/.zuliprc-bot")
 fi
 
-claude mcp add zulipchat -- uvx zulipchat-mcp \
-  --zulip-config-file "$ZULIP_CONFIG_FILE" \
-  "${BOT_ARGS[@]}"
+echo "User zuliprc: $ZULIP_CONFIG_FILE"
+echo "Bot zuliprc: ${BOT_ARGS[1]:-none}"
 
-uv run zulipchat-mcp-integrate export \
+# The export writes .mcp.json and the zulipchat skill into the project, both
+# pinned to this version. It does not also register the server with
+# `claude mcp add`: that would declare it twice.
+uvx --from zulipchat-mcp==0.8.0 zulipchat-mcp-integrate export \
   --client claude-code \
   --mode standalone \
   --output-dir "$PROJECT_DIR" \

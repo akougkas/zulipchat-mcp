@@ -1,16 +1,15 @@
 """Search tools for ZulipChat MCP v0.4.0.
 
 Core search operations: search messages, advanced search, narrow construction.
-Analytics moved to ai_analytics.py for LLM elicitation.
+Per-channel activity counts live in get_daily_summary.
 """
 
 import asyncio
-from collections import Counter
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Any, Literal, TypedDict, cast
-
-from fastmcp import FastMCP
 
 from ..config import get_client
 from ..core.api_errors import api_error
@@ -122,6 +121,45 @@ async def resolve_user_identifier(
         raise Exception(f"Failed to resolve user '{identifier}': {str(e)}") from e
 
 
+EXCERPT_CHARS = 1000
+
+
+def compact_message(
+    msg: dict[str, Any], *, fixed_stream: bool = False, fixed_topic: bool = False
+) -> dict[str, Any]:
+    """One message as few tokens as possible: no nulls, no repeated context."""
+    content = str(msg.get("content", ""))
+    row: dict[str, Any] = {
+        "id": msg["id"],
+        "from": msg.get("sender_full_name"),
+        "time": datetime.fromtimestamp(msg["timestamp"], tz=timezone.utc).isoformat(
+            timespec="minutes"
+        ),
+    }
+    if msg.get("type") == "private":
+        row["dm"] = True
+    else:
+        if not fixed_stream:
+            row["channel"] = msg.get("display_recipient")
+        if not fixed_topic:
+            row["topic"] = msg.get("subject")
+    row["text"] = content[:EXCERPT_CHARS]
+    if len(content) > EXCERPT_CHARS:
+        row["truncated"] = True
+    reactions: dict[str, int] = {}
+    for reaction in msg.get("reactions") or []:
+        name = reaction.get("emoji_name")
+        reactions[name] = reactions.get(name, 0) + 1
+    if reactions:
+        row["reactions"] = reactions
+    flags = msg.get("flags")
+    if flags is not None and "read" not in flags:
+        row["unread"] = True
+    if flags and "starred" in flags:
+        row["starred"] = True
+    return row
+
+
 def build_narrow(
     stream: str | None = None,
     topic: str | None = None,
@@ -137,13 +175,14 @@ def build_narrow(
     last_days: int | str | None = None,
     after_time: datetime | str | None = None,
     before_time: datetime | str | None = None,
+    is_unread: bool | None = None,
 ) -> list[NarrowFilter]:
     """Build comprehensive narrow filter for Zulip API."""
     narrow: list[NarrowFilter] = []
 
     # Basic filters
     if stream:
-        narrow.append({"operator": "stream", "operand": stream})
+        narrow.append({"operator": "channel", "operand": stream})
     if topic:
         narrow.append({"operator": "topic", "operand": topic})
     if sender:
@@ -153,43 +192,21 @@ def build_narrow(
     if text and text.strip() and text.strip() != "*":
         narrow.append({"operator": "search", "operand": text})
 
-    # Content type filters
-    if has_attachment is not None:
-        if has_attachment:
-            narrow.append({"operator": "has", "operand": "attachment"})
-        else:
-            narrow.append({"operator": "has", "operand": "attachment", "negated": True})
-
-    if has_link is not None:
-        if has_link:
-            narrow.append({"operator": "has", "operand": "link"})
-        else:
-            narrow.append({"operator": "has", "operand": "link", "negated": True})
-
-    if has_image is not None:
-        if has_image:
-            narrow.append({"operator": "has", "operand": "image"})
-        else:
-            narrow.append({"operator": "has", "operand": "image", "negated": True})
-
-    # Message state filters
-    if is_private is not None:
-        if is_private:
-            narrow.append({"operator": "is", "operand": "private"})
-        else:
-            narrow.append({"operator": "is", "operand": "private", "negated": True})
-
-    if is_starred is not None:
-        if is_starred:
-            narrow.append({"operator": "is", "operand": "starred"})
-        else:
-            narrow.append({"operator": "is", "operand": "starred", "negated": True})
-
-    if is_mentioned is not None:
-        if is_mentioned:
-            narrow.append({"operator": "is", "operand": "mentioned"})
-        else:
-            narrow.append({"operator": "is", "operand": "mentioned", "negated": True})
+    # Boolean filters: True requires the property, False excludes it.
+    for operator, operand, value in (
+        ("has", "attachment", has_attachment),
+        ("has", "link", has_link),
+        ("has", "image", has_image),
+        ("is", "dm", is_private),
+        ("is", "starred", is_starred),
+        ("is", "mentioned", is_mentioned),
+        ("is", "unread", is_unread),
+    ):
+        if value is not None:
+            entry: NarrowFilter = {"operator": operator, "operand": operand}
+            if not value:
+                entry["negated"] = True
+            narrow.append(entry)
 
     # Note: Time filters are NOT added to narrow - Zulip's get_messages API
     # doesn't support search operator with after:/before: syntax.
@@ -217,11 +234,21 @@ async def search_messages(
     after_time: datetime | str | None = None,
     before_time: datetime | str | None = None,
     # Response control
-    limit: int = 50,
+    limit: int = 20,
     sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
     fresh: bool = False,
+    content_format: Literal["markdown", "rendered_html"] = "markdown",
+    cursor: str | None = None,
+    is_unread: bool | None = None,
 ) -> dict[str, Any]:
-    """Advanced search with fuzzy user resolution and comprehensive filtering."""
+    """Search or read messages; stream+topic with no query reads a thread.
+
+    Filters combine: channel, topic, sender (name or email), text, time window,
+    unread/mentioned/starred/DM flags. Rows are compact Markdown; channel and
+    topic are omitted when the filter already fixes them. When
+    sample.next_cursor is set, repeat the same call with cursor=<next_cursor>
+    for the next page; no next_cursor means the query is exhausted.
+    """
     client = get_client()
 
     try:
@@ -289,6 +316,7 @@ async def search_messages(
             is_private=is_private,
             is_starred=is_starred,
             is_mentioned=is_mentioned,
+            is_unread=is_unread,
         )
 
         if not 1 <= limit <= 1000:
@@ -317,10 +345,17 @@ async def search_messages(
             if days <= 0:
                 return {"status": "error", "error": "last_days must be positive"}
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        if after_time is not None:
-            after = parse_time(after_time)
+        try:
+            after = parse_time(after_time) if after_time is not None else None
+            before = parse_time(before_time) if before_time is not None else None
+        except ValueError as e:
+            return {
+                "status": "error",
+                "error": "after_time/before_time must be ISO 8601, e.g. "
+                f"2026-11-08 or 2026-11-08T00:00:00Z ({e})",
+            }
+        if after is not None:
             cutoff = max(cutoff, after) if cutoff else after
-        before = parse_time(before_time) if before_time is not None else None
         if cutoff and before and cutoff > before:
             return {
                 "status": "error",
@@ -329,13 +364,43 @@ async def search_messages(
         cutoff_ts = cutoff.timestamp() if cutoff else None
         before_ts = before.timestamp() if before else None
 
+        # A cursor is valid only for the same account, filters and order.
+        query_key = hashlib.sha256(
+            json.dumps(
+                [
+                    str(client.current_email),
+                    str(client.identity),
+                    str(client.read_snapshots.realm),
+                    narrow,
+                    str(last_hours),
+                    str(last_days),
+                    str(after_time),
+                    str(before_time),
+                    sort_by,
+                ],
+                default=str,
+            ).encode()
+        ).hexdigest()[:16]
+        cursor_id: int | None = None
+        if cursor is not None:
+            cursor_message, _, cursor_key = cursor.partition(":")
+            if cursor_key != query_key or not cursor_message.isdigit():
+                return {
+                    "status": "error",
+                    "error": "cursor does not belong to this search; repeat the "
+                    "call that returned it with the same filters, or omit cursor",
+                }
+            cursor_id = int(cursor_message)
+
         # Fetch from the requested end of the interval. Anchoring at its start
         # for a newest-first query silently returns the oldest matching sample.
         oldest_first = sort_by == "oldest"
         anchor = "oldest" if oldest_first else "newest"
         anchor_date = None
         boundary = cutoff if oldest_first else before
-        if boundary:
+        if cursor_id is not None:
+            anchor = str(cursor_id)
+        elif boundary:
             anchor = "date"
             anchor_date = boundary.isoformat()
         num_before = 0 if oldest_first else limit
@@ -349,386 +414,77 @@ async def search_messages(
             narrow=cast(list[dict[str, Any]], narrow),
             num_before=num_before,
             num_after=num_after,
-            include_anchor=True,
+            include_anchor=cursor_id is None,
             client_gravatar=True,
-            apply_markdown=True,
+            apply_markdown=content_format == "rendered_html",
             use_cache=not fresh,
         )
 
         if result.get("result") == "success":
             messages = result.get("messages", [])
-            fetched_count = len(messages)
 
             # Post-fetch time filtering (anchor_date positions anchor, doesn't filter)
-            if cutoff_ts is not None:
-                messages = [m for m in messages if m["timestamp"] >= cutoff_ts]
-            if before_ts is not None:
-                messages = [m for m in messages if m["timestamp"] <= before_ts]
-
+            in_window = [
+                m
+                for m in messages
+                if (cutoff_ts is None or m["timestamp"] >= cutoff_ts)
+                and (before_ts is None or m["timestamp"] <= before_ts)
+            ]
+            if oldest_first:
+                reached_end = bool(result.get("found_newest")) or any(
+                    before_ts is not None and m["timestamp"] > before_ts
+                    for m in messages
+                )
+            else:
+                reached_end = bool(result.get("found_oldest")) or any(
+                    cutoff_ts is not None and m["timestamp"] < cutoff_ts
+                    for m in messages
+                )
+            more = len(in_window) > limit or not reached_end
             messages = sorted(
-                messages,
+                in_window,
                 key=lambda message: (message["timestamp"], message["id"]),
                 reverse=not oldest_first,
             )[:limit]
+            next_cursor = (
+                f"{messages[-1]['id']}:{query_key}" if more and messages else None
+            )
 
-            # Process messages for response
-            processed_messages = []
-            for msg in messages:
-                processed_messages.append(
-                    {
-                        "id": msg["id"],
-                        "sender": msg["sender_full_name"],
-                        "email": msg["sender_email"],
-                        "timestamp": msg["timestamp"],
-                        "timestamp_utc": datetime.fromtimestamp(
-                            msg["timestamp"], tz=timezone.utc
-                        ).isoformat(),
-                        "content_format": "rendered_html",
-                        "content_truncated": len(msg["content"]) > 1000,
-                        "content": (
-                            msg["content"][:1000] + "..."
-                            if len(msg["content"]) > 1000
-                            else msg["content"]
-                        ),
-                        "type": msg["type"],
-                        "stream": msg.get("display_recipient"),
-                        "topic": msg.get("subject"),
-                        "reactions": msg.get("reactions", []),
-                        "flags": msg.get("flags", []),
-                    }
+            processed_messages = [
+                compact_message(
+                    msg, fixed_stream=bool(stream), fixed_topic=bool(stream and topic)
                 )
-
+                for msg in messages
+            ]
+            # Metadata precedes messages so a host that truncates long results
+            # still shows the paging state.
+            sample: dict[str, Any] = {
+                "completeness": (
+                    "partial" if next_cursor else "exhausted_visible_query"
+                ),
+                "ordering": "oldest_first" if oldest_first else "newest_first",
+            }
+            if next_cursor:
+                sample["next_cursor"] = next_cursor
+            truncated = sum(1 for row in processed_messages if row.get("truncated"))
+            if truncated:
+                sample["truncated_excerpts"] = truncated
+            if cutoff:
+                sample["after_time_utc"] = cutoff.isoformat()
+            if before:
+                sample["before_time_utc"] = before.isoformat()
+            if stream:
+                sample["channel"] = stream
+            if stream and topic:
+                sample["topic"] = topic
             return {
                 "status": "success",
+                "count": len(processed_messages),
+                "sample": sample,
                 "messages": processed_messages,
-                "found": len(processed_messages),
-                "sample": {
-                    "coverage": "single_api_window",
-                    "requested_limit": limit,
-                    "fetched_count": fetched_count,
-                    "returned_count": len(processed_messages),
-                    "truncated_excerpt_count": sum(
-                        message["content_truncated"] for message in processed_messages
-                    ),
-                    "found_oldest": result.get("found_oldest"),
-                    "found_newest": result.get("found_newest"),
-                    "after_time_utc": cutoff.isoformat() if cutoff else None,
-                    "before_time_utc": before.isoformat() if before else None,
-                    "ordering": "oldest_first" if oldest_first else "newest_first",
-                    "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
-                    "cache": result.get("_cache"),
-                },
-                "anchor": result.get("anchor"),
-                "narrow_applied": narrow,
-                "sort_by": sort_by,
             }
         else:
             return api_error(result, "Search failed")
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def advanced_search(
-    query: str,
-    search_type: list[Literal["messages", "users", "streams", "topics"]] | None = None,
-    # Filters
-    stream: str | None = None,
-    topic: str | None = None,
-    sender: str | None = None,
-    has_attachment: bool | None = None,
-    has_link: bool | None = None,
-    is_private: bool | None = None,
-    is_starred: bool | None = None,
-    # Time range
-    last_hours: int | None = None,
-    last_days: int | None = None,
-    # Response control
-    limit: int = 100,
-    sort_by: Literal["newest", "oldest", "relevance"] = "relevance",
-    # Basic aggregations only
-    aggregations: list[str] | None = None,
-) -> dict[str, Any]:
-    """Multi-faceted search with basic aggregations."""
-    client = get_client()
-
-    search_type = search_type or ["messages"]
-    results = {}
-
-    try:
-        # Search messages
-        if "messages" in search_type:
-            msg_result = await search_messages(
-                query=query,
-                stream=stream,
-                topic=topic,
-                sender=sender,
-                has_attachment=has_attachment,
-                has_link=has_link,
-                is_private=is_private,
-                is_starred=is_starred,
-                last_hours=last_hours,
-                last_days=last_days,
-                limit=limit,
-                sort_by=sort_by,
-            )
-            results["messages"] = msg_result
-
-        # Search users
-        if "users" in search_type:
-            users_response = await asyncio.to_thread(client.get_users)
-            if users_response.get("result") == "success":
-                users = users_response.get("members", [])
-                matching_users = [
-                    user
-                    for user in users
-                    if query.lower() in user.get("full_name", "").lower()
-                    or query.lower() in user.get("email", "").lower()
-                ][:limit]
-                results["users"] = {
-                    "status": "success",
-                    "users": matching_users,
-                    "count": len(matching_users),
-                }
-            else:
-                results["users"] = {
-                    "status": "error",
-                    "error": users_response.get("msg", "User search failed"),
-                }
-
-        # Search streams
-        if "streams" in search_type:
-            streams_response = await asyncio.to_thread(client.get_streams)
-            if streams_response.get("result") == "success":
-                streams = streams_response.get("streams", [])
-                matching_streams = [
-                    stream
-                    for stream in streams
-                    if query.lower() in stream.get("name", "").lower()
-                    or query.lower() in stream.get("description", "").lower()
-                ][:limit]
-                results["streams"] = {
-                    "status": "success",
-                    "streams": matching_streams,
-                    "count": len(matching_streams),
-                }
-            else:
-                results["streams"] = {
-                    "status": "error",
-                    "error": streams_response.get("msg", "Stream search failed"),
-                }
-
-        if "topics" in search_type:
-            if not stream:
-                results["topics"] = {
-                    "status": "error",
-                    "error": "Provide stream when searching topics",
-                }
-            else:
-                stream_result = await asyncio.to_thread(client.get_stream_id, stream)
-                if stream_result.get("result") != "success":
-                    results["topics"] = {
-                        "status": "error",
-                        "error": stream_result.get("msg", "Stream not found"),
-                    }
-                else:
-                    topics_result = await asyncio.to_thread(
-                        client.get_stream_topics, stream_result["stream_id"]
-                    )
-                    if topics_result.get("result") != "success":
-                        results["topics"] = {
-                            "status": "error",
-                            "error": topics_result.get("msg", "Topic search failed"),
-                        }
-                    else:
-                        topics = [
-                            item
-                            for item in topics_result.get("topics", [])
-                            if query.lower() in item.get("name", "").lower()
-                        ][:limit]
-                        results["topics"] = {
-                            "status": "success",
-                            "topics": topics,
-                            "count": len(topics),
-                        }
-
-        # Basic aggregations only
-        if (
-            aggregations
-            and "messages" in results
-            and results["messages"].get("status") == "success"
-        ):
-            messages = results["messages"].get("messages", [])
-            agg_results = {}
-
-            if "count_by_user" in aggregations:
-                user_counts = Counter(msg["sender"] for msg in messages)
-                agg_results["count_by_user"] = dict(user_counts.most_common(10))
-
-            if "count_by_stream" in aggregations:
-                stream_counts = Counter(
-                    msg["stream"]
-                    for msg in messages
-                    if isinstance(msg.get("stream"), str) and msg["stream"]
-                )
-                agg_results["count_by_stream"] = dict(stream_counts.most_common(10))
-
-            results["aggregations"] = agg_results
-
-        failures = [
-            kind
-            for kind in search_type
-            if results.get(kind, {}).get("status") != "success"
-        ]
-        return {
-            "status": (
-                "error"
-                if len(failures) == len(search_type)
-                else "partial" if failures else "success"
-            ),
-            "query": query,
-            "search_types": search_type,
-            "results": results,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-    except Exception as e:
-        return {"status": "error", "error": str(e), "query": query}
-
-
-async def construct_narrow(
-    # Basic narrow operators
-    stream: str | None = None,
-    topic: str | None = None,
-    sender: str | None = None,
-    # Content filters
-    search_text: str | None = None,
-    has_attachment: bool | None = None,
-    has_link: bool | None = None,
-    has_image: bool | None = None,
-    # Message state filters
-    is_private: bool | None = None,
-    is_starred: bool | None = None,
-    is_mentioned: bool | None = None,
-    is_unread: bool | None = None,
-    is_muted: bool | None = None,
-    is_followed: bool | None = None,
-    # Time-based filters
-    after_time: datetime | str | None = None,
-    before_time: datetime | str | None = None,
-    # ID-based filters
-    message_id: int | None = None,
-    near_message_id: int | None = None,
-    # Advanced filters
-    dm_with: str | list[str] | None = None,
-    group_dm_with: str | list[str] | None = None,
-) -> dict[str, Any]:
-    """Construct narrow filter following Zulip API patterns."""
-    try:
-        if after_time is not None or before_time is not None:
-            return {
-                "status": "error",
-                "error": "Zulip narrow filters cannot encode timestamps. Use search_messages with after_time/before_time instead.",
-            }
-        narrow: list[NarrowFilter] = []
-
-        # Basic operators
-        if stream:
-            narrow.append({"operator": "stream", "operand": stream})
-        if topic:
-            narrow.append({"operator": "topic", "operand": topic})
-        if sender:
-            narrow.append({"operator": "sender", "operand": sender})
-
-        # Content search
-        if search_text:
-            narrow.append({"operator": "search", "operand": search_text})
-
-        # Has filters
-        if has_attachment is not None:
-            if has_attachment:
-                narrow.append({"operator": "has", "operand": "attachment"})
-            else:
-                narrow.append(
-                    {"operator": "has", "operand": "attachment", "negated": True}
-                )
-
-        if has_link is not None:
-            if has_link:
-                narrow.append({"operator": "has", "operand": "link"})
-            else:
-                narrow.append({"operator": "has", "operand": "link", "negated": True})
-
-        if has_image is not None:
-            if has_image:
-                narrow.append({"operator": "has", "operand": "image"})
-            else:
-                narrow.append({"operator": "has", "operand": "image", "negated": True})
-
-        # Is filters
-        if is_private is not None:
-            if is_private:
-                narrow.append({"operator": "is", "operand": "private"})
-            else:
-                narrow.append({"operator": "is", "operand": "private", "negated": True})
-
-        if is_starred is not None:
-            if is_starred:
-                narrow.append({"operator": "is", "operand": "starred"})
-            else:
-                narrow.append({"operator": "is", "operand": "starred", "negated": True})
-
-        if is_mentioned is not None:
-            if is_mentioned:
-                narrow.append({"operator": "is", "operand": "mentioned"})
-            else:
-                narrow.append(
-                    {"operator": "is", "operand": "mentioned", "negated": True}
-                )
-
-        if is_unread is not None:
-            if is_unread:
-                narrow.append({"operator": "is", "operand": "unread"})
-            else:
-                narrow.append({"operator": "is", "operand": "unread", "negated": True})
-
-        if is_muted is not None:
-            if is_muted:
-                narrow.append({"operator": "is", "operand": "muted"})
-            else:
-                narrow.append({"operator": "is", "operand": "muted", "negated": True})
-
-        if is_followed is not None:
-            if is_followed:
-                narrow.append({"operator": "is", "operand": "followed"})
-            else:
-                narrow.append(
-                    {"operator": "is", "operand": "followed", "negated": True}
-                )
-
-        # ID-based filters
-        if message_id:
-            narrow.append({"operator": "id", "operand": message_id})
-
-        if near_message_id:
-            narrow.append({"operator": "near", "operand": near_message_id})
-
-        # DM filters
-        if dm_with:
-            if isinstance(dm_with, str):
-                narrow.append({"operator": "dm", "operand": dm_with})
-            else:
-                narrow.append({"operator": "dm", "operand": dm_with})
-
-        if group_dm_with:
-            narrow.append({"operator": "group-pm-with", "operand": group_dm_with})
-
-        return {
-            "status": "success",
-            "narrow": narrow,
-            "filter_count": len(narrow),
-            "operators_used": [n["operator"] for n in narrow],
-        }
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -773,21 +529,16 @@ async def check_messages_match_narrow(
         return {"status": "error", "error": str(e)}
 
 
-def register_search_tools(mcp: FastMCP) -> None:
-    """Register core search tools with the MCP server."""
-    mcp.tool(
-        name="search_messages",
-        description="Advanced search with fuzzy user matching and comprehensive filtering",
-    )(search_messages)
-    mcp.tool(
-        name="advanced_search",
-        description="Multi-faceted search across messages, users, streams with basic aggregations",
-    )(advanced_search)
-    mcp.tool(
-        name="construct_narrow",
-        description="Construct narrow filter following Zulip API patterns",
-    )(construct_narrow)
-    mcp.tool(
-        name="check_messages_match_narrow",
-        description="Check whether messages match a narrow filter",
-    )(check_messages_match_narrow)
+async def get_daily_summary(
+    streams: list[str] | None = None,
+    hours_back: int = 24,
+) -> dict[str, Any]:
+    """Count messages per channel and topic over the last hours_back hours."""
+    client = get_client()
+    try:
+        summary = await asyncio.to_thread(
+            client.get_daily_summary, streams=streams, hours_back=hours_back
+        )
+        return {"status": "success", "hours_back": hours_back, "summary": summary}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

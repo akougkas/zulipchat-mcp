@@ -135,7 +135,7 @@ def _check_required_scripts() -> CheckResult:
         "zulipchat-mcp",
         "zulipchat-mcp-setup",
         "zulipchat-mcp-integrate",
-        "zulipchat-mcp-hook",
+        "zulipchat-mcp-agents",
     ]
     missing = [name for name in expected if f"{name} =" not in content]
     passed = not missing
@@ -168,7 +168,7 @@ def _unsafe_json_companions(value: object) -> bool:
                     if arg in {
                         "zulipchat-mcp-setup",
                         "zulipchat-mcp-integrate",
-                        "zulipchat-mcp-hook",
+                        "zulipchat-mcp-agents",
                     } and not _has_package_source(args[:index]):
                         return True
         return any(_unsafe_json_companions(item) for item in value.values())
@@ -181,7 +181,7 @@ def _check_uvx_package_sources() -> CheckResult:
     """Reject companion commands whose distribution would be inferred by uvx."""
     pattern = re.compile(
         r"\buvx[ \t]+(?P<options>(?:[^\r\n`]|\\\r?\n)*?)"
-        r"\bzulipchat-mcp-(?:setup|integrate|hook)\b"
+        r"\bzulipchat-mcp-(?:setup|integrate|agents)\b"
     )
     paths = list(ROOT.glob("*.md"))
     extensions = {".md", ".rst", ".sh", ".json", ".jsonc", ".toml", ".yml", ".yaml"}

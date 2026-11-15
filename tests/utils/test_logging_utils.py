@@ -5,8 +5,6 @@ from __future__ import annotations
 from zulipchat_mcp.utils.logging import (
     LogContext,
     get_logger,
-    log_api_request,
-    log_function_call,
     setup_basic_logging,
     setup_structured_logging,
 )
@@ -18,16 +16,7 @@ def test_logging_helpers_basic() -> None:
 
     # Context manager should return a logger instance
     with LogContext(logger, tool="test") as bound:
-        # Log success and error paths
-        log_function_call(bound, "demo_func", args=(1, 2), kwargs={"a": 1}, result=123)
-        try:
-            raise ValueError("boom")
-        except Exception as e:
-            log_function_call(bound, "demo_func", error=e)
-
-        # API request logging
-        log_api_request(bound, "GET", "/api", status_code=200, duration=0.01)
-        log_api_request(bound, "POST", "/api", status_code=500, error="fail")
+        bound.info("ok")
 
     # Structured logging setup path
     setup_structured_logging("INFO")

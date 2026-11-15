@@ -1,7 +1,6 @@
 """Rewrite or check the skill copies checked in under integrations/.
 
-The packaged skills are canonical. Claude Code templates use Claude-native
-versions of the session skills.
+The packaged skills are canonical.
 
     uv run python scripts/sync_integration_templates.py [--check]
 """
@@ -12,32 +11,17 @@ import argparse
 import sys
 from pathlib import Path
 
-from zulipchat_mcp.integrations.claude_code_package import (
-    _skill_loop,
-    _skill_notifyme,
-    _skill_session_operator,
-)
 from zulipchat_mcp.skill_content import skill_files
 
 ROOT = Path(__file__).resolve().parents[1]
-CLAUDE_NATIVE = {
-    "zulipchat-loop": _skill_loop,
-    "zulipchat-notifyme": _skill_notifyme,
-    "zulipchat-session-operator": _skill_session_operator,
-}
 
 
 def expected_templates() -> dict[Path, str]:
     canonical = skill_files()
-    expected = {}
-    for path in sorted((ROOT / "integrations").rglob("skills/*/SKILL.md")):
-        name = path.parent.name
-        claude = path.relative_to(ROOT).parts[1] == "claude-code"
-        if claude and name in CLAUDE_NATIVE:
-            expected[path] = CLAUDE_NATIVE[name]()
-        else:
-            expected[path] = canonical[f"{name}/SKILL.md"]
-    return expected
+    return {
+        path: canonical[f"{path.parent.name}/SKILL.md"]
+        for path in sorted((ROOT / "integrations").rglob("skills/*/SKILL.md"))
+    }
 
 
 def main() -> None:

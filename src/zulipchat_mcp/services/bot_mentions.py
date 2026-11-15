@@ -1,14 +1,20 @@
-"""Account-scoped, durable bot mention and direct-message snapshots fed by Zulip.
+"""The durable queue between a bot's users and its agent, fed by Zulip.
 
-This is a transport inbox, not an agent runner. The tool layer withholds content
-from unauthorized senders; hosts still commit their own message-ID cursor with
-their work queue. One inbox serves one scope: a channel's @-mentions of the bot,
-or every direct and group-direct message the bot receives (stream is None).
+A listener thread holds the bot's Zulip event queue and stores each message in
+scope as a row in state ``new``. The bridge drains new rows in order: it drops
+strangers' messages, handles answers and commands, and marks prompts
+``queued`` under their conversation. A conversation's worker takes its queued
+rows (``running``) for one agent turn and deletes them when the turn ends, so
+the file holds only work in flight and survives a restart.
+
+One queue serves one scope: a channel's @-mentions of the bot, every direct and
+group-direct message the bot receives (stream is None), or ALL_SCOPE, which is
+both of those across every channel the bot can see. In every scope, replies in
+a watched channel topic count without a mention.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -21,12 +27,16 @@ from pathlib import Path
 from typing import Any
 
 from ..core.client import ZulipClientWrapper
-from ..core.process_lease import ProcessLease
 from ..core.snapshots import invalidate_realm_snapshots
+
+# Scope sentinel for one inbox holding direct messages to the bot plus its
+# @-mentions in every channel it receives.
+ALL_SCOPE = "*"
+RETENTION_DAYS = 30
 
 
 class BotMentionInbox:
-    """One lazy event queue and bounded snapshot for one account and scope."""
+    """One bot's durable message queue for one account and scope."""
 
     def __init__(
         self,
@@ -34,22 +44,18 @@ class BotMentionInbox:
         path: Path,
         account_fingerprint: str,
         stream: str | None,
-        initial_cursor: int | None = None,
     ) -> None:
         self.client = client
         self.path = path
         self.stream = stream
         self.direct = stream is None
-        self.initial_cursor = initial_cursor
+        self.everything = stream == ALL_SCOPE
         self._condition = threading.Condition(threading.RLock())
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._ready = False
         self._error: str | None = None
         self._retry_after = 0.0
         self._bot_id: int | None = None
-        self._history_requests = 0
-        self._event_requests = 0
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if path.is_symlink():
             raise ValueError("Mention cache must not be a symlink")
@@ -62,10 +68,29 @@ class BotMentionInbox:
                 PRAGMA journal_mode=WAL;
                 CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY, value TEXT);
                 CREATE TABLE IF NOT EXISTS messages(
-                    id INTEGER PRIMARY KEY, payload TEXT NOT NULL,
-                    deleted INTEGER NOT NULL DEFAULT 0
+                    id INTEGER PRIMARY KEY, payload TEXT NOT NULL, stored REAL,
+                    state TEXT NOT NULL DEFAULT 'new', key TEXT
                 );
                 """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(messages)")}
+            if "stored" not in columns:
+                # When the row was written here, for retention by age.
+                db.execute("ALTER TABLE messages ADD COLUMN stored REAL")
+                db.execute("UPDATE messages SET stored=?", (time.time(),))
+            if "state" not in columns:
+                # A file from the cursor era: rows up to the delivery cursor
+                # were handed over already, and tombstones are not work.
+                db.execute(
+                    "ALTER TABLE messages ADD COLUMN state TEXT NOT NULL DEFAULT 'new'"
+                )
+                db.execute("ALTER TABLE messages ADD COLUMN key TEXT")
+                delivered = db.execute(
+                    "SELECT value FROM metadata WHERE key='delivered_cursor'"
+                ).fetchone()
+                db.execute(
+                    "DELETE FROM messages WHERE deleted=1 OR id<=?",
+                    (json.loads(delivered[0]) if delivered else 0,),
+                )
             bound = db.execute(
                 "SELECT value FROM metadata WHERE key='account'"
             ).fetchone()
@@ -75,8 +100,23 @@ class BotMentionInbox:
                 "INSERT OR IGNORE INTO metadata VALUES('account', ?)",
                 (account_fingerprint,),
             )
+            scope = db.execute(
+                "SELECT value FROM metadata WHERE key='scope'"
+            ).fetchone()
+            if scope and json.loads(scope[0]) != stream:
+                # The event queue was registered with another scope's narrow.
+                db.execute("DELETE FROM metadata WHERE key='queue_id'")
+            db.execute(
+                "INSERT OR REPLACE INTO metadata VALUES('scope', ?)",
+                (json.dumps(stream),),
+            )
         self._bot_id = self._state("bot_user_id")
         self._bot_verified = False
+        # Insertion-ordered so the oldest handoff is evicted first.
+        self._watched: dict[tuple[int, str], None] = {
+            (int(stream_id), str(topic)): None
+            for stream_id, topic in self._state("watched") or []
+        }
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -100,12 +140,22 @@ class BotMentionInbox:
         # reply that @-mentions the bot itself.
         if message.get("sender_id") == self._bot_id:
             return False
+        if message.get("type") == "private":
+            return self.everything or self.direct
         if self.direct:
-            return message.get("type") == "private"
-        return "mentioned" in message.get("flags", [])
+            return False
+        if "mentioned" in message.get("flags", []):
+            return True
+        # A conversation the bot is in accepts replies without a mention.
+        key = (message.get("stream_id"), str(message.get("subject", "")).casefold())
+        return key in self._watched
 
     def _narrows(self) -> tuple[list[list[str]], list[dict[str, str]]]:
         """Event-queue narrow and equivalent history narrow for this scope."""
+        if self.everything:
+            # Zulip narrows cannot express "DM or mentioned"; a bot receives few
+            # messages, so take everything it receives and filter in _accepts.
+            return [], []
         if not self.direct:
             return (
                 [["stream", str(self.stream)]],
@@ -141,31 +191,33 @@ class BotMentionInbox:
                 content = str(payload.get("content", ""))
                 payload["content"] = content[:6000]
                 payload["content_truncated"] = len(content) > 6000
+                # A replayed message never resets work already under way.
                 db.execute(
-                    "INSERT INTO messages(id, payload) VALUES(?, ?) "
-                    "ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                    (message_id, json.dumps(payload)),
+                    "INSERT INTO messages(id, payload, stored) VALUES(?, ?, ?) "
+                    "ON CONFLICT(id) DO UPDATE SET payload=excluded.payload "
+                    "WHERE state='new'",
+                    (message_id, json.dumps(payload), time.time()),
                 )
             for message_id in deleted_ids or []:
                 db.execute(
-                    "UPDATE messages SET deleted=1,payload='{}' WHERE id=?",
-                    (message_id,),
+                    "DELETE FROM messages WHERE id=? AND state='new'", (message_id,)
                 )
             for key, value in state.items():
                 db.execute(
                     "INSERT OR REPLACE INTO metadata VALUES(?, ?)",
                     (key, json.dumps(value)),
                 )
-            # Keep a bounded rolling snapshot; detect consumers behind retention.
+            # A backstop bound: drained rows are deleted long before either
+            # limit, and other people's text never stays past RETENTION_DAYS.
             cutoff = db.execute(
                 "SELECT id FROM messages ORDER BY id DESC LIMIT 1 OFFSET 9999"
             ).fetchone()
             if cutoff:
                 db.execute("DELETE FROM messages WHERE id < ?", (cutoff[0],))
-                db.execute(
-                    "INSERT OR REPLACE INTO metadata VALUES('retention_floor', ?)",
-                    (json.dumps(cutoff[0]),),
-                )
+            db.execute(
+                "DELETE FROM messages WHERE stored < ?",
+                (time.time() - RETENTION_DAYS * 86400,),
+            )
         with self._condition:
             self._condition.notify_all()
 
@@ -181,7 +233,13 @@ class BotMentionInbox:
                     "Bot account ID changed; verify pairing and use a new cache"
                 )
             self._bot_id = profile["user_id"]
-            self._commit([], {"bot_user_id": self._bot_id})
+            self._commit(
+                [],
+                {
+                    "bot_user_id": self._bot_id,
+                    "bot_full_name": profile.get("full_name"),
+                },
+            )
             self._bot_verified = True
         if self._state("queue_id"):
             return
@@ -196,27 +254,38 @@ class BotMentionInbox:
         self._check_response(response)
         queue_id = response["queue_id"]
         cursor = self._state("message_cursor")
-        if cursor is None:
-            cursor = self.initial_cursor
         try:
+            if cursor is None:
+                # First start: begin from now. Old messages are not work.
+                newest = self.client.get_messages_raw(
+                    narrow=history_narrow,
+                    anchor="newest",
+                    num_before=0,
+                    num_after=0,
+                    include_anchor=True,
+                    apply_markdown=False,
+                    use_cache=False,
+                )
+                self._check_response(newest)
+                cursor = max((m["id"] for m in newest.get("messages", [])), default=0)
+                self._commit([], {"message_cursor": cursor})
             for _ in range(20):
-                self._history_requests += 1
                 history = self.client.get_messages_raw(
                     narrow=history_narrow,
-                    anchor=str(cursor) if cursor is not None else "newest",
-                    num_before=50 if cursor is None else 0,
-                    num_after=50 if cursor is not None else 0,
-                    include_anchor=cursor is None,
+                    anchor=str(cursor),
+                    num_before=0,
+                    num_after=50,
+                    include_anchor=False,
                     apply_markdown=False,
                     use_cache=False,
                 )
                 self._check_response(history)
                 messages = history.get("messages", [])
                 next_cursor = max(
-                    (message["id"] for message in messages), default=cursor or 0
+                    (message["id"] for message in messages), default=cursor
                 )
                 self._commit(messages, {"message_cursor": next_cursor})
-                if cursor is None or history.get("found_newest") or not messages:
+                if history.get("found_newest") or not messages:
                     break
                 if next_cursor <= cursor:
                     raise RuntimeError("Mention backfill cursor did not advance")
@@ -250,7 +319,9 @@ class BotMentionInbox:
             state = {"last_event_id": event["id"]}
             if event.get("type") == "message":
                 message = {**event["message"], "flags": event.get("flags", [])}
-                if message.get("type") == ("private" if self.direct else "stream"):
+                if self.everything or message.get("type") == (
+                    "private" if self.direct else "stream"
+                ):
                     messages.append(message)
                     state["message_cursor"] = max(
                         self._state("message_cursor") or 0, message["id"]
@@ -266,26 +337,14 @@ class BotMentionInbox:
             self._commit(messages, state, deleted)
 
     def _run(self) -> None:
-        try:
-            with ProcessLease(self.path.with_suffix(".lock")):
-                self._run_owned()
-        except Exception as error:
-            with self._condition:
-                self._ready = False
-                self._error = str(error)
-                self._condition.notify_all()
-
-    def _run_owned(self) -> None:
         failures = 0
         while not self._stop.is_set():
             started = time.monotonic()
             try:
                 self._bootstrap()
                 with self._condition:
-                    self._ready = True
                     self._error = None
                     self._condition.notify_all()
-                self._event_requests += 1
                 response = self.client.get_events(
                     queue_id=self._state("queue_id"),
                     last_event_id=self._state("last_event_id"),
@@ -303,7 +362,6 @@ class BotMentionInbox:
             except Exception as error:
                 failures += 1
                 with self._condition:
-                    self._ready = False
                     self._error = str(error)
                     self._condition.notify_all()
                 delay = max(self._retry_after, min(120, 2 ** min(failures, 7)))
@@ -313,55 +371,84 @@ class BotMentionInbox:
         with self._condition:
             if self._thread is None:
                 self._thread = threading.Thread(
-                    target=self._run,
-                    name="zulip-bot-direct" if self.direct else "zulip-bot-mentions",
-                    daemon=True,
+                    target=self._run, name="zulip-bot-queue", daemon=True
                 )
                 self._thread.start()
 
-    def poll(
-        self, after_message_id: int | None, limit: int, wait_seconds: float = 0
-    ) -> dict[str, Any]:
+    def pending(self, wait_seconds: float = 0) -> dict[str, Any]:
+        """New rows in arrival order, waiting up to wait_seconds for one."""
         self.start()
-        deadline = time.monotonic() + max(wait_seconds, 20 if not self._ready else 0)
+        deadline = time.monotonic() + wait_seconds
         with self._condition:
             while True:
                 with self._connect() as db:
                     rows = db.execute(
-                        "SELECT id,payload,deleted FROM messages WHERE id > ? "
-                        "ORDER BY id LIMIT ?",
-                        (after_message_id or 0, limit),
+                        "SELECT payload FROM messages WHERE state='new' ORDER BY id"
                     ).fetchall()
-                if rows or self._error or (self._ready and wait_seconds == 0):
-                    break
                 remaining = deadline - time.monotonic()
-                if remaining <= 0:
+                if rows or self._error or remaining <= 0:
                     break
                 self._condition.wait(remaining)
-        floor = self._state("retention_floor")
-        gap = floor is not None and (after_message_id or 0) < floor
-        return {
-            "status": "partial" if gap or self._error or not self._ready else "success",
-            "mode": "bot_direct_messages" if self.direct else "bot_mentions",
-            "messages": [json.loads(row[1]) for row in rows if not row[2]],
-            "next_after_message_id": max(
-                (row[0] for row in rows), default=after_message_id
-            ),
-            "bot_user_id": self._bot_id,
-            "listener": {
-                "ready": self._ready,
+            return {
+                "messages": [json.loads(row[0]) for row in rows],
                 "error": self._error,
                 "retry_after_seconds": math.ceil(self._retry_after),
-            },
-            "cache": {
-                "source": "local_snapshot_and_event_deltas",
-                "history_requests": self._history_requests,
-                "event_requests": self._event_requests,
-                "retention_limit": 10000,
-                "cursor_gap": gap,
-            },
-            "acknowledgement": "host_owned_message_id_cursor",
-        }
+            }
+
+    def enqueue(self, message: dict[str, Any], key: str) -> bool:
+        """Queue a new row as a prompt for one conversation."""
+        with self._condition, self._connect() as db:
+            changed = db.execute(
+                "UPDATE messages SET state='queued', key=?, payload=? "
+                "WHERE id=? AND state='new'",
+                (key, json.dumps(message), message["id"]),
+            ).rowcount
+        return changed == 1
+
+    def settle(self, message_id: int) -> None:
+        """Delete a new row once handled: dropped, answered or a command."""
+        with self._condition, self._connect() as db:
+            db.execute("DELETE FROM messages WHERE id=? AND state='new'", (message_id,))
+
+    def take(self, key: str) -> list[dict[str, Any]]:
+        """Mark a conversation's queued rows running and return them in order."""
+        with self._condition, self._connect() as db:
+            rows = db.execute(
+                "SELECT payload FROM messages WHERE key=? AND state='queued' "
+                "ORDER BY id",
+                (key,),
+            ).fetchall()
+            db.execute(
+                "UPDATE messages SET state='running' WHERE key=? AND state='queued'",
+                (key,),
+            )
+        return [json.loads(row[0]) for row in rows]
+
+    def done(self, message_ids: list[int]) -> None:
+        with self._condition, self._connect() as db:
+            db.executemany(
+                "DELETE FROM messages WHERE id=?", [(i,) for i in message_ids]
+            )
+
+    def held(self, state: str) -> list[tuple[str, dict[str, Any]]]:
+        """(key, message) for each queued or running row, oldest first."""
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT key, payload FROM messages WHERE state=? ORDER BY id",
+                (state,),
+            ).fetchall()
+        return [(row[0], json.loads(row[1])) for row in rows]
+
+    def watch(self, stream_id: int, topic: str) -> None:
+        """Accept every message in a channel topic, not only @-mentions."""
+        key = (stream_id, topic.casefold())
+        with self._condition:
+            self._watched.pop(key, None)
+            self._watched[key] = None
+            # Bound the set; the oldest topics fall back to mention-only.
+            for stale in list(self._watched)[:-50]:
+                del self._watched[stale]
+            self._commit([], {"watched": [list(item) for item in self._watched]})
 
     def stop(self) -> None:
         self._stop.set()
@@ -373,42 +460,3 @@ class BotMentionInbox:
             except Exception:
                 # Retain the queue identity for replay on a same-account restart.
                 pass
-
-
-_inboxes: dict[tuple[str, str, str | None], BotMentionInbox] = {}
-_inboxes_lock = threading.Lock()
-
-
-def get_mention_inbox(
-    client: ZulipClientWrapper,
-    account_fingerprint: str,
-    stream: str | None,
-    initial_cursor: int | None,
-) -> BotMentionInbox:
-    from ..utils.database import get_database
-
-    base = str(Path(get_database().db_path).resolve().parent / "cache")
-    key = (base, account_fingerprint, stream)
-    with _inboxes_lock:
-        if key not in _inboxes:
-            if stream is None:
-                # Direct messages have their own cache file, queue and lease.
-                path = Path(base) / f"direct-{account_fingerprint}.sqlite3"
-            else:
-                if sum(1 for _, _, scope in _inboxes if scope is not None) >= 4:
-                    raise ValueError(
-                        "At most four mention channels per server are supported"
-                    )
-                digest = hashlib.sha256(stream.encode()).hexdigest()[:16]
-                path = Path(base) / f"mentions-{account_fingerprint}-{digest}.sqlite3"
-            _inboxes[key] = BotMentionInbox(
-                client, path, account_fingerprint, stream, initial_cursor
-            )
-        return _inboxes[key]
-
-
-def shutdown_mention_inboxes() -> None:
-    with _inboxes_lock:
-        for inbox in _inboxes.values():
-            inbox.stop()
-        _inboxes.clear()

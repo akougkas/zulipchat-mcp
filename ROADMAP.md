@@ -1,6 +1,20 @@
 # Roadmap
 
-## v0.7.6 (Current release)
+## v0.8.0 (unreleased)
+
+- Talk to local ACP coding agents (Clio, Claude and others) from Zulip through
+  the agent bridge `zulipchat-mcp-agents`, one Zulip bot per agent, with
+  `service install` to run it at login.
+- Remove the MCP-side agent control plane: the session tools, their listener,
+  the Claude hook bridge, three skills and the DuckDB database. Core tools go
+  from 19 to 13 and extended from 53 to 45.
+- Export per-tool Clio action classes so trusted servers work in Clio 0.7 read-only runs.
+- Export a read-only Clio declaration for sandboxed read-only workers.
+- Keep read caches in memory with `--ephemeral-state` where state is not writable.
+- Keep message reads within client result budgets: compact stream and user listings, Markdown message content and cursor paging for search.
+- Complete task-augmented calls such as `ask_owner` for clients that declare the MCP Tasks extension.
+
+## v0.7.6
 
 - Enforce owner-only bot mention and direct-message polling, with `--mention-allow`.
 - Read direct messages to the bot; send as the bot per message.
@@ -36,20 +50,20 @@ v0.7.3; see its [completed audit](docs/releases/v0.7.3-audit.md).
 
 Start with **startup selection**, with one organization per server process.
 The [profile design](docs/developer-guide/organization-profiles.md) specifies
-credential precedence, cache/database isolation, configuration validation, and
+credential precedence, cache isolation, configuration validation, and
 acceptance tests. This feature is a design proposal; `--profile` and runtime
 organization switching are not implemented. v0.7.5's `--server-id` exports
 and shared per-account state cover one process per organization today.
 
-Runtime organization switching needs a separate design for listener shutdown,
-pending approvals, tasks, and HTTP caller isolation before it can be offered.
+Runtime organization switching needs a separate design for in-flight calls,
+cached reads, tasks, and HTTP caller isolation before it can be offered.
 
 ## Distribution follow-up
 
 - Validate the MCP Registry entry and submit supported plugin packages to host
   directories that accept this format. Local schema validation does not imply
   directory acceptance or listing.
-- Use the [agent workflow example](docs/integrations/agent-workflow.md) as a small
-  reproducible demo, including Clio discovery and owner replies.
+- Use [Agent bots](docs/integrations/agent-bots.md) as a small reproducible
+  demo: a Clio bot answering its owner from Zulip.
 - Collect real integration feedback before adding executable host plugins or
   another compatibility layer.

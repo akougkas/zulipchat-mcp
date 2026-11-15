@@ -5,23 +5,49 @@ Reactions moved to emoji_messaging.py, bulk ops moved to mark_messaging.py.
 """
 
 import asyncio
+import difflib
 import hashlib
 import json
+import os
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Literal
-
-from fastmcp import FastMCP
 
 from ..config import get_bot_client, get_client, get_config_manager
 from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 from ..core.security import local_access_allowed
+from ..utils.redaction import redact, secret_values
+
+_agent_secrets: list[str] | None = None
+
+
+def _secrets_of_a_bridged_agent() -> list[str]:
+    """Secret values visible to this server, resolved once."""
+    global _agent_secrets
+    if _agent_secrets is None:
+        keys: list[str | None] = []
+        try:
+            config = get_config_manager()
+            keys = [
+                config.get_zulip_client_config(use_bot=use_bot).get("api_key")
+                for use_bot in (False, True)
+            ]
+        except Exception:
+            pass  # the environment still names the usual secrets
+        _agent_secrets = secret_values(os.environ, extra=keys)
+    return _agent_secrets
 
 
 def sanitize_content(content: str, max_length: int = 50000) -> str:
-    """Sanitize and truncate content."""
+    """Truncate content, and for a bridged agent replace secrets it could leak.
+
+    An agent the bridge launched is driven from a Zulip conversation: nobody
+    at a keyboard reads its messages before they are sent. The bridge redacts
+    what it posts for the agent; this covers what the agent sends itself.
+    """
+    if os.getenv("ZULIPCHAT_AGENT_STATE"):
+        content = redact(content, _secrets_of_a_bridged_agent())
     if len(content) > max_length:
         return content[:max_length] + "\n... [Content truncated]"
     return content
@@ -37,10 +63,11 @@ _recent_sends_lock = threading.Lock()
 def _send_key(
     client: ZulipClientWrapper,
     type: str,
-    to: str | list[str],
+    to: Any,
     content: str,
     topic: str | None,
 ) -> str:
+    type = {"private": "direct", "stream": "channel"}.get(type, type)
     recipients = sorted(
         str(item).strip().lower() for item in (to if isinstance(to, list) else [to])
     )
@@ -53,16 +80,82 @@ def _send_key(
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def _match_people(people: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
+    """Exact full name, then first name, then full-name prefix; first rule wins."""
+    names = [(u, str(u.get("full_name", "")).casefold()) for u in people]
+    for matches in (
+        [u for u, name in names if name == query],
+        [u for u, name in names if name.split()[:1] == [query]],
+        [u for u, name in names if name.startswith(query)],
+    ):
+        if matches:
+            return matches
+    return []
+
+
+def _resolve_recipients(
+    client: ZulipClientWrapper, to: list[str | int]
+) -> list[str | int] | dict[str, Any]:
+    """Turn names into user IDs; emails and IDs pass through unchanged.
+
+    A name must match exactly one active user by full name, first name, or a
+    unique full-name prefix. Anything else returns candidates and sends nothing,
+    so a near-miss never reaches the wrong person.
+    """
+    names = [
+        item
+        for item in to
+        if isinstance(item, str) and "@" not in item and not item.strip().isdigit()
+    ]
+    if not names:
+        return [int(i) if isinstance(i, str) and i.isdigit() else i for i in to]
+    roster = client.get_users()
+    if roster.get("result") != "success":
+        return api_error(roster, "Failed to fetch users for name resolution")
+    people = [u for u in roster.get("members", []) if u.get("is_active", True)]
+    resolved: list[str | int] = []
+    for item in to:
+        if item not in names:
+            resolved.append(
+                int(item) if isinstance(item, str) and item.isdigit() else item
+            )
+            continue
+        query = str(item).strip().casefold()
+        matches = _match_people(people, query)
+        if len(matches) != 1:
+            close = difflib.get_close_matches(
+                query, [str(u.get("full_name", "")).casefold() for u in people], n=3
+            )
+            candidates = matches[:5] or [
+                u for u in people if str(u.get("full_name", "")).casefold() in close
+            ]
+            return {
+                "status": "error",
+                "error": f"'{item}' matches {len(matches) or 'no'} users; nothing was sent",
+                "error_code": "AMBIGUOUS_RECIPIENT" if matches else "UNKNOWN_RECIPIENT",
+                "candidates": [
+                    {"name": u.get("full_name"), "user_id": u.get("user_id")}
+                    for u in candidates
+                ],
+                "retryable": False,
+            }
+        resolved.append(int(matches[0]["user_id"]))
+    return resolved
+
+
 async def send_message(
-    type: Literal["stream", "private"],
-    to: str | list[str],
+    type: Literal["stream", "private", "channel", "direct"],
+    to: str | int | list[str | int],
     content: str,
     topic: str | None = None,
     allow_duplicate: bool = False,
     as_bot: bool = False,
 ) -> dict[str, Any]:
-    """Send a message to stream or user (immediate delivery only).
+    """Send a channel or direct message; direct recipients may be names.
 
+    type="direct" (or "private") takes names, emails or user IDs in to; a name
+    must match one person exactly or nothing is sent and candidates are
+    returned. type="channel" (or "stream") takes a channel name or ID plus topic.
     as_bot=True sends this one message with the configured bot credentials,
     which is how an agent speaks as itself; replies to a bot DM reach the bot.
 
@@ -110,7 +203,15 @@ async def send_message(
                     "Do not repeat it."
                 ),
             }
-    result = await _send_message(client, type, to, content, topic)
+    if type in ("private", "direct"):
+        items = to if isinstance(to, list) else [to]
+        recipients = await asyncio.to_thread(_resolve_recipients, client, items)
+        if isinstance(recipients, dict):
+            return recipients
+        result = await _send_message(client, "private", recipients, content, topic)
+    else:
+        channel = to.lstrip("#") if isinstance(to, str) else to
+        result = await _send_message(client, "stream", channel, content, topic)
     if result.get("status") == "success":
         with _recent_sends_lock:
             _recent_sends[key] = (now, result)
@@ -120,7 +221,7 @@ async def send_message(
 async def _send_message(
     client: ZulipClientWrapper,
     type: Literal["stream", "private"],
-    to: str | list[str],
+    to: Any,
     content: str,
     topic: str | None = None,
 ) -> dict[str, Any]:
@@ -141,15 +242,14 @@ async def _send_message(
     result = await asyncio.to_thread(client.send_message, type, to, safe_content, topic)
 
     if result.get("result") == "success":
-        return {
+        sent: dict[str, Any] = {
             "status": "success",
             "message_id": result.get("id"),
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "sent_as": {
-                "identity": getattr(client, "identity", None),
-                "email": getattr(client, "current_email", None),
-            },
+            "sent_as": getattr(client, "identity", None),
         }
+        if result.get("message_link"):
+            sent["message_link"] = result["message_link"]
+        return sent
     else:
         return api_error(result, "Failed to send message")
 
@@ -230,22 +330,28 @@ async def edit_message(
         return api_error(result, "Failed to edit message")
 
 
-async def get_message(message_id: int, fresh: bool = False) -> dict[str, Any]:
-    """Get a single message by ID."""
+async def get_message(
+    message_id: int,
+    fresh: bool = False,
+    content_format: Literal["rendered_html", "markdown"] = "rendered_html",
+) -> dict[str, Any]:
+    """Get a single message by ID; content_format="markdown" returns source text."""
     if not isinstance(message_id, int) or message_id <= 0:
         return {"status": "error", "error": "Invalid message ID"}
 
     client = get_client()
 
     try:
-        result = await asyncio.to_thread(
-            client.get_message, message_id, **({"fresh": True} if fresh else {})
-        )
+        options: dict[str, Any] = {"fresh": True} if fresh else {}
+        if content_format == "markdown":
+            options["apply_markdown"] = False
+        result = await asyncio.to_thread(client.get_message, message_id, **options)
 
         if result.get("result") == "success":
             response = {
                 "status": "success",
                 "message": result.get("message", {}),
+                "content_format": content_format,
             }
             if "_cache" in result:
                 response["cache"] = result["_cache"]
@@ -344,23 +450,3 @@ async def cross_post_message(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_messaging_tools(mcp: FastMCP) -> None:
-    """Register core messaging tools with the MCP server."""
-    mcp.tool(
-        name="send_message",
-        description=(
-            "Send one message to a stream topic or users. Sends once; an identical "
-            "repeat within two minutes is suppressed. The result reports sent_as."
-        ),
-    )(send_message)
-    mcp.tool(
-        name="edit_message",
-        description="Edit message content, topic, or move between streams with propagation control",
-    )(edit_message)
-    mcp.tool(name="get_message", description="Get a single message by ID")(get_message)
-    mcp.tool(
-        name="cross_post_message",
-        description="Share/duplicate message across multiple streams with attribution",
-    )(cross_post_message)

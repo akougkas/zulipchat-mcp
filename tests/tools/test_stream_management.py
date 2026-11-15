@@ -7,7 +7,6 @@ import pytest
 from src.zulipchat_mcp.tools.stream_management import (
     get_stream_info,
     get_streams,
-    register_stream_management_tools,
 )
 
 
@@ -43,6 +42,32 @@ class TestGetStreams:
         mock_deps.get_streams.assert_called_once_with(
             include_subscribed=True, include_public=True
         )
+
+    @pytest.mark.asyncio
+    async def test_get_streams_compact_unless_verbose(self, mock_deps):
+        """Default output drops Zulip permission/group fields."""
+        raw = {
+            "name": "general",
+            "stream_id": 1,
+            "description": "d",
+            "invite_only": False,
+            "can_administer_channel_group": {"direct_members": [7]},
+            "stream_post_policy": 1,
+        }
+        mock_deps.get_streams.return_value = {"result": "success", "streams": [raw]}
+
+        compact = await get_streams()
+        verbose = await get_streams(verbose=True)
+
+        assert compact["streams"] == [
+            {
+                "stream_id": 1,
+                "name": "general",
+                "description": "d",
+                "invite_only": False,
+            }
+        ]
+        assert verbose["streams"] == [raw]
 
     @pytest.mark.asyncio
     async def test_get_streams_filter_public(self, mock_deps):
@@ -150,17 +175,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_by_id(self, mock_deps):
         """Test getting stream info by ID."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "General discussion",
-                    "invite_only": False,
-                    "is_web_public": True,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "General discussion",
+                "invite_only": False,
+                "is_web_public": True,
+            },
         }
 
         result = await get_stream_info(stream_id=1)
@@ -179,17 +202,15 @@ class TestGetStreamInfo:
             "result": "success",
             "stream_id": 1,
         }
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "General discussion",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "General discussion",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
 
         result = await get_stream_info(stream_name="general")
@@ -213,24 +234,25 @@ class TestGetStreamInfo:
         assert result["error"] == "Invalid stream name"
 
     @pytest.mark.asyncio
-    async def test_get_stream_info_id_not_in_streams(self, mock_deps):
-        """Test when stream_id exists but not found in streams list."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [
-                {"stream_id": 2, "name": "other"},
-            ],
+    async def test_get_stream_info_fetches_one_channel_by_id(self, mock_deps):
+        """An unknown ID surfaces the server error; no channel listing."""
+        mock_deps.get_stream.return_value = {
+            "result": "error",
+            "code": "BAD_REQUEST",
+            "msg": "Invalid channel ID",
         }
 
         result = await get_stream_info(stream_id=1)
 
         assert result["status"] == "error"
-        assert "Stream not found" in result["error"]
+        assert result["error"] == "Invalid channel ID"
+        mock_deps.get_stream.assert_called_once_with(1)
+        mock_deps.get_streams.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_stream_info_get_streams_failed(self, mock_deps):
         """Test when get_streams API call fails."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "error",
             "msg": "Permission denied",
         }
@@ -243,17 +265,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_with_subscribers(self, mock_deps):
         """Test including subscribers."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
         mock_deps.get_subscribers.return_value = {
             "result": "success",
@@ -270,17 +290,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_subscribers_failed(self, mock_deps):
         """Test when get_subscribers fails - should still return basic info."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
         mock_deps.get_subscribers.return_value = {
             "result": "error",
@@ -299,17 +317,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_with_topics(self, mock_deps):
         """Test including topics."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
         mock_deps.get_stream_topics.return_value = {
             "result": "success",
@@ -329,17 +345,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_topics_failed(self, mock_deps):
         """Test when get_stream_topics fails - should still return basic info."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
         mock_deps.get_stream_topics.return_value = {
             "result": "error",
@@ -358,17 +372,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_with_both_subscribers_and_topics(self, mock_deps):
         """Test including both subscribers and topics."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "Test",
-                    "invite_only": True,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "Test",
+                "invite_only": True,
+                "is_web_public": False,
+            },
         }
         mock_deps.get_subscribers.return_value = {
             "result": "success",
@@ -390,7 +402,7 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_exception(self, mock_deps):
         """Test exception handling."""
-        mock_deps.get_streams.side_effect = Exception("Connection failed")
+        mock_deps.get_stream.side_effect = Exception("Connection failed")
 
         result = await get_stream_info(stream_id=1)
 
@@ -400,17 +412,15 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_by_name_with_id_provided(self, mock_deps):
         """Test when both name and id provided - should use id directly."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "general",
-                    "description": "",
-                    "invite_only": False,
-                    "is_web_public": False,
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "general",
+                "description": "",
+                "invite_only": False,
+                "is_web_public": False,
+            },
         }
 
         result = await get_stream_info(stream_name="general", stream_id=1)
@@ -422,15 +432,13 @@ class TestGetStreamInfo:
     @pytest.mark.asyncio
     async def test_get_stream_info_missing_optional_fields(self, mock_deps):
         """Test stream with missing optional fields uses defaults."""
-        mock_deps.get_streams.return_value = {
+        mock_deps.get_stream.return_value = {
             "result": "success",
-            "streams": [
-                {
-                    "stream_id": 1,
-                    "name": "minimal",
-                    # Missing description, invite_only, is_web_public
-                }
-            ],
+            "stream": {
+                "stream_id": 1,
+                "name": "minimal",
+                # Missing description, invite_only, is_web_public
+            },
         }
 
         result = await get_stream_info(stream_id=1)
@@ -439,22 +447,3 @@ class TestGetStreamInfo:
         assert result["description"] is None
         assert result["invite_only"] is False  # Default
         assert result["is_web_public"] is False  # Default
-
-
-class TestRegisterStreamManagementTools:
-    """Tests for register_stream_management_tools function."""
-
-    def test_register_tools(self):
-        """Test tool registration."""
-        mock_mcp = MagicMock()
-
-        register_stream_management_tools(mock_mcp)
-
-        # Verify mcp.tool was called twice (once for each tool)
-        assert mock_mcp.tool.call_count == 2
-
-        # Verify tool names
-        calls = mock_mcp.tool.call_args_list
-        tool_names = [call.kwargs.get("name") for call in calls]
-        assert "get_streams" in tool_names
-        assert "get_stream_info" in tool_names

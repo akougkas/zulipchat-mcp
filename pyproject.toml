@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zulipchat-mcp"
-version = "0.7.6"
-description = "Model Context Protocol (MCP) server that connects AI assistants to Zulip Chat with a 20-tool core mode and 60-tool extended mode"
+version = "0.8.0"
+description = "Model Context Protocol (MCP) server that connects AI assistants to Zulip Chat with a 19-tool core mode and 53-tool extended mode"
 authors = [
     {name = "Anthony Kougkas", email = "a.kougkas@gmail.com"},
 ]
@@ -47,21 +47,21 @@ classifiers = [
     "Topic :: System :: Monitoring",
 ]
 dependencies = [
-    "fastmcp[tasks]>=4.0.4,<5",
+    "fastmcp[tasks]>=4.1.4,<5",
     "mcp-types>=2.2.0,<3",
-    "anthropic>=0.78.0",
     "httpx>=0.28.0",
     "pydantic>=2.11.0",
     "python-dotenv>=1.2.2",
     "zulip>=0.9.0",
     "structlog>=25.4.0",
-    "prometheus-client>=0.22.0",
-    "duckdb>=1.3.0",
     "requests>=2.33.0",
     # Security floors for the MCP HTTP/auth dependency stack.
     "cryptography>=50.0.0",
     "httpx2>=2.12.0",
     "pyjwt>=2.13.0",
+    "authlib>=1.9.1",
+    "joserfc>=1.7.6",
+    "certifi>=2026.10.18",
     "urllib3>=2.7.0",
     "pyyaml>=6.0.3",
     "tomli>=2.5.0; python_version < '3.11'",
@@ -101,7 +101,7 @@ Changelog = "https://github.com/akougkas/zulipchat-mcp/releases"
 zulipchat-mcp = "zulipchat_mcp.server:main"
 zulipchat-mcp-integrate = "zulipchat_mcp.integrations.registry:main"
 zulipchat-mcp-setup = "zulipchat_mcp.setup_wizard:main"
-zulipchat-mcp-hook = "zulipchat_mcp.claude_hooks:main"
+zulipchat-mcp-agents = "zulipchat_mcp.agents.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zulipchat_mcp"]
@@ -109,6 +109,8 @@ packages = ["src/zulipchat_mcp"]
 [tool.uv]
 package = true
 managed = true
+# Hold dev-tool transitive filelock below releases younger than two weeks.
+constraint-dependencies = ["filelock<4.2.7"]
 
 [tool.uv.sources]
 

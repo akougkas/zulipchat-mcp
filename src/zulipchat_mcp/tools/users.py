@@ -8,8 +8,6 @@ import asyncio
 import re
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 
@@ -20,12 +18,41 @@ def validate_email(email: str) -> bool:
     return bool(re.match(pattern, email))
 
 
+# Zulip's numeric roles, by the name an agent would ask for.
+ROLES: dict[Any, str] = {
+    100: "owner",
+    200: "admin",
+    300: "moderator",
+    400: "member",
+    600: "guest",
+}
+
+
+def _user_row(user: dict[str, Any]) -> dict[str, Any]:
+    """One member in few tokens: flags only when set, role by name."""
+    row: dict[str, Any] = {
+        "user_id": user.get("user_id"),
+        "name": user.get("full_name"),
+        "email": user.get("email"),
+        "role": ROLES.get(user.get("role"), user.get("role")),
+    }
+    if user.get("is_bot"):
+        row["bot"] = True
+    if user.get("is_active") is False:
+        row["inactive"] = True
+    if user.get("profile_data"):
+        row["profile_data"] = user["profile_data"]
+    return row
+
+
 async def get_users(
     client_gravatar: bool = True,
     include_custom_profile_fields: bool = False,
     user_ids: list[int] | None = None,
+    verbose: bool = False,
+    role: Literal["owner", "admin", "moderator", "member", "guest"] | None = None,
 ) -> dict[str, Any]:
-    """Get all users in organization (READ-ONLY)."""
+    """Organization members; role narrows to one role. Set verbose for raw objects."""
     client = get_client()
 
     try:
@@ -33,22 +60,16 @@ async def get_users(
             client.get_users,
             client_gravatar=client_gravatar,
             include_custom_profile_fields=include_custom_profile_fields,
+            user_ids=user_ids,
         )
 
         if result.get("result") == "success":
             users = result.get("members", [])
-
-            # Filter by user_ids if specified
-            if user_ids is not None:
-                users = [user for user in users if user.get("user_id") in user_ids]
-
-            return {
-                "status": "success",
-                "users": users,
-                "count": len(users),
-                "client_gravatar": client_gravatar,
-                "include_custom_profile_fields": include_custom_profile_fields,
-            }
+            if role is not None:
+                users = [u for u in users if ROLES.get(u.get("role")) == role]
+            if not verbose:
+                users = [_user_row(user) for user in users]
+            return {"status": "success", "users": users, "count": len(users)}
         else:
             return api_error(result, "Failed to get users")
 
@@ -266,8 +287,10 @@ async def get_presence() -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str, Any]:
-    """Get all user groups in organization (READ-ONLY)."""
+async def get_user_groups(
+    include_deactivated_groups: bool = False, verbose: bool = False
+) -> dict[str, Any]:
+    """User groups with member counts; verbose returns Zulip's full records."""
     client = get_client()
 
     try:
@@ -277,17 +300,28 @@ async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str,
                 "user_groups", method="GET", request=request_data
             )
         )
-
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "user_groups": result.get("user_groups", []),
-                "count": len(result.get("user_groups", [])),
-                "include_deactivated": include_deactivated_groups,
-            }
-        else:
+        if result.get("result") != "success":
             return api_error(result, "Failed to get user groups")
-
+        groups = result.get("user_groups", [])
+        if not verbose:
+            # Permission-group settings and member lists dwarf what an agent
+            # needs to pick a group; get_user_group_members lists members.
+            groups = [
+                {
+                    "id": group.get("id"),
+                    "name": group.get("name"),
+                    "description": group.get("description") or None,
+                    "member_count": len(group.get("members") or []),
+                    **(
+                        {"is_system_group": True}
+                        if group.get("is_system_group")
+                        else {}
+                    ),
+                    **({"deactivated": True} if group.get("deactivated") else {}),
+                }
+                for group in groups
+            ]
+        return {"status": "success", "user_groups": groups, "count": len(groups)}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -319,39 +353,6 @@ async def get_user_group_members(
             }
         else:
             return api_error(result, "Failed to get group members")
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def is_user_group_member(
-    user_group_id: int,
-    user_id: int,
-    direct_member_only: bool = False,
-) -> dict[str, Any]:
-    """Check if user is member of user group (READ-ONLY)."""
-    client = get_client()
-
-    try:
-        request_data = {"direct_member_only": direct_member_only}
-        result = await asyncio.to_thread(
-            lambda: client.client.call_endpoint(
-                f"user_groups/{user_group_id}/members/{user_id}",
-                method="GET",
-                request=request_data,
-            )
-        )
-
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "user_group_id": user_group_id,
-                "user_id": user_id,
-                "is_member": result.get("is_user_group_member", False),
-                "direct_member_only": direct_member_only,
-            }
-        else:
-            return api_error(result, "Failed to check group membership")
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -454,47 +455,32 @@ async def manage_user_mute(
         return await unmute_user(muted_user_id)
 
 
-def register_users_tools(mcp: FastMCP) -> None:
-    """Register clean READ-ONLY user tools with the MCP server."""
-    mcp.tool(
-        name="resolve_user",
-        description="Resolve display name to Zulip email with fuzzy matching. 'Jaime' -> jaime@org.zulipchat.com",
-    )(resolve_user)
-    mcp.tool(name="get_users", description="Get all users in organization")(get_users)
-    mcp.tool(name="get_user_by_id", description="Get specific user by ID")(
-        get_user_by_id
-    )
-    mcp.tool(name="get_user_by_email", description="Get specific user by email")(
-        get_user_by_email
-    )
-    mcp.tool(name="get_own_user", description="Get information about current user")(
-        get_own_user
-    )
-    mcp.tool(name="get_user_status", description="Get user's status text and emoji")(
-        get_user_status
-    )
-    mcp.tool(name="update_status", description="Update your own status text and emoji")(
-        update_status
-    )
-    mcp.tool(
-        name="get_user_presence",
-        description="Get presence information for specific user",
-    )(get_user_presence)
-    mcp.tool(name="get_presence", description="Get presence information for all users")(
-        get_presence
-    )
-    mcp.tool(name="get_user_groups", description="Get all user groups in organization")(
-        get_user_groups
-    )
-    mcp.tool(
-        name="get_user_group_members", description="Get members of specific user group"
-    )(get_user_group_members)
-    mcp.tool(
-        name="is_user_group_member", description="Check if user is member of user group"
-    )(is_user_group_member)
-    mcp.tool(name="mute_user", description="Mute a user for your own notifications")(
-        mute_user
-    )
-    mcp.tool(
-        name="unmute_user", description="Unmute a user for your own notifications"
-    )(unmute_user)
+async def set_typing(
+    op: Literal["start", "stop"],
+    to: list[int] | None = None,
+    stream_id: int | None = None,
+    topic: str | None = None,
+) -> dict[str, Any]:
+    """Send a typing start/stop notification to users or a channel topic."""
+    if (to is None) == (stream_id is None):
+        return {"status": "error", "error": "Provide exactly one of to or stream_id"}
+    if stream_id is not None and not topic:
+        return {"status": "error", "error": "topic is required with stream_id"}
+    client = get_client()
+    try:
+        request: dict[str, Any] = {"op": op}
+        if to is not None:
+            request["type"] = "direct" if client.supports(174) else "private"
+            request["to"] = to
+        else:
+            request["type"] = "channel" if client.supports(248) else "stream"
+            request["stream_id"] = stream_id
+            request["topic"] = topic
+        result = await asyncio.to_thread(
+            client.client.call_endpoint, "typing", method="POST", request=request
+        )
+        if result.get("result") != "success":
+            return api_error(result, "Failed to send typing notification")
+        return {"status": "success", "op": op}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

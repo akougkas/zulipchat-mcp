@@ -14,7 +14,6 @@ from src.zulipchat_mcp.tools.users import (
     get_user_presence,
     get_user_status,
     get_users,
-    is_user_group_member,
     mute_user,
     unmute_user,
     update_status,
@@ -63,11 +62,48 @@ class TestUsersTools:
         assert result["status"] == "success"
         assert result["count"] == 2
 
-        # Filtered
+        # Filtering happens in the client wrapper
+        mock_deps.get_users.return_value = {
+            "result": "success",
+            "members": [{"user_id": 1, "email": "u1@e.com"}],
+        }
         result = await get_users(user_ids=[1])
         assert result["status"] == "success"
         assert result["count"] == 1
-        assert result["users"][0]["user_id"] == 1
+        assert mock_deps.get_users.call_args.kwargs["user_ids"] == [1]
+
+    @pytest.mark.asyncio
+    async def test_get_users_compact_unless_verbose(self, mock_deps):
+        raw = {
+            "user_id": 1,
+            "full_name": "U",
+            "email": "u1@e.com",
+            "delivery_email": "private@e.com",
+            "avatar_url": "https://a",
+        }
+        mock_deps.get_users.return_value = {"result": "success", "members": [raw]}
+
+        assert (await get_users())["users"] == [
+            {"user_id": 1, "name": "U", "email": "u1@e.com", "role": None}
+        ]
+        assert (await get_users(verbose=True))["users"] == [raw]
+
+    @pytest.mark.asyncio
+    async def test_get_users_names_roles_and_filters_by_role(self, mock_deps):
+        mock_deps.get_users.return_value = {
+            "result": "success",
+            "members": [
+                {"user_id": 1, "full_name": "Owner", "role": 100, "timezone": "UTC"},
+                {"user_id": 2, "full_name": "Admin", "role": 200, "is_active": False},
+                {"user_id": 3, "full_name": "Bot", "role": 400, "is_bot": True},
+            ],
+        }
+        rows = (await get_users())["users"]
+        assert [row["role"] for row in rows] == ["owner", "admin", "member"]
+        assert "timezone" not in rows[0]
+        assert rows[1]["inactive"] is True and rows[2]["bot"] is True
+        admins = await get_users(role="admin")
+        assert [row["name"] for row in admins["users"]] == ["Admin"]
 
     @pytest.mark.asyncio
     async def test_get_user_by_id(self, mock_deps):
@@ -162,14 +198,32 @@ class TestUsersTools:
     @pytest.mark.asyncio
     async def test_get_user_groups(self, mock_deps):
         """Test get_user_groups."""
+        raw = {
+            "id": 1,
+            "name": "role:owners",
+            "description": "Owners",
+            "members": [7, 8],
+            "is_system_group": True,
+            "can_manage_group": 3,
+            "date_created": 1727225467,
+        }
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "user_groups": [{"id": 1}],
+            "user_groups": [raw],
         }
 
         result = await get_user_groups()
         assert result["status"] == "success"
-        assert result["count"] == 1
+        assert result["user_groups"] == [
+            {
+                "id": 1,
+                "name": "role:owners",
+                "description": "Owners",
+                "member_count": 2,
+                "is_system_group": True,
+            }
+        ]
+        assert (await get_user_groups(verbose=True))["user_groups"] == [raw]
 
     @pytest.mark.asyncio
     async def test_get_user_group_members(self, mock_deps):
@@ -182,18 +236,6 @@ class TestUsersTools:
         result = await get_user_group_members(1)
         assert result["status"] == "success"
         assert result["member_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_is_user_group_member(self, mock_deps):
-        """Test is_user_group_member."""
-        mock_deps.client.call_endpoint.return_value = {
-            "result": "success",
-            "is_user_group_member": True,
-        }
-
-        result = await is_user_group_member(1, 2)
-        assert result["status"] == "success"
-        assert result["is_member"] is True
 
     @pytest.mark.asyncio
     async def test_mute_unmute_user(self, mock_deps):

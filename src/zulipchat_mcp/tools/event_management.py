@@ -8,11 +8,8 @@ import asyncio
 import time
 from typing import Any
 
-from fastmcp import FastMCP
-
 from ..config import bind_client, get_client
-from ..core.security import local_access_allowed
-from .registration import optional_background_task, register_tool
+from ..core.api_errors import api_error
 
 
 async def register_events(
@@ -68,6 +65,13 @@ async def register_events(
         return {"status": "error", "error": str(e)}
 
 
+def _seconds(value: Any) -> float:
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 async def get_events(
     queue_id: str,
     last_event_id: int,
@@ -105,8 +109,7 @@ async def get_events(
             }
         else:
             return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get events"),
+                **api_error(result, "Failed to get events"),
                 "code": result.get("code"),
             }
 
@@ -122,18 +125,13 @@ async def listen_events(
     poll_interval: int = 1,
     max_events_per_poll: int = 100,
     all_public_streams: bool = False,
-    callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Collect events, retrying at most three consecutive failed polls.
 
     Unrecovered failures return error, or partial when events were collected.
-    Recovered failures are reported in polling_errors even on success.
+    Recovered failures are reported in polling_errors even on success. Events
+    go to the caller only: this server sends Zulip data to no other host.
     """
-    if callback_url and not local_access_allowed():
-        return {
-            "status": "error",
-            "error": "Outbound event callbacks are disabled over HTTP",
-        }
     if not 0 < duration <= 600 or poll_interval <= 0 or max_events_per_poll <= 0:
         return {
             "status": "error",
@@ -201,23 +199,14 @@ async def listen_events(
 
                         if events:
                             collected_events.extend(events[:max_events_per_poll])
-
-                            # Send to webhook if configured
-                            if callback_url:
-                                try:
-                                    import httpx
-
-                                    async with httpx.AsyncClient() as http_client:
-                                        await http_client.post(
-                                            callback_url, json={"events": events}
-                                        )
-                                except Exception:
-                                    pass  # Best effort
                     else:
                         last_failure = {
                             "error": events_result.get("error", "Failed to get events"),
                             "code": events_result.get("code"),
                         }
+                        retry_after = events_result.get("retry_after_seconds")
+                        if retry_after is not None:
+                            last_failure["retry_after_seconds"] = retry_after
                         polling_errors.append(last_failure)
                         consecutive_failures += 1
                         # A lost queue or invalid credentials cannot recover by polling
@@ -237,13 +226,13 @@ async def listen_events(
                         ):
                             break
 
-                    # Sleep before next poll
-                    await asyncio.sleep(
-                        min(
-                            poll_interval * 2 ** min(consecutive_failures, 2),
-                            duration - elapsed,
+                    # Sleep before next poll, honoring a server retry-after.
+                    delay = poll_interval * 2 ** min(consecutive_failures, 2)
+                    if last_failure:
+                        delay = max(
+                            delay, _seconds(last_failure.get("retry_after_seconds"))
                         )
-                    )
+                    await asyncio.sleep(min(delay, duration - elapsed))
 
             finally:
                 # Cleanup: deregister queue
@@ -303,27 +292,3 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_event_management_tools(mcp: FastMCP) -> None:
-    """Register event management tools with the MCP server."""
-    listener_task = optional_background_task(poll_seconds=5)
-    mcp.tool(
-        name="register_events",
-        description="Register for comprehensive real-time event streams",
-    )(register_events)
-    mcp.tool(
-        name="get_events",
-        description="Poll events from registered queue with long-polling",
-    )(get_events)
-    register_tool(
-        mcp,
-        listen_events,
-        name="listen_events",
-        description="Comprehensive stateless event listener with webhook integration",
-        title="Listen for events",
-        task=listener_task,
-    )
-    mcp.tool(name="deregister_events", description="Deregister event queue")(
-        deregister_events
-    )

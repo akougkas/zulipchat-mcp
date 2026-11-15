@@ -7,17 +7,27 @@ Simple stream discovery and information retrieval only.
 import asyncio
 from typing import Any
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
+
+# Raw Zulip stream objects carry ~30 permission/group fields each; a realm with
+# a few dozen streams then exceeds typical MCP client result budgets.
+STREAM_SUMMARY_FIELDS = (
+    "stream_id",
+    "name",
+    "description",
+    "invite_only",
+    "is_web_public",
+    "is_archived",
+)
 
 
 async def get_streams(
     include_subscribed: bool = True,
     include_public: bool = True,
+    verbose: bool = False,
 ) -> dict[str, Any]:
-    """Get list of streams (READ-ONLY)."""
+    """Get list of streams (READ-ONLY). Set verbose for raw Zulip objects."""
     client = get_client()
 
     try:
@@ -28,6 +38,11 @@ async def get_streams(
         )
         if result.get("result") == "success":
             streams = result.get("streams", [])
+            if not verbose:
+                streams = [
+                    {key: stream[key] for key in STREAM_SUMMARY_FIELDS if key in stream}
+                    for stream in streams
+                ]
 
             return {
                 "status": "success",
@@ -57,24 +72,16 @@ async def get_stream_info(
     client = get_client()
 
     try:
-        # Get stream info
-        if stream_name and not stream_id:
-            stream_result = await asyncio.to_thread(client.get_stream_id, stream_name)
-            if stream_result.get("result") != "success":
-                return api_error(stream_result, f"Stream '{stream_name}' not found")
-            stream_id = stream_result.get("stream_id")
+        if not stream_id:
+            id_result = await asyncio.to_thread(client.get_stream_id, str(stream_name))
+            if id_result.get("result") != "success":
+                return api_error(id_result, f"Stream '{stream_name}' not found")
+            stream_id = int(id_result["stream_id"])
 
-        # Get basic stream information
-        streams_result = await asyncio.to_thread(client.get_streams)
-        if streams_result.get("result") == "success":
-            streams = streams_result.get("streams", [])
-            stream_info = next(
-                (s for s in streams if s.get("stream_id") == stream_id), None
-            )
-            if not stream_info:
-                return {"status": "error", "error": "Stream not found"}
-        else:
-            return api_error(streams_result, "Failed to get stream information")
+        stream_result = await asyncio.to_thread(client.get_stream, stream_id)
+        if stream_result.get("result") != "success":
+            return api_error(stream_result, "Failed to get stream information")
+        stream_info = stream_result.get("stream", {})
 
         info = {
             "status": "success",
@@ -119,14 +126,3 @@ async def get_stream_info(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_stream_management_tools(mcp: FastMCP) -> None:
-    """Register READ-ONLY stream tools with the MCP server."""
-    mcp.tool(
-        name="get_streams", description="Get list of streams (READ-ONLY protection)"
-    )(get_streams)
-    mcp.tool(
-        name="get_stream_info",
-        description="Get detailed stream information (READ-ONLY protection)",
-    )(get_stream_info)

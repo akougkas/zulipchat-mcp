@@ -1,7 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
   "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
-  "registered_tools": 60,
+  "registered_tools": 45,
   "operations": [
     {
       "method": "POST",
@@ -61,16 +61,12 @@
       ],
       "tools": [
         "get_events",
-        "listen_events",
-        "poll_agent_events",
-        "request_user_input",
-        "wait_for_response"
+        "listen_events"
       ],
       "wrappers": [
         "get_events"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -82,14 +78,12 @@
       ],
       "tools": [
         "deregister_events",
-        "listen_events",
-        "poll_agent_events"
+        "listen_events"
       ],
       "wrappers": [
         "deregister"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -100,11 +94,11 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
         "create_draft",
         "edit_draft",
-        "get_stream_info"
+        "get_stream_info",
+        "resolve_topic",
+        "set_topic_visibility"
       ],
       "wrappers": [
         "get_stream_id"
@@ -373,9 +367,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -385,9 +381,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -397,9 +395,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -490,18 +490,9 @@
         "messages"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
-        "analyze_stream_with_llm",
-        "analyze_team_activity_with_llm",
-        "execute_chain",
         "get_daily_summary",
-        "intelligent_report_generator",
-        "poll_agent_events",
-        "request_user_input",
-        "search_messages",
-        "teleport_chat",
-        "wait_for_response"
+        "resolve_topic",
+        "search_messages"
       ],
       "wrappers": [
         "get_daily_summary",
@@ -510,8 +501,7 @@
         "get_messages_raw",
         "search_messages"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -522,13 +512,9 @@
         "messages"
       ],
       "tools": [
-        "agent_message",
-        "close_agent_session",
+        "ask_owner",
         "cross_post_message",
-        "execute_chain",
         "manage_files",
-        "request_user_input",
-        "send_agent_status",
         "send_message",
         "teleport_chat",
         "upload_file"
@@ -536,8 +522,7 @@
       "wrappers": [
         "send_message"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -547,9 +532,11 @@
       "tags": [
         "messages"
       ],
-      "tools": [],
+      "tools": [
+        "get_message_history"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -602,15 +589,12 @@
         "messages"
       ],
       "tools": [
-        "add_reaction",
-        "execute_chain",
-        "toggle_reaction"
+        "add_reaction"
       ],
       "wrappers": [
         "add_reaction"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -621,7 +605,7 @@
         "messages"
       ],
       "tools": [
-        "toggle_reaction"
+        "add_reaction"
       ],
       "wrappers": [
         "remove_reaction"
@@ -636,9 +620,11 @@
       "tags": [
         "messages"
       ],
-      "tools": [],
+      "tools": [
+        "get_read_receipts"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -681,8 +667,8 @@
         "messages"
       ],
       "tools": [
-        "agents_channel_topic_ops",
-        "edit_message"
+        "edit_message",
+        "resolve_topic"
       ],
       "wrappers": [
         "edit_message",
@@ -763,11 +749,12 @@
         "users"
       ],
       "tools": [
-        "advanced_search",
+        "get_message_history",
+        "get_read_receipts",
         "get_users",
         "resolve_user",
         "search_messages",
-        "teleport_chat"
+        "send_message"
       ],
       "wrappers": [
         "get_users"
@@ -848,11 +835,10 @@
       ],
       "tools": [
         "get_own_user",
-        "poll_agent_events"
+        "teleport_chat"
       ],
       "wrappers": [],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -975,7 +961,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
         "get_stream_info",
         "get_stream_topics"
       ],
@@ -1035,7 +1020,7 @@
         "channels"
       ],
       "tools": [
-        "agents_channel_topic_ops"
+        "set_topic_visibility"
       ],
       "wrappers": [
         "mute_topic",
@@ -1123,9 +1108,11 @@
       "tags": [
         "channels"
       ],
-      "tools": [],
+      "tools": [
+        "set_topic_visibility"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -1499,7 +1486,8 @@
         "users"
       ],
       "tools": [
-        "get_user"
+        "get_user",
+        "teleport_chat"
       ],
       "wrappers": [
         "get_user_by_email",
@@ -1759,16 +1747,12 @@
       ],
       "tools": [
         "listen_events",
-        "poll_agent_events",
-        "register_events",
-        "request_user_input",
-        "wait_for_response"
+        "register_events"
       ],
       "wrappers": [
         "register"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -1820,7 +1804,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
         "get_daily_summary",
         "get_stream_info",
         "get_streams",
@@ -1841,8 +1824,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
         "create_draft",
         "edit_draft",
         "get_stream_info"
@@ -1900,13 +1881,11 @@
       "tags": [
         "channels"
       ],
-      "tools": [
-        "agents_channel_topic_ops"
-      ],
+      "tools": [],
       "wrappers": [
         "delete_topic"
       ],
-      "status": "registered_tool"
+      "status": "wrapper_only"
     },
     {
       "method": "POST",
@@ -1916,9 +1895,11 @@
       "tags": [
         "users"
       ],
-      "tools": [],
+      "tools": [
+        "set_typing"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -2040,11 +2021,9 @@
       "tags": [
         "users"
       ],
-      "tools": [
-        "is_user_group_member"
-      ],
+      "tools": [],
       "wrappers": [],
-      "status": "registered_tool"
+      "status": "not_exposed"
     },
     {
       "method": "POST",
@@ -2217,12 +2196,12 @@
   ],
   "counts": {
     "documentation_reference": 3,
-    "not_exposed": 109,
-    "registered_tool": 42,
+    "not_exposed": 103,
+    "registered_tool": 47,
     "sdk_bootstrap": 1,
-    "wrapper_only": 11
+    "wrapper_only": 12
   },
-  "method": "Static registered-tool/client/SDK call reachability, with manually reviewed coordinator, listener, analytics and command-engine paths. A mapped endpoint is not certification of all parameters or live permissions.",
+  "method": "Static registered-tool/client/SDK call reachability; manual_review notes explain the exceptions. Tool lists reflect the 0.8.0 surface, which removed the agent session tools and their listener. A mapped endpoint is not certification of all parameters or live permissions. registered_tools counts the extended surface; ask_owner, registered only inside agents launched by zulipchat-mcp-agents, is listed but not counted.",
   "reviewed_at_utc": "2026-10-09T16:28:29.246349+00:00",
   "source_retrieved_date": "2026-10-09",
   "rest_operation_count": 163

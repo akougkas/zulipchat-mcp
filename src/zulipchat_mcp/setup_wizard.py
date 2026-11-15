@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import shutil
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +53,7 @@ def print_header() -> None:
     print("This wizard will:")
     print("  1. Find zuliprc files on your system")
     print("  2. Validate your Zulip credentials")
-    print("  3. Choose core (20) or extended (60) tool mode")
+    print("  3. Choose core (13) or extended (45) tool mode")
     print("  4. Generate MCP client configuration")
     print("=" * 48 + "\n")
 
@@ -63,48 +66,59 @@ def prompt(question: str, default: str | None = None) -> str:
     return input(f"{question}: ").strip()
 
 
+def _plain(text: object) -> str:
+    """Text from a file or a server, safe to print: no terminal escapes."""
+    return "".join(ch for ch in str(text) if ch.isprintable() or ch == " ")
+
+
 def scan_for_zuliprc_files() -> list[Path]:
-    """Scan system for potential zuliprc files."""
-    found: list[Path] = []
+    """Find candidate zuliprc files, the ones you placed deliberately first.
+
+    The first entry is the default choice. A file that merely arrived (a
+    download, a zuliprc shipped in the directory the wizard runs from) is
+    listed last, so pressing Enter never selects it over your own.
+    """
     home = Path.home()
 
-    # Standard locations (highest priority)
-    standard_paths = [
-        Path.cwd() / "zuliprc",
-        home / ".zuliprc",
-        home / ".config" / "zulip" / "zuliprc",
-    ]
-
-    for path in standard_paths:
-        if path.exists() and path.is_file():
-            found.append(path)
-
-    # Glob patterns for named zuliprc files
-    patterns = [
-        (home, ".zuliprc-*"),
-        (home, "*zuliprc*"),
-        (home / ".config", "**/zuliprc*"),
-        (home / ".config" / "zulip", "*"),
-        (home / "Downloads", "*zuliprc*"),
-    ]
-
-    for base_dir, pattern in patterns:
-        if base_dir.exists():
+    def matches(patterns: list[tuple[Path, str]]) -> list[Path]:
+        found: list[Path] = []
+        for base_dir, pattern in patterns:
+            if not base_dir.exists():
+                continue
             try:
-                for match in base_dir.glob(pattern):
-                    if match.is_file() and match not in found:
-                        try:
-                            content = match.read_text(errors="ignore")[:500]
-                            if "[api]" in content.lower():
-                                found.append(match)
-                        except (OSError, PermissionError):
-                            continue
+                candidates = list(base_dir.glob(pattern))
             except (OSError, PermissionError):
                 continue
+            for match in candidates:
+                try:
+                    if match.is_file() and match not in found:
+                        if "[api]" in match.read_text(errors="ignore")[:500].lower():
+                            found.append(match)
+                except (OSError, PermissionError):
+                    continue
+        # Newest first within a group.
+        found.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+        return found
 
-    # Sort by modification time (newest first)
-    found.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
-    return found
+    standard = [
+        path
+        for path in (home / ".zuliprc", home / ".config" / "zulip" / "zuliprc")
+        if path.is_file()
+    ]
+    named = matches(
+        [
+            (home, ".zuliprc-*"),
+            (home, "*zuliprc*"),
+            (home / ".config", "**/zuliprc*"),
+            (home / ".config" / "zulip", "*"),
+        ]
+    )
+    arrived = matches([(home / "Downloads", "*zuliprc*"), (Path.cwd(), "zuliprc")])
+    ordered: list[Path] = []
+    for path in (*standard, *named, *arrived):
+        if path not in ordered:
+            ordered.append(path)
+    return ordered
 
 
 def validate_zuliprc(path: Path, silent: bool = False) -> dict[str, Any] | None:
@@ -135,7 +149,7 @@ def validate_zuliprc(path: Path, silent: bool = False) -> dict[str, Any] | None:
 
             if not silent:
                 identity = "Bot" if is_bot else "User"
-                print(f"{GREEN}OK{RESET} - {identity}: {user_name}")
+                print(f"{GREEN}OK{RESET} - {identity}: {_plain(user_name)}")
 
             return {
                 "path": str(path.resolve()),
@@ -145,12 +159,12 @@ def validate_zuliprc(path: Path, silent: bool = False) -> dict[str, Any] | None:
             }
 
         if not silent:
-            print(f"{RED}Failed{RESET} - {result.get('msg', 'Unknown error')}")
+            print(f"{RED}Failed{RESET} - {_plain(result.get('msg', 'Unknown error'))}")
         return None
 
     except Exception as e:
         if not silent:
-            print(f"{RED}Error{RESET} - {e}")
+            print(f"{RED}Error{RESET} - {_plain(e)}")
         return None
 
 
@@ -324,7 +338,13 @@ def _build_args(
 ) -> list[str]:
     """Build MCP server command args."""
     if use_uvx:
-        args = ["zulipchat-mcp", "--zulip-config-file", user_config["path"]]
+        # Pinned to this version: an unpinned uvx runs whatever the index
+        # serves at each start, with the Zulip key.
+        args = [
+            f"zulipchat-mcp@{__version__}",
+            "--zulip-config-file",
+            user_config["path"],
+        ]
     else:
         args = ["run", "zulipchat-mcp", "--zulip-config-file", user_config["path"]]
 
@@ -373,7 +393,7 @@ def generate_claude_code_command(
     if bot_config:
         parts.append(shlex.join(["-e", f"ZULIP_BOT_CONFIG_FILE={bot_config['path']}"]))
 
-    cmd_tail = "-- uvx zulipchat-mcp"
+    cmd_tail = f"-- uvx zulipchat-mcp@{__version__}"
     if extended_tools:
         cmd_tail += " --extended-tools"
     parts.append(cmd_tail)
@@ -389,10 +409,17 @@ def write_config_to_file(
 ) -> bool:
     """Write MCP config to client configuration file."""
     try:
+        mode = None
         if config_path.exists():
-            backup = config_path.with_suffix(config_path.suffix + ".bak")
+            # Never overwrite an earlier backup: the first one is the original.
+            backup = config_path.with_name(config_path.name + ".bak")
+            if backup.exists():
+                backup = config_path.with_name(
+                    f"{config_path.name}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+                )
             shutil.copy2(config_path, backup)
             print(f"{DIM}Backup created: {backup}{RESET}")
+            mode = config_path.stat().st_mode & 0o777
             with open(config_path) as f:
                 settings = json.load(f)
         else:
@@ -404,8 +431,20 @@ def write_config_to_file(
 
         settings[root_key][server_key] = mcp_config
 
-        with open(config_path, "w") as f:
-            json.dump(settings, f, indent=2)
+        # Write beside the file and swap it in, so a failure midway leaves the
+        # client's configuration as it was.
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=f".{config_path.name}.", dir=config_path.parent
+        )
+        try:
+            with os.fdopen(descriptor, "w") as f:
+                json.dump(settings, f, indent=2)
+            if mode is not None:
+                os.chmod(temporary, mode)
+            os.replace(temporary, config_path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
         print(f"{GREEN}Configuration written to {config_path}{RESET}")
         return True
@@ -442,8 +481,8 @@ def _print_config_block(title: str, payload: dict[str, Any]) -> None:
 def _select_tool_mode() -> bool:
     """Prompt for core vs extended tool mode."""
     print(f"\n{BOLD}Step 4: Tool Mode{RESET}")
-    print("  1. Core mode (20 tools, default)")
-    print("  2. Extended mode (60 tools)")
+    print("  1. Core mode (19 tools, default)")
+    print("  2. Extended mode (45 tools)")
     choice = prompt("Choice", default="1")
     return choice.strip() == "2"
 
@@ -605,7 +644,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\nUser: {user_config['name']} ({user_config['email']})")
     if bot_config:
         print(f"Bot:  {bot_config['name']} ({bot_config['email']})")
-    print(f"Tool mode: {'Extended (60)' if extended_tools else 'Core (20)'}")
+    print(f"Tool mode: {'Extended (45)' if extended_tools else 'Core (13)'}")
     print("\nRestart your MCP client to apply changes.")
 
 

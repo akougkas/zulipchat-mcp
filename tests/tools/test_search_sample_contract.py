@@ -43,15 +43,19 @@ async def test_registered_search_reports_actual_sample_and_preserves_upstream_er
                 {"limit": 1, "after_time": "2023-11-14T22:13:22Z", "fresh": True},
             )
         ).data
-        assert result["sample"]["fetched_count"] == 3
-        assert result["sample"]["returned_count"] == 1
-        assert result["sample"]["truncated_excerpt_count"] == 1
-        assert result["sample"]["coverage"] == "single_api_window"
-        assert result["sample"]["cache"]["snapshot_id"] == "synthetic"
+        assert result["count"] == 1
+        assert result["sample"]["truncated_excerpts"] == 1
+        assert result["sample"]["completeness"] == "partial"
+        assert result["sample"]["next_cursor"].startswith("3:")
         assert result["messages"][0]["id"] == 3
-        assert result["messages"][0]["timestamp_utc"] == "2023-11-14T22:13:23+00:00"
-        assert result["messages"][0]["content_format"] == "rendered_html"
+        assert result["messages"][0]["time"] == "2023-11-14T22:13+00:00"
+        assert result["messages"][0]["truncated"] is True
         assert upstream.get_messages_raw.call_args.kwargs["use_cache"] is False
+        assert upstream.get_messages_raw.call_args.kwargs["apply_markdown"] is False
+        await client.call_tool(
+            "search_messages", {"limit": 1, "content_format": "rendered_html"}
+        )
+        assert upstream.get_messages_raw.call_args.kwargs["apply_markdown"] is True
         upstream.get_messages_raw.return_value = {
             "result": "error",
             "code": "RATE_LIMIT_HIT",

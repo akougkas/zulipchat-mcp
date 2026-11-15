@@ -26,16 +26,22 @@ READ_ONLY_TOOLS = frozenset(
         "get_presence",
         "get_user_groups",
         "get_user_group_members",
-        "is_user_group_member",
-        "advanced_search",
-        "construct_narrow",
         "check_messages_match_narrow",
         "get_scheduled_messages",
-        "list_sessions",
-        "list_instances",
-        "list_command_types",
+        "get_drafts",
+        "get_read_receipts",
+        "get_message_history",
+        "get_daily_summary",
     }
 )
+
+PROFILE_TOOLS: dict[str, frozenset[str] | None] = {
+    "full": None,
+    "read-only": READ_ONLY_TOOLS,
+    # What the agent bridge gives an agent by default: a way to ask its owner
+    # in its own conversation, with no read of anyone else's text.
+    "ask-owner": frozenset({"ask_owner"}),
+}
 
 
 class ToolContractMiddleware(Middleware):
@@ -45,34 +51,45 @@ class ToolContractMiddleware(Middleware):
     authorize workspace execution, or restrict reads to a particular channel.
     """
 
-    def __init__(self, *, read_only: bool = False, transport: str = "stdio"):
-        self.read_only = read_only
+    def __init__(
+        self,
+        *,
+        read_only: bool = False,
+        transport: str = "stdio",
+        profile: str | None = None,
+    ):
+        self.profile = profile or ("read-only" if read_only else "full")
+        self.allowed = PROFILE_TOOLS[self.profile]
+        self.read_only = self.profile == "read-only"
         self.transport = transport
 
     async def on_list_tools(
         self, context: MiddlewareContext[Any], call_next: Any
     ) -> Any:
         tools = await call_next(context)
-        if self.read_only:
-            return [tool for tool in tools if tool.name in READ_ONLY_TOOLS]
+        if self.allowed is not None:
+            return [tool for tool in tools if tool.name in self.allowed]
         return tools
 
     async def on_call_tool(
         self, context: MiddlewareContext[Any], call_next: Any
-    ) -> ToolResult:
+    ) -> Any:
         name = context.message.name
-        if self.read_only and name not in READ_ONLY_TOOLS:
-            data = {
+        if self.allowed is not None and name not in self.allowed:
+            denied = {
                 "status": "error",
-                "error": "The read-only tool profile does not permit this tool",
+                "error": f"The {self.profile} tool profile does not permit this tool",
                 "error_code": "POLICY_DENIED",
                 "retryable": False,
                 "tool": name,
-                "profile": "read-only",
+                "profile": self.profile,
             }
-            return ToolResult(structured_content=data, is_error=True)
+            return ToolResult(structured_content=denied, is_error=True)
 
         result = await call_next(context)
+        # A task-augmented call returns a task handle, not a tool result.
+        if not isinstance(result, ToolResult):
+            return result
         data = result.structured_content
         if not isinstance(data, dict):
             return result
@@ -83,11 +100,11 @@ class ToolContractMiddleware(Middleware):
             data = {
                 **data,
                 "capabilities": {
-                    "tool_profile": "read-only" if self.read_only else "full",
+                    "tool_profile": self.profile,
                     "transport": self.transport,
                     "enabled_tools": sorted(tool.name for tool in tools),
                     "enabled_tool_count": len(tools),
-                    "identity_switching": not self.read_only
+                    "identity_switching": self.profile == "full"
                     and self.transport == "stdio",
                     "scope": "configured Zulip account",
                 },

@@ -45,8 +45,8 @@ VERSION_UPDATES: list[VersionUpdate] = [
     ),
     VersionUpdate(
         "CLAUDE.md",
-        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?\)",
-        "## Current Status (v{version})",
+        r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?",
+        "## Current Status (v{version}",
     ),
     VersionUpdate(
         "CLAUDE.md",
@@ -60,8 +60,8 @@ VERSION_UPDATES: list[VersionUpdate] = [
     ),
     VersionUpdate(
         "ROADMAP.md",
-        r"## v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)? \(Current\)",
-        "## v{version} (Current)",
+        r"## v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)? \(Current",
+        "## v{version} (Current",
     ),
     VersionUpdate(
         "server.json",
@@ -137,7 +137,14 @@ def main() -> int:
         if path.name in {"catalog.json", "package-metadata.json", "plugin.json"}
         and '"version":' in path.read_text()
     ]
-    updates = [*VERSION_UPDATES, *integration_updates]
+    # Templates pin the server (zulipchat-mcp@X) and the hook (zulipchat-mcp==X).
+    pin = r"zulipchat-mcp(@|==)[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"
+    pin_updates = [
+        VersionUpdate(str(path.relative_to(root)), pin, r"zulipchat-mcp\g<1>{version}")
+        for path in sorted((root / "integrations").rglob("*"))
+        if path.is_file() and re.search(pin, path.read_text(errors="ignore"))
+    ]
+    updates = [*VERSION_UPDATES, *integration_updates, *pin_updates]
     version = args.version
 
     print(f"Bumping version to {version}")

@@ -3,8 +3,8 @@
 ## Server fails with "Invalid configuration"
 
 - Confirm `--zulip-config-file` points to an existing file.
-- If omitted, verify one of these exists:
-  - `./zuliprc`
+- If omitted, verify one of these exists (a `zuliprc` in the working directory
+  is not picked up):
   - `~/.zuliprc`
   - `~/.config/zulip/zuliprc`
 - Or provide env fallback: `ZULIP_EMAIL`, `ZULIP_API_KEY`, `ZULIP_SITE`.
@@ -29,22 +29,25 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 - You are likely in core mode.
 - Start with `--extended-tools` (or `ZULIPCHAT_EXTENDED_TOOLS=1`) for full tool set.
 
-## `request_user_input` or approvals never resolve
+## Messages to an agent bot get no answer
 
-- Ensure the message listener is running. It lazy-starts on the first request-wait or event-poll call.
-- Confirm the reply happened in the bound session topic, not a different topic or DM.
-- Confirm the reply came from the configured owner account.
+- The MCP server cannot wake an agent. Zulip messages reach a coding agent only
+  through the bridge; check it with `zulipchat-mcp-agents service status` and
+  its log with `journalctl --user -u zulipchat-mcp-agents -f` (Linux). To run
+  it in a terminal instead, stop the service first: a second process for the
+  same bot exits with status 78 and "another process already serves this bot".
+- The bridge hears only the bot's owner and the user IDs in the agent file's
+  `allow`; everyone else is dropped without a reply.
+- In a channel, mention the bot. See [Agent bots](integrations/agent-bots.md).
+- A permission request is answered only by a message that is just `yes`, `ok`,
+  `okay`, `approve`, `no` or `deny`, or by `/approve ID` and `/deny ID`.
+  Reactions do not answer.
 
-## Claude hook bridge does nothing
+## An agent bot answers with the wrong model
 
-- Make sure you installed the hook entrypoint: `zulipchat-mcp-hook`.
-- Confirm Claude Code hooks are invoking the bridge with the same Zulip config files as the MCP server.
-- For `SessionEnd` hooks, increase `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` if you need more than Claude Code’s short default timeout.
-
-## Session messages say "Not authorized"
-
-- Owner policy is per session topic. Only the configured owner email can steer or approve a bound session by default.
-- If the bot is in a broader channel, unauthorized users can still mention it normally outside a bound session topic; the restriction applies to the bound control topic.
+- A conversation resumes the same agent session until you send `/new`, and a
+  session keeps the model it started with. Send `/new` after changing the
+  agent's model settings.
 
 ## Event queue errors
 
@@ -56,23 +59,10 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 - Verify the file identifier is a valid upload path or full URL.
 - Ensure the active identity has access to the underlying stream/DM context.
 
-## AI analytics tools return `llm_unavailable: true`
-
-- MCP 2026-07-28 deprecates sampling. ZulipChat MCP has migrated to a server-side Anthropic LLM provider (`core/llm.py`).
-- Set `ANTHROPIC_API_KEY` in the environment of the server process to enable LLM generation.
-- Optionally set `ANTHROPIC_MODEL` to override the model (default: `claude-opus-5`).
-- Without an API key, analytics tools return raw structured summaries so calling agents can process data directly.
-
 ## HTTP transport returns 401 Unauthorized
 
 - When binding `--transport http` beyond `127.0.0.1`, bearer token authentication is enabled.
 - Ensure requests include `Authorization: Bearer <token>` matching `--auth-token` or `ZULIPCHAT_HTTP_AUTH_TOKEN`.
-
-## Multi-replica HTTP database locking
-
-- DuckDB storage (`zulipchat.duckdb`) is single-writer.
-- In multi-replica HTTP deployments, running multiple server processes accessing the same DuckDB path will fail with database lock errors.
-- Ensure each HTTP replica uses a distinct database file path or run as a single-instance deployment.
 
 ## Setup wizard EOF in non-interactive shells
 

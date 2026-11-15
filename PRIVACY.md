@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** January 2025
+**Last updated:** November 2026
 
 ## Overview
 
@@ -35,7 +35,8 @@ All communication is direct between your machine and your Zulip server. No data 
 
 The Server may create local files for:
 
-- **DuckDB database**: Caches stream/user data locally for performance (stored in `~/.cache/zulipchat-mcp/`)
+- **Read caches**: Recent Zulip API responses, kept for performance in `$XDG_STATE_HOME/zulipchat-mcp/accounts/<fingerprint>/cache` (normally under `~/.local/state/`). `--ephemeral-state` keeps them in memory instead.
+- **Agent bridge state**: If you run `zulipchat-mcp-agents`, it keeps conversation bindings and a rolling inbox of messages sent to each agent bot in `$XDG_STATE_HOME/zulipchat-mcp/agents/`. Inbox messages are removed once handled and kept at most 30 days.
 - **Log files**: If debug mode is enabled, logs are written locally and never transmitted
 
 You can delete these files at any time without affecting the Server's core functionality.

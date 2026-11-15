@@ -10,11 +10,9 @@ import mimetypes
 import os
 from base64 import b64decode, b64encode
 from binascii import Error as Base64Error
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse, urlunparse
-
-from fastmcp import FastMCP
 
 from ..config import get_client
 from ..core.api_errors import api_error
@@ -310,7 +308,7 @@ async def upload_file(
                 "file_size": validation["metadata"]["size"],
                 "mime_type": mime_type,
                 "hash": validation["metadata"]["hash"],
-                "upload_timestamp": datetime.now().isoformat(),
+                "upload_timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if validation["warnings"]:
@@ -563,19 +561,3 @@ async def manage_files(
 
     except Exception as e:
         return {"status": "error", "error": str(e), "operation": operation}
-
-
-def register_files_tools(mcp: FastMCP) -> None:
-    """Register file tools with the MCP server."""
-    mcp.tool(
-        name="upload_file",
-        description=(
-            "Upload and optionally share a file (max 25 MiB). Supply exactly one "
-            "source: file_content_base64 for binary data using standard padded "
-            "base64, file_content for UTF-8 text, or a local file_path (stdio only)."
-        ),
-    )(upload_file)
-    mcp.tool(
-        name="manage_files",
-        description="File management operations with Zulip API limitations",
-    )(manage_files)

@@ -8,15 +8,15 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 from collections.abc import Iterator
 from configparser import ConfigParser
+from configparser import Error as ConfigParserError
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
 if TYPE_CHECKING:
@@ -27,18 +27,28 @@ try:
 
     from dotenv import dotenv_values
 
-    # Load .env file for development (only current directory).
-    # Blank entries are skipped rather than exported. A templated .env leaves
-    # keys like `ZULIP_SITE=` present but empty, and the Zulip SDK reads those
-    # variables whenever its constructor arg is None, so exporting "" would
-    # shadow an explicit --zulip-config-file and fail with an opaque
-    # "No host supplied" URL error. Existing environment values still win,
-    # matching load_dotenv's default override=False behaviour.
+    # Load credentials from a .env file for development (current directory).
+    # Hosts start this server inside the project they have open, so that file
+    # can belong to an untrusted checkout. It supplies credentials and nothing
+    # else: never a config file path, a proxy, a CA bundle, TLS settings or a
+    # policy. A credential set comes from one source, so a key from the real
+    # environment is never paired with a site from the file.
+    # Blank entries are skipped: a templated .env leaves keys like `ZULIP_SITE=`
+    # present but empty, and the Zulip SDK would read "" over a config file.
+    _USER_KEYS = ("ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE")
+    _BOT_KEYS = ("ZULIP_BOT_EMAIL", "ZULIP_BOT_API_KEY")
     env_path = Path.cwd() / ".env"
     if env_path.exists():
-        for _key, _value in dotenv_values(env_path).items():
-            if _value and _value.strip() and _key not in os.environ:
-                os.environ[_key] = _value
+        _file = dotenv_values(env_path)
+        _present = {key for key in (*_USER_KEYS, *_BOT_KEYS) if key in os.environ}
+        for _keys in (
+            _USER_KEYS if not _present else (),
+            _BOT_KEYS if not _present.intersection(_BOT_KEYS) else (),
+        ):
+            for _key in _keys:
+                _value = _file.get(_key)
+                if _value and _value.strip():
+                    os.environ[_key] = _value
 except ImportError:
     # python-dotenv not available, skip loading .env
     pass
@@ -60,77 +70,6 @@ class ZulipConfig:
     bot_name: str = "Claude Code"
     bot_avatar_url: str | None = None
     bot_config_file: str | None = None
-    # Raw --mention-allow / ZULIPCHAT_MENTION_ALLOW value; parsed on demand.
-    mention_allow: str | None = None
-
-
-_MENTION_ALLOW_EMAIL = re.compile(r"[^@\s,]+@[^@\s,]+")
-
-
-@dataclass(frozen=True)
-class MentionAllow:
-    """Senders whose bot mentions and direct messages may be returned to a host.
-
-    The default (nothing configured) admits only the configured owner. An
-    explicit list extends that default; the owner is always admitted.
-    """
-
-    everyone: bool = False
-    emails: frozenset[str] = frozenset()
-    user_ids: frozenset[int] = frozenset()
-    configured: bool = False
-
-    @property
-    def mode(self) -> str:
-        if self.everyone:
-            return "everyone"
-        return "allowlist" if self.configured else "owner_only"
-
-    def allows(self, sender_id: object, sender_email: object, owner_email: str) -> bool:
-        if self.everyone:
-            return True
-        email = str(sender_email or "").casefold()
-        if email and email == owner_email.casefold():
-            return True
-        return email in self.emails or (
-            type(sender_id) is int and sender_id in self.user_ids
-        )
-
-    def summary(self, owner_email: str) -> dict[str, Any]:
-        return {
-            "mode": self.mode,
-            "owner_email": owner_email if self.mode == "owner_only" else None,
-            "emails": sorted(self.emails),
-            "user_ids": sorted(self.user_ids),
-        }
-
-
-def parse_mention_allow(value: str | None) -> MentionAllow:
-    """Parse comma-separated emails and numeric user IDs, or the word everyone."""
-    if value is None or not value.strip():
-        return MentionAllow()
-    entries = [entry.strip() for entry in value.split(",")]
-    if "" in entries:
-        raise ValueError("Mention allow list contains an empty entry")
-    if any(entry.casefold() == "everyone" for entry in entries):
-        if len(entries) > 1:
-            raise ValueError("'everyone' cannot be combined with other entries")
-        return MentionAllow(everyone=True, configured=True)
-    emails: set[str] = set()
-    user_ids: set[int] = set()
-    for entry in entries:
-        if len(entry) <= 254 and entry.isascii() and entry.isdigit() and int(entry):
-            user_ids.add(int(entry))
-        elif len(entry) <= 254 and _MENTION_ALLOW_EMAIL.fullmatch(entry):
-            emails.add(entry.casefold())
-        else:
-            raise ValueError(
-                f"Invalid mention allow entry {entry[:60]!r}: use a Zulip email, "
-                "a positive numeric user ID, or the single word 'everyone'"
-            )
-    return MentionAllow(
-        emails=frozenset(emails), user_ids=frozenset(user_ids), configured=True
-    )
 
 
 @dataclass(frozen=True)
@@ -161,14 +100,21 @@ def load_zuliprc_credentials(config_file: str) -> dict[str, str]:
     """Resolve one file's credentials without SDK environment overrides."""
     config_file = str(Path(config_file).expanduser())
     parser = ConfigParser(interpolation=None)
-    with open(config_file, encoding="utf-8") as handle:
-        parser.read_file(handle)
-    credentials = {
-        "email": parser.get("api", "email").strip(),
-        "api_key": parser.get("api", "key").strip(),
-        "site": parser.get("api", "site").strip(),
-        "config_file": config_file,
-    }
+    try:
+        with open(config_file, encoding="utf-8") as handle:
+            parser.read_file(handle)
+        credentials = {
+            "email": parser.get("api", "email").strip(),
+            "api_key": parser.get("api", "key").strip(),
+            "site": parser.get("api", "site").strip(),
+            "config_file": config_file,
+        }
+    except ConfigParserError:
+        # The parser's own messages quote the offending lines, API key included.
+        raise ValueError(
+            f"{config_file} is not a valid zuliprc: it needs an [api] section "
+            "with email, key and site"
+        ) from None
     if not all(credentials.values()):
         raise ValueError("Zulip config file requires nonempty email, key, and site")
     return credentials
@@ -182,13 +128,11 @@ class ConfigManager:
         config_file: str | None = None,
         bot_config_file: str | None = None,
         debug: bool | None = None,
-        mention_allow: str | None = None,
     ) -> None:
         self.config = self._load_config(
             cli_config_file=config_file,
             cli_bot_config_file=bot_config_file,
             cli_debug=debug,
-            cli_mention_allow=mention_allow,
         )
 
     def _load_config(
@@ -196,7 +140,6 @@ class ConfigManager:
         cli_config_file: str | None = None,
         cli_bot_config_file: str | None = None,
         cli_debug: bool | None = None,
-        cli_mention_allow: str | None = None,
     ) -> ZulipConfig:
         """Load configuration from env/CLI/defaults with zuliprc + env support."""
         # Check environment for config file paths
@@ -227,21 +170,19 @@ class ConfigManager:
                 if final_bot_config_file
                 else None
             ),
-            mention_allow=(
-                cli_mention_allow
-                if cli_mention_allow is not None
-                else self._env("ZULIPCHAT_MENTION_ALLOW")
-            ),
         )
 
     def _find_default_config(self) -> str | None:
-        """Search for zuliprc in standard locations."""
+        """Search for zuliprc in the home directory's standard locations.
+
+        The working directory is not searched: hosts start the server inside
+        the open project, and a checkout must not choose the Zulip server.
+        """
         import os
         from pathlib import Path
 
         home = Path.home()
         candidates = [
-            os.path.join(os.getcwd(), "zuliprc"),
             os.path.join(home, ".zuliprc"),
             os.path.join(home, ".config", "zulip", "zuliprc"),
         ]
@@ -298,10 +239,6 @@ class ConfigManager:
             return True
 
         return False
-
-    def mention_allow_policy(self) -> MentionAllow:
-        """Parse the configured mention/direct-message sender policy."""
-        return parse_mention_allow(self.config.mention_allow)
 
     def has_bot_credentials(self) -> bool:
         """Check if bot credentials are configured."""
@@ -366,7 +303,6 @@ def init_config_manager(
     config_file: str | None = None,
     bot_config_file: str | None = None,
     debug: bool | None = None,
-    mention_allow: str | None = None,
 ) -> ConfigManager:
     """Initialize the global ConfigManager singleton.
 
@@ -377,7 +313,6 @@ def init_config_manager(
         config_file: Path to user zuliprc file
         bot_config_file: Path to bot zuliprc file
         debug: Enable debug mode
-        mention_allow: Comma-separated sender emails/IDs, or "everyone"
 
     Returns:
         The initialized ConfigManager instance
@@ -387,7 +322,6 @@ def init_config_manager(
         config_file=config_file,
         bot_config_file=bot_config_file,
         debug=debug,
-        mention_allow=mention_allow,
     )
     _current_identity = "user"
     _get_cached_client.cache_clear()
@@ -408,11 +342,6 @@ def get_config_manager() -> ConfigManager:
             "ConfigManager not initialized. Call init_config_manager() first."
         )
     return _config_manager
-
-
-def get_current_identity() -> str:
-    """Get the current identity setting ('user' or 'bot')."""
-    return _current_identity
 
 
 def set_current_identity(identity: str) -> None:

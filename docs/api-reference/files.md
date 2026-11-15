@@ -15,6 +15,9 @@ File tools are extended mode only.
 - `download`
 - `get_permissions`
 
+`get` and `generate_thumbnail` are accepted by the schema but return a
+`not implemented` error.
+
 ## Examples
 
 Upload and share:

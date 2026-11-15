@@ -31,5 +31,12 @@ await listen_events(
 ## Behavior notes
 
 - `listen_events` handles registration and cleanup automatically.
+- `listen_events` accepts `duration` up to 600 seconds and retries at most
+  three consecutive failed polls. Unrecovered failures return `error`, or
+  `partial` when events were collected; recovered failures appear in
+  `polling_errors`.
 - Queue lifespan and timeout values are capped by tool logic.
-- Optional webhook callback is best-effort.
+- These tools return events to the calling agent only; they do not wake an
+  agent. To act on messages sent to a bot, run the
+  [agent bridge](../integrations/agent-bots.md).
+- Events are returned to the caller only. The server has no webhook and sends Zulip data to no other host.

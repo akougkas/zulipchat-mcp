@@ -14,13 +14,6 @@ import pytest
 from zulip import Client
 
 from zulipchat_mcp.config import ConfigManager
-from zulipchat_mcp.core import (
-    ErrorHandler,
-    IdentityManager,
-    ParameterValidator,
-    RetryConfig,
-    RetryStrategy,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -161,31 +154,6 @@ def mock_async_zulip_client() -> AsyncMock:
     client.update_message_flags.return_value = {"result": "success"}
 
     return client
-
-
-@pytest.fixture
-def identity_manager(mock_config) -> IdentityManager:
-    """IdentityManager fixture."""
-    return IdentityManager(mock_config)
-
-
-@pytest.fixture
-def parameter_validator() -> ParameterValidator:
-    """ParameterValidator fixture."""
-    return ParameterValidator()
-
-
-@pytest.fixture
-def error_handler() -> ErrorHandler:
-    """ErrorHandler fixture with test configuration."""
-    return ErrorHandler(
-        retry_config=RetryConfig(
-            max_attempts=3,
-            initial_delay=0.01,  # Fast retries for tests
-            strategy=RetryStrategy.FIXED,
-            jitter=False,
-        )
-    )
 
 
 @pytest.fixture

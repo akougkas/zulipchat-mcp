@@ -14,7 +14,7 @@ Each page below includes copy-paste setup for one client.
 - [Antigravity](antigravity.md)
 - [Antigravity CLI](antigravity-cli.md)
 - [Agent Skills and Plugins](agent-skills.md)
-- [Topic-bound agent workflow](agent-workflow.md)
+- [Agent bots](agent-bots.md): talk to local ACP agents from Zulip through `zulipchat-mcp-agents`
 - [Generic MCP Client](generic.md)
 
 ## Shared baseline command
@@ -25,14 +25,14 @@ uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 
 ## Companion commands
 
-The setup wizard, integration exporter, and Claude hook bridge are commands
+The setup wizard, integration exporter, and agent bridge are commands
 provided by the `zulipchat-mcp` package. Always specify that package when invoking
 these companion commands with `uvx`:
 
 ```bash
 uvx --from zulipchat-mcp zulipchat-mcp-setup
 uvx --from zulipchat-mcp zulipchat-mcp-integrate --help
-uvx --from zulipchat-mcp zulipchat-mcp-hook --help
+uvx --from zulipchat-mcp zulipchat-mcp-agents --help
 ```
 
 Without an explicit package source, `uvx` infers a package name from the command.

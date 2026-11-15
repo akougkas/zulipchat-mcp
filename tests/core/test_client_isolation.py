@@ -135,8 +135,6 @@ def test_message_time_window_uses_utc(manager):
 
 def test_cold_user_cache_and_ambiguous_names_fail_closed():
     cache = UserCache()
-    assert not cache.is_same_user("one@example.com", "two@example.com")
-    assert not cache.is_same_user("", "")
     cache.set_users(
         [
             {
@@ -149,7 +147,5 @@ def test_cold_user_cache_and_ambiguous_names_fail_closed():
     )
     assert cache.resolve_user("Alex")["email"] is None
     assert cache.resolve_user("Alex One")["email"] == "one@example.com"
-    assert cache.is_same_user("ONE@example.com", "REAL@example.com")
     cache.cache.clear()
     assert cache.resolve_user("Alex One")["email"] is None
-    assert not cache.is_same_user("one@example.com", "real@example.com")

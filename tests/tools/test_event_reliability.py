@@ -65,18 +65,3 @@ async def test_long_poll_does_not_block_event_loop(monkeypatch):
     finally:
         release.set()
         await task
-
-
-async def test_http_task_callback_is_rejected_before_queue_registration(monkeypatch):
-    from zulipchat_mcp.core import security
-
-    monkeypatch.setattr(
-        security, "get_http_headers", lambda **kwargs: {"host": "mcp.example"}
-    )
-    register = AsyncMock()
-    monkeypatch.setattr(events, "register_events", register)
-    result = await events.listen_events(
-        ["message"], callback_url="http://127.0.0.1/private"
-    )
-    assert result["status"] == "error"
-    register.assert_not_called()

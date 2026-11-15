@@ -7,23 +7,25 @@ Uses modern "update personal message flags for narrow" instead of deprecated end
 import asyncio
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import bind_client, get_client
 from ..core.api_errors import api_error
+from ..utils.narrow_helpers import wire_narrow
 
 
-def _resolve_stream_name(stream_id: int) -> str:
-    """Resolve stream ID to name using Zulip API."""
-    client = get_client()
-    # Fetch all streams and find the one with matching ID
-    # This is more reliable than the streams/{id} endpoint
-    result = client.get_streams(include_public=True, include_subscribed=True)
-    if result.get("result") == "success":
-        for stream in result.get("streams", []):
-            if stream.get("stream_id") == stream_id:
-                return stream["name"]
-    raise ValueError(f"Unknown stream ID: {stream_id}")
+def _criteria_narrow(
+    stream_id: int | str | None = None,
+    topic_name: str | None = None,
+    sender_email: str | None = None,
+) -> list[dict[str, Any]]:
+    """Narrow from convenience filters; the channel operand takes an ID or a name."""
+    narrow: list[dict[str, Any]] = []
+    if stream_id:
+        narrow.append({"operator": "channel", "operand": stream_id})
+    if topic_name:
+        narrow.append({"operator": "topic", "operand": topic_name})
+    if sender_email:
+        narrow.append({"operator": "sender", "operand": sender_email})
+    return narrow
 
 
 async def update_message_flags_for_narrow(
@@ -40,7 +42,7 @@ async def update_message_flags_for_narrow(
 
     try:
         request_data = {
-            "narrow": narrow,
+            "narrow": wire_narrow(narrow, client.supports),
             "op": op,
             "flag": flag,
             "anchor": anchor,
@@ -71,50 +73,6 @@ async def update_message_flags_for_narrow(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-async def mark_all_as_read() -> dict[str, Any]:
-    """Mark all messages as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            # Use empty narrow to match all messages
-            return await _mark_read_pages([])
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
-    """Mark all messages in a stream as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
-            # Use stream narrow to match stream messages
-            narrow = [{"operator": "stream", "operand": stream_name}]
-
-            return await _mark_read_pages(narrow)
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
-    """Mark all messages in a topic as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
-            # Use stream + topic narrow to match topic messages
-            narrow = [
-                {"operator": "stream", "operand": stream_name},
-                {"operator": "topic", "operand": topic_name},
-            ]
-
-            return await _mark_read_pages(narrow)
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def _mark_read_pages(narrow: list[dict[str, Any]]) -> dict[str, Any]:
-    """Compatibility wrapper for the shared bulk flag operation."""
-    return await _update_flag_pages(narrow, "add", "read")
 
 
 async def _update_flag_pages(
@@ -180,122 +138,23 @@ async def _update_flag_pages(
         anchor = cursor
 
 
-async def mark_messages_unread(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
+async def _flag_matching(
+    op: Literal["add", "remove"],
+    flag: Literal["read", "starred"],
+    narrow: list[dict[str, Any]] | None,
+    stream_id: int | str | None,
+    topic_name: str | None,
+    sender_email: str | None,
 ) -> dict[str, Any]:
-    """Mark messages as unread using flexible narrow construction."""
     try:
         with bind_client(get_client()):
-            # Build narrow from convenient parameters
-            if not narrow:
-                narrow = []
-                if stream_id:
-                    try:
-                        stream_name = await asyncio.to_thread(
-                            _resolve_stream_name, stream_id
-                        )
-                        narrow.append({"operator": "stream", "operand": stream_name})
-                    except ValueError as e:
-                        return {"status": "error", "error": str(e)}
-                if topic_name:
-                    narrow.append({"operator": "topic", "operand": topic_name})
-                if sender_email:
-                    narrow.append({"operator": "sender", "operand": sender_email})
-
-            if not narrow:
+            built = narrow or _criteria_narrow(stream_id, topic_name, sender_email)
+            if not built:
                 return {
                     "status": "error",
-                    "error": "Must provide narrow or stream_id/topic_name/sender_email",
+                    "error": "Must provide narrow, stream_id, topic_name, or sender_email",
                 }
-
-            return await _update_flag_pages(
-                narrow=narrow,
-                op="remove",
-                flag="read",
-            )
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def star_messages(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-) -> dict[str, Any]:
-    """Star messages matching criteria."""
-    try:
-        with bind_client(get_client()):
-            # Build narrow from convenient parameters
-            if not narrow:
-                narrow = []
-                if stream_id:
-                    try:
-                        stream_name = await asyncio.to_thread(
-                            _resolve_stream_name, stream_id
-                        )
-                        narrow.append({"operator": "stream", "operand": stream_name})
-                    except ValueError as e:
-                        return {"status": "error", "error": str(e)}
-                if topic_name:
-                    narrow.append({"operator": "topic", "operand": topic_name})
-                if sender_email:
-                    narrow.append({"operator": "sender", "operand": sender_email})
-
-            if not narrow:
-                return {
-                    "status": "error",
-                    "error": "Must provide narrow or stream_id/topic_name/sender_email",
-                }
-
-            return await _update_flag_pages(
-                narrow=narrow,
-                op="add",
-                flag="starred",
-            )
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def unstar_messages(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-) -> dict[str, Any]:
-    """Unstar messages matching criteria."""
-    try:
-        with bind_client(get_client()):
-            # Build narrow from convenient parameters
-            if not narrow:
-                narrow = []
-                if stream_id:
-                    try:
-                        stream_name = await asyncio.to_thread(
-                            _resolve_stream_name, stream_id
-                        )
-                        narrow.append({"operator": "stream", "operand": stream_name})
-                    except ValueError as e:
-                        return {"status": "error", "error": str(e)}
-                if topic_name:
-                    narrow.append({"operator": "topic", "operand": topic_name})
-                if sender_email:
-                    narrow.append({"operator": "sender", "operand": sender_email})
-
-            if not narrow:
-                return {
-                    "status": "error",
-                    "error": "Must provide narrow or stream_id/topic_name/sender_email",
-                }
-
-            return await _update_flag_pages(
-                narrow=narrow,
-                op="remove",
-                flag="starred",
-            )
+            return await _update_flag_pages(narrow=built, op=op, flag=flag)
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -304,112 +163,52 @@ async def manage_message_flags(
     flag: Literal["read", "starred"],
     action: Literal["add", "remove"],
     scope: Literal["all", "stream", "topic", "narrow"] = "narrow",
-    stream_id: int | None = None,
+    stream_id: int | str | None = None,
     topic_name: str | None = None,
     sender_email: str | None = None,
     narrow: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Mark the entire matching scope read/unread or star/unstar.
 
-    A partial result includes counts for completed pages when a later page fails.
+    stream_id takes a channel ID or name. A partial result includes counts for
+    completed pages when a later page fails.
     """
-    with bind_client(get_client()):
-        if scope == "all":
-            return await _update_flag_pages(
-                narrow=[],
-                op=action,
-                flag=flag,
-            )
-        elif scope == "stream":
-            if not stream_id:
-                return {
-                    "status": "error",
-                    "error": "stream_id required for scope='stream'",
-                }
-            try:
-                stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
-            except ValueError as e:
-                return {"status": "error", "error": str(e)}
-            return await _update_flag_pages(
-                narrow=[{"operator": "stream", "operand": stream_name}],
-                op=action,
-                flag=flag,
-            )
-        elif scope == "topic":
-            if not stream_id:
-                return {
-                    "status": "error",
-                    "error": "stream_id required for scope='topic'",
-                }
-            if not topic_name:
-                return {
-                    "status": "error",
-                    "error": "topic_name required for scope='topic'",
-                }
-            try:
-                stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
-            except ValueError as e:
-                return {"status": "error", "error": str(e)}
-            return await _update_flag_pages(
-                narrow=[
-                    {"operator": "stream", "operand": stream_name},
-                    {"operator": "topic", "operand": topic_name},
-                ],
-                op=action,
-                flag=flag,
-            )
-        else:  # scope == "narrow"
-            built_narrow: list[dict[str, Any]] = narrow or []
-            if not built_narrow:
-                if stream_id:
-                    try:
-                        stream_name = await asyncio.to_thread(
-                            _resolve_stream_name, stream_id
-                        )
-                        built_narrow.append(
-                            {"operator": "stream", "operand": stream_name}
-                        )
-                    except ValueError as e:
-                        return {"status": "error", "error": str(e)}
-                if topic_name:
-                    built_narrow.append({"operator": "topic", "operand": topic_name})
-                if sender_email:
-                    built_narrow.append({"operator": "sender", "operand": sender_email})
-            if not built_narrow:
-                return {
-                    "status": "error",
-                    "error": "Must provide narrow, stream_id, topic_name, or sender_email",
-                }
-            return await _update_flag_pages(
-                narrow=built_narrow,
-                op=action,
-                flag=flag,
-            )
+    if scope == "all":
+        with bind_client(get_client()):
+            return await _update_flag_pages(narrow=[], op=action, flag=flag)
+    if scope in ("stream", "topic") and not stream_id:
+        return {"status": "error", "error": f"stream_id required for scope='{scope}'"}
+    if scope == "topic" and not topic_name:
+        return {"status": "error", "error": "topic_name required for scope='topic'"}
+    if scope == "stream":
+        topic_name = sender_email = narrow = None
+    elif scope == "topic":
+        sender_email = narrow = None
+    return await _flag_matching(
+        action, flag, narrow, stream_id, topic_name, sender_email
+    )
 
 
-def register_mark_messaging_tools(mcp: FastMCP) -> None:
-    """Register message marking tools with the MCP server."""
-    mcp.tool(
-        name="update_message_flags_for_narrow",
-        description="Update personal message flags for messages matching a narrow (modern approach)",
-    )(update_message_flags_for_narrow)
-    mcp.tool(
-        name="mark_all_as_read",
-        description="Mark all messages as read using modern narrow approach",
-    )(mark_all_as_read)
-    mcp.tool(
-        name="mark_stream_as_read", description="Mark all messages in a stream as read"
-    )(mark_stream_as_read)
-    mcp.tool(
-        name="mark_topic_as_read", description="Mark all messages in a topic as read"
-    )(mark_topic_as_read)
-    mcp.tool(
-        name="mark_messages_unread",
-        description="Mark messages as unread using flexible narrow construction",
-    )(mark_messages_unread)
-    mcp.tool(name="star_messages", description="Star messages matching criteria")(
-        star_messages
-    )
-    mcp.tool(name="unstar_messages", description="Unstar messages matching criteria")(
-        unstar_messages
-    )
+async def get_read_receipts(message_id: int) -> dict[str, Any]:
+    """Users who have read a message, with names from the cached roster."""
+    client = get_client()
+    try:
+        result = await asyncio.to_thread(
+            client.client.call_endpoint,
+            f"messages/{message_id}/read_receipts",
+            method="GET",
+            request={},
+        )
+        if result.get("result") != "success":
+            return api_error(result, "Failed to get read receipts")
+        user_ids = result.get("user_ids", [])
+        users = await asyncio.to_thread(client.get_users)
+        names = {u.get("user_id"): u.get("full_name") for u in users.get("members", [])}
+        return {
+            "status": "success",
+            "message_id": message_id,
+            "readers": [{"user_id": uid, "name": names.get(uid)} for uid in user_ids],
+            "count": len(user_ids),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

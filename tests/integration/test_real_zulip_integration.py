@@ -116,13 +116,7 @@ def test_zulip_client_wrapper() -> None:
     wrapper = ZulipClientWrapper(config)
     assert wrapper.identity in ("user", "bot")
 
-    # Test lazy loading - should not be connected yet
-    assert not wrapper.is_connected
-
     # Trigger connection via API call
     streams = wrapper.get_streams()
     assert streams.get("result") == "success"
     assert isinstance(streams.get("streams"), list)
-
-    # Should be connected now
-    assert wrapper.is_connected

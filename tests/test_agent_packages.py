@@ -7,12 +7,12 @@ import jsonschema
 import pytest
 import yaml
 
+from zulipchat_mcp.core.tool_contract import READ_ONLY_TOOLS
 from zulipchat_mcp.integrations.agent_package import (
     LAYOUTS,
     _parse,
     export_agent_package,
 )
-from zulipchat_mcp.integrations.claude_code_package import export_claude_code_package
 from zulipchat_mcp.integrations.package_writer import write_package
 
 
@@ -40,7 +40,7 @@ def test_host_exports_are_parseable_and_have_portable_skills(tmp_path, client):
         metadata = yaml.safe_load(skill.read_text().split("---", 2)[1])
         assert metadata["name"] == skill.parent.name
         assert metadata["description"]
-    assert len(list((tmp_path / skill_root).glob("*/SKILL.md"))) == 4
+    assert len(list((tmp_path / skill_root).glob("*/SKILL.md"))) == 1
 
 
 @pytest.mark.parametrize(
@@ -98,19 +98,6 @@ def test_clio_export_preserves_other_servers_and_detects_duplicate_ids(tmp_path)
         )
 
 
-def test_export_conflict_does_not_partially_change_claude_settings(tmp_path):
-    settings = tmp_path / ".claude/settings.json"
-    settings.parent.mkdir()
-    settings.write_text('{"theme":"keep"}')
-    skill = tmp_path / ".claude/skills/zulipchat-loop/SKILL.md"
-    skill.parent.mkdir(parents=True)
-    skill.write_text("User-edited instructions")
-    with pytest.raises(FileExistsError):
-        export_claude_code_package(tmp_path, zulip_config_file="/home/test/.zuliprc")
-    assert settings.read_text() == '{"theme":"keep"}'
-    assert not (tmp_path / ".mcp.json").exists()
-
-
 @pytest.mark.parametrize("client", ["codex", "clio-coder", "opencode"])
 def test_export_refuses_symlinks_even_with_force(tmp_path, client):
     outside = tmp_path / "outside"
@@ -147,7 +134,7 @@ def test_opencode_export_refuses_competing_jsonc_configuration(tmp_path):
 def test_portable_plugin_matches_published_schemas(tmp_path):
     export_agent_package(
         tmp_path,
-        client="clio-coder",
+        client="generic",
         mode="plugin",
         zulip_config_file="/home/test/.zuliprc",
         extended_tools=True,
@@ -158,87 +145,45 @@ def test_portable_plugin_matches_published_schemas(tmp_path):
         jsonschema.Draft202012Validator(schema).validate(
             json.loads((tmp_path / f"{name}.json").read_text())
         )
-    assert len(list((tmp_path / "skills").glob("*/SKILL.md"))) == 4
+    assert len(list((tmp_path / "skills").glob("*/SKILL.md"))) == 1
     assert not (tmp_path / "hooks").exists()
 
 
-def test_claude_reexport_replaces_owned_hooks_and_preserves_unrelated_commands(
-    tmp_path,
-):
-    export_claude_code_package(
+@pytest.mark.parametrize("extended", [False, True])
+def test_clio_exports_classify_every_tool_from_its_annotations(tmp_path, extended):
+    export_agent_package(
         tmp_path,
-        zulip_config_file="/realm-a/user",
-        zulip_bot_config_file="/realm-a/bot",
+        client="clio-coder",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=extended,
     )
-    settings_path = tmp_path / ".claude/settings.json"
-    settings = json.loads(settings_path.read_text())
-    unrelated = {
-        "matcher": ".*",
-        "hooks": [{"type": "command", "command": "echo keep"}],
-    }
-    settings["hooks"]["PermissionRequest"].append(unrelated)
-    settings_path.write_text(json.dumps(settings))
-    before = settings_path.read_text()
-    with pytest.raises(FileExistsError):
-        export_claude_code_package(
-            tmp_path,
-            zulip_config_file="/realm-b/user",
-            zulip_bot_config_file="/realm-b/bot",
-        )
-    assert settings_path.read_text() == before
-    export_claude_code_package(
-        tmp_path,
-        zulip_config_file="/realm-b/user",
-        zulip_bot_config_file="/realm-b/bot",
-        force=True,
+    export_agent_package(
+        tmp_path / "plugin",
+        client="clio-coder",
+        mode="plugin",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=extended,
     )
-    after = settings_path.read_text()
-    assert "/realm-a/" not in after
-    assert "/realm-b/user" in after and "/realm-b/bot" in after
-    settings = json.loads(after)
-    assert unrelated in settings["hooks"]["PermissionRequest"]
-    for groups in settings["hooks"].values():
-        assert (
-            sum(
-                "zulipchat-mcp-hook" in hook.get("command", "")
-                for group in groups
-                for hook in group["hooks"]
-            )
-            == 1
-        )
-    export_claude_code_package(
-        tmp_path,
-        zulip_config_file="/realm-b/user",
-        zulip_bot_config_file="/realm-b/bot",
-        force=True,
-    )
-    assert settings_path.read_text() == after
+    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
+        0
+    ]
+    plugin = json.loads((tmp_path / "plugin/mcp.json").read_text())["mcpServers"][
+        "zulipchat"
+    ]
+    classes = server["toolActionClasses"]
+    assert plugin["toolActionClasses"] == classes
+    assert plugin["timeoutMs"] == server["timeoutMs"] == 900000
+    assert "actionClass" not in server
+    from tests.tools.test_tool_tiers import EXTENDED_TOOL_COUNT
+    from zulipchat_mcp.tools import CORE_TOOLS
 
-
-def test_claude_reexport_rejects_ambiguous_hook_ownership_before_writing(tmp_path):
-    export_claude_code_package(tmp_path, zulip_config_file="/realm-a/user")
-    settings_path = tmp_path / ".claude/settings.json"
-    settings = json.loads(settings_path.read_text())
-    settings["hooks"]["PermissionRequest"][0]["hooks"][0]["command"] = (
-        "env CUSTOM=1 uvx --from zulipchat-mcp zulipchat-mcp-hook "
-        "--zulip-config-file /realm-a/user"
-    )
-    settings_path.write_text(json.dumps(settings))
-    before = {
-        path.relative_to(tmp_path): path.read_bytes()
-        for path in tmp_path.rglob("*")
-        if path.is_file()
-    }
-    with pytest.raises(ValueError, match="ownership"):
-        export_claude_code_package(
-            tmp_path, zulip_config_file="/realm-b/user", force=True
-        )
-    after = {
-        path.relative_to(tmp_path): path.read_bytes()
-        for path in tmp_path.rglob("*")
-        if path.is_file()
-    }
-    assert after == before
+    assert len(classes) == (EXTENDED_TOOL_COUNT if extended else len(CORE_TOOLS))
+    assert {name for name, cls in classes.items() if cls == "read"} <= READ_ONLY_TOOLS
+    assert classes["get_message"] == "read"
+    assert classes["send_message"] == "execute"
+    assert classes["edit_message"] == "destructive"
+    if extended:
+        assert classes["delete_draft"] == "destructive"
 
 
 def test_server_ids_let_one_host_config_declare_several_organizations(tmp_path):
@@ -289,3 +234,101 @@ def test_checked_in_integration_skills_match_packaged_skills():
     assert (
         expected and not stale
     ), "Run scripts/sync_integration_templates.py to refresh: " + ", ".join(stale)
+
+
+def test_read_only_clio_export_runs_in_a_read_only_sandbox(tmp_path):
+    export_agent_package(
+        tmp_path,
+        client="clio-coder",
+        zulip_config_file="/home/test/.zuliprc",
+        extended_tools=True,
+        tool_profile="read-only",
+    )
+    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
+        0
+    ]
+    assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
+    assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
+    assert set(server["toolActionClasses"].values()) == {"read"}
+
+
+def test_exports_pin_the_exporting_version_and_upgrade_only_with_force(tmp_path):
+    from zulipchat_mcp import __version__
+
+    export_agent_package(
+        tmp_path / "generic",
+        client="generic",
+        zulip_config_file="/home/test/.zuliprc",
+    )
+    config_path, _, key = LAYOUTS["generic"]
+    server = json.loads((tmp_path / "generic" / config_path).read_text())[key][
+        "zulipchat"
+    ]
+    assert server["command"] == "uvx"
+    assert server["args"][0] == f"zulipchat-mcp@{__version__}"
+
+    claude = tmp_path / "claude"
+    export_agent_package(
+        claude, client="claude-code", zulip_config_file="/home/test/.zuliprc"
+    )
+    mcp = json.loads((claude / ".mcp.json").read_text())["mcpServers"]["zulipchat"]
+    assert mcp["args"][0] == f"zulipchat-mcp@{__version__}"
+    assert (claude / ".claude/skills/zulipchat/SKILL.md").is_file()
+
+
+def test_merged_host_config_is_backed_up_and_keeps_its_mode(tmp_path):
+    import os
+
+    config_path, _, key = LAYOUTS["codex"]
+    target = tmp_path / config_path
+    target.parent.mkdir(parents=True)
+    original = '# my own notes\n[mcp_servers.other]\ncommand = "other"\n'
+    target.write_text(original)
+    os.chmod(target, 0o640)
+    previous = os.umask(0o022)
+    try:
+        results = export_agent_package(
+            tmp_path, client="codex", zulip_config_file="/home/test/.zuliprc"
+        )
+    finally:
+        os.umask(previous)
+    (merged,) = [item for item in results if item["action"] == "merged"]
+    assert Path(merged["backup"]).read_text() == original  # comments survive here
+    assert os.stat(merged["backup"]).st_mode & 0o777 == 0o640
+    assert os.stat(target).st_mode & 0o777 == 0o640
+    assert "other" in target.read_text() and "zulipchat" in target.read_text()
+    written = [item for item in results if item["action"] == "written"]
+    assert written and all("backup" not in item for item in written)
+    assert all(os.stat(item["path"]).st_mode & 0o777 == 0o644 for item in written)
+
+    again = export_agent_package(
+        tmp_path, client="codex", zulip_config_file="/home/test/.zuliprc"
+    )
+    assert {item["action"] for item in again} == {"unchanged"}
+    assert len(list(target.parent.glob("*.bak-*"))) == 1
+
+
+def test_checked_in_templates_pin_the_current_version():
+    import re
+
+    from zulipchat_mcp import __version__
+
+    root = Path(__file__).parents[1] / "integrations"
+    unpinned = re.compile(
+        r"uvx zulipchat-mcp(?![@\w-])"
+        r'|"zulipchat-mcp"\s*[,\]]|^\s*- zulipchat-mcp$'
+        r"|uv run zulipchat-mcp",
+        re.M,
+    )
+    pins = set()
+    for path in root.rglob("*"):
+        if not path.is_file() or "skills" in path.parts:
+            continue
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            continue
+        assert not unpinned.search(text), f"{path} runs an unpinned zulipchat-mcp"
+        pins.update(re.findall(r"zulipchat-mcp(?:@|==)([0-9][\w.]*)", text))
+    # A version bump that misses the templates fails here.
+    assert pins == {__version__}

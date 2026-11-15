@@ -5,8 +5,6 @@ System information and identity management tools.
 
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client, get_config_manager, set_current_identity
 from ..core.security import local_access_allowed
 
@@ -53,18 +51,11 @@ async def server_info() -> dict[str, Any]:
     config = get_config_manager()
     account = config.resolved_account()
     bot_available = config.has_bot_credentials()
-    try:
-        mention_authorization = config.mention_allow_policy().summary(
-            account.user_email
-        )
-    except ValueError as error:
-        # Polling fails closed on the same error; surface it instead of hiding it.
-        mention_authorization = {"mode": "invalid", "error": str(error)}
 
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.7.6",
+        "version": "0.8.0",
         "available_identities": {
             "user": {
                 "available": True,
@@ -89,15 +80,4 @@ async def server_info() -> dict[str, Any]:
             "dual_identity",
         ],
         "zulip_site": account.site,
-        "mention_authorization": mention_authorization,
     }
-
-
-def register_system_tools(mcp: FastMCP) -> None:
-    """Register system tools with the MCP server."""
-    mcp.tool(
-        name="switch_identity", description="Switch between user and bot identities"
-    )(switch_identity)
-    mcp.tool(name="server_info", description="Get server information and capabilities")(
-        server_info
-    )
