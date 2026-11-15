@@ -109,26 +109,65 @@ class TestZulipClientWrapper:
         )
 
     def test_send_message_stream(self, mock_config_manager, mock_zulip_client):
-        """Test sending stream message."""
+        """Current servers receive the channel wire type."""
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
-        mock_zulip_client.send_message.return_value = {"result": "success", "id": 1}
+        mock_zulip_client.feature_level = 513
+        mock_zulip_client.send_message.return_value = {
+            "result": "success",
+            "id": 1,
+            "message_link": "https://z/#narrow/near/1",
+        }
 
-        wrapper.send_message("stream", "general", "hello", "topic1")
+        result = wrapper.send_message("stream", "general", "hello", "topic1")
 
         mock_zulip_client.send_message.assert_called_with(
-            {"type": "stream", "content": "hello", "to": "general", "topic": "topic1"}
+            {"type": "channel", "to": "general", "topic": "topic1", "content": "hello"}
         )
+        assert result["message_link"] == "https://z/#narrow/near/1"
 
     def test_send_message_private(self, mock_config_manager, mock_zulip_client):
-        """Test sending private message."""
+        """Current servers receive the direct wire type."""
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        mock_zulip_client.feature_level = 513
         mock_zulip_client.send_message.return_value = {"result": "success", "id": 1}
 
         wrapper.send_message("private", "user@example.com", "hello")
 
         mock_zulip_client.send_message.assert_called_with(
-            {"type": "private", "content": "hello", "to": ["user@example.com"]}
+            {"type": "direct", "to": ["user@example.com"], "content": "hello"}
         )
+
+    @pytest.mark.parametrize(
+        ("level", "channel", "direct"),
+        [
+            (100, "stream", "private"),
+            (200, "stream", "direct"),
+            (0, "channel", "direct"),
+        ],
+    )
+    def test_send_message_wire_type_by_feature_level(
+        self, mock_config_manager, mock_zulip_client, level, channel, direct
+    ):
+        wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        mock_zulip_client.feature_level = level
+        mock_zulip_client.send_message.return_value = {"result": "success"}
+
+        wrapper.send_message("channel", 7, "hi", "t")
+        assert mock_zulip_client.send_message.call_args[0][0]["type"] == channel
+        assert mock_zulip_client.send_message.call_args[0][0]["to"] == 7
+        wrapper.send_message("direct", [1, 2], "hi")
+        assert mock_zulip_client.send_message.call_args[0][0] == {
+            "type": direct,
+            "to": [1, 2],
+            "content": "hi",
+        }
+
+    def test_send_message_rejects_unknown_type(
+        self, mock_config_manager, mock_zulip_client
+    ):
+        wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        with pytest.raises(ValueError):
+            wrapper.send_message("broadcast", "general", "hi")
 
     def test_get_messages_raw(self, mock_config_manager, mock_zulip_client):
         """Test getting raw messages."""

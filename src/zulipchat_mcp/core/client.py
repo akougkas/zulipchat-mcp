@@ -173,24 +173,43 @@ class ZulipClientWrapper:
             _ = self.client
         return self._base_url
 
+    def supports(self, feature_level: int) -> bool:
+        """Whether the server is at least `feature_level`.
+
+        An unknown level (0, unset, or a test double) is treated as current.
+        """
+        level = getattr(self.client, "feature_level", 0)
+        return not isinstance(level, int) or level <= 0 or level >= feature_level
+
     def send_message(
         self,
         message_type: str,
-        to: str | list[str],
+        to: str | int | Sequence[str] | Sequence[int],
         content: str,
         topic: str | None = None,
     ) -> dict[str, Any]:
-        """Send a message to a stream or user."""
-        request: dict[str, Any] = {"type": message_type, "content": content}
+        """Send a channel or direct message and return the raw API response.
 
-        if message_type == "stream":
-            if isinstance(to, list) and len(to) != 1:
-                raise ValueError("Stream messages require exactly one stream")
-            request["to"] = to if isinstance(to, str) else to[0]
+        message_type accepts "stream"/"channel" or "private"/"direct"; the wire
+        value follows the server's feature level (174 for direct, 248 for
+        channel). `to` is a channel name or ID, or a list of user IDs or emails.
+        """
+        if message_type in ("stream", "channel"):
+            if isinstance(to, (list, tuple)):
+                if len(to) != 1:
+                    raise ValueError("Stream messages require exactly one stream")
+                to = to[0]
+            wire_type = "channel" if self.supports(248) else "stream"
+            request: dict[str, Any] = {"type": wire_type, "to": to}
             if topic:
                 request["topic"] = topic
-        else:  # private message
-            request["to"] = to if isinstance(to, list) else [to]
+        elif message_type in ("private", "direct"):
+            recipients = list(to) if isinstance(to, (list, tuple)) else [to]
+            wire_type = "direct" if self.supports(174) else "private"
+            request = {"type": wire_type, "to": recipients}
+        else:
+            raise ValueError(f"Unsupported message type: {message_type}")
+        request["content"] = content
 
         response = self.client.send_message(request)
         if response.get("result") == "success":
