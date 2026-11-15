@@ -11,6 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from ..config import bind_client, get_client
+from ..core.api_errors import api_error
 from ..core.security import local_access_allowed
 from .registration import optional_background_task, register_tool
 
@@ -68,6 +69,13 @@ async def register_events(
         return {"status": "error", "error": str(e)}
 
 
+def _seconds(value: Any) -> float:
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 async def get_events(
     queue_id: str,
     last_event_id: int,
@@ -105,8 +113,7 @@ async def get_events(
             }
         else:
             return {
-                "status": "error",
-                "error": result.get("msg", "Failed to get events"),
+                **api_error(result, "Failed to get events"),
                 "code": result.get("code"),
             }
 
@@ -218,6 +225,9 @@ async def listen_events(
                             "error": events_result.get("error", "Failed to get events"),
                             "code": events_result.get("code"),
                         }
+                        retry_after = events_result.get("retry_after_seconds")
+                        if retry_after is not None:
+                            last_failure["retry_after_seconds"] = retry_after
                         polling_errors.append(last_failure)
                         consecutive_failures += 1
                         # A lost queue or invalid credentials cannot recover by polling
@@ -237,13 +247,13 @@ async def listen_events(
                         ):
                             break
 
-                    # Sleep before next poll
-                    await asyncio.sleep(
-                        min(
-                            poll_interval * 2 ** min(consecutive_failures, 2),
-                            duration - elapsed,
+                    # Sleep before next poll, honoring a server retry-after.
+                    delay = poll_interval * 2 ** min(consecutive_failures, 2)
+                    if last_failure:
+                        delay = max(
+                            delay, _seconds(last_failure.get("retry_after_seconds"))
                         )
-                    )
+                    await asyncio.sleep(min(delay, duration - elapsed))
 
             finally:
                 # Cleanup: deregister queue

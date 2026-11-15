@@ -46,14 +46,11 @@ async def get_users(
             client.get_users,
             client_gravatar=client_gravatar,
             include_custom_profile_fields=include_custom_profile_fields,
+            user_ids=user_ids,
         )
 
         if result.get("result") == "success":
             users = result.get("members", [])
-
-            # Filter by user_ids if specified
-            if user_ids is not None:
-                users = [user for user in users if user.get("user_id") in user_ids]
             if not verbose:
                 users = [
                     {key: user[key] for key in USER_SUMMARY_FIELDS if key in user}

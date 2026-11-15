@@ -21,8 +21,7 @@ class TestTopicOperations:
         }
         client.edit_message.return_value = {"result": "success"}
         client.delete_topic.return_value = {"result": "success"}
-        client.mute_topic.return_value = {"result": "success"}
-        client.unmute_topic.return_value = {"result": "success"}
+        client.set_topic_visibility.return_value = {"result": "success"}
         return client
 
     @pytest.fixture
@@ -102,6 +101,20 @@ class TestTopicOperations:
         mock_deps["client"].delete_topic.assert_called_with(99, "source")
 
     @pytest.mark.asyncio
+    async def test_delete_topic_reports_partial_deletion(self, mock_deps):
+        mock_deps["unsafe"].return_value = True
+        mock_deps["client"].delete_topic.return_value = {
+            "result": "success",
+            "complete": False,
+            "batches": 20,
+        }
+        result = await agents_channel_topic_ops("delete", "huge")
+        assert result["status"] == "error"
+        assert result["complete"] is False
+        assert result["batches"] == 20
+        assert result["retryable"] is True
+
+    @pytest.mark.asyncio
     async def test_delete_nonexistent_topic(self, mock_deps):
         """Test deleting nonexistent topic (backend error)."""
         mock_deps["unsafe"].return_value = True
@@ -141,9 +154,9 @@ class TestTopicOperations:
         # Mute
         res_mute = await agents_channel_topic_ops("mute", "noisy")
         assert res_mute["status"] == "success"
-        mock_deps["client"].mute_topic.assert_called_with(99, "noisy")
+        mock_deps["client"].set_topic_visibility.assert_called_with(99, "noisy", 1)
 
         # Unmute
         res_unmute = await agents_channel_topic_ops("unmute", "noisy")
         assert res_unmute["status"] == "success"
-        mock_deps["client"].unmute_topic.assert_called_with(99, "noisy")
+        mock_deps["client"].set_topic_visibility.assert_called_with(99, "noisy", 0)

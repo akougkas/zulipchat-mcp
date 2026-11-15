@@ -74,24 +74,16 @@ async def get_stream_info(
     client = get_client()
 
     try:
-        # Get stream info
-        if stream_name and not stream_id:
-            stream_result = await asyncio.to_thread(client.get_stream_id, stream_name)
-            if stream_result.get("result") != "success":
-                return api_error(stream_result, f"Stream '{stream_name}' not found")
-            stream_id = stream_result.get("stream_id")
+        if not stream_id:
+            id_result = await asyncio.to_thread(client.get_stream_id, str(stream_name))
+            if id_result.get("result") != "success":
+                return api_error(id_result, f"Stream '{stream_name}' not found")
+            stream_id = int(id_result["stream_id"])
 
-        # Get basic stream information
-        streams_result = await asyncio.to_thread(client.get_streams)
-        if streams_result.get("result") == "success":
-            streams = streams_result.get("streams", [])
-            stream_info = next(
-                (s for s in streams if s.get("stream_id") == stream_id), None
-            )
-            if not stream_info:
-                return {"status": "error", "error": "Stream not found"}
-        else:
-            return api_error(streams_result, "Failed to get stream information")
+        stream_result = await asyncio.to_thread(client.get_stream, stream_id)
+        if stream_result.get("result") != "success":
+            return api_error(stream_result, "Failed to get stream information")
+        stream_info = stream_result.get("stream", {})
 
         info = {
             "status": "success",

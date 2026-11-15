@@ -1,5 +1,6 @@
 """Tests for core/client.py."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -109,26 +110,65 @@ class TestZulipClientWrapper:
         )
 
     def test_send_message_stream(self, mock_config_manager, mock_zulip_client):
-        """Test sending stream message."""
+        """Current servers receive the channel wire type."""
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
-        mock_zulip_client.send_message.return_value = {"result": "success", "id": 1}
+        mock_zulip_client.feature_level = 513
+        mock_zulip_client.send_message.return_value = {
+            "result": "success",
+            "id": 1,
+            "message_link": "https://z/#narrow/near/1",
+        }
 
-        wrapper.send_message("stream", "general", "hello", "topic1")
+        result = wrapper.send_message("stream", "general", "hello", "topic1")
 
         mock_zulip_client.send_message.assert_called_with(
-            {"type": "stream", "content": "hello", "to": "general", "topic": "topic1"}
+            {"type": "channel", "to": "general", "topic": "topic1", "content": "hello"}
         )
+        assert result["message_link"] == "https://z/#narrow/near/1"
 
     def test_send_message_private(self, mock_config_manager, mock_zulip_client):
-        """Test sending private message."""
+        """Current servers receive the direct wire type."""
         wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        mock_zulip_client.feature_level = 513
         mock_zulip_client.send_message.return_value = {"result": "success", "id": 1}
 
         wrapper.send_message("private", "user@example.com", "hello")
 
         mock_zulip_client.send_message.assert_called_with(
-            {"type": "private", "content": "hello", "to": ["user@example.com"]}
+            {"type": "direct", "to": ["user@example.com"], "content": "hello"}
         )
+
+    @pytest.mark.parametrize(
+        ("level", "channel", "direct"),
+        [
+            (100, "stream", "private"),
+            (200, "stream", "direct"),
+            (0, "channel", "direct"),
+        ],
+    )
+    def test_send_message_wire_type_by_feature_level(
+        self, mock_config_manager, mock_zulip_client, level, channel, direct
+    ):
+        wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        mock_zulip_client.feature_level = level
+        mock_zulip_client.send_message.return_value = {"result": "success"}
+
+        wrapper.send_message("channel", 7, "hi", "t")
+        assert mock_zulip_client.send_message.call_args[0][0]["type"] == channel
+        assert mock_zulip_client.send_message.call_args[0][0]["to"] == 7
+        wrapper.send_message("direct", [1, 2], "hi")
+        assert mock_zulip_client.send_message.call_args[0][0] == {
+            "type": direct,
+            "to": [1, 2],
+            "content": "hi",
+        }
+
+    def test_send_message_rejects_unknown_type(
+        self, mock_config_manager, mock_zulip_client
+    ):
+        wrapper = ZulipClientWrapper(config_manager=mock_config_manager)
+        with pytest.raises(ValueError):
+            wrapper.send_message("broadcast", "general", "hi")
 
     def test_get_messages_raw(self, mock_config_manager, mock_zulip_client):
         """Test getting raw messages."""
@@ -255,3 +295,130 @@ class TestZulipClientWrapper:
             assert summary["total_messages"] == 3
             assert summary["top_senders"]["User1"] == 2
             assert summary["streams"]["general"]["topics"]["Topic1"] == 2
+
+
+def test_get_messages_by_ids_and_empty_topic_flag():
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=513)
+    sdk.get_messages.return_value = {"result": "success", "messages": []}
+    wrapper._client = sdk
+
+    wrapper.get_messages_by_ids([3, 4])
+    assert sdk.get_messages.call_args[0][0] == {
+        "message_ids": [3, 4],
+        "apply_markdown": False,
+        "allow_empty_topic_name": True,
+    }
+
+    sdk.feature_level = 300
+    wrapper.get_messages_raw(use_cache=False)
+    assert "allow_empty_topic_name" not in sdk.get_messages.call_args[0][0]
+
+
+@pytest.mark.parametrize("level", [513, 300])
+def test_get_users_by_ids_uses_server_filter_when_supported(level):
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=level)
+    roster = [{"user_id": 1}, {"user_id": 2}, {"user_id": 3}]
+    sdk.get_users.return_value = {"result": "success", "members": roster}
+    wrapper._client = sdk
+
+    result = wrapper.get_users(user_ids=[1, 3])
+
+    request = sdk.get_users.call_args[0][0]
+    if level >= 384:
+        assert request["user_ids"] == [1, 3]
+        assert result["members"] == roster
+    else:
+        assert "user_ids" not in request
+        assert result["members"] == [{"user_id": 1}, {"user_id": 3}]
+        # The full roster stays cached for the next caller.
+        assert len(wrapper.get_users()["members"]) == 3
+        assert sdk.get_users.call_count == 1
+
+
+def test_daily_summary_uses_one_date_anchored_request():
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=513)
+    now = datetime.now(timezone.utc).timestamp()
+    sdk.get_messages.return_value = {
+        "result": "success",
+        "found_newest": False,
+        "messages": [
+            {
+                "display_recipient": "a",
+                "sender_full_name": "U1",
+                "subject": "t",
+                "timestamp": now,
+            },
+            {
+                "display_recipient": "b",
+                "sender_full_name": "U2",
+                "subject": "t",
+                "timestamp": now,
+            },
+            {
+                "display_recipient": "a",
+                "sender_full_name": "U1",
+                "subject": "old",
+                "timestamp": now - 3 * 86400,
+            },
+        ],
+    }
+    wrapper._client = sdk
+
+    summary = wrapper.get_daily_summary(hours_back=24)
+
+    sdk.get_messages.assert_called_once()
+    sdk.get_streams.assert_not_called()
+    request = sdk.get_messages.call_args[0][0]
+    assert request["anchor"] == "date" and request["anchor_date"]
+    assert request["narrow"] == [{"operator": "channels", "operand": "public"}]
+    assert request["apply_markdown"] is False
+    assert summary["total_messages"] == 2
+    assert summary["streams"]["a"] == {"message_count": 1, "topics": {"t": 1}}
+    assert summary["top_senders"] == {"U1": 1, "U2": 1}
+    assert summary["truncated"] is True
+
+
+def test_daily_summary_loops_per_stream_before_fl_445():
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=400)
+    sdk.get_streams.return_value = {
+        "result": "success",
+        "streams": [{"name": "a"}, {"name": "secret", "invite_only": True}],
+    }
+    sdk.get_messages.return_value = {"result": "success", "messages": []}
+    wrapper._client = sdk
+
+    summary = wrapper.get_daily_summary()
+
+    assert sdk.get_messages.call_count == 1
+    assert sdk.get_messages.call_args[0][0]["narrow"] == [
+        {"operator": "channel", "operand": "a"}
+    ]
+    assert summary["streams"] == {"a": {"message_count": 0, "topics": {}}}

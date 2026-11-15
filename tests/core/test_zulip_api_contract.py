@@ -34,18 +34,55 @@ def test_numeric_stream_lookup_is_get_and_preserves_the_requested_id(wrapper):
     assert result["stream_id"] == 42
 
 
-@pytest.mark.parametrize(
-    "method,operation", [("mute_topic", "add"), ("unmute_topic", "remove")]
-)
-def test_topic_mute_fallback_uses_documented_subscription_path(
-    wrapper, method, operation
-):
-    getattr(wrapper, method)(42, "Topic")
+@pytest.mark.parametrize("policy", [0, 1, 2, 3])
+def test_topic_visibility_uses_user_topics(wrapper, policy):
+    wrapper.set_topic_visibility(42, "Topic", policy)
+    wrapper.client.call_endpoint.assert_called_once_with(
+        "user_topics",
+        method="POST",
+        request={"stream_id": 42, "topic": "Topic", "visibility_policy": policy},
+    )
+
+
+@pytest.mark.parametrize("policy,operation", [(1, "add"), (0, "remove")])
+def test_topic_visibility_falls_back_to_muted_topics(wrapper, policy, operation):
+    wrapper.client.feature_level = 100
+    wrapper.set_topic_visibility(42, "Topic", policy)
     wrapper.client.call_endpoint.assert_called_once_with(
         "users/me/subscriptions/muted_topics",
         method="PATCH",
         request={"op": operation, "stream_id": 42, "topic": "Topic"},
     )
+
+
+@pytest.mark.parametrize("level,policy", [(100, 2), (200, 3)])
+def test_topic_visibility_rejects_unsupported_policy(wrapper, level, policy):
+    wrapper.client.feature_level = level
+    assert wrapper.set_topic_visibility(42, "Topic", policy)["result"] == "error"
+    wrapper.client.call_endpoint.assert_not_called()
+
+
+def test_delete_topic_repeats_until_complete(wrapper):
+    wrapper.client.call_endpoint.side_effect = [
+        {"result": "success", "complete": False},
+        {"result": "success", "complete": True},
+    ]
+    result = wrapper.delete_topic(42, "Topic")
+    assert result["complete"] is True
+    assert result["batches"] == 2
+    wrapper.client.call_endpoint.assert_called_with(
+        "streams/42/delete_topic", method="POST", request={"topic_name": "Topic"}
+    )
+
+
+def test_delete_topic_stops_at_batch_budget_and_on_error(wrapper):
+    wrapper.client.call_endpoint.return_value = {"result": "success", "complete": False}
+    assert wrapper.delete_topic(42, "Topic", max_batches=3)["batches"] == 3
+    wrapper.client.call_endpoint.reset_mock()
+    wrapper.client.call_endpoint.return_value = {"result": "error", "msg": "nope"}
+    result = wrapper.delete_topic(42, "Topic")
+    assert result["result"] == "error"
+    assert wrapper.client.call_endpoint.call_count == 1
 
 
 def test_subscription_property_fallback_uses_post(wrapper):
@@ -108,9 +145,9 @@ async def test_registered_send_retains_rate_limit_code_and_never_retries(
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
 async def test_requested_details_are_partial_when_upstream_fails(mode, monkeypatch):
     upstream = MagicMock()
-    upstream.get_streams.return_value = {
+    upstream.get_stream.return_value = {
         "result": "success",
-        "streams": [{"stream_id": 42, "name": "Demo"}],
+        "stream": {"stream_id": 42, "name": "Demo"},
     }
     upstream.get_stream_topics.return_value = {
         "result": "error",

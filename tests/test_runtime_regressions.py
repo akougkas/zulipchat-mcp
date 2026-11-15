@@ -146,3 +146,26 @@ async def test_search_honors_upper_time_bound_sort_and_limit(monkeypatch):
         1970, 1, 1, 0, 0, 6, tzinfo=timezone.utc
     )
     assert args["num_after"] == 0
+
+
+@pytest.mark.asyncio
+async def test_listener_honors_rate_limit_retry_after(monkeypatch):
+    client = MagicMock()
+    client.client.call_endpoint.return_value = {
+        "result": "error",
+        "code": "RATE_LIMIT_HIT",
+        "retry-after": 300,
+    }
+    listener = MessageListener(client, MagicMock())
+    listener._queue_id = "q"
+    listener._ensure_queue = AsyncMock()
+    waits = []
+
+    def wait(delay):
+        waits.append(delay)
+        listener.request_stop()
+        return True
+
+    monkeypatch.setattr(listener._stop_event, "wait", wait)
+    await listener.start()
+    assert waits == [300.0]

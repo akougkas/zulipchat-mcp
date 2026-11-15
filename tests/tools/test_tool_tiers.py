@@ -109,12 +109,8 @@ class TestManageMessageFlags:
         assert call_kwargs[1]["flag"] == "read"
         assert call_kwargs[1]["op"] == "add"
 
-    @patch(
-        "zulipchat_mcp.tools.mark_messaging._resolve_stream_name",
-        return_value="general",
-    )
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
-    def test_scope_stream(self, mock_update, mock_resolve):
+    def test_scope_stream(self, mock_update):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
         mock_update.return_value = {"status": "success", "found_newest": True}
@@ -122,7 +118,9 @@ class TestManageMessageFlags:
             manage_message_flags(flag="read", action="add", scope="stream", stream_id=1)
         )
         assert result["status"] == "success"
-        mock_resolve.assert_called_once_with(1)
+        assert mock_update.call_args[1]["narrow"] == [
+            {"operator": "channel", "operand": 1}
+        ]
 
     def test_scope_stream_missing_id(self):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
@@ -131,12 +129,8 @@ class TestManageMessageFlags:
         assert result["status"] == "error"
         assert "stream_id required" in result["error"]
 
-    @patch(
-        "zulipchat_mcp.tools.mark_messaging._resolve_stream_name",
-        return_value="general",
-    )
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
-    def test_scope_topic(self, mock_update, mock_resolve):
+    def test_scope_topic(self, mock_update):
         from zulipchat_mcp.tools.mark_messaging import manage_message_flags
 
         mock_update.return_value = {"status": "success", "found_newest": True}

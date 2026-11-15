@@ -61,22 +61,22 @@ class TestMessageFlags:
         request = args[1]["request"]
         assert request["flag"] == "read"
         assert request["op"] == "add"
-        # Should now use stream NAME resolved from ID
-        assert request["narrow"] == [{"operator": "stream", "operand": "Test Stream"}]
+        # The channel operand takes the ID directly; no stream listing.
+        assert request["narrow"] == [{"operator": "channel", "operand": 123}]
+        mock_deps.get_streams.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_stream(self, mock_deps):
-        """Test marking a nonexistent stream (validation error)."""
-        # Mock get_streams returns streams that don't include ID 999
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [{"stream_id": 123, "name": "Test Stream"}],
+        """The server's invalid-channel error reaches the caller."""
+        mock_deps.client.call_endpoint.return_value = {
+            "result": "error",
+            "code": "BAD_REQUEST",
+            "msg": "Invalid channel ID",
         }
 
         result = await mark_stream_as_read(999)
         assert result["status"] == "error"
-        # Expect the validation error from _resolve_stream_name
-        assert "Unknown stream ID: 999" in result["error"]
+        assert "Invalid channel ID" in result["error"]
 
     @pytest.mark.asyncio
     async def test_star_messages_by_narrow(self, mock_deps):
@@ -89,7 +89,7 @@ class TestMessageFlags:
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["flag"] == "starred"
-        assert request["narrow"] == narrow
+        assert request["narrow"] == [{"operator": "is", "operand": "dm"}]
 
     @pytest.mark.asyncio
     async def test_star_empty_narrow(self, mock_deps):

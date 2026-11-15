@@ -63,11 +63,15 @@ class TestUsersTools:
         assert result["status"] == "success"
         assert result["count"] == 2
 
-        # Filtered
+        # Filtering happens in the client wrapper
+        mock_deps.get_users.return_value = {
+            "result": "success",
+            "members": [{"user_id": 1, "email": "u1@e.com"}],
+        }
         result = await get_users(user_ids=[1])
         assert result["status"] == "success"
         assert result["count"] == 1
-        assert result["users"][0]["user_id"] == 1
+        assert mock_deps.get_users.call_args.kwargs["user_ids"] == [1]
 
     @pytest.mark.asyncio
     async def test_get_users_compact_unless_verbose(self, mock_deps):

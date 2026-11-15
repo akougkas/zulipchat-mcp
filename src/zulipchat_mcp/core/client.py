@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote, urlparse, urlunparse
 
 from ..config import ConfigManager
+from ..utils.narrow_helpers import wire_narrow
 from .api_budget import PoliteZulipClient as Client
 from .cache import StreamCache, UserCache
 from .snapshots import ReadSnapshots, invalidate_realm_snapshots
@@ -173,24 +174,43 @@ class ZulipClientWrapper:
             _ = self.client
         return self._base_url
 
+    def supports(self, feature_level: int) -> bool:
+        """Whether the server is at least `feature_level`.
+
+        An unknown level (0, unset, or a test double) is treated as current.
+        """
+        level = getattr(self.client, "feature_level", 0)
+        return not isinstance(level, int) or level <= 0 or level >= feature_level
+
     def send_message(
         self,
         message_type: str,
-        to: str | list[str],
+        to: str | int | Sequence[str] | Sequence[int],
         content: str,
         topic: str | None = None,
     ) -> dict[str, Any]:
-        """Send a message to a stream or user."""
-        request: dict[str, Any] = {"type": message_type, "content": content}
+        """Send a channel or direct message and return the raw API response.
 
-        if message_type == "stream":
-            if isinstance(to, list) and len(to) != 1:
-                raise ValueError("Stream messages require exactly one stream")
-            request["to"] = to if isinstance(to, str) else to[0]
+        message_type accepts "stream"/"channel" or "private"/"direct"; the wire
+        value follows the server's feature level (174 for direct, 248 for
+        channel). `to` is a channel name or ID, or a list of user IDs or emails.
+        """
+        if message_type in ("stream", "channel"):
+            if isinstance(to, (list, tuple)):
+                if len(to) != 1:
+                    raise ValueError("Stream messages require exactly one stream")
+                to = to[0]
+            wire_type = "channel" if self.supports(248) else "stream"
+            request: dict[str, Any] = {"type": wire_type, "to": to}
             if topic:
                 request["topic"] = topic
-        else:  # private message
-            request["to"] = to if isinstance(to, list) else [to]
+        elif message_type in ("private", "direct"):
+            recipients = list(to) if isinstance(to, (list, tuple)) else [to]
+            wire_type = "direct" if self.supports(174) else "private"
+            request = {"type": wire_type, "to": recipients}
+        else:
+            raise ValueError(f"Unsupported message type: {message_type}")
+        request["content"] = content
 
         response = self.client.send_message(request)
         if response.get("result") == "success":
@@ -225,7 +245,7 @@ class ZulipClientWrapper:
             "anchor": anchor,
             "num_before": num_before,
             "num_after": num_after,
-            "narrow": narrow or [],
+            "narrow": wire_narrow(narrow or [], self.supports),
             "include_anchor": include_anchor,
             "client_gravatar": client_gravatar,
             "apply_markdown": apply_markdown,
@@ -234,9 +254,25 @@ class ZulipClientWrapper:
         # Add anchor_date for time-based queries (Zulip 12.0+, feature level 445)
         if anchor == "date" and anchor_date:
             request["anchor_date"] = anchor_date
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
 
         return self.read_snapshots.fetch(
             request, lambda: self.client.get_messages(request), use_cache=use_cache
+        )
+
+    def get_messages_by_ids(
+        self, ids: Sequence[int], apply_markdown: bool = False
+    ) -> dict[str, Any]:
+        """Fetch specific messages by ID in one request (FL 300)."""
+        request: dict[str, Any] = {
+            "message_ids": list(ids),
+            "apply_markdown": apply_markdown,
+        }
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
+        return self.read_snapshots.fetch(
+            request, lambda: self.client.get_messages(request)
         )
 
     def get_messages(
@@ -299,7 +335,7 @@ class ZulipClientWrapper:
             )
         narrow: list[dict[str, Any]] = []
         if stream_name:
-            narrow.append({"operator": "stream", "operand": stream_name})
+            narrow.append({"operator": "channel", "operand": stream_name})
         if topic:
             narrow.append({"operator": "topic", "operand": topic})
 
@@ -364,25 +400,36 @@ class ZulipClientWrapper:
         return response
 
     def get_users(
-        self, client_gravatar: bool = True, include_custom_profile_fields: bool = False
+        self,
+        client_gravatar: bool = True,
+        include_custom_profile_fields: bool = False,
+        user_ids: Sequence[int] | None = None,
     ) -> dict[str, Any]:
-        """Get list of users."""
-        # Check cache first
+        """Get users, optionally only `user_ids`.
+
+        Specific IDs use GET /users?user_ids= (FL 384); older servers filter
+        the cached full roster.
+        """
+        request: dict[str, Any] = {
+            "client_gravatar": client_gravatar,
+            "include_custom_profile_fields": include_custom_profile_fields,
+        }
+        if user_ids and self.supports(384):
+            return self.client.get_users({**request, "user_ids": list(user_ids)})
+
         default_filters = client_gravatar and not include_custom_profile_fields
         cached_users = self.user_cache.get_users() if default_filters else None
         if cached_users is not None:
-            return {"result": "success", "members": cached_users}
-
-        # Fetch from API
-        response = self.client.get_users(
-            {
-                "client_gravatar": client_gravatar,
-                "include_custom_profile_fields": include_custom_profile_fields,
-            }
-        )
-        if response["result"] == "success" and default_filters:
-            self.user_cache.set_users(response["members"])
-        return response
+            response: dict[str, Any] = {"result": "success", "members": cached_users}
+        else:
+            response = self.client.get_users(request)
+            if response["result"] == "success" and default_filters:
+                self.user_cache.set_users(response["members"])
+        if user_ids is None or response.get("result") != "success":
+            return response
+        wanted = set(user_ids)
+        members = [m for m in response["members"] if m.get("user_id") in wanted]
+        return {**response, "members": members}
 
     def get_stream_topics(self, stream_id: int) -> dict[str, Any]:
         """Get recent topics for a stream."""
@@ -498,12 +545,16 @@ class ZulipClientWrapper:
             f"streams/{stream_id}", method="DELETE", request={}
         )
 
+    def get_stream(self, stream_id: int) -> dict[str, Any]:
+        """Fetch one channel by ID (GET /streams/{id})."""
+        return self.client.call_endpoint(
+            f"streams/{stream_id}", method="GET", request={}
+        )
+
     def get_stream_id(self, stream: int | str) -> dict[str, Any]:
         if isinstance(stream, int):
             try:
-                response = self.client.call_endpoint(
-                    f"streams/{stream}", method="GET", request={}
-                )
+                response = self.get_stream(stream)
                 if response.get("result") == "success":
                     return {**response, "stream_id": stream}
                 return response
@@ -521,47 +572,66 @@ class ZulipClientWrapper:
             f"streams/{stream_id}/members", method="GET", request={}
         )
 
-    def mark_topic_as_read(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "mark_topic_as_read"):
-            return self.client.mark_topic_as_read(
-                stream_id=stream_id, topic_name=topic_name
-            )
-        return self.client.call_endpoint(
-            "mark_topic_as_read",
-            method="POST",
-            request={"stream_id": stream_id, "topic_name": topic_name},
-        )
+    def set_topic_visibility(
+        self, stream_id: int, topic_name: str, visibility_policy: int
+    ) -> dict[str, Any]:
+        """Set a topic's visibility policy: 0 inherit, 1 muted, 2 unmuted, 3 followed.
 
-    def mute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "mute_topic"):
-            return self.client.mute_topic({"stream_id": stream_id, "topic": topic_name})
-        return self.client.call_endpoint(
-            "users/me/subscriptions/muted_topics",
-            method="PATCH",
-            request={"op": "add", "stream_id": stream_id, "topic": topic_name},
-        )
-
-    def unmute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "unmute_topic"):
-            return self.client.unmute_topic(stream_id=stream_id, topic=topic_name)
-        return self.client.call_endpoint(
-            "users/me/subscriptions/muted_topics",
-            method="PATCH",
-            request={"op": "remove", "stream_id": stream_id, "topic": topic_name},
-        )
-
-    def delete_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "delete_topic"):
-            return self.client.delete_topic(stream_id=stream_id, topic_name=topic_name)
-        # Fallback; Zulip may use POST for delete_topic
-        try:
+        Uses POST /user_topics (FL 170; followed needs FL 219). Older servers
+        only support muting through the legacy muted_topics endpoint.
+        """
+        if self.supports(170):
+            if visibility_policy == 3 and not self.supports(219):
+                return {"result": "error", "msg": "Following topics needs FL 219"}
             return self.client.call_endpoint(
+                "user_topics",
+                method="POST",
+                request={
+                    "stream_id": stream_id,
+                    "topic": topic_name,
+                    "visibility_policy": visibility_policy,
+                },
+            )
+        if visibility_policy not in (0, 1):
+            return {"result": "error", "msg": "Server only supports mute/unmute"}
+        return self.client.call_endpoint(
+            "users/me/subscriptions/muted_topics",
+            method="PATCH",
+            request={
+                "op": "add" if visibility_policy else "remove",
+                "stream_id": stream_id,
+                "topic": topic_name,
+            },
+        )
+
+    def delete_topic(
+        self, stream_id: int, topic_name: str, max_batches: int = 20
+    ) -> dict[str, Any]:
+        """Delete a topic, repeating while the server reports a partial batch.
+
+        Since FL 211 the server deletes in time-limited batches and returns
+        complete=false until the topic is gone. The result carries the final
+        `complete` value and the number of `batches` sent.
+        """
+        response: dict[str, Any] = {}
+        batches = 0
+        while batches < max_batches:
+            batches += 1
+            response = self.client.call_endpoint(
                 f"streams/{stream_id}/delete_topic",
                 method="POST",
                 request={"topic_name": topic_name},
             )
-        except Exception:
-            return {"result": "error", "msg": "Failed to delete topic"}
+            if response.get("result") != "success":
+                break
+            invalidate_realm_snapshots(self._base_url)
+            if response.get("complete", True):
+                break
+        return {
+            **response,
+            "complete": response.get("complete", True),
+            "batches": batches,
+        }
 
     def edit_message(
         self,
@@ -638,23 +708,17 @@ class ZulipClientWrapper:
 
         Omitting apply_markdown preserves the SDK's default rendering behavior.
         """
-        request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}
-
-        def fetch() -> dict[str, Any]:
-            if hasattr(self.client, "get_message"):
-                try:
-                    return self.client.get_message(message_id=message_id, **request)
-                except TypeError:
-                    return self.client.get_message(
-                        {"message_id": message_id, **request}
-                    )
-            return self.client.call_endpoint(
-                f"messages/{message_id}", method="GET", request=request
-            )
+        request: dict[str, Any] = (
+            {} if apply_markdown is None else {"apply_markdown": apply_markdown}
+        )
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
 
         return self.read_snapshots.fetch(
             {"endpoint": "message", "message_id": message_id, **request},
-            fetch,
+            lambda: self.client.call_endpoint(
+                f"messages/{message_id}", method="GET", request=request
+            ),
             use_cache=not fresh,
         )
 
@@ -772,21 +836,14 @@ class ZulipClientWrapper:
     def get_daily_summary(
         self, streams: list[str] | None = None, hours_back: int = 24
     ) -> dict[str, Any]:
-        """Get daily message summary."""
-        if not streams:
-            # Get all subscribed streams
-            streams_response = self.get_streams()
-            if streams_response["result"] == "success":
-                streams = [
-                    s["name"]
-                    for s in streams_response["streams"]
-                    if not s.get("invite_only", False)
-                ]
-            else:
-                raise RuntimeError(
-                    streams_response.get("msg", "Failed to fetch streams")
-                )
+        """Count recent messages per channel, topic, and sender.
 
+        Without explicit streams on FL 445+, one GET /messages over
+        channels:public anchored at the cutoff date covers every public
+        channel (up to 1000 messages; `truncated` reports more). Explicit
+        streams or older servers fetch each channel separately.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
         summary: dict[str, Any] = {
             "total_messages": 0,
             "streams": {},
@@ -794,45 +851,67 @@ class ZulipClientWrapper:
             "time_range": f"Last {hours_back} hours",
         }
 
-        for stream_name in streams:
-            messages_response = self.get_messages_from_stream(
-                stream_name, hours_back=hours_back
+        def tally(stream_name: str, messages: list[dict[str, Any]]) -> None:
+            stream = summary["streams"].setdefault(
+                stream_name, {"message_count": 0, "topics": {}}
             )
-
-            if messages_response.get("result") != "success":
-                summary.setdefault("unavailable_streams", []).append(stream_name)
-                continue
-
-            messages = messages_response.get("messages", [])
-            summary["streams"][stream_name] = {
-                "message_count": len(messages),
-                "topics": {},
-            }
-
             for msg in messages:
                 summary["total_messages"] += 1
-
-                # Count by sender
+                stream["message_count"] += 1
                 sender = msg.get("sender_full_name", "Unknown")
                 summary["top_senders"][sender] = (
                     summary["top_senders"].get(sender, 0) + 1
                 )
-
-                # Count by topic
                 topic = msg.get("subject")
                 if topic:
-                    topic_count = summary["streams"][stream_name]["topics"].get(
-                        topic, 0
-                    )
-                    summary["streams"][stream_name]["topics"][topic] = topic_count + 1
+                    stream["topics"][topic] = stream["topics"].get(topic, 0) + 1
 
-        # Sort top senders
+        if not streams and self.supports(445):
+            response = self.get_messages_raw(
+                anchor="date",
+                anchor_date=cutoff.replace(microsecond=0).isoformat(),
+                num_before=0,
+                num_after=1000,
+                narrow=[{"operator": "channels", "operand": "public"}],
+                apply_markdown=False,
+            )
+            if response.get("result") != "success":
+                raise RuntimeError(response.get("msg", "Failed to fetch messages"))
+            by_stream: dict[str, list[dict[str, Any]]] = {}
+            for msg in response.get("messages", []):
+                if msg.get("timestamp", 0) >= cutoff.timestamp():
+                    name = str(msg.get("display_recipient", "Unknown"))
+                    by_stream.setdefault(name, []).append(msg)
+            for name, messages in by_stream.items():
+                tally(name, messages)
+            if not response.get("found_newest", True):
+                summary["truncated"] = True
+        else:
+            if not streams:
+                streams_response = self.get_streams()
+                if streams_response["result"] != "success":
+                    raise RuntimeError(
+                        streams_response.get("msg", "Failed to fetch streams")
+                    )
+                streams = [
+                    s["name"]
+                    for s in streams_response["streams"]
+                    if not s.get("invite_only", False)
+                ]
+            for stream_name in streams:
+                messages_response = self.get_messages_from_stream(
+                    stream_name, hours_back=hours_back
+                )
+                if messages_response.get("result") != "success":
+                    summary.setdefault("unavailable_streams", []).append(stream_name)
+                    continue
+                tally(stream_name, messages_response.get("messages", []))
+
         summary["top_senders"] = dict(
             sorted(summary["top_senders"].items(), key=lambda x: x[1], reverse=True)[
                 :10
             ]
         )
-
         return summary
 
 

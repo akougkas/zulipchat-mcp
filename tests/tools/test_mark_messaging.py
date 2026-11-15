@@ -9,7 +9,6 @@ import pytest
 from fastmcp import FastMCP
 
 from src.zulipchat_mcp.tools.mark_messaging import (
-    _resolve_stream_name,
     mark_all_as_read,
     mark_messages_unread,
     mark_topic_as_read,
@@ -18,65 +17,6 @@ from src.zulipchat_mcp.tools.mark_messaging import (
     unstar_messages,
     update_message_flags_for_narrow,
 )
-
-
-class TestResolveStreamName:
-    """Tests for the _resolve_stream_name helper function."""
-
-    @pytest.fixture
-    def mock_deps(self):
-        """Patch dependencies for stream resolution."""
-        mock_client = MagicMock()
-        with (
-            patch(
-                "src.zulipchat_mcp.tools.mark_messaging.get_client"
-            ) as mock_get_client,
-        ):
-            mock_get_client.return_value = mock_client
-            yield mock_client
-
-    def test_resolve_stream_name_success(self, mock_deps):
-        """Test successful stream name resolution."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [
-                {"stream_id": 123, "name": "General"},
-                {"stream_id": 456, "name": "Engineering"},
-            ],
-        }
-
-        result = _resolve_stream_name(123)
-        assert result == "General"
-
-    def test_resolve_stream_name_not_found(self, mock_deps):
-        """Test stream ID not found raises ValueError."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [{"stream_id": 123, "name": "General"}],
-        }
-
-        with pytest.raises(ValueError, match="Unknown stream ID: 999"):
-            _resolve_stream_name(999)
-
-    def test_resolve_stream_name_api_failure(self, mock_deps):
-        """Test API failure raises ValueError."""
-        mock_deps.get_streams.return_value = {
-            "result": "error",
-            "msg": "Not authorized",
-        }
-
-        with pytest.raises(ValueError, match="Unknown stream ID"):
-            _resolve_stream_name(123)
-
-    def test_resolve_stream_name_empty_streams(self, mock_deps):
-        """Test empty streams list raises ValueError."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [],
-        }
-
-        with pytest.raises(ValueError, match="Unknown stream ID"):
-            _resolve_stream_name(123)
 
 
 class TestUpdateMessageFlagsForNarrow:
@@ -111,7 +51,7 @@ class TestUpdateMessageFlagsForNarrow:
     @pytest.mark.asyncio
     async def test_update_flags_success_full_response(self, mock_deps):
         """Test successful flag update with all response fields."""
-        narrow = [{"operator": "stream", "operand": "general"}]
+        narrow = [{"operator": "channel", "operand": "general"}]
         result = await update_message_flags_for_narrow(
             narrow=narrow, op="add", flag="read"
         )
@@ -306,27 +246,14 @@ class TestMarkTopicAsRead:
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["narrow"] == [
-            {"operator": "stream", "operand": "Engineering"},
+            {"operator": "channel", "operand": 123},
             {"operator": "topic", "operand": "bug-fixes"},
         ]
 
     @pytest.mark.asyncio
-    async def test_mark_topic_as_read_invalid_stream(self, mock_deps):
-        """Test marking topic with invalid stream ID."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [{"stream_id": 123, "name": "Engineering"}],
-        }
-
-        result = await mark_topic_as_read(999, "some-topic")
-
-        assert result["status"] == "error"
-        assert "Unknown stream ID: 999" in result["error"]
-
-    @pytest.mark.asyncio
     async def test_mark_topic_as_read_exception(self, mock_deps):
         """Test exception handling in mark_topic_as_read."""
-        mock_deps.get_streams.side_effect = Exception("API timeout")
+        mock_deps.client.call_endpoint.side_effect = Exception("API timeout")
 
         result = await mark_topic_as_read(123, "topic")
 
@@ -390,7 +317,7 @@ class TestMarkMessagesUnread:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Engineering"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": 123}]
 
     @pytest.mark.asyncio
     async def test_mark_messages_unread_by_topic(self, mock_deps):
@@ -429,7 +356,7 @@ class TestMarkMessagesUnread:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert {"operator": "stream", "operand": "Engineering"} in request["narrow"]
+        assert {"operator": "channel", "operand": 123} in request["narrow"]
         assert {"operator": "topic", "operand": "releases"} in request["narrow"]
         assert {"operator": "sender", "operand": "bob@example.com"} in request["narrow"]
 
@@ -440,19 +367,6 @@ class TestMarkMessagesUnread:
 
         assert result["status"] == "error"
         assert "Must provide narrow" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_mark_messages_unread_invalid_stream(self, mock_deps):
-        """Test marking messages unread with invalid stream ID."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [],
-        }
-
-        result = await mark_messages_unread(stream_id=999)
-
-        assert result["status"] == "error"
-        assert "Unknown stream ID: 999" in result["error"]
 
     @pytest.mark.asyncio
     async def test_mark_messages_unread_exception(self, mock_deps):
@@ -529,7 +443,7 @@ class TestStarMessages:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Important"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": 123}]
         assert request["flag"] == "starred"
         assert request["op"] == "add"
 
@@ -564,19 +478,6 @@ class TestStarMessages:
 
         assert result["status"] == "error"
         assert "Must provide narrow" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_star_messages_invalid_stream(self, mock_deps):
-        """Test starring with invalid stream ID."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [],
-        }
-
-        result = await star_messages(stream_id=999)
-
-        assert result["status"] == "error"
-        assert "Unknown stream ID: 999" in result["error"]
 
     @pytest.mark.asyncio
     async def test_star_messages_exception(self, mock_deps):
@@ -656,7 +557,7 @@ class TestUnstarMessages:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Archive"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": 123}]
 
     @pytest.mark.asyncio
     async def test_unstar_messages_by_topic(self, mock_deps):
@@ -704,19 +605,6 @@ class TestUnstarMessages:
 
         assert result["status"] == "error"
         assert "Must provide narrow" in result["error"]
-
-    @pytest.mark.asyncio
-    async def test_unstar_messages_invalid_stream(self, mock_deps):
-        """Test unstarring with invalid stream ID."""
-        mock_deps.get_streams.return_value = {
-            "result": "success",
-            "streams": [],
-        }
-
-        result = await unstar_messages(stream_id=999)
-
-        assert result["status"] == "error"
-        assert "Unknown stream ID: 999" in result["error"]
 
     @pytest.mark.asyncio
     async def test_unstar_messages_exception(self, mock_deps):

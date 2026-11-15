@@ -40,6 +40,7 @@ class MessageListener:
         self._queue_id: str | None = None
         self._last_event_id: int | None = None
         self._consecutive_errors: int = 0
+        self._retry_after: float = 0.0
         self._stop_event = threading.Event()
         self._ready = threading.Event()
         self._registration_error: str | None = None
@@ -56,9 +57,12 @@ class MessageListener:
                 if events is None:
                     # Error response (429, etc.); backoff before retrying
                     self._consecutive_errors += 1
-                    delay = min(
-                        self._BACKOFF_BASE ** min(self._consecutive_errors, 7),
-                        self._BACKOFF_MAX,
+                    delay = max(
+                        self._retry_after,
+                        min(
+                            self._BACKOFF_BASE ** min(self._consecutive_errors, 7),
+                            self._BACKOFF_MAX,
+                        ),
                     )
                     logger.warning(
                         f"Backing off {delay:.0f}s (attempt {self._consecutive_errors})"
@@ -132,11 +136,16 @@ class MessageListener:
             if resp.get("result") != "success":
                 code = resp.get("code") or resp.get("msg")
                 logger.warning(f"get_events returned error: {code}")
+                try:
+                    self._retry_after = max(0.0, float(resp.get("retry-after", 0)))
+                except (TypeError, ValueError):
+                    self._retry_after = 0.0
                 if code and "BAD_EVENT_QUEUE_ID" in str(code):
                     await self._reset_queue()
                 # Return None to signal error and trigger backoff
                 return None
 
+            self._retry_after = 0.0
             return resp.get("events", [])
         except Exception as e:
             logger.error(f"Failed to fetch events: {e}")
@@ -215,7 +224,7 @@ class MessageListener:
                     else created
                 )
             narrow = [
-                {"operator": "stream", "operand": session["stream_name"]},
+                {"operator": "channel", "operand": session["stream_name"]},
                 {"operator": "topic", "operand": session["topic_name"]},
             ]
             for _ in range(100):
