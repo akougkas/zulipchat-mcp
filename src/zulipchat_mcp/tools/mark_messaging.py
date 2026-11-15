@@ -75,39 +75,6 @@ async def update_message_flags_for_narrow(
         return {"status": "error", "error": str(e)}
 
 
-async def mark_all_as_read() -> dict[str, Any]:
-    """Mark all messages as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            # Use empty narrow to match all messages
-            return await _mark_read_pages([])
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
-    """Mark all messages in a stream as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            return await _mark_read_pages(_criteria_narrow(stream_id))
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
-    """Mark all messages in a topic as read using modern narrow approach."""
-    try:
-        with bind_client(get_client()):
-            return await _mark_read_pages(_criteria_narrow(stream_id, topic_name))
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-async def _mark_read_pages(narrow: list[dict[str, Any]]) -> dict[str, Any]:
-    """Compatibility wrapper for the shared bulk flag operation."""
-    return await _update_flag_pages(narrow, "add", "read")
-
-
 async def _update_flag_pages(
     narrow: list[dict[str, Any]],
     op: Literal["add", "remove"],
@@ -190,42 +157,6 @@ async def _flag_matching(
             return await _update_flag_pages(narrow=built, op=op, flag=flag)
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-async def mark_messages_unread(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-) -> dict[str, Any]:
-    """Mark messages as unread using flexible narrow construction."""
-    return await _flag_matching(
-        "remove", "read", narrow, stream_id, topic_name, sender_email
-    )
-
-
-async def star_messages(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-) -> dict[str, Any]:
-    """Star messages matching criteria."""
-    return await _flag_matching(
-        "add", "starred", narrow, stream_id, topic_name, sender_email
-    )
-
-
-async def unstar_messages(
-    narrow: list[dict[str, Any]] | None = None,
-    stream_id: int | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-) -> dict[str, Any]:
-    """Unstar messages matching criteria."""
-    return await _flag_matching(
-        "remove", "starred", narrow, stream_id, topic_name, sender_email
-    )
 
 
 async def manage_message_flags(

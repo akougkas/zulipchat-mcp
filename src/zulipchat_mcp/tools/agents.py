@@ -8,7 +8,6 @@ from typing import Any
 
 from ..config import get_config_manager
 from ..core.agent_control import AgentCoordinator
-from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
@@ -24,10 +23,6 @@ def _get_coordinator() -> AgentCoordinator:
     if _coordinator is None:
         _coordinator = AgentCoordinator()
     return _coordinator
-
-
-def _get_client_bot() -> ZulipClientWrapper:
-    return _get_coordinator().bot_client
 
 
 def register_agent(

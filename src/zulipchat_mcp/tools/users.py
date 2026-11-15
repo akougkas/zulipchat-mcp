@@ -337,39 +337,6 @@ async def get_user_group_members(
         return {"status": "error", "error": str(e)}
 
 
-async def is_user_group_member(
-    user_group_id: int,
-    user_id: int,
-    direct_member_only: bool = False,
-) -> dict[str, Any]:
-    """Check if user is member of user group (READ-ONLY)."""
-    client = get_client()
-
-    try:
-        request_data = {"direct_member_only": direct_member_only}
-        result = await asyncio.to_thread(
-            lambda: client.client.call_endpoint(
-                f"user_groups/{user_group_id}/members/{user_id}",
-                method="GET",
-                request=request_data,
-            )
-        )
-
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "user_group_id": user_group_id,
-                "user_id": user_id,
-                "is_member": result.get("is_user_group_member", False),
-                "direct_member_only": direct_member_only,
-            }
-        else:
-            return api_error(result, "Failed to check group membership")
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
 async def mute_user(muted_user_id: int) -> dict[str, Any]:
     """Mute a user (affects your own notifications)."""
     client = get_client()
