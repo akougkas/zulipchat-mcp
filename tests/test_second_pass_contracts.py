@@ -24,14 +24,14 @@ def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
 
 
 def test_setup_uvx_command_matches_generated_arguments(monkeypatch):
-    from zulipchat_mcp import setup_wizard
+    from zulipchat_mcp import __version__, setup_wizard
 
     monkeypatch.setattr(setup_wizard.shutil, "which", lambda command: f"/bin/{command}")
     config = setup_wizard.generate_mcp_config(
         {"path": "/tmp/user.zuliprc"}, use_uvx=True
     )
     assert config["command"] == "/bin/uvx"
-    assert config["args"][0] == "zulipchat-mcp"
+    assert config["args"][0] == f"zulipchat-mcp@{__version__}"
 
 
 def test_service_replacement_is_refused_while_previous_listener_is_stopping(
