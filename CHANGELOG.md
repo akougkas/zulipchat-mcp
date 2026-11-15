@@ -4,30 +4,41 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.8.0] - 2026-11-08
+## [0.8.0] - 2026-11-15
 
-Checked against Clio Coder 0.7.0, which negotiates MCP 2026-07-28, executes plugin `mcp.json` servers after trust, and runs only `read`-classed MCP tools in read-only runs and workers.
+Built for Clio Coder 0.8 and checked through Clio's own MCP client on MCP 2026-07-28 against a mock Zulip. The owner can now drive a coding agent from Zulip by mentioning the bot, everyone else is ignored, and ordinary Zulip work takes fewer calls and far fewer tokens.
 
 ### Added
-- Clio Coder exports (`.clio-coder/mcp.yaml` and plugin `mcp.json`) declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit or delete existing content, and `execute` otherwise. A server trusted as `execute` can now be used in Clio read-only runs, where reads work and writes are refused before reaching Zulip. Other clients still receive plain Agent Plugins 1.0.0 content.
-- `zulipchat-mcp-integrate print|export --tool-profile read-only` exports a read-only declaration. For Clio it adds `--ephemeral-state` and classes only the read tools, so a sandboxed read-only worker can start the server. Claude Code exports reject it because their hooks post messages.
-- `--ephemeral-state` (requires `--tool-profile read-only`) keeps local state in a private temporary database removed at exit, instead of the account database.
-- `search_messages` and `get_message` accept `content_format="markdown"` to return message source text instead of rendered HTML. On the grc-iit realm this made 50-message windows 2.5 to 4 times smaller in content and left far fewer messages at the excerpt cap. Rendered HTML remains the default.
-- `search_messages` returns `sample.next_cursor` and `sample.completeness`. Repeating the call with `cursor=` fetches the next page after the last returned message; the cursor is bound to the account, filters, window and order. Response metadata now precedes `messages`, so a client that truncates a long result still shows the paging state. In a grc-iit battle test, a model without a cursor looped on overlapping time windows for more than 20 calls.
-- `get_stream_topics` accepts `stream_name` as an alternative to `stream_id`.
+- **Owner-only bot inbox.** `wait_for_mentions` returns the owner's @-mentions of the bot in every channel the bot receives, plus direct messages to the bot, as requests with `request_id`, `from`, `where` and `text`. The server keeps the delivery cursor, starts from now on first use, and reacts with :eyes: when a request is taken. Messages from anyone the mention policy does not admit are counted in `ignored_unauthorized` and never shown. It runs as an MCP task for hosts that support them.
+- `reply(request_id, content)` answers as the bot in the exact conversation that asked and refuses any request `wait_for_mentions` did not deliver.
+- `teleport_chat` hands the current conversation to Zulip: `to="me"` opens a DM from the bot to the owner, and `to="#channel"` with a topic opens a topic where every owner message reaches the inbox without a mention. It no longer messages other people; use `send_message`.
+- `--tool-profile bot` for sessions invoked from Zulip exposes only listening, reading and `reply`, and pins every call to the bot identity, so an answer posted in a channel can only contain what the bot could already see.
+- `send_message` sends direct messages to people by name, email or user ID in one call. A name must match exactly one active person by full name, first name or unique prefix; otherwise nothing is sent and `candidates` are returned. Results include Zulip's `message_link`.
+- Extended tools `resolve_topic`, `set_topic_visibility`, `manage_reminders`, `set_typing`, `get_read_receipts` and `get_message_history`.
+- `search_messages(is_unread=True)`.
+- Clio Coder exports declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit, move, resolve or delete, and `execute` otherwise. `--tool-profile read-only` and `--tool-profile bot` export restricted declarations; read-only adds `--ephemeral-state` for sandboxed workers.
+- `search_messages` returns `sample.next_cursor` and `sample.completeness` for cursor paging, bound to the account, filters, window and order.
+- `get_stream_topics` accepts `stream_name`.
 
 ### Changed
-- `get_streams` and `get_users` return a compact summary per stream or user by default. Raw Zulip objects carry dozens of permission and avatar fields, so a 44-stream or 100-user organization exceeded the 16 KB result budget Clio Coder gives a model and arrived truncated. Pass `verbose=True` for the previous raw objects. The compact user summary omits `delivery_email`.
+- **Reads are compact by default.** `search_messages` returns Markdown and 20 rows. Each row is `id`, `from`, minute-precision `time` and `text`; `channel` and `topic` appear only when the query did not fix them, reactions collapse to emoji counts, and nulls are dropped. `content_format="rendered_html"` restores HTML.
+- `get_streams` and `get_users` return compact summaries by default; `verbose=True` returns the raw objects.
+- The core profile has 21 tools: it gains `wait_for_mentions`, `reply` and `poll_agent_events` and moves `get_stream_info` and `get_own_user` to extended. Extended has 55. Every description leads with one self-contained sentence for hosts that search tools lazily.
+- `add_reaction(remove=True)` replaces `toggle_reaction`. `get_daily_summary` is a data-only read.
+- Zulip calls use current API forms by feature level: `direct`/`channel` message types, `channel`, `is:dm` and `dm-including` narrow operators, `POST /user_topics` for topic visibility, `GET /streams/{id}` for one channel, `GET /users?user_ids=` for several users, one date-anchored fetch for the daily summary, and repeated `delete_topic` calls until the server reports completion.
+- Tool listings are cacheable for an hour on MCP 2026-07-28.
+- Dependencies: FastMCP 4.1.4 (GHSA-7xgj-8392-5q4r, GHSA-vqqp-x5qm-5qp4), authlib 1.9.1, joserfc 1.7.7 and certifi 2026.10.23 floors.
+
+### Removed
+- `execute_chain`, `list_command_types` and the command engine; `construct_narrow` and `advanced_search`, which duplicated `search_messages`; `list_instances`, `manage_task`, `send_agent_status`, `is_user_group_member`, `toggle_reaction` and `agents_channel_topic_ops`.
+- `analyze_stream_with_llm`, `analyze_team_activity_with_llm` and `intelligent_report_generator`, along with the server-side Anthropic provider and the `anthropic` dependency. The calling agent summarizes `search_messages` and `get_daily_summary` output itself.
 
 ### Fixed
-- `wait_for_response`, `listen_events` and `teleport_chat` no longer fail with MCP `-32603 Internal server error` when an MCP 2026-07-28 client declares the Tasks extension (as Clio Coder does). The tool-contract middleware now passes the task handle through instead of reading it as a tool result.
-- `search_messages` names `after_time`/`before_time` and the expected ISO 8601 form when a time cannot be parsed, instead of returning a bare `month must be in 1..12` error.
-- An account database that cannot be opened for a reason other than a lock (for example a read-only file system) is no longer reported as locked by another process.
-- The Clio smoke check accepts MCP 2026-07-28 and verifies the exported classes against tool annotations.
-- The Clio guide describes Clio 0.7.0: per-tool classes, executing plugin servers, `mcp test`, `--network` trust for workers, and the read-only worker setup.
-
-### Known issues
-- Clio Coder 0.7.0 (outside this package): the task-board reminder can tell the model to call `tasks` when a run's `--allow-tools` list omits it. The model then loops and Clio's loop guard disables tools. Workaround: include `tasks` in `--allow-tools`, or avoid numbered multi-step instructions in restricted runs. This is tracked in Clio Coder and does not block this release.
+- The mention policy matches the owner by numeric user ID. Realms that hide email addresses report the owner's messages under a `userNNN@` placeholder, which the email comparison silently dropped.
+- Several hosts for one account share the bot inbox: one process holds the Zulip event queue and the others follow its snapshot, taking over if it exits, instead of failing with `INBOX_ALREADY_OWNED`. Delivery is compare-and-set, so each request reaches exactly one host.
+- The listener and `listen_events` honor Zulip's `retry-after` on rate limits.
+- `wait_for_response`, `listen_events` and `teleport_chat` no longer fail with `-32603` when an MCP 2026-07-28 client declares the Tasks extension.
+- Invalid `after_time`/`before_time` errors name the parameter and the ISO 8601 form. An account database that cannot be opened for a reason other than a lock is no longer reported as locked.
 
 ## [0.7.6] - 2026-10-09
 

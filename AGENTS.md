@@ -22,7 +22,7 @@
 ## Coding Style & Naming Conventions
 - Python 3.10+, 4‑space indent, Black line length 88, Ruff configured (pycodestyle, pyflakes, isort, bugbear, pyupgrade). Keep imports sorted.
 - Names: functions/variables `snake_case`, classes `CamelCase`, constants `UPPER_SNAKE_CASE`, modules `lower_snake_case.py`.
-- Tool groups should expose `register_*_tools(mcp)` mirroring patterns in `src/zulipchat_mcp/tools/`.
+- Register every tool in `src/zulipchat_mcp/tools/__init__.py` through `register_tool`; lead each description with one self-contained sentence.
 
 ## Testing Guidelines
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.
@@ -32,15 +32,7 @@
 
 - Note on contract-only runs: Running only the tests matching `-k "contract_"` will likely trip the global coverage gate; use the full suite for verification, or append `--no-cov` when exploring locally (e.g., `uv run pytest -q -k "contract_" --no-cov`).
 
-## Server-Side LLM Analytics & Protocol (v0.7.3+)
-
-### LLM Analytics Provider Requirements
-MCP 2026-07-28 deprecates sampling and recommends direct provider integration. AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) call a server-side Anthropic provider (`src/zulipchat_mcp/core/llm.py`) directly:
-
-- `ANTHROPIC_API_KEY`: Required on the server process for LLM generation.
-- `ANTHROPIC_MODEL`: Optional model override (defaults to `claude-opus-5`).
-- **Graceful degradation**: Without an API key, tools return `status="success"` with `llm_unavailable=True`, `analysis=None`, and raw `data_summary` so calling agents can analyze data directly.
-- **No `ctx` parameter**: Analytics tools do not take a `Context` parameter.
+## Protocol and Agent Communication
 
 ### Stateless HTTP Transport
 - `--transport http` serves on streamable-HTTP (port 8000 by default).
@@ -65,17 +57,13 @@ retain the same request ID. For reliable steering delivery, poll with
 `auto_ack=False`, then acknowledge handled IDs within the same session/agent
 scope. Default polling excludes outbound and unauthorized audit records.
 
-For conversational bot entry, an authorized person mentions the Generic bot
-normally. `poll_agent_events(mentions_stream="Agents-Channel",
-after_message_id=..., auto_ack=False, wait_seconds=20)` reads an event-fed local
-inbox without an existing session. The host validates numeric bot, sender and
-channel IDs, commits its cursor with a durable work queue, wakes the coding
-agent and replies in the source topic. Ordinary mention-driven work does not
-require `/reply`; explicit question/approval correlation remains available.
-MCP never launches a coding process or treats mention text as executable code.
-`direct_messages=True` reads direct messages to the bot the same way. Only
-senders admitted by `--mention-allow` (default: the owner) are returned; others
-are listed in `ignored_unauthorized` without content.
+For conversational bot entry, the owner mentions the bot in any channel it
+receives or DMs it. `wait_for_mentions` returns those requests from one shared,
+event-fed inbox per account and `reply(request_id, content)` answers as the bot
+in the originating conversation. Only senders admitted by `--mention-allow`
+(default: the owner, matched by user ID) are returned; others are counted in
+`ignored_unauthorized` without content and never answered. MCP never launches a
+coding process or treats mention text as executable code.
 
 ### Zulip API efficiency (v0.7.4)
 - SDK queries share a per-process budget by normalized realm/principal, with
@@ -85,9 +73,10 @@ are listed in `ignored_unauthorized` without content.
   Identical concurrent requests share a fetch. `fresh=True` on search/detail
   tools bypasses the snapshot. Return source hashes, age, UTC dates, fetched and
   returned counts, and excerpt truncation; a sample is never a complete archive.
-- Bot mentions use one lazy long-poll queue per watched channel (maximum four),
-  a bounded initial snapshot, message-ID recovery after queue expiration, and
-  atomic persistence before event acknowledgement. Host polls read local state.
+- The bot inbox uses one lazy long-poll queue per account, a bounded initial
+  snapshot, message-ID recovery after queue expiration, and atomic persistence
+  before event acknowledgement. Other processes for the account follow the
+  lease holder's snapshot; delivery is compare-and-set.
 - Check partial results and listener health. A cursor-retention gap, edited
   input or unverified sender must not silently become an executable host task.
 - See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md).

@@ -50,7 +50,7 @@ def print_header() -> None:
     print("This wizard will:")
     print("  1. Find zuliprc files on your system")
     print("  2. Validate your Zulip credentials")
-    print("  3. Choose core (20) or extended (60) tool mode")
+    print("  3. Choose core (21) or extended (55) tool mode")
     print("  4. Generate MCP client configuration")
     print("=" * 48 + "\n")
 
@@ -442,8 +442,8 @@ def _print_config_block(title: str, payload: dict[str, Any]) -> None:
 def _select_tool_mode() -> bool:
     """Prompt for core vs extended tool mode."""
     print(f"\n{BOLD}Step 4: Tool Mode{RESET}")
-    print("  1. Core mode (20 tools, default)")
-    print("  2. Extended mode (60 tools)")
+    print("  1. Core mode (21 tools, default)")
+    print("  2. Extended mode (55 tools)")
     choice = prompt("Choice", default="1")
     return choice.strip() == "2"
 
@@ -605,7 +605,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"\nUser: {user_config['name']} ({user_config['email']})")
     if bot_config:
         print(f"Bot:  {bot_config['name']} ({bot_config['email']})")
-    print(f"Tool mode: {'Extended (60)' if extended_tools else 'Core (20)'}")
+    print(f"Tool mode: {'Extended (55)' if extended_tools else 'Core (21)'}")
     print("\nRestart your MCP client to apply changes.")
 
 

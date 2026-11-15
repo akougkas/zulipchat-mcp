@@ -38,7 +38,7 @@ The wizard scans for `zuliprc` files, validates credentials against Zulip, and p
 
 ## Core vs extended tools
 
-Default mode uses 20 core tools.
+Default mode uses 21 core tools.
 
 Enable the full 60-tool surface when needed:
 

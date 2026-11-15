@@ -53,7 +53,7 @@ release is v0.8.0.
 
 ## Tool Modes
 
-- Default mode: 20 core tools.
+- Default mode: 21 core tools.
 - Extended mode: 60 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
 - `--tool-profile read-only`: nine core reads or 23 extended reads, with matching
   discovery and enforced call policy.

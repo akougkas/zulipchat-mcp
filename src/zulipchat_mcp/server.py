@@ -102,7 +102,7 @@ def main() -> None:
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all tools (60) instead of the core set (20).",
+        help="Register all 55 tools instead of the 21-tool core set.",
     )
     parser.add_argument(
         "--tool-profile",
@@ -336,9 +336,9 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (60 tools)")
+        logger.info("Registered extended tool set (55 tools)")
     else:
-        logger.info("Registered core tool set (20 tools)")
+        logger.info("Registered core tool set (21 tools)")
 
     logger.info("Starting ZulipChat MCP server (transport=%s)...", args.transport)
     if args.transport == "http":

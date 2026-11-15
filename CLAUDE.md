@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Status (v0.8.0)
 
-**Current release**: v0.8.0 on [PyPI](https://pypi.org/project/zulipchat-mcp/).
+**Current release**: v0.8.0. Confirm what is actually live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json` before claiming a version is published.
 
 Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
 
@@ -81,7 +81,7 @@ src/zulipchat_mcp/
 - **Database**: DuckDB integration for persistence and caching
 - **Account binding**: immutable effective realm/principal resolution and
   fingerprint-scoped persistence; all initialization/binding failures abort startup
-- **Packaged skills**: four canonical `skills/*/SKILL.md` documents, a dependency-light
+- **Packaged skills**: four canonical `src/zulipchat_mcp/skills/*/SKILL.md` documents, a dependency-light
   loader, immutable Resources, and SEP-2640 discovery on MCP 2026-07-28
 - **Integration exports**: native configurations for seven host families and
   schema-validated portable plugin content; host trust remains an operator action
@@ -122,14 +122,15 @@ register_tool(
     task=optional_background_task(),  # only for long-running tools
 )
 ```
-Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `teleport_chat`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
+Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `wait_for_mentions`, `teleport_chat`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
 
 ## Tool Modes
 
-- **Default**: 20 core tools registered via `register_core_tools(mcp)`.
-- **Extended (60 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Default**: 21 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`.
+- **Extended (55 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Profiles** (`core/tool_contract.py`): `full`, `read-only` (`READ_ONLY_TOOLS`), and `bot` (`BOT_TOOLS`: inbox, reads and `reply`, every call pinned to the bot identity).
 
-The split shipped in v0.6.0 to keep token overhead low for the common case.
+`tools/__init__.py` is the only place tools are registered. Each description leads with one self-contained sentence: Clio's `gateway(op="find")` shows only that sentence.
 
 ## Development Guidelines
 
@@ -198,23 +199,18 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 - Administrative tools are not exposed to AI clients
 - All credentials handled via environment variables or CLI arguments
 
-## Server-Side LLM Analytics
+## Agent-Facing Behavior
 
-### Server-Side LLM Provider (`src/zulipchat_mcp/core/llm.py`)
-MCP sampling is deprecated in the 2026-07-28 stateless protocol; this server uses direct provider integration. LLM-powered analytics tools call a server-side Anthropic provider directly:
+### Owner-only bot inbox (`tools/inbox.py`, `services/bot_mentions.py`)
+- `wait_for_mentions` returns the owner's @-mentions of the bot in any channel the bot receives plus DMs to the bot. One shared SQLite snapshot per account; one process holds the Zulip event queue lease and other processes follow it. The delivery cursor advances by compare-and-set (`BotMentionInbox.claim`), so each request reaches one host.
+- The sender gate is `MentionAllow.allows(..., owner_id=...)`: the owner is matched by numeric user ID because realms that hide emails report `userNNN@` placeholders.
+- `reply(request_id, content)` posts as the bot into the conversation that produced the request and refuses anything not delivered.
+- `teleport_chat` hands a conversation to the owner (`to="me"` DM, or `#channel` + topic, which is added to the inbox's watched topics).
 
-```python
-from zulipchat_mcp.core.llm import generate, LLMUnavailableError
-
-# Direct server-side generation:
-summary = await generate(prompt)
-```
-
-**Key Points:**
-- Tools do **NOT** take a `Context` parameter (`ctx`).
-- Server process requires `ANTHROPIC_API_KEY` for generation.
-- Model override via `ANTHROPIC_MODEL` (defaults to `claude-opus-5`).
-- Without `ANTHROPIC_API_KEY`, tools degrade gracefully returning `status="success"` with `llm_unavailable=True` and structured `data_summary`.
+### Token discipline
+- Message rows come from `search.compact_message`: `id`, `from`, `time`, `text`, plus channel/topic only when not fixed by the query. Default `content_format` is Markdown and default `limit` is 20.
+- `send_message` resolves names with `messaging._resolve_recipients`: exactly one match or nothing is sent.
+- There is no server-side LLM. Clients summarize data themselves.
 
 ### Approved Emoji for Agent Reactions
 Agents should use only these 12 emoji for consistency and quick responses:
@@ -233,18 +229,6 @@ Complete implementation exists at `src/zulipchat_mcp/tools/agents.py`:
 - Background MessageListener processes Zulip replies automatically
 - Claude Code lifecycle hooks can be bridged via `zulipchat-mcp-hook`
 
-### Command Chains (execute_chain)
-Workflow automation with context passing between operations:
-```python
-execute_chain([
-    {"type": "search_messages", "params": {"query_key": "search_query"}},
-    {"type": "conditional_action", "params": {
-        "condition": "len(context['search_results']) > 0",
-        "true_action": {"type": "send_message", "params": {...}}
-    }}
-])
-```
-
 ## Common Issues
 
 ### Coverage / cache contamination
@@ -253,12 +237,6 @@ Clean environment before major test runs:
 rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_cache
 uv sync --reinstall
 ```
-
-### LLM Analytics Returns `llm_unavailable`
-If analytics tools return `llm_unavailable=True`:
-- Set `ANTHROPIC_API_KEY` in the environment of the `zulipchat-mcp` server process.
-- Optional: set `ANTHROPIC_MODEL` to override the model.
-- Calling agents can process the returned `data_summary` field directly when server-side LLM is unconfigured.
 
 ### DuckDB lock after unclean shutdown
 Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the account database under `~/.local/state/zulipchat-mcp/accounts/`.

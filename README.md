@@ -72,35 +72,42 @@ Clio configures MCP execution separately from plugin content. See the
 [complete workflow](docs/integrations/agent-workflow.md).
 
 For read-only access, add `--tool-profile read-only`: discovery and execution
-both expose nine core reads or 23 extended reads. The default full profile
-retains 20/60 tools. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
+both expose seven core reads or 22 extended reads. The default full profile
+has 21 core tools and 55 extended. `--tool-profile bot` exposes only the bot
+inbox, reads with the bot's visibility, and `reply`. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
 for cache freshness, rate limits and the boundary between message transport and
 host execution. The [live Luna experiment](docs/testing/clio-bot-mentions.md)
 records normal mention-to-bot replies from a real Clio TUI driven by a private,
 unshipped host adapter. Other hosts were tested through exported configuration
 and fake-credential checks, not live sessions.
 
-## Two-Tier Tool Architecture
+## Tool Set
 
-v0.6.0 introduced a deliberate split: **20 core tools** by default, **60 tools** when you need more.
+**21 core tools** by default, **55** with `--extended-tools`. Hosts that search
+tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
 
-### Core Mode (default)
-
-The 20 tools that cover most daily use:
-
-| Category | Tools |
+| Category | Core tools |
 |----------|-------|
-| **Messaging** | `send_message`, `edit_message`, `get_message`, `add_reaction` |
-| **Search** | `search_messages`, `get_streams`, `get_stream_info`, `get_stream_topics` |
-| **Users** | `resolve_user`, `get_users`, `get_own_user` |
-| **Agent Comms** | `teleport_chat`, `register_agent`, `ensure_agent_session`, `agent_message`, `request_user_input`, `wait_for_response` |
-| **System** | `switch_identity`, `server_info`, `manage_message_flags` |
+| **Messaging** | `send_message` (names, emails or IDs), `edit_message`, `get_message`, `add_reaction` |
+| **Reading** | `search_messages`, `get_streams`, `get_stream_topics`, `manage_message_flags` |
+| **Users** | `resolve_user`, `get_users` |
+| **Bot inbox** | `wait_for_mentions`, `reply`, `teleport_chat` |
+| **Agent sessions** | `register_agent`, `ensure_agent_session`, `agent_message`, `request_user_input`, `wait_for_response`, `poll_agent_events` |
+| **System** | `server_info`, `switch_identity` |
 
-Why 20 instead of 60? Fewer tools means faster tool selection, lower token overhead, and less confusion for the AI. Most tasks — sending messages, searching, reacting, and binding an agent session to Zulip — only need the core set.
+### Talk to your agent from Zulip
+
+Mention your bot in any channel it is subscribed to, or DM it.
+`wait_for_mentions` hands your request to the coding agent and `reply` answers
+in the same conversation as the bot. Only the configured owner is heard,
+matched by Zulip user ID; anyone else is ignored without a reply, so the bot
+reveals nothing about your machine. `teleport_chat(to="me")` moves an ongoing
+conversation into your DMs with the bot. See the
+[Clio guide](docs/integrations/clio-coder.md#invoke-clio-from-zulip).
 
 ### Extended Mode
 
-Need scheduled messages, event queues, file uploads, analytics, or advanced search?
+Need scheduled messages, reminders, topic resolution, read receipts, event queues, or file uploads?
 
 ```bash
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --extended-tools
@@ -181,7 +188,7 @@ Add to your MCP configuration:
 |--------|-------------|
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
-| `--extended-tools` | Register all 60 tools instead of the 20-tool core set |
+| `--extended-tools` | Register all 55 tools instead of the 21-tool core set |
 | `--tool-profile {full,read-only}` | Filter discovery and enforce read-only Zulip calls; default: `full` |
 | `--ephemeral-state` | With `--tool-profile read-only`, keep local state in a temporary database removed at exit (for sandboxes with no writable state directory) |
 | `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
@@ -221,14 +228,6 @@ requires deliberate association. See [database migration](docs/user-guide/config
 
 Agent sessions, approvals, listener cursors, and default background-task storage remain local state. Use a single instance for these workflows. Separate DuckDB paths avoid writer conflicts but do not share session data; ordinary round-robin routing across such replicas is not supported. Legacy HTTP clients may also retain transport sessions.
 
-### AI Analytics & LLM Provider
-
-AI-powered analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`) execute using a server-side Anthropic LLM provider:
-
-- Set `ANTHROPIC_API_KEY` on the server process for LLM generation.
-- Optionally set `ANTHROPIC_MODEL` to override the default model (`claude-opus-5`).
-- Without an API key, analytics tools return structured data summaries with `llm_unavailable: true` so your client assistant can analyze the data directly.
-
 ### More clients
 
 Dedicated setup pages:
@@ -252,7 +251,7 @@ uvx zulipchat-mcp \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```
 
-The assistant posts as **you** by default. Call `switch_identity` to post as the bot — useful for automated notifications, agent-to-agent communication, or keeping human vs. bot messages distinct.
+The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` to post one message as the bot, or call `switch_identity` to change the default. The bot is also the identity that listens for your mentions and replies to them.
 
 ## Real-World Examples
 
@@ -266,10 +265,13 @@ The assistant posts as **you** by default. Call `switch_identity` to post as the
 → Assistant calls `search_messages` with keywords, returns sender and context.
 
 **"React with :thumbs_up: to Sarah's last message"**
-→ Assistant calls `resolve_user` ("Sarah"), `search_messages` (sender), then `add_reaction`.
+→ Assistant calls `search_messages` with `sender="Sarah"`, then `add_reaction`.
 
 **"DM Jaime that the PR is ready"**
-→ Assistant calls `teleport_chat` with fuzzy name resolution — no email needed.
+→ Assistant calls `send_message(type="direct", to="Jaime", ...)`. One call; an ambiguous name returns candidates and sends nothing.
+
+**"Ping me on Zulip when the build finishes, I'm heading out"**
+→ Assistant calls `teleport_chat(to="me", ...)` and keeps answering your DMs through `wait_for_mentions`.
 
 ## Development
 
