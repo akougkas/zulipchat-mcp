@@ -120,12 +120,6 @@ async def test_cancelled_listener_cleans_original_queue_and_restores_binding(
         ("manage_message_flags", {"scope": "stream", "stream_id": 7}),
         ("manage_message_flags", {"scope": "topic", "stream_id": 7, "topic_name": "t"}),
         ("manage_message_flags", {"scope": "narrow", "stream_id": 7}),
-        ("mark_all_as_read", {}),
-        ("mark_stream_as_read", {"stream_id": 7}),
-        ("mark_topic_as_read", {"stream_id": 7, "topic_name": "t"}),
-        ("mark_messages_unread", {"stream_id": 7}),
-        ("star_messages", {"stream_id": 7}),
-        ("unstar_messages", {"stream_id": 7}),
     ],
 )
 async def test_flag_resolution_and_all_pages_retain_client(identities, name, arguments):

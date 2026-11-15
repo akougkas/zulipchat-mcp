@@ -212,8 +212,7 @@ class MessageListener:
 
     async def _backfill_sessions(self) -> None:
         """Register first, catch up by message ID, then deduplicate queue overlap."""
-        feature_level = getattr(self.client.client, "feature_level", 0)
-        supports_date_anchor = isinstance(feature_level, int) and feature_level >= 445
+        supports_date_anchor = self.client.supports(445)
         for session in self.db.list_agent_sessions(include_closed=False):
             cursor = self.db.get_listener_message_cursor(str(session["session_id"]))
             created = session.get("created_at")

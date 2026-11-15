@@ -14,7 +14,6 @@ from src.zulipchat_mcp.tools.users import (
     get_user_presence,
     get_user_status,
     get_users,
-    is_user_group_member,
     mute_user,
     unmute_user,
     update_status,
@@ -202,18 +201,6 @@ class TestUsersTools:
         result = await get_user_group_members(1)
         assert result["status"] == "success"
         assert result["member_count"] == 2
-
-    @pytest.mark.asyncio
-    async def test_is_user_group_member(self, mock_deps):
-        """Test is_user_group_member."""
-        mock_deps.client.call_endpoint.return_value = {
-            "result": "success",
-            "is_user_group_member": True,
-        }
-
-        result = await is_user_group_member(1, 2)
-        assert result["status"] == "success"
-        assert result["is_member"] is True
 
     @pytest.mark.asyncio
     async def test_mute_unmute_user(self, mock_deps):

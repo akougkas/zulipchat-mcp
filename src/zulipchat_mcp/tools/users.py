@@ -8,8 +8,6 @@ import asyncio
 import re
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 
@@ -339,39 +337,6 @@ async def get_user_group_members(
         return {"status": "error", "error": str(e)}
 
 
-async def is_user_group_member(
-    user_group_id: int,
-    user_id: int,
-    direct_member_only: bool = False,
-) -> dict[str, Any]:
-    """Check if user is member of user group (READ-ONLY)."""
-    client = get_client()
-
-    try:
-        request_data = {"direct_member_only": direct_member_only}
-        result = await asyncio.to_thread(
-            lambda: client.client.call_endpoint(
-                f"user_groups/{user_group_id}/members/{user_id}",
-                method="GET",
-                request=request_data,
-            )
-        )
-
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "user_group_id": user_group_id,
-                "user_id": user_id,
-                "is_member": result.get("is_user_group_member", False),
-                "direct_member_only": direct_member_only,
-            }
-        else:
-            return api_error(result, "Failed to check group membership")
-
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
 async def mute_user(muted_user_id: int) -> dict[str, Any]:
     """Mute a user (affects your own notifications)."""
     client = get_client()
@@ -498,49 +463,3 @@ async def set_typing(
         return {"status": "success", "op": op}
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_users_tools(mcp: FastMCP) -> None:
-    """Register clean READ-ONLY user tools with the MCP server."""
-    mcp.tool(
-        name="resolve_user",
-        description="Resolve display name to Zulip email with fuzzy matching. 'Jaime' -> jaime@org.zulipchat.com",
-    )(resolve_user)
-    mcp.tool(name="get_users", description="Get all users in organization")(get_users)
-    mcp.tool(name="get_user_by_id", description="Get specific user by ID")(
-        get_user_by_id
-    )
-    mcp.tool(name="get_user_by_email", description="Get specific user by email")(
-        get_user_by_email
-    )
-    mcp.tool(name="get_own_user", description="Get information about current user")(
-        get_own_user
-    )
-    mcp.tool(name="get_user_status", description="Get user's status text and emoji")(
-        get_user_status
-    )
-    mcp.tool(name="update_status", description="Update your own status text and emoji")(
-        update_status
-    )
-    mcp.tool(
-        name="get_user_presence",
-        description="Get presence information for specific user",
-    )(get_user_presence)
-    mcp.tool(name="get_presence", description="Get presence information for all users")(
-        get_presence
-    )
-    mcp.tool(name="get_user_groups", description="Get all user groups in organization")(
-        get_user_groups
-    )
-    mcp.tool(
-        name="get_user_group_members", description="Get members of specific user group"
-    )(get_user_group_members)
-    mcp.tool(
-        name="is_user_group_member", description="Check if user is member of user group"
-    )(is_user_group_member)
-    mcp.tool(name="mute_user", description="Mute a user for your own notifications")(
-        mute_user
-    )
-    mcp.tool(
-        name="unmute_user", description="Unmute a user for your own notifications"
-    )(unmute_user)

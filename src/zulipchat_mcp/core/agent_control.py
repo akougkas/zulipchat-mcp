@@ -288,20 +288,6 @@ class AgentCoordinator:
             return {"status": "error", "error": "Session was not persisted"}
         return {"status": "success", "session": session, "created": True}
 
-    def resolve_session(
-        self,
-        *,
-        session_id: str | None = None,
-        agent_id: str | None = None,
-        project_dir: str | None = None,
-    ) -> dict[str, Any] | None:
-        """Resolve a session from explicit or contextual identifiers."""
-        if session_id:
-            return self.db.get_agent_session(session_id)
-        if agent_id:
-            return self.db.get_latest_agent_session(agent_id, project_dir)
-        return None
-
     @_serialize_message_delivery()
     def send_session_message(
         self,
@@ -437,38 +423,6 @@ class AgentCoordinator:
                 else {}
             ),
         }
-
-    def wait_for_request(
-        self, request_id: str, timeout_seconds: int = 300
-    ) -> dict[str, Any]:
-        """Poll the database for a session request response."""
-        start = time.monotonic()
-        while True:
-            request = self.db.get_agent_request(request_id)
-            if request is None:
-                return {"status": "error", "error": "Request not found"}
-            if request.get("status") in {
-                "answered",
-                "cancelled",
-                "declined",
-                "timeout",
-            }:
-                responded_at = request.get("responded_at")
-                if isinstance(responded_at, datetime):
-                    responded_at = responded_at.isoformat()
-                return {
-                    "status": "success",
-                    "request_status": request.get("status"),
-                    "response": request.get("response"),
-                    "responded_at": responded_at,
-                }
-            if time.monotonic() - start >= timeout_seconds:
-                break
-            time.sleep(1)
-
-        # A caller's polling timeout does not expire a shared pending request or
-        # overwrite an answer arriving concurrently. A later poll can resume.
-        return self._pending_wait_result(request_id, timeout_seconds)
 
     async def wait_for_request_async(
         self, request_id: str, timeout_seconds: int = 300

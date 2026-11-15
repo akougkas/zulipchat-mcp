@@ -422,3 +422,29 @@ def test_daily_summary_loops_per_stream_before_fl_445():
         {"operator": "channel", "operand": "a"}
     ]
     assert summary["streams"] == {"a": {"message_count": 0, "topics": {}}}
+
+
+@pytest.mark.parametrize(
+    ("level", "expected"),
+    [
+        (513, [["channel", "a"], ["is", "dm"]]),
+        (100, [["stream", "a"], ["is", "private"]]),
+    ],
+)
+def test_register_translates_event_narrow(level, expected):
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=level)
+    wrapper._client = sdk
+
+    wrapper.register(event_types=["message"], narrow=[["stream", "a"], ["is", "dm"]])
+
+    assert sdk.register.call_args.kwargs == {
+        "event_types": ["message"],
+        "narrow": expected,
+    }

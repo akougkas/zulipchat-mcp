@@ -4,11 +4,7 @@ import difflib
 import hashlib
 import threading
 import time
-from collections.abc import Callable as TypingCallable
-from functools import lru_cache, wraps
-from typing import Any, TypeVar, cast
-
-F = TypeVar("F", bound=TypingCallable[..., Any])
+from typing import Any
 
 
 class MessageCache:
@@ -104,10 +100,6 @@ class StreamCache:
         """Get cached stream information."""
         return self.cache.get(f"stream_{stream_name}")
 
-    def set_stream_info(self, stream_name: str, info: dict[str, Any]) -> None:
-        """Cache stream information."""
-        self.cache.set(f"stream_{stream_name}", info)
-
 
 class UserCache:
     """Cache for user information with fuzzy name resolution."""
@@ -176,125 +168,6 @@ class UserCache:
 
         return {"email": None, "matched": None, "confidence": 0.0}
 
-    def is_same_user(self, email_a: str, email_b: str) -> bool:
-        """Check if two emails (display or delivery) belong to the same user."""
-        email_a, email_b = email_a.lower(), email_b.lower()
-        if email_a == email_b:
-            return bool(email_a)
-        if self.get_users() is None:
-            return False
-        # Check cross-mapping: a's delivery == b, or b's delivery == a
-        delivery_a = self._email_to_delivery.get(email_a, email_a)
-        delivery_b = self._email_to_delivery.get(email_b, email_b)
-        return (
-            delivery_a == email_b or delivery_b == email_a or delivery_a == delivery_b
-        )
-
-    def get_user_info(self, email: str) -> dict[str, Any] | None:
-        """Get cached user information."""
-        return self.cache.get(f"user_{email}")
-
-    def set_user_info(self, email: str, info: dict[str, Any]) -> None:
-        """Cache user information."""
-        self.cache.set(f"user_{email}", info)
-
-
-def cache_decorator(ttl: int = 300, key_prefix: str = "") -> TypingCallable[[F], F]:
-    """Decorator for caching function results.
-
-    Args:
-        ttl: Time to live in seconds
-        key_prefix: Prefix for cache keys
-
-    Returns:
-        Decorated function with caching
-    """
-    cache = MessageCache(ttl)
-
-    def decorator(func: F) -> F:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Generate cache key
-            cache_key = key_prefix + cache._make_key(*args, **kwargs)
-
-            # Check cache
-            result = cache.get(cache_key)
-            if result is not None:
-                return result
-
-            # Call function and cache result
-            result = func(*args, **kwargs)
-            cache.set(cache_key, result)
-            return result
-
-        return cast(F, wrapper)
-
-    return decorator
-
-
-def async_cache_decorator(
-    ttl: int = 300, key_prefix: str = ""
-) -> TypingCallable[[F], F]:
-    """Decorator for caching async function results.
-
-    Args:
-        ttl: Time to live in seconds
-        key_prefix: Prefix for cache keys
-
-    Returns:
-        Decorated async function with caching
-    """
-    cache = MessageCache(ttl)
-
-    def decorator(func: F) -> F:
-        @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Generate cache key
-            cache_key = key_prefix + cache._make_key(*args, **kwargs)
-
-            # Check cache
-            result = cache.get(cache_key)
-            if result is not None:
-                return result
-
-            # Call async function and cache result
-            result = await func(*args, **kwargs)
-            cache.set(cache_key, result)
-            return result
-
-        return cast(F, wrapper)
-
-    return decorator
-
 
 # Global cache instances
-message_cache = MessageCache(ttl=300)
-
-
 # LRU cache for frequently accessed data
-@lru_cache(maxsize=100)
-def get_cached_stream_id(stream_name: str) -> int | None:
-    """Get cached stream ID by name.
-
-    Args:
-        stream_name: Name of the stream
-
-    Returns:
-        Stream ID or None
-    """
-    # This would be populated by actual API calls
-    return None
-
-
-@lru_cache(maxsize=200)
-def get_cached_user_id(email: str) -> int | None:
-    """Get cached user ID by email.
-
-    Args:
-        email: User's email address
-
-    Returns:
-        User ID or None
-    """
-    # This would be populated by actual API calls
-    return None

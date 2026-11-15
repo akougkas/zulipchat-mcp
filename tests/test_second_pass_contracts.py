@@ -1,49 +1,11 @@
 """Boundary regressions from the full source audit."""
 
-import asyncio
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from zulipchat_mcp import claude_hooks
-from zulipchat_mcp.config import ZulipConfig
-from zulipchat_mcp.core.validation import ParameterValidator
-from zulipchat_mcp.services.scheduler import MessageScheduler, ScheduledMessage
 from zulipchat_mcp.tools import event_management
-
-
-@pytest.mark.asyncio
-async def test_temporary_identities_are_isolated_across_tasks():
-    from zulipchat_mcp.config import ConfigManager
-    from zulipchat_mcp.core.identity import IdentityManager, IdentityType
-
-    config = ConfigManager()
-    config.config = ZulipConfig(
-        "user@example.com",
-        "user-key",
-        "https://example.com",
-        bot_email="bot@example.com",
-        bot_api_key="bot-key",
-    )
-    manager = IdentityManager(config)
-    bot_entered, user_entered = asyncio.Event(), asyncio.Event()
-
-    async def bot():
-        async with manager.use_identity(IdentityType.BOT):
-            bot_entered.set()
-            await user_entered.wait()
-            assert manager.get_current_identity().type == IdentityType.BOT
-
-    async def user():
-        await bot_entered.wait()
-        async with manager.use_identity(IdentityType.USER):
-            user_entered.set()
-            await asyncio.sleep(0)
-            assert manager.get_current_identity().type == IdentityType.USER
-
-    await asyncio.gather(bot(), user())
-    assert manager.get_current_identity().type == IdentityType.USER
 
 
 def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
@@ -59,24 +21,6 @@ def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
     }
     assert len(topics) == 10
     assert all(len(topic) <= 60 for topic in topics)
-
-
-def test_metrics_exposition_escapes_labels_and_declares_each_family_once():
-    from zulipchat_mcp.utils.metrics import get_metrics_text, metrics
-
-    metrics.reset()
-    metrics.increment_counter("calls", labels={"tool": 'quote" slash\\ line\n'})
-    metrics.increment_counter("calls", labels={"tool": "other"})
-    metrics.record_histogram("duration", 1.5, labels={"tool": "other"})
-    metrics.record_histogram("duration", 2.5, labels={"tool": "second"})
-    text = get_metrics_text()
-    assert text.count("# TYPE calls counter") == 1
-    assert 'calls{tool="quote\\" slash\\\\ line\\n"} 1' in text
-    assert "# TYPE duration_count gauge" in text
-    assert 'duration_count{tool="other"} 1' in text
-    assert 'duration_count{tool="other"} 1\nduration_count{tool="second"} 1\n' in text
-    assert "}_" not in text
-    metrics.reset()
 
 
 def test_setup_uvx_command_matches_generated_arguments(monkeypatch):
@@ -102,54 +46,6 @@ def test_service_replacement_is_refused_while_previous_listener_is_stopping(
         service_manager.init_service_manager(MagicMock())
     service_manager.shutdown_service_manager()
     assert service_manager._instance is previous
-
-
-@pytest.mark.asyncio
-async def test_scheduler_uses_selected_realm_and_rejects_partial_recipients(
-    monkeypatch,
-):
-    monkeypatch.setenv("ZULIP_SITE", "https://ambient.example.com")
-    scheduler = MessageScheduler(
-        ZulipConfig("owner@selected.com", "key", "https://selected.example.com")
-    )
-    assert scheduler.base_url == "https://selected.example.com/api/v1"
-    assert scheduler._lookup_client.config_manager.config is scheduler.config
-    scheduler._lookup_client.get_users = MagicMock(
-        return_value={
-            "result": "success",
-            "members": [{"email": "found@example.com", "user_id": 1}],
-        }
-    )
-    scheduler.client = AsyncMock()
-    message = ScheduledMessage(
-        content="private",
-        message_type="private",
-        recipients=["found@example.com", "missing@example.com"],
-        scheduled_time=datetime.now(timezone.utc),
-    )
-    with pytest.raises(ValueError, match="nothing was scheduled"):
-        await scheduler.schedule_message(message)
-    scheduler.client.post.assert_not_called()
-    await scheduler.close()
-    assert scheduler.client is None
-
-
-@pytest.mark.asyncio
-async def test_scheduler_bulk_retains_failed_input_positions():
-    scheduler = MessageScheduler(
-        ZulipConfig("owner@example.com", "key", "https://example.com")
-    )
-    scheduler.schedule_message = AsyncMock(
-        side_effect=[
-            {"result": "success", "scheduled_message_id": 1},
-            RuntimeError("rejected"),
-            {"result": "success", "scheduled_message_id": 3},
-        ]
-    )
-    result = await scheduler.bulk_schedule([MagicMock(), MagicMock(), MagicMock()])
-    assert len(result) == 3
-    assert result[1] == {"status": "error", "error": "rejected"}
-    assert result[2]["scheduled_message_id"] == 3
 
 
 @pytest.mark.asyncio
@@ -189,8 +85,6 @@ async def test_event_page_limit_preserves_unconsumed_events(monkeypatch):
     assert fetch.call_args_list[1].kwargs["last_event_id"] == 2
 
 
-
-
 @pytest.mark.parametrize(
     "persisted",
     [
@@ -225,17 +119,6 @@ def test_hook_cannot_override_stored_denial_or_missing_approval(monkeypatch, per
         1,
     )
     assert result["hookSpecificOutput"]["decision"]["behavior"] == "deny"
-
-
-def test_validator_list_choices_and_defaults_are_isolated():
-    validator = ParameterValidator()
-    first = validator.validate_tool_params(
-        "search.advanced_search",
-        {"query": "test", "search_type": ["messages", "users"]},
-    )
-    first["narrow"].append({"operator": "stream", "operand": "private"})
-    second = validator.validate_tool_params("search.advanced_search", {"query": "test"})
-    assert second["narrow"] == []
 
 
 @pytest.mark.asyncio

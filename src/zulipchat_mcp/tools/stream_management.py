@@ -7,8 +7,6 @@ Simple stream discovery and information retrieval only.
 import asyncio
 from typing import Any
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 
@@ -128,14 +126,3 @@ async def get_stream_info(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_stream_management_tools(mcp: FastMCP) -> None:
-    """Register READ-ONLY stream tools with the MCP server."""
-    mcp.tool(
-        name="get_streams", description="Get list of streams (READ-ONLY protection)"
-    )(get_streams)
-    mcp.tool(
-        name="get_stream_info",
-        description="Get detailed stream information (READ-ONLY protection)",
-    )(get_stream_info)

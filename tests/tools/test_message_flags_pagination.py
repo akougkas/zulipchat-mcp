@@ -157,24 +157,3 @@ async def test_registered_tool_stops_nonadvancing_cursor(flag_backend):
     assert result["complete"] is False
     assert "no progress" in result["error"]
     assert backend.client.call_endpoint.call_count == 2
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "helper,flag,action",
-    [
-        ("mark_all_as_read", "read", "add"),
-        ("mark_messages_unread", "read", "remove"),
-        ("star_messages", "starred", "add"),
-        ("unstar_messages", "starred", "remove"),
-    ],
-)
-async def test_compatibility_helpers_share_complete_operation(
-    flag_backend, helper, flag, action
-):
-    _, messages, requests = flag_backend
-    args = {} if helper == "mark_all_as_read" else {"topic_name": "deploy"}
-    result = await getattr(mark_messaging, helper)(**args)
-    assert result["complete"] is True
-    assert len(requests) > 1
-    assert all((flag in m["flags"]) == (action == "add") for m in messages)

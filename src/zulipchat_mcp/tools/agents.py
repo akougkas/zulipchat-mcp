@@ -8,11 +8,9 @@ from typing import Any
 
 from ..config import get_config_manager
 from ..core.agent_control import AgentCoordinator
-from ..core.client import ZulipClientWrapper
 from ..core.service_manager import ensure_listener
 from ..utils.database_manager import DatabaseManager
 from ..utils.logging import LogContext, get_logger
-from ..utils.metrics import Timer, track_tool_call, track_tool_error
 
 logger = get_logger(__name__)
 
@@ -26,10 +24,6 @@ def _get_coordinator() -> AgentCoordinator:
     return _coordinator
 
 
-def _get_client_bot() -> ZulipClientWrapper:
-    return _get_coordinator().bot_client
-
-
 def register_agent(
     agent_name: str = "claude",
     agent_type: str = "claude-code",
@@ -39,32 +33,29 @@ def register_agent(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Register or update a stable agent profile."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "register_agent"}):
-        track_tool_call("register_agent")
-        try:
-            result = _get_coordinator().register_agent(
-                agent_name=agent_name,
-                agent_type=agent_type,
-                owner_email=owner_email,
-                stream_name=stream_name,
-                topic_prefix=topic_prefix,
-                metadata=metadata,
-            )
-            if result.get("status") != "success":
-                return result
-            agent = result["agent"]
-            return {
-                "status": "success",
-                "agent_id": agent["agent_id"],
-                "agent_name": agent["agent_name"],
-                "agent_type": agent["agent_type"],
-                "owner_email": agent["owner_email"],
-                "stream": agent["stream_name"],
-                "topic_prefix": agent["topic_prefix"],
-            }
-        except Exception as e:
-            track_tool_error("register_agent", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        result = _get_coordinator().register_agent(
+            agent_name=agent_name,
+            agent_type=agent_type,
+            owner_email=owner_email,
+            stream_name=stream_name,
+            topic_prefix=topic_prefix,
+            metadata=metadata,
+        )
+        if result.get("status") != "success":
+            return result
+        agent = result["agent"]
+        return {
+            "status": "success",
+            "agent_id": agent["agent_id"],
+            "agent_name": agent["agent_name"],
+            "agent_type": agent["agent_type"],
+            "owner_email": agent["owner_email"],
+            "stream": agent["stream_name"],
+            "topic_prefix": agent["topic_prefix"],
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def ensure_agent_session(
@@ -77,36 +68,33 @@ def ensure_agent_session(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create or refresh the Zulip topic binding for an agent session."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "ensure_agent_session"}):
-        track_tool_call("ensure_agent_session")
-        try:
-            result = _get_coordinator().ensure_session(
-                agent_id=agent_id,
-                external_session_id=external_session_id,
-                topic_name=topic_name,
-                project_dir=project_dir,
-                project_name=project_name,
-                status=status,
-                metadata=metadata,
-            )
-            if result.get("status") != "success":
-                return result
-            session = result["session"]
-            return {
-                "status": "success",
-                "session_id": session["session_id"],
-                "agent_id": session["agent_id"],
-                "external_session_id": session.get("external_session_id"),
-                "stream_name": session["stream_name"],
-                "topic_name": session["topic_name"],
-                "owner_email": session["owner_email"],
-                "project_name": session.get("project_name"),
-                "status_name": session.get("status"),
-                "created": result.get("created", False),
-            }
-        except Exception as e:
-            track_tool_error("ensure_agent_session", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        result = _get_coordinator().ensure_session(
+            agent_id=agent_id,
+            external_session_id=external_session_id,
+            topic_name=topic_name,
+            project_dir=project_dir,
+            project_name=project_name,
+            status=status,
+            metadata=metadata,
+        )
+        if result.get("status") != "success":
+            return result
+        session = result["session"]
+        return {
+            "status": "success",
+            "session_id": session["session_id"],
+            "agent_id": session["agent_id"],
+            "external_session_id": session.get("external_session_id"),
+            "stream_name": session["stream_name"],
+            "topic_name": session["topic_name"],
+            "owner_email": session["owner_email"],
+            "project_name": session.get("project_name"),
+            "status_name": session.get("status"),
+            "created": result.get("created", False),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def agent_message(
@@ -117,53 +105,45 @@ def agent_message(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Send a session-scoped message into the bound Zulip topic."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "agent_message"}):
-        with LogContext(logger, tool="agent_message", session_id=session_id):
-            track_tool_call("agent_message")
-            try:
-                return _get_coordinator().send_session_message(
-                    session_id=session_id,
-                    content=content,
-                    category=category,
-                    request_id=request_id,
-                    metadata=metadata,
-                )
-            except Exception as e:
-                track_tool_error("agent_message", type(e).__name__)
-                return {"status": "error", "error": str(e)}
+    with LogContext(logger, tool="agent_message", session_id=session_id):
+        try:
+            return _get_coordinator().send_session_message(
+                session_id=session_id,
+                content=content,
+                category=category,
+                request_id=request_id,
+                metadata=metadata,
+            )
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
 
 
 async def wait_for_response(
     request_id: str, timeout_seconds: int = 300
 ) -> dict[str, Any]:
     """Wait for a persisted agent request response."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "wait_for_response"}):
-        track_tool_call("wait_for_response")
-        try:
-            coordinator = _get_coordinator()
-            request = await asyncio.to_thread(
-                coordinator.db.get_agent_request, request_id
-            )
-            listener_error = None
-            if not request or request.get("status") not in {
-                "answered",
-                "cancelled",
-                "declined",
-                "timeout",
-            }:
-                try:
-                    await asyncio.to_thread(ensure_listener)
-                except Exception as error:
-                    listener_error = str(error)
-            result = await coordinator.wait_for_request_async(
-                request_id, timeout_seconds=timeout_seconds
-            )
-            if listener_error:
-                result["listener_error"] = listener_error
-            return result
-        except Exception as e:
-            track_tool_error("wait_for_response", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        coordinator = _get_coordinator()
+        request = await asyncio.to_thread(coordinator.db.get_agent_request, request_id)
+        listener_error = None
+        if not request or request.get("status") not in {
+            "answered",
+            "cancelled",
+            "declined",
+            "timeout",
+        }:
+            try:
+                await asyncio.to_thread(ensure_listener)
+            except Exception as error:
+                listener_error = str(error)
+        result = await coordinator.wait_for_request_async(
+            request_id, timeout_seconds=timeout_seconds
+        )
+        if listener_error:
+            result["listener_error"] = listener_error
+        return result
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def request_user_input(
@@ -175,79 +155,70 @@ def request_user_input(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Send a session-bound question or approval request to Zulip."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "request_user_input"}):
-        track_tool_call("request_user_input")
-        try:
-            ensure_listener()
-            return _get_coordinator().create_request(
-                session_id=session_id,
-                prompt=question,
-                request_type=request_type,
-                options=options,
-                context=context,
-                source_event="mcp-tool",
-                metadata=metadata,
-            )
-        except Exception as e:
-            track_tool_error("request_user_input", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        ensure_listener()
+        return _get_coordinator().create_request(
+            session_id=session_id,
+            prompt=question,
+            request_type=request_type,
+            options=options,
+            context=context,
+            source_event="mcp-tool",
+            metadata=metadata,
+        )
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def list_sessions(
     agent_id: str | None = None, include_closed: bool = True
 ) -> dict[str, Any]:
     """List known agent sessions."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "list_sessions"}):
-        track_tool_call("list_sessions")
-        try:
-            sessions = DatabaseManager().list_agent_sessions(
-                agent_id=agent_id, include_closed=include_closed
-            )
-            for session in sessions:
-                for key in ("created_at", "updated_at", "ended_at"):
-                    if isinstance(session.get(key), datetime):
-                        session[key] = session[key].isoformat()
-            return {"status": "success", "sessions": sessions}
-        except Exception as e:
-            track_tool_error("list_sessions", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        sessions = DatabaseManager().list_agent_sessions(
+            agent_id=agent_id, include_closed=include_closed
+        )
+        for session in sessions:
+            for key in ("created_at", "updated_at", "ended_at"):
+                if isinstance(session.get(key), datetime):
+                    session[key] = session[key].isoformat()
+        return {"status": "success", "sessions": sessions}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def close_agent_session(
     session_id: str, status: str = "completed", summary: str = ""
 ) -> dict[str, Any]:
     """Close a session binding and optionally announce the result."""
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "close_agent_session"}):
-        track_tool_call("close_agent_session")
-        try:
-            db = DatabaseManager()
-            session = db.get_agent_session(session_id)
-            if session is None:
-                return {"status": "error", "error": "Session not found"}
-            persisted = db.update_agent_session(session_id, status=status)
-            if persisted.get("status") != "success":
-                return persisted
-            if summary:
-                announcement = _get_coordinator().send_session_message(
-                    session_id=session_id,
-                    content=summary,
-                    category=status if status in {"completed", "failed"} else "message",
-                )
-                if announcement.get("status") != "success":
-                    return {
-                        **announcement,
-                        "status": "partial",
-                        "session_id": session_id,
-                        "session_closed": True,
-                    }
-            return {
-                "status": "success",
-                "session_id": session_id,
-                "status_name": status,
-            }
-        except Exception as e:
-            track_tool_error("close_agent_session", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+    try:
+        db = DatabaseManager()
+        session = db.get_agent_session(session_id)
+        if session is None:
+            return {"status": "error", "error": "Session not found"}
+        persisted = db.update_agent_session(session_id, status=status)
+        if persisted.get("status") != "success":
+            return persisted
+        if summary:
+            announcement = _get_coordinator().send_session_message(
+                session_id=session_id,
+                content=summary,
+                category=status if status in {"completed", "failed"} else "message",
+            )
+            if announcement.get("status") != "success":
+                return {
+                    **announcement,
+                    "status": "partial",
+                    "session_id": session_id,
+                    "session_closed": True,
+                }
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "status_name": status,
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def poll_agent_events(
@@ -278,88 +249,79 @@ def poll_agent_events(
     content, and the cursor still advances past them.
     The host owns durable message-ID deduplication and agent wake-up policy.
     """
-    with Timer("zulip_mcp_tool_duration_seconds", {"tool": "poll_agent_events"}):
-        track_tool_call("poll_agent_events")
-        try:
-            if mentions_stream is not None or direct_messages:
-                if mentions_stream is not None and direct_messages:
-                    return {
-                        "status": "error",
-                        "error": "mentions_stream and direct_messages are mutually exclusive",
-                        "retryable": False,
-                    }
-                if (
-                    session_id
-                    or agent_id
-                    or event_type
-                    or ack_event_ids
-                    or include_audit
-                ):
-                    return {
-                        "status": "error",
-                        "error": "Mention polling cannot be combined with session filters or acknowledgements",
-                        "retryable": False,
-                    }
-                return _poll_bot_mentions(
-                    mentions_stream, after_message_id, limit, wait_seconds
-                )
-            if after_message_id is not None or wait_seconds:
+    try:
+        if mentions_stream is not None or direct_messages:
+            if mentions_stream is not None and direct_messages:
                 return {
                     "status": "error",
-                    "error": "after_message_id and wait_seconds require mentions_stream or direct_messages",
+                    "error": "mentions_stream and direct_messages are mutually exclusive",
                     "retryable": False,
                 }
-            db = DatabaseManager()
-            if not 1 <= limit <= 500 or (ack_event_ids and len(ack_event_ids) > 500):
+            if session_id or agent_id or event_type or ack_event_ids or include_audit:
                 return {
                     "status": "error",
-                    "error": "Event batches must contain at most 500 entries and limit must be positive",
+                    "error": "Mention polling cannot be combined with session filters or acknowledgements",
+                    "retryable": False,
                 }
-            if ack_event_ids:
-                acknowledged = db.ack_session_events(
-                    ack_event_ids, session_id=session_id, agent_id=agent_id
-                )
-                if acknowledged.get("status") != "success":
-                    return acknowledged
-            events = db.get_unacked_session_events(
-                limit=limit,
-                agent_id=agent_id,
-                session_id=session_id,
-                event_type=event_type,
-                include_audit=include_audit,
+            return _poll_bot_mentions(
+                mentions_stream, after_message_id, limit, wait_seconds
             )
-            ids = [str(event["id"]) for event in events]
-            if ids and auto_ack:
-                acknowledged = db.ack_session_events(
-                    ids, session_id=session_id, agent_id=agent_id
-                )
-                if acknowledged.get("status") != "success":
-                    return {
-                        "status": "partial",
-                        "error": "Events read but acknowledgement failed",
-                        "events": events,
-                        "count": len(events),
-                    }
-            result = {"status": "success", "events": events, "count": len(events)}
-            if events or ack_event_ids:
-                return result
-            if not session_id and not agent_id:
-                result["hint"] = (
-                    "This feed only holds owner replies to bound agent sessions. "
-                    "For @bot mentions call poll_agent_events(mentions_stream=CHANNEL, "
-                    "after_message_id=LAST_SEEN, wait_seconds=20, auto_ack=False) and "
-                    "pass next_after_message_id to the next call. For direct messages "
-                    "to the bot use direct_messages=True the same way. Do not re-run "
-                    "an identical search to watch for new messages."
-                )
-            try:
-                ensure_listener()
-            except Exception as error:
-                result["listener_error"] = str(error)
+        if after_message_id is not None or wait_seconds:
+            return {
+                "status": "error",
+                "error": "after_message_id and wait_seconds require mentions_stream or direct_messages",
+                "retryable": False,
+            }
+        db = DatabaseManager()
+        if not 1 <= limit <= 500 or (ack_event_ids and len(ack_event_ids) > 500):
+            return {
+                "status": "error",
+                "error": "Event batches must contain at most 500 entries and limit must be positive",
+            }
+        if ack_event_ids:
+            acknowledged = db.ack_session_events(
+                ack_event_ids, session_id=session_id, agent_id=agent_id
+            )
+            if acknowledged.get("status") != "success":
+                return acknowledged
+        events = db.get_unacked_session_events(
+            limit=limit,
+            agent_id=agent_id,
+            session_id=session_id,
+            event_type=event_type,
+            include_audit=include_audit,
+        )
+        ids = [str(event["id"]) for event in events]
+        if ids and auto_ack:
+            acknowledged = db.ack_session_events(
+                ids, session_id=session_id, agent_id=agent_id
+            )
+            if acknowledged.get("status") != "success":
+                return {
+                    "status": "partial",
+                    "error": "Events read but acknowledgement failed",
+                    "events": events,
+                    "count": len(events),
+                }
+        result = {"status": "success", "events": events, "count": len(events)}
+        if events or ack_event_ids:
             return result
-        except Exception as e:
-            track_tool_error("poll_agent_events", type(e).__name__)
-            return {"status": "error", "error": str(e)}
+        if not session_id and not agent_id:
+            result["hint"] = (
+                "This feed only holds owner replies to bound agent sessions. "
+                "For @bot mentions call poll_agent_events(mentions_stream=CHANNEL, "
+                "after_message_id=LAST_SEEN, wait_seconds=20, auto_ack=False) and "
+                "pass next_after_message_id to the next call. For direct messages "
+                "to the bot use direct_messages=True the same way. Do not re-run "
+                "an identical search to watch for new messages."
+            )
+        try:
+            ensure_listener()
+        except Exception as error:
+            result["listener_error"] = str(error)
+        return result
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def _poll_bot_mentions(

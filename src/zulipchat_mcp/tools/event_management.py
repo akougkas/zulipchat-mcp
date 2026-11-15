@@ -8,12 +8,9 @@ import asyncio
 import time
 from typing import Any
 
-from fastmcp import FastMCP
-
 from ..config import bind_client, get_client
 from ..core.api_errors import api_error
 from ..core.security import local_access_allowed
-from .registration import optional_background_task, register_tool
 
 
 async def register_events(
@@ -313,27 +310,3 @@ async def deregister_events(queue_id: str) -> dict[str, Any]:
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_event_management_tools(mcp: FastMCP) -> None:
-    """Register event management tools with the MCP server."""
-    listener_task = optional_background_task(poll_seconds=5)
-    mcp.tool(
-        name="register_events",
-        description="Register for comprehensive real-time event streams",
-    )(register_events)
-    mcp.tool(
-        name="get_events",
-        description="Poll events from registered queue with long-polling",
-    )(get_events)
-    register_tool(
-        mcp,
-        listen_events,
-        name="listen_events",
-        description="Comprehensive stateless event listener with webhook integration",
-        title="Listen for events",
-        task=listener_task,
-    )
-    mcp.tool(name="deregister_events", description="Deregister event queue")(
-        deregister_events
-    )

@@ -6,7 +6,6 @@ import pytest
 
 from src.zulipchat_mcp.config import ConfigManager, ResolvedAccount
 from src.zulipchat_mcp.tools.system import (
-    register_system_tools,
     server_info,
     switch_identity,
 )
@@ -225,46 +224,3 @@ class TestServerInfo(TestSystemTools):
         ]
 
         assert result["features"] == expected_features
-
-
-class TestRegisterSystemTools:
-    """Tests for register_system_tools function."""
-
-    def test_register_system_tools(self):
-        """Test that system tools are registered with MCP."""
-        mock_mcp = MagicMock()
-
-        register_system_tools(mock_mcp)
-
-        # Verify tool() was called twice (for switch_identity and server_info)
-        assert mock_mcp.tool.call_count == 2
-
-        # Check the calls
-        calls = mock_mcp.tool.call_args_list
-
-        # First call: switch_identity
-        assert calls[0].kwargs["name"] == "switch_identity"
-        assert "identities" in calls[0].kwargs["description"].lower()
-
-        # Second call: server_info
-        assert calls[1].kwargs["name"] == "server_info"
-        assert "server" in calls[1].kwargs["description"].lower()
-
-    def test_register_system_tools_correct_functions(self):
-        """Test that correct functions are registered."""
-        mock_mcp = MagicMock()
-        # Setup chained call to track what function is registered
-        mock_tool_decorator = MagicMock()
-        mock_mcp.tool.return_value = mock_tool_decorator
-
-        register_system_tools(mock_mcp)
-
-        # Verify both decorators were called with the actual functions
-        decorator_calls = mock_tool_decorator.call_args_list
-        assert len(decorator_calls) == 2
-
-        # The first call should be with switch_identity function
-        assert decorator_calls[0].args[0] == switch_identity
-
-        # The second call should be with server_info function
-        assert decorator_calls[1].args[0] == server_info

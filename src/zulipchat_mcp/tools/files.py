@@ -14,8 +14,6 @@ from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse, urlunparse
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 from ..core.security import is_unsafe_mode, local_access_allowed
@@ -563,19 +561,3 @@ async def manage_files(
 
     except Exception as e:
         return {"status": "error", "error": str(e), "operation": operation}
-
-
-def register_files_tools(mcp: FastMCP) -> None:
-    """Register file tools with the MCP server."""
-    mcp.tool(
-        name="upload_file",
-        description=(
-            "Upload and optionally share a file (max 25 MiB). Supply exactly one "
-            "source: file_content_base64 for binary data using standard padded "
-            "base64, file_content for UTF-8 text, or a local file_path (stdio only)."
-        ),
-    )(upload_file)
-    mcp.tool(
-        name="manage_files",
-        description="File management operations with Zulip API limitations",
-    )(manage_files)

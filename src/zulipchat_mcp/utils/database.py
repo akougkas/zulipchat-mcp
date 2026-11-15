@@ -401,49 +401,6 @@ class DatabaseManager:
             if last_error:
                 raise DatabaseLockedError(self.db_path, last_error)
 
-    def executemany(self, sql: str, seq_params: list[tuple[Any, ...]]) -> None:
-        """Execute multiple write operations in a single transaction.
-
-        Opens a connection, executes all statements, and closes immediately.
-
-        Args:
-            sql: SQL statement to execute
-            seq_params: Sequence of parameter tuples
-        """
-        with self._write_lock:
-            last_error: Exception | None = None
-            for attempt in range(self.max_retries):
-                conn = None
-                try:
-                    conn = self._connect()
-                    conn.execute("BEGIN")
-                    for params in seq_params:
-                        conn.execute(sql, params)
-                    conn.execute("COMMIT")
-                    return
-                except duckdb.IOException as e:
-                    last_error = e
-                    if "lock" in str(e).lower():
-                        if self._try_clear_stale_lock(e):
-                            continue
-                        if attempt < self.max_retries - 1:
-                            time.sleep(self.retry_delay * (2**attempt))
-                            continue
-                    raise DatabaseLockedError(self.db_path, e) from e
-                except Exception:
-                    if conn:
-                        try:
-                            conn.execute("ROLLBACK")
-                        except Exception:
-                            pass
-                    raise
-                finally:
-                    if conn:
-                        conn.close()
-
-            if last_error:
-                raise DatabaseLockedError(self.db_path, last_error)
-
     def query(
         self, sql: str, params: list[Any] | tuple[Any, ...] | None = None
     ) -> list[tuple[Any, ...]]:

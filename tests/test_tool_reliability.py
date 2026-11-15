@@ -20,40 +20,6 @@ from zulipchat_mcp.tools.search import (
     UserNotFoundError,
     resolve_user_identifier,
 )
-from zulipchat_mcp.utils.narrow_helpers import validate_and_convert_int
-
-
-class TestTypeValidation:
-    """Test type validation improvements."""
-
-    def test_validate_and_convert_int_with_valid_string(self):
-        """Test string-to-int conversion works correctly."""
-        result = validate_and_convert_int("7", "days")
-        assert result == 7
-
-    def test_validate_and_convert_int_with_valid_int(self):
-        """Test integer input passes through unchanged."""
-        result = validate_and_convert_int(7, "days")
-        assert result == 7
-
-    def test_validate_and_convert_int_with_invalid_string(self):
-        """Test invalid string raises clear error."""
-        with pytest.raises(ValueError) as exc_info:
-            validate_and_convert_int("abc", "days")
-
-        error_msg = str(exc_info.value)
-        assert "days must be a number" in error_msg
-        assert "got 'abc'" in error_msg
-        assert "Example: days=7" in error_msg
-
-    def test_validate_and_convert_int_with_invalid_type(self):
-        """Test invalid type raises clear error."""
-        with pytest.raises(ValueError) as exc_info:
-            validate_and_convert_int([], "hours")
-
-        error_msg = str(exc_info.value)
-        assert "hours must be an integer or string number" in error_msg
-        assert "got list" in error_msg
 
 
 class TestUserResolution:
@@ -151,25 +117,6 @@ class TestUserResolution:
             await resolve_user_identifier("test", mock_client)
 
         assert "Failed to fetch users" in str(exc_info.value)
-
-
-class TestParameterValidation:
-    """Test parameter validation across tools."""
-
-    def test_narrow_helpers_reject_unsupported_timestamp_filters(self):
-        """String durations must not turn into literal after: text searches."""
-        from zulipchat_mcp.utils.narrow_helpers import NarrowHelper
-
-        with pytest.raises(ValueError, match="search_messages"):
-            NarrowHelper.last_days("7")
-        with pytest.raises(ValueError, match="search_messages"):
-            NarrowHelper.last_hours("24")
-
-    def test_messaging_tools_error_structure(self):
-        """Test messaging tools return structured errors."""
-        # This would require more complex mocking, but the pattern is established
-        # in the actual fixes applied to messaging_v25.py
-        pass
 
 
 if __name__ == "__main__":

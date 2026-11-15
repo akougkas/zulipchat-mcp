@@ -124,8 +124,3 @@ class TestDatabaseManagerWrapper:
         manager.ack_session_events(["evt-1"])
         sql = mock_db.execute.call_args[0][0]
         assert "UPDATE session_events SET acked = TRUE" in sql
-
-    def test_create_agent_status(self, mock_db):
-        manager = DatabaseManager()
-        manager.create_agent_status("s1", "claude-code", "working")
-        mock_db.execute.assert_called()

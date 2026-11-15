@@ -155,24 +155,6 @@ class TestDatabaseManager:
         assert call("ROLLBACK") in conn.execute.call_args_list
         conn.close.assert_called()
 
-    def test_executemany(self, mock_duckdb, tmp_path):
-        """Test executemany uses short-lived connection."""
-        db_path = str(tmp_path / "test.db")
-        db = DatabaseManager(db_path)
-
-        mock_duckdb.connect.reset_mock()
-        conn = MagicMock()
-        mock_duckdb.connect.return_value = conn
-
-        db.executemany("INSERT", [(1,), (2,)])
-
-        calls = conn.execute.call_args_list
-        assert call("BEGIN") in calls
-        assert call("INSERT", (1,)) in calls
-        assert call("INSERT", (2,)) in calls
-        assert call("COMMIT") in calls
-        conn.close.assert_called_once()
-
     def test_query(self, mock_duckdb, tmp_path):
         """Test query uses short-lived connection."""
         db_path = str(tmp_path / "test.db")

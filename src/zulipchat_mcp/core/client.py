@@ -163,11 +163,6 @@ class ZulipClientWrapper:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
 
     @property
-    def is_connected(self) -> bool:
-        """Check if client connection has been established."""
-        return self._client is not None
-
-    @property
     def base_url(self) -> str:
         """Get the base URL for API calls. Ensures client is initialized to load config."""
         if not self._base_url and self._client is None:
@@ -738,13 +733,10 @@ class ZulipClientWrapper:
         return response
 
     def register(self, **kwargs: Any) -> dict[str, Any]:
-        """Register an event queue (events API)."""
-        if hasattr(self.client, "register"):
-            try:
-                return self.client.register(**kwargs)
-            except TypeError:
-                return self.client.register(kwargs)
-        return self.client.call_endpoint("register", method="POST", request=kwargs)
+        """Register an event queue, with narrow operators in the server's names."""
+        if kwargs.get("narrow"):
+            kwargs["narrow"] = wire_narrow(kwargs["narrow"], self.supports)
+        return self.client.register(**kwargs)
 
     def deregister(self, queue_id: str, timeout: float | None = None) -> dict[str, Any]:
         """Delete an event queue by ID."""

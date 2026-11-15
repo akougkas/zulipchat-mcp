@@ -420,11 +420,6 @@ def get_config_manager() -> ConfigManager:
     return _config_manager
 
 
-def get_current_identity() -> str:
-    """Get the current identity setting ('user' or 'bot')."""
-    return _current_identity
-
-
 def set_current_identity(identity: str) -> None:
     """Set the current identity ('user' or 'bot')."""
     global _current_identity

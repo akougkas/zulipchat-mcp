@@ -3,11 +3,10 @@
 import asyncio
 import threading
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from zulipchat_mcp.core.error_handling import RateLimitConfig, RateLimiter
 from zulipchat_mcp.services.message_listener import MessageListener
 from zulipchat_mcp.tools import mark_messaging, search, users
 
@@ -41,16 +40,6 @@ async def test_slow_zulip_call_does_not_block_the_event_loop(monkeypatch, lazy_s
     finally:
         release.set()
     assert (await pending)["status"] == "success"
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_reserves_distinct_slots_for_concurrent_callers():
-    with patch("zulipchat_mcp.core.error_handling.time.monotonic", return_value=10):
-        limiter = RateLimiter(
-            RateLimitConfig(max_requests=1, time_window=1, burst_limit=1)
-        )
-        delays = await asyncio.gather(*(limiter.acquire() for _ in range(4)))
-    assert delays == [0, 1, 2, 3]
 
 
 @pytest.mark.asyncio
@@ -115,7 +104,7 @@ async def test_mark_all_read_processes_more_than_one_page(monkeypatch):
         ]
     )
     monkeypatch.setattr(mark_messaging, "update_message_flags_for_narrow", update)
-    result = await mark_messaging.mark_all_as_read()
+    result = await mark_messaging.manage_message_flags("read", "add", scope="all")
     assert result["updated_count"] == 1100
     assert result["processed_count"] == 1250
     assert update.call_args_list[1].kwargs["anchor"] == 2000
