@@ -8,10 +8,10 @@ installed Zulip SDK 0.9.1. The reviewed OpenAPI bytes have SHA-256
 `d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28`.
 Upstream documentation on `main` changes independently of this release.
 
-ZulipChat MCP is a curated agent interface to Zulip. Its 20 core or 60 extended
+ZulipChat MCP is a curated agent interface to Zulip. Its 21 core or 55 extended
 tools cover messaging, search, channels/topics, people, drafts, scheduled
-messages, attachments, reactions, flags, events, analytics, and durable agent
-sessions. It does not expose unrestricted REST forwarding. Authentication-key
+messages, reminders, attachments, reactions, flags, events, the bot inbox, and
+durable agent sessions. It does not expose unrestricted REST forwarding. Authentication-key
 creation, organization administration, invitations, mobile push, and many
 browser-specific operations remain outside the registered surface. Some
 additional operations exist only as internal client wrappers.

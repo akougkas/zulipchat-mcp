@@ -38,7 +38,6 @@ release is v0.8.0.
 - [Events](api-reference/events.md)
 - [Files](api-reference/files.md)
 - [Agents](api-reference/agents.md)
-- [Commands](api-reference/commands.md)
 - [System](api-reference/system.md)
 
 ## Developer Docs
@@ -54,8 +53,8 @@ release is v0.8.0.
 ## Tool Modes
 
 - Default mode: 21 core tools.
-- Extended mode: 60 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
-- `--tool-profile read-only`: nine core reads or 23 extended reads, with matching
+- Extended mode: 55 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
+- `--tool-profile read-only`: seven core reads or 22 extended reads, with matching
   discovery and enforced call policy.
 
 ## Community and Security

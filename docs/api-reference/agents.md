@@ -1,29 +1,79 @@
 # Agents API
 
-The agent tool family is now session-oriented: bind an agent profile, bind a Zulip topic to a session, send lifecycle updates into that topic, and read owner commands back out.
+Two families of tools connect an agent to its owner in Zulip. The bot inbox
+(`wait_for_mentions`, `reply`, `teleport_chat`) lets the owner talk to the
+agent by mentioning or messaging the configured bot. Agent sessions bind an
+agent profile to a Zulip topic, post lifecycle updates there, and read owner
+commands back out; hook-driven hosts such as Claude Code use them.
 
-## Core tools
+## Bot inbox (core)
 
-- `teleport_chat(to, message, wait_for_reply=False, reply_timeout=300, channel=None, topic=None)`
+- `wait_for_mentions(wait_seconds=60, limit=5, context_messages=0, acknowledge=True)`
+- `reply(request_id, content)`
+- `teleport_chat(message, to="me", topic=None, wait_seconds=0)`
+
+All three need a Generic bot (`--zulip-bot-config-file`); without one they return
+`BOT_NOT_CONFIGURED`.
+
+`wait_for_mentions` returns the owner's requests: @-mentions of the bot in every
+channel the bot is subscribed to, direct messages to the bot, and topics handed
+off with `teleport_chat`. Each request carries `request_id`, `from`, `where`
+(`dm` or `#channel > topic`), `sent` (UTC) and `text` with the bot mention
+stripped. The server keeps the cursor, so each request is delivered once, also
+across several hosts connected to the same account. On first use the cursor
+starts at the newest message, so old mentions are not replayed as work.
+
+- `wait_seconds` is 0 to 840; `limit` and `context_messages` are at most 20.
+- `acknowledge=True` reacts with `:eyes:` so the owner sees the request was taken.
+- `context_messages>0` adds earlier messages from the same conversation, read
+  with the bot identity. Lines from senders outside the allow policy are marked
+  `untrusted`.
+- Senders not admitted by `--mention-allow` (default: the configured owner) are
+  only counted in `ignored_unauthorized`; their text never reaches the host.
+- A listener failure returns `status="partial"` with `listener_error` and
+  `retry_after_seconds`. No requests returns a `hint` to call again.
+
+`reply` posts as the bot into the conversation the request came from: the same
+channel topic, or the same direct-message group. Only `zulip:<message_id>`
+request IDs already delivered to an admitted sender are accepted; anything else
+returns `REQUEST_NOT_FOUND`. The result has `message_id`, `where` and
+`message_link`.
+
+`teleport_chat` hands the current conversation to the owner. `to="me"` (or
+`"owner"`) sends a direct message from the bot to the owner. `to="#channel"`
+with a `topic` subscribes the bot to that channel, posts there, and routes every
+owner message in that topic to the inbox, mention or not. Any other `to` is
+refused: use `send_message` to message other people. `wait_seconds>0` also waits
+for the owner's first answer and returns it as `requests`.
+
+```python
+teleport_chat(message="Build is green; continue the review here?", to="me")
+batch = wait_for_mentions(wait_seconds=120)
+for request in batch["requests"]:
+    reply(request_id=request["request_id"], content="On it.")
+```
+
+## Agent sessions
+
+Core tools:
+
 - `register_agent(agent_name="claude", agent_type="claude-code", owner_email=None, stream_name=None, topic_prefix="Agents/Session", metadata=None)`
 - `ensure_agent_session(agent_id, external_session_id=None, topic_name=None, project_dir=None, project_name=None, status="active", metadata=None)`
 - `agent_message(session_id, content, category="message", request_id=None, metadata=None)`
 - `request_user_input(session_id, question, options=None, context="", request_type="question", metadata=None)`
 - `wait_for_response(request_id, timeout_seconds=300)`
-
-## Extended tools
-
-- `send_agent_status(agent_id, status, message="")`
-- `manage_task(action, agent_id=None, task_id=None, name="", description="", progress=0, status="", outputs="", metrics="")`
-- `list_sessions(agent_id=None, include_closed=True)`
-- `list_instances()` — compatibility alias for session listing
-- `close_agent_session(session_id, status="completed", summary="")`
 - `poll_agent_events(limit=50, agent_id=None, session_id=None, event_type=None, auto_ack=True, ack_event_ids=None, include_audit=False, mentions_stream=None, after_message_id=None, wait_seconds=0, direct_messages=False)`
 
-## Ordinary bot mentions
+Extended tools:
 
-With a configured Generic bot, a host can read explicit mentions in a channel
-without an existing session:
+- `list_sessions(agent_id=None, include_closed=True)`
+- `close_agent_session(session_id, status="completed", summary="")`
+
+## Bot mentions through poll_agent_events
+
+`wait_for_mentions` is the simpler path for most hosts. A host that keeps its
+own cursor and durable work queue can instead read explicit mentions in one
+channel without an existing session:
 
 ```python
 batch = poll_agent_events(

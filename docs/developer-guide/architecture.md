@@ -24,8 +24,8 @@ src/zulipchat_mcp/
 
 This produces:
 
-- Core mode: 20 tools
-- Extended mode: 60 tools
+- Core mode: 21 tools
+- Extended mode: 55 tools
 
 ## Identity model
 
@@ -44,13 +44,13 @@ This produces:
 5. Set unsafe-mode context.
 6. Resolve the effective account and associate its persistent state; initialize services.
 7. Register FastMCP with SEP-2663 `TasksExtension`, SEP-2640 skills, and legacy skill Resources.
-8. Register tools (core 20 or extended 60).
+8. Register tools (core 21 or extended 55).
 9. Leave user/stream caches lazy so startup does not contact Zulip.
 10. Run FastMCP server (`stdio` or streamable `http`).
 
 ## Server-Side LLM Provider (`core/llm.py`)
 
-MCP sampling is deprecated in the 2026-07-28 specification. This server follows the recommended direct-provider migration. AI analytics tools execute via a server-side Anthropic provider (`core/llm.py`) configured with `ANTHROPIC_API_KEY`. When unconfigured, tools report `llm_unavailable: true` and return raw structured summaries so calling agents can reason over data directly.
+MCP sampling is deprecated in the 2026-07-28 specification. This server has no LLM of its own: tools return compact data and the calling agent does the reasoning.
 
 ## Stateless HTTP Transport & Multi-Replica Caveat
 
@@ -86,5 +86,5 @@ MCP sampling is deprecated in the 2026-07-28 specification. This server follows 
 
 - `--unsafe` is off by default.
 - Bearer token authentication required on non-loopback HTTP binds (`--auth-token` / `ZULIPCHAT_HTTP_AUTH_TOKEN`).
-- Destructive topic delete path is guarded in `agents_channel_topic_ops`.
+- Topic resolution goes through `resolve_topic`, which Clio exports classify as destructive.
 - Agent emoji usage is validated against a fixed approved list.

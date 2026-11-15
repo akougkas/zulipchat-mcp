@@ -1,7 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
   "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
-  "registered_tools": 60,
+  "registered_tools": 55,
   "operations": [
     {
       "method": "POST",
@@ -63,7 +63,10 @@
         "get_events",
         "listen_events",
         "poll_agent_events",
+        "reply",
         "request_user_input",
+        "teleport_chat",
+        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -83,7 +86,10 @@
       "tools": [
         "deregister_events",
         "listen_events",
-        "poll_agent_events"
+        "poll_agent_events",
+        "reply",
+        "teleport_chat",
+        "wait_for_mentions"
       ],
       "wrappers": [
         "deregister"
@@ -100,11 +106,12 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
         "create_draft",
         "edit_draft",
-        "get_stream_info"
+        "get_stream_info",
+        "resolve_topic",
+        "set_topic_visibility",
+        "teleport_chat"
       ],
       "wrappers": [
         "get_stream_id"
@@ -373,9 +380,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -385,9 +394,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -397,9 +408,11 @@
       "tags": [
         "reminders"
       ],
-      "tools": [],
+      "tools": [
+        "manage_reminders"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -490,17 +503,14 @@
         "messages"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
-        "analyze_stream_with_llm",
-        "analyze_team_activity_with_llm",
-        "execute_chain",
         "get_daily_summary",
-        "intelligent_report_generator",
         "poll_agent_events",
+        "reply",
         "request_user_input",
+        "resolve_topic",
         "search_messages",
         "teleport_chat",
+        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -525,10 +535,9 @@
         "agent_message",
         "close_agent_session",
         "cross_post_message",
-        "execute_chain",
         "manage_files",
+        "reply",
         "request_user_input",
-        "send_agent_status",
         "send_message",
         "teleport_chat",
         "upload_file"
@@ -547,9 +556,11 @@
       "tags": [
         "messages"
       ],
-      "tools": [],
+      "tools": [
+        "get_message_history"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -603,8 +614,8 @@
       ],
       "tools": [
         "add_reaction",
-        "execute_chain",
-        "toggle_reaction"
+        "teleport_chat",
+        "wait_for_mentions"
       ],
       "wrappers": [
         "add_reaction"
@@ -621,7 +632,7 @@
         "messages"
       ],
       "tools": [
-        "toggle_reaction"
+        "add_reaction"
       ],
       "wrappers": [
         "remove_reaction"
@@ -636,9 +647,11 @@
       "tags": [
         "messages"
       ],
-      "tools": [],
+      "tools": [
+        "get_read_receipts"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -681,8 +694,8 @@
         "messages"
       ],
       "tools": [
-        "agents_channel_topic_ops",
-        "edit_message"
+        "edit_message",
+        "resolve_topic"
       ],
       "wrappers": [
         "edit_message",
@@ -763,11 +776,12 @@
         "users"
       ],
       "tools": [
-        "advanced_search",
+        "get_message_history",
+        "get_read_receipts",
         "get_users",
         "resolve_user",
         "search_messages",
-        "teleport_chat"
+        "send_message"
       ],
       "wrappers": [
         "get_users"
@@ -848,7 +862,10 @@
       ],
       "tools": [
         "get_own_user",
-        "poll_agent_events"
+        "poll_agent_events",
+        "reply",
+        "teleport_chat",
+        "wait_for_mentions"
       ],
       "wrappers": [],
       "status": "registered_tool",
@@ -975,7 +992,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
         "get_stream_info",
         "get_stream_topics"
       ],
@@ -1006,11 +1022,13 @@
       "tags": [
         "channels"
       ],
-      "tools": [],
+      "tools": [
+        "teleport_chat"
+      ],
       "wrappers": [
         "add_subscriptions"
       ],
-      "status": "wrapper_only"
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -1035,7 +1053,7 @@
         "channels"
       ],
       "tools": [
-        "agents_channel_topic_ops"
+        "set_topic_visibility"
       ],
       "wrappers": [
         "mute_topic",
@@ -1123,9 +1141,11 @@
       "tags": [
         "channels"
       ],
-      "tools": [],
+      "tools": [
+        "set_topic_visibility"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -1761,7 +1781,10 @@
         "listen_events",
         "poll_agent_events",
         "register_events",
+        "reply",
         "request_user_input",
+        "teleport_chat",
+        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -1820,7 +1843,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
         "get_daily_summary",
         "get_stream_info",
         "get_streams",
@@ -1841,8 +1863,6 @@
         "channels"
       ],
       "tools": [
-        "advanced_search",
-        "agents_channel_topic_ops",
         "create_draft",
         "edit_draft",
         "get_stream_info"
@@ -1900,13 +1920,11 @@
       "tags": [
         "channels"
       ],
-      "tools": [
-        "agents_channel_topic_ops"
-      ],
+      "tools": [],
       "wrappers": [
         "delete_topic"
       ],
-      "status": "registered_tool"
+      "status": "wrapper_only"
     },
     {
       "method": "POST",
@@ -1916,9 +1934,11 @@
       "tags": [
         "users"
       ],
-      "tools": [],
+      "tools": [
+        "set_typing"
+      ],
       "wrappers": [],
-      "status": "not_exposed"
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -2040,11 +2060,9 @@
       "tags": [
         "users"
       ],
-      "tools": [
-        "is_user_group_member"
-      ],
+      "tools": [],
       "wrappers": [],
-      "status": "registered_tool"
+      "status": "not_exposed"
     },
     {
       "method": "POST",
@@ -2217,8 +2235,8 @@
   ],
   "counts": {
     "documentation_reference": 3,
-    "not_exposed": 109,
-    "registered_tool": 42,
+    "not_exposed": 103,
+    "registered_tool": 48,
     "sdk_bootstrap": 1,
     "wrapper_only": 11
   },

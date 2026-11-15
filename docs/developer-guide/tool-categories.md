@@ -1,89 +1,109 @@
 # Tool Categories
 
-## Core mode (20 tools)
+The registry lives in `src/zulipchat_mcp/tools/__init__.py`: `CORE_TOOLS` and
+`register_core_tools` for the default surface, `register_extended_tools` for
+the rest. Profiles in `src/zulipchat_mcp/core/tool_contract.py` narrow either
+surface.
 
-### Messaging and reactions (4)
+## Core mode (21 tools)
+
+### Messaging and reactions (5)
 
 - `send_message`
 - `edit_message`
 - `get_message`
 - `add_reaction`
+- `manage_message_flags`
 
-### Search and discovery (4)
+### Bot inbox (3)
+
+- `wait_for_mentions`
+- `reply`
+- `teleport_chat`
+
+### Search and discovery (5)
 
 - `search_messages`
 - `get_streams`
-- `get_stream_info`
 - `get_stream_topics`
-
-### Users (3)
-
 - `resolve_user`
 - `get_users`
-- `get_own_user`
 
-### Agent communication (6)
+### Agent sessions (6)
 
-- `teleport_chat`
 - `register_agent`
 - `ensure_agent_session`
 - `agent_message`
 - `request_user_input`
 - `wait_for_response`
+- `poll_agent_events`
 
-### System and flags (3)
+### System (2)
 
-- `switch_identity`
 - `server_info`
-- `manage_message_flags`
+- `switch_identity`
 
-## Extended additions (36 tools)
+## Extended additions (34 tools, 55 total)
 
-### Users and presence
+### Users and presence (10)
 
-- `get_user`, `get_user_status`, `update_status`
+- `get_own_user`, `get_user`, `get_user_status`, `update_status`
 - `get_user_presence`, `get_presence`
-- `get_user_groups`, `get_user_group_members`, `is_user_group_member`
-- `manage_user_mute`
+- `get_user_groups`, `get_user_group_members`
+- `manage_user_mute`, `set_typing`
 
-### Messaging and search
+### Channels and topics (3)
 
-- `cross_post_message`, `toggle_reaction`
-- `advanced_search`, `construct_narrow`, `check_messages_match_narrow`
+- `get_stream_info`, `resolve_topic`, `set_topic_visibility`
 
-### Scheduled messages
+### Messages (6)
 
-- `get_scheduled_messages`, `manage_scheduled_message`
+- `cross_post_message`, `get_read_receipts`, `get_message_history`
+- `check_messages_match_narrow`, `update_message_flags_for_narrow`
+- `get_daily_summary`
 
-### Events
+### Scheduled messages, reminders and drafts (7)
+
+- `get_scheduled_messages`, `manage_scheduled_message`, `manage_reminders`
+- `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`
+
+### Events (4)
 
 - `register_events`, `get_events`, `listen_events`, `deregister_events`
 
-### AI analytics
+### Agent sessions (2)
 
-- `get_daily_summary`
-- `analyze_stream_with_llm`
-- `analyze_team_activity_with_llm`
-- `intelligent_report_generator`
+- `list_sessions`, `close_agent_session`
 
-### Agent extensions
-
-- `send_agent_status`, `manage_task`
-- `list_sessions`, `list_instances`, `close_agent_session`
-- `poll_agent_events`
-
-### Files and topics
+### Files (2)
 
 - `upload_file`, `manage_files`
-- `agents_channel_topic_ops`
 
-### Command chains and raw flags
+## Tool profiles
 
-- `execute_chain`, `list_command_types`
-- `update_message_flags_for_narrow`
+| Profile | Core | Extended |
+| --- | --- | --- |
+| `full` | 21 | 55 |
+| `read-only` | 7 | 22 |
+| `bot` | 9 | 9 |
+
+`read-only` keeps `READ_ONLY_TOOLS`: `server_info`, `get_message`,
+`search_messages`, `get_streams`, `get_stream_topics`, `resolve_user` and
+`get_users` in core, plus `get_stream_info`, `get_own_user`, `get_user`,
+`get_user_status`, `get_user_presence`, `get_presence`, `get_user_groups`,
+`get_user_group_members`, `check_messages_match_narrow`,
+`get_scheduled_messages`, `get_drafts`, `get_read_receipts`,
+`get_message_history`, `get_daily_summary` and `list_sessions` in extended mode.
+Mixed-operation tools stay out because their names alone cannot establish that
+a call is read-only.
+
+`bot` keeps `BOT_TOOLS`: `wait_for_mentions`, `reply`, `server_info`,
+`get_message`, `search_messages`, `get_streams`, `get_stream_topics`,
+`resolve_user` and `get_users`. Every call uses the bot identity.
 
 ## Design intent
 
 - Keep common workflows on a compact default registry.
-- Move heavier or specialized operations to explicit extended mode.
-- Keep session binding and owner-controlled chat in core mode so agents can become Zulip-native communicators without enabling the full extended set.
+- Move specialized operations to explicit extended mode.
+- Keep the bot inbox and session binding in core mode so an agent can talk with
+  its owner in Zulip without enabling the extended set.

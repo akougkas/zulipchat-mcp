@@ -571,8 +571,9 @@ Add `timestamp_utc` in canonical `YYYY-MM-DDTHH:MM:SSZ` beside existing integer
 `timestamp`, and `fetched_at_utc`/`as_of_utc`. Document inclusive time bounds,
 naive-time compatibility, relative-window precedence and integer-second Zulip
 precision. Schema examples use `2026-10-01T00:00:00Z`; reject Unix strings with
-a specific format error before upstream access. `construct_narrow` cannot
-encode timestamp filters; keep directing them to `search_messages`.
+a specific format error before upstream access. Zulip narrows cannot encode
+timestamp filters; keep directing them to `search_messages` (v0.8.0 removed
+`construct_narrow`).
 
 Proposed page metadata includes `fetched_count` (raw upstream entries),
 `returned_count` (after bounds/limit), `distinct_count` (within page), scope and
