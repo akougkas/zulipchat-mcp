@@ -204,7 +204,13 @@ class BotMentionInbox:
                     "Bot account ID changed; verify pairing and use a new cache"
                 )
             self._bot_id = profile["user_id"]
-            self._commit([], {"bot_user_id": self._bot_id})
+            self._commit(
+                [],
+                {
+                    "bot_user_id": self._bot_id,
+                    "bot_full_name": profile.get("full_name"),
+                },
+            )
             self._bot_verified = True
         if self._state("queue_id"):
             return
@@ -399,6 +405,11 @@ class BotMentionInbox:
     @property
     def bot_user_id(self) -> int | None:
         return self._bot_id
+
+    @property
+    def bot_full_name(self) -> str | None:
+        name = self._state("bot_full_name")
+        return name if isinstance(name, str) else None
 
     def watch(self, stream_id: int, topic: str) -> None:
         """Accept every message in a channel topic, not only @-mentions."""

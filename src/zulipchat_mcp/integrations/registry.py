@@ -47,8 +47,8 @@ def _build_base_config(
         args.extend(["--zulip-bot-config-file", zulip_bot_config_file])
     if extended_tools:
         args.append("--extended-tools")
-    if tool_profile == "read-only":
-        args.extend(["--tool-profile", "read-only"])
+    if tool_profile != "full":
+        args.extend(["--tool-profile", tool_profile])
 
     return {
         "command": "uvx",
@@ -60,7 +60,7 @@ CLIO_TIMEOUT_MS = 900000
 
 
 def clio_tool_action_classes(
-    extended_tools: bool, read_only: bool = False
+    extended_tools: bool, profile: str = "full"
 ) -> dict[str, str]:
     """Map each registered tool to a Clio action class from its MCP annotations.
 
@@ -71,8 +71,10 @@ def clio_tool_action_classes(
 
     from fastmcp import FastMCP
 
-    from ..core.tool_contract import READ_ONLY_TOOLS
+    from ..core.tool_contract import PROFILE_TOOLS
     from ..tools import register_core_tools, register_extended_tools
+
+    allowed = PROFILE_TOOLS[profile]
 
     mcp: FastMCP[Any] = FastMCP("zulipchat-export")
     register_core_tools(mcp)
@@ -80,7 +82,7 @@ def clio_tool_action_classes(
         register_extended_tools(mcp)
     classes = {}
     for tool in asyncio.run(mcp.list_tools()):
-        if read_only and tool.name not in READ_ONLY_TOOLS:
+        if allowed is not None and tool.name not in allowed:
             continue
         hints = tool.annotations
         if hints is not None and hints.read_only_hint:
@@ -98,12 +100,16 @@ def clio_server_fields(base: dict[str, Any]) -> dict[str, Any]:
     Clio runs a worker's MCP server where the account database is read-only,
     so a read-only profile keeps its local state in a private temporary file.
     """
-    read_only = "--tool-profile" in base["args"]
+    args = base["args"]
+    profile = (
+        args[args.index("--tool-profile") + 1] if "--tool-profile" in args else "full"
+    )
+    read_only = profile == "read-only"
     return {
-        "args": [*base["args"], "--ephemeral-state"] if read_only else base["args"],
+        "args": [*args, "--ephemeral-state"] if read_only else args,
         "timeoutMs": CLIO_TIMEOUT_MS,
         "toolActionClasses": clio_tool_action_classes(
-            "--extended-tools" in base["args"], read_only
+            "--extended-tools" in args, profile
         ),
     }
 
@@ -252,7 +258,7 @@ def main() -> None:
     print_parser.add_argument("--zulip-bot-config-file")
     print_parser.add_argument("--extended-tools", action="store_true")
     print_parser.add_argument(
-        "--tool-profile", choices=["full", "read-only"], default="full"
+        "--tool-profile", choices=["full", "read-only", "bot"], default="full"
     )
     print_parser.add_argument(
         "--server-id",
@@ -305,9 +311,12 @@ def main() -> None:
     export_parser.add_argument("--extended-tools", action="store_true")
     export_parser.add_argument(
         "--tool-profile",
-        choices=["full", "read-only"],
+        choices=["full", "read-only", "bot"],
         default="full",
-        help="read-only: expose and permit only read tools (not for claude-code)",
+        help=(
+            "read-only: only read tools. bot: a Zulip-invoked session that "
+            "listens for owner mentions and replies in place. Not for claude-code."
+        ),
     )
     export_parser.add_argument(
         "--server-id",
@@ -366,7 +375,7 @@ def main() -> None:
         if args.tool_profile != "full":
             if args.client == "claude-code":
                 export_parser.error(
-                    "--tool-profile read-only is not supported for claude-code "
+                    "--tool-profile is not supported for claude-code "
                     "exports; its hooks post lifecycle messages"
                 )
             options["tool_profile"] = args.tool_profile

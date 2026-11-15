@@ -1,7 +1,6 @@
 """Owner-only bot inbox: delivery, sender gate, reply confinement, handoff."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,7 +17,7 @@ STRANGER = {"sender_id": 66, "sender_email": "stranger@example.com"}
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     client = fake_client([])
-    client.identity_name = "Clio"
+    client.client.get_profile.return_value["full_name"] = "Clio"
     client.send_message.return_value = {
         "result": "success",
         "id": 500,
@@ -163,10 +162,6 @@ def test_bot_profile_exposes_only_listening_reading_and_reply():
     assert {"wait_for_mentions", "reply"} <= BOT_TOOLS
 
 
-def test_bot_mention_is_stripped_by_name_and_id(monkeypatch):
-    bot = MagicMock(identity_name="Clio Coder")
-    monkeypatch.setattr(
-        inbox_tools, "_get_coordinator", lambda: SimpleNamespace(bot_client=bot)
-    )
+def test_bot_mention_is_stripped_by_name_and_id():
     text = "@**Clio Coder** hi @_**Clio Coder|9** there @**Ana**"
-    assert inbox_tools._strip_bot_mention(text, 9) == "hi  there @**Ana**"
+    assert inbox_tools._strip_bot_mention(text, 9, "Clio Coder") == "hi  there @**Ana**"

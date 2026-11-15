@@ -65,9 +65,8 @@ def _open_inbox() -> tuple[BotMentionInbox, Any, str, int | None] | dict[str, An
     )
 
 
-def _strip_bot_mention(content: str, bot_id: int | None) -> str:
+def _strip_bot_mention(content: str, bot_id: int | None, name: str | None) -> str:
     """Drop @-mentions of the bot itself; they are addressing, not request text."""
-    name = _get_coordinator().bot_client.identity_name or ""
     patterns = [rf"@_?\*\*{re.escape(name)}(\|{bot_id})?\*\*"] if name else []
     if bot_id is not None:
         patterns.append(rf"@_?\*\*[^*|]+\|{bot_id}\*\*")
@@ -197,7 +196,9 @@ async def wait_for_mentions(
                 "sent": datetime.fromtimestamp(
                     message.get("timestamp", 0), tz=timezone.utc
                 ).isoformat(timespec="seconds"),
-                "text": _strip_bot_mention(str(message.get("content", "")), bot_id),
+                "text": _strip_bot_mention(
+                    str(message.get("content", "")), bot_id, inbox.bot_full_name
+                ),
             }
             if message.get("content_truncated"):
                 request["text_truncated"] = True
