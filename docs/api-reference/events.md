@@ -39,4 +39,4 @@ await listen_events(
 - To read the owner's mentions of and direct messages to the bot, use
   `poll_agent_events(mentions_stream=...)` or `direct_messages=True` instead of
   a raw queue; see the [Agents API](agents.md).
-- Optional webhook callback is best-effort.
+- Events are returned to the caller only. The server has no webhook and sends Zulip data to no other host.

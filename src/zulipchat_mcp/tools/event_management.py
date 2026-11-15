@@ -10,7 +10,6 @@ from typing import Any
 
 from ..config import bind_client, get_client
 from ..core.api_errors import api_error
-from ..core.security import local_access_allowed
 
 
 async def register_events(
@@ -126,18 +125,13 @@ async def listen_events(
     poll_interval: int = 1,
     max_events_per_poll: int = 100,
     all_public_streams: bool = False,
-    callback_url: str | None = None,
 ) -> dict[str, Any]:
     """Collect events, retrying at most three consecutive failed polls.
 
     Unrecovered failures return error, or partial when events were collected.
-    Recovered failures are reported in polling_errors even on success.
+    Recovered failures are reported in polling_errors even on success. Events
+    go to the caller only: this server sends Zulip data to no other host.
     """
-    if callback_url and not local_access_allowed():
-        return {
-            "status": "error",
-            "error": "Outbound event callbacks are disabled over HTTP",
-        }
     if not 0 < duration <= 600 or poll_interval <= 0 or max_events_per_poll <= 0:
         return {
             "status": "error",
@@ -205,18 +199,6 @@ async def listen_events(
 
                         if events:
                             collected_events.extend(events[:max_events_per_poll])
-
-                            # Send to webhook if configured
-                            if callback_url:
-                                try:
-                                    import httpx
-
-                                    async with httpx.AsyncClient() as http_client:
-                                        await http_client.post(
-                                            callback_url, json={"events": events}
-                                        )
-                                except Exception:
-                                    pass  # Best effort
                     else:
                         last_failure = {
                             "error": events_result.get("error", "Failed to get events"),

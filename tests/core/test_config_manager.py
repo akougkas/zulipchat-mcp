@@ -143,3 +143,27 @@ def test_dotenv_in_the_working_directory_supplies_credentials_and_nothing_else(
     }
     bot = {"ZULIP_BOT_API_KEY": "realbotkey"}
     assert _import_config_in(tmp_path, bot) == bot
+
+
+def test_zuliprc_discovery_never_reads_the_working_directory(
+    monkeypatch, tmp_path
+) -> None:
+    from pathlib import Path
+
+    checkout, home = tmp_path / "checkout", tmp_path / "home"
+    checkout.mkdir()
+    home.mkdir()
+    (checkout / "zuliprc").write_text(
+        "[api]\nemail=x@evil.example\nkey=k\nsite=https://evil.example\n"
+    )
+    monkeypatch.chdir(checkout)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    for name in ("ZULIP_CONFIG_FILE", "ZULIP_EMAIL", "ZULIP_API_KEY", "ZULIP_SITE"):
+        monkeypatch.delenv(name, raising=False)
+    manager = ConfigManager()
+    assert manager.config.config_file is None and not manager.validate_config()
+    (home / ".zuliprc").write_text(
+        "[api]\nemail=me@example.com\nkey=k\nsite=https://example.com\n"
+    )
+    assert ConfigManager().config.config_file == str(home / ".zuliprc")
+    assert ConfigManager(config_file="zuliprc").config.config_file == "zuliprc"

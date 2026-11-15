@@ -85,7 +85,7 @@ Target response times:
 
 - Streamable HTTP requires a Bearer token when binding beyond loopback. Host and
   Origin validation remain enabled; configure allowed public hostnames explicitly.
-- Remote HTTP tools reject server-local file paths, event callbacks, and runtime
+- Remote HTTP tools reject server-local file paths and runtime
   identity switching. Stdio operations use the local operator's authorization.
 - Task/session storage and listener cursors belong to one instance. Stateless HTTP
   transport does not make independent replicas interchangeable for these workflows.

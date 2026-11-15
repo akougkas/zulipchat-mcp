@@ -263,13 +263,16 @@ class ConfigManager:
         )
 
     def _find_default_config(self) -> str | None:
-        """Search for zuliprc in standard locations."""
+        """Search for zuliprc in the home directory's standard locations.
+
+        The working directory is not searched: hosts start the server inside
+        the open project, and a checkout must not choose the Zulip server.
+        """
         import os
         from pathlib import Path
 
         home = Path.home()
         candidates = [
-            os.path.join(os.getcwd(), "zuliprc"),
             os.path.join(home, ".zuliprc"),
             os.path.join(home, ".config", "zulip", "zuliprc"),
         ]

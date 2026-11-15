@@ -19,11 +19,13 @@ The server accepts either:
 
 ## `zuliprc` auto-discovery
 
-If `--zulip-config-file` is not passed, the server checks:
+If neither `--zulip-config-file` nor `ZULIP_CONFIG_FILE` is given, the server checks:
 
-1. `./zuliprc`
-2. `~/.zuliprc`
-3. `~/.config/zulip/zuliprc`
+1. `~/.zuliprc`
+2. `~/.config/zulip/zuliprc`
+
+A `zuliprc` in the working directory is not picked up on its own, because hosts
+start the server inside whatever project is open. Name it explicitly to use it.
 
 ## CLI flags
 
@@ -184,7 +186,7 @@ After a failed send, check Zulip before retrying it manually.
 
 - Default mode is safe.
 - `--unsafe` enables attachment deletion and topic deletion in `agents_channel_topic_ops`.
-- HTTP disables local file paths and outbound event callbacks. Use inline uploads or returned download URLs; use stdio for local file operations.
+- HTTP disables local file paths. Use inline uploads or returned download URLs; use stdio for local file operations.
 
 ## Dual identity
 

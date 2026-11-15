@@ -225,7 +225,7 @@ uvx --from zulipchat-mcp zulipchat-mcp-integrate print --client claude-code --re
 
 HTTP startup requires a bearer token for non-loopback binds and validates Host and Origin headers. Configure `--allowed-host` for the hostname used by clients or a reverse proxy; terminate TLS at the proxy for remote connections. A token grants access to the configured Zulip account: deploy a separate instance per trusted account, rather than sharing it across unrelated users.
 
-HTTP tools reject server-local file paths, outbound event callbacks, and `switch_identity`. Upload text with `file_content` or binary bytes with `file_content_base64`; download without `download_path` to obtain a URL. Use stdio for local file operations and runtime identity switching. Attachment deletion requires `--unsafe`.
+HTTP tools reject server-local file paths and `switch_identity`. Upload text with `file_content` or binary bytes with `file_content_base64`; download without `download_path` to obtain a URL. Use stdio for local file operations and runtime identity switching. Attachment deletion requires `--unsafe`.
 
 Persistent state defaults to an account-scoped directory. An explicitly selected
 `ZULIPCHAT_DB_PATH` is associated with the normalized realm and user/bot

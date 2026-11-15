@@ -17,7 +17,7 @@ _unsafe_mode: ContextVar[bool] = ContextVar("unsafe_mode", default=False)
 
 
 def local_access_allowed() -> bool:
-    """Local paths and outbound callbacks belong to the local stdio trust boundary."""
+    """Local paths and identity switching belong to the local stdio trust boundary."""
     # Tasks restore the submitting HTTP headers, but have no live Request.
     if get_http_headers(include_all=True):
         return False

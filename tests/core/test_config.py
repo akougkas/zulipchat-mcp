@@ -56,16 +56,20 @@ class TestConfigManager:
         )  # debug logic: get_debug() if cli_debug is None else cli_debug. So CLI overrides Env for debug.
 
     def test_find_default_config(self, monkeypatch, tmp_path):
-        """Test finding default config file."""
+        """Discovery finds the home zuliprc, never one in the working directory."""
         monkeypatch.delenv("ZULIP_CONFIG_FILE", raising=False)
+        home = tmp_path / "home"
+        home.mkdir()
+        home_rc = home / ".zuliprc"
+        home_rc.touch()
+        (tmp_path / "zuliprc").touch()
 
-        # Create a dummy zuliprc in cwd
-        cwd_rc = tmp_path / "zuliprc"
-        cwd_rc.touch()
-
-        with patch("os.getcwd", return_value=str(tmp_path)):
+        with (
+            patch("os.getcwd", return_value=str(tmp_path)),
+            patch("pathlib.Path.home", return_value=home),
+        ):
             manager = ConfigManager()
-            assert manager.config.config_file == str(cwd_rc)
+            assert manager.config.config_file == str(home_rc)
 
     def test_validate_config(self):
         """Test configuration validation."""

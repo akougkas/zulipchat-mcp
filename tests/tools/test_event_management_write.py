@@ -107,36 +107,21 @@ class TestEventManagement:
         assert result["status"] == "error"
 
     @pytest.mark.asyncio
-    async def test_listen_events_with_callback(self, mock_deps):
-        """Test listening for events with callback."""
-        # Use a very short duration and patched sleep to make test fast
+    async def test_listen_events_returns_events_and_sends_them_nowhere(self, mock_deps):
+        """Events reach the caller only; there is no webhook to another host."""
         with (
             patch("asyncio.sleep", new_callable=AsyncMock),
             patch("httpx.AsyncClient") as mock_http,
         ):
+            with pytest.raises(TypeError, match="callback_url"):
+                await listen_events(["message"], callback_url="http://callback.com")
 
-            mock_post = AsyncMock()
-            mock_http.return_value.__aenter__.return_value.post = mock_post
-
-            # This runs the loop for 'duration' seconds (simulated by time.time)
-            # We can't easily mock time.time in the loop condition without complex patching.
-            # Instead, we rely on setting duration=0 or very small.
-            # But the code `min(duration + 60, 600)` sets queue lifespan.
-            # The loop condition is `while time.time() - start_time < duration`.
-            # If we set duration=0.1, it should run once or twice.
-
-            result = await listen_events(
-                ["message"],
-                duration=0.1,
-                poll_interval=0.01,
-                callback_url="http://callback.com",
-            )
+            # The loop runs while time.time() - start_time < duration.
+            result = await listen_events(["message"], duration=0.1, poll_interval=0.01)
 
             assert result["status"] == "success"
             assert result["event_count"] > 0
-
-            # Verify callback was called
-            mock_post.assert_called()
+            mock_http.assert_not_called()
 
             # Verify queue was deregistered at end
             mock_deps.deregister.assert_called()
