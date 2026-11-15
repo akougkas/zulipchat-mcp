@@ -144,16 +144,23 @@ async def agents_channel_topic_ops(
             result = await asyncio.to_thread(
                 client.delete_topic, agents_channel_id, source_topic
             )
-            if result.get("result") == "success":
-                return {
-                    "status": "success",
-                    "operation": "delete",
-                    "stream": "Agents-Channel",
-                    "topic": source_topic,
-                    "protection": "Limited to Agents-Channel only",
-                }
-            else:
+            if result.get("result") != "success":
                 return api_error(result, "Failed to delete topic")
+            outcome = {
+                "operation": "delete",
+                "stream": "Agents-Channel",
+                "topic": source_topic,
+                "complete": result.get("complete", True),
+                "batches": result.get("batches", 1),
+            }
+            if not outcome["complete"]:
+                return {
+                    "status": "error",
+                    "error": "Topic only partially deleted; run delete again",
+                    "retryable": True,
+                    **outcome,
+                }
+            return {"status": "success", **outcome}
 
         elif operation in ("mute", "unmute"):
             result = await asyncio.to_thread(

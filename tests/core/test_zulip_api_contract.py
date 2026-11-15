@@ -62,6 +62,29 @@ def test_topic_visibility_rejects_unsupported_policy(wrapper, level, policy):
     wrapper.client.call_endpoint.assert_not_called()
 
 
+def test_delete_topic_repeats_until_complete(wrapper):
+    wrapper.client.call_endpoint.side_effect = [
+        {"result": "success", "complete": False},
+        {"result": "success", "complete": True},
+    ]
+    result = wrapper.delete_topic(42, "Topic")
+    assert result["complete"] is True
+    assert result["batches"] == 2
+    wrapper.client.call_endpoint.assert_called_with(
+        "streams/42/delete_topic", method="POST", request={"topic_name": "Topic"}
+    )
+
+
+def test_delete_topic_stops_at_batch_budget_and_on_error(wrapper):
+    wrapper.client.call_endpoint.return_value = {"result": "success", "complete": False}
+    assert wrapper.delete_topic(42, "Topic", max_batches=3)["batches"] == 3
+    wrapper.client.call_endpoint.reset_mock()
+    wrapper.client.call_endpoint.return_value = {"result": "error", "msg": "nope"}
+    result = wrapper.delete_topic(42, "Topic")
+    assert result["result"] == "error"
+    assert wrapper.client.call_endpoint.call_count == 1
+
+
 def test_subscription_property_fallback_uses_post(wrapper):
     properties = [{"stream_id": 42, "property": "color", "value": "#aabbcc"}]
     wrapper.update_subscription_settings(properties)

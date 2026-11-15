@@ -101,6 +101,20 @@ class TestTopicOperations:
         mock_deps["client"].delete_topic.assert_called_with(99, "source")
 
     @pytest.mark.asyncio
+    async def test_delete_topic_reports_partial_deletion(self, mock_deps):
+        mock_deps["unsafe"].return_value = True
+        mock_deps["client"].delete_topic.return_value = {
+            "result": "success",
+            "complete": False,
+            "batches": 20,
+        }
+        result = await agents_channel_topic_ops("delete", "huge")
+        assert result["status"] == "error"
+        assert result["complete"] is False
+        assert result["batches"] == 20
+        assert result["retryable"] is True
+
+    @pytest.mark.asyncio
     async def test_delete_nonexistent_topic(self, mock_deps):
         """Test deleting nonexistent topic (backend error)."""
         mock_deps["unsafe"].return_value = True

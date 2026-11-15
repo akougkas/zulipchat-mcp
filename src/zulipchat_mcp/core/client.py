@@ -589,18 +589,34 @@ class ZulipClientWrapper:
             },
         )
 
-    def delete_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "delete_topic"):
-            return self.client.delete_topic(stream_id=stream_id, topic_name=topic_name)
-        # Fallback; Zulip may use POST for delete_topic
-        try:
-            return self.client.call_endpoint(
+    def delete_topic(
+        self, stream_id: int, topic_name: str, max_batches: int = 20
+    ) -> dict[str, Any]:
+        """Delete a topic, repeating while the server reports a partial batch.
+
+        Since FL 211 the server deletes in time-limited batches and returns
+        complete=false until the topic is gone. The result carries the final
+        `complete` value and the number of `batches` sent.
+        """
+        response: dict[str, Any] = {}
+        batches = 0
+        while batches < max_batches:
+            batches += 1
+            response = self.client.call_endpoint(
                 f"streams/{stream_id}/delete_topic",
                 method="POST",
                 request={"topic_name": topic_name},
             )
-        except Exception:
-            return {"result": "error", "msg": "Failed to delete topic"}
+            if response.get("result") != "success":
+                break
+            invalidate_realm_snapshots(self._base_url)
+            if response.get("complete", True):
+                break
+        return {
+            **response,
+            "complete": response.get("complete", True),
+            "batches": batches,
+        }
 
     def edit_message(
         self,
