@@ -318,3 +318,31 @@ def test_get_messages_by_ids_and_empty_topic_flag():
     sdk.feature_level = 300
     wrapper.get_messages_raw(use_cache=False)
     assert "allow_empty_topic_name" not in sdk.get_messages.call_args[0][0]
+
+
+@pytest.mark.parametrize("level", [513, 300])
+def test_get_users_by_ids_uses_server_filter_when_supported(level):
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=level)
+    roster = [{"user_id": 1}, {"user_id": 2}, {"user_id": 3}]
+    sdk.get_users.return_value = {"result": "success", "members": roster}
+    wrapper._client = sdk
+
+    result = wrapper.get_users(user_ids=[1, 3])
+
+    request = sdk.get_users.call_args[0][0]
+    if level >= 384:
+        assert request["user_ids"] == [1, 3]
+        assert result["members"] == roster
+    else:
+        assert "user_ids" not in request
+        assert result["members"] == [{"user_id": 1}, {"user_id": 3}]
+        # The full roster stays cached for the next caller.
+        assert len(wrapper.get_users()["members"]) == 3
+        assert sdk.get_users.call_count == 1

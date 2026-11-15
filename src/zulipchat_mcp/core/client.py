@@ -400,25 +400,36 @@ class ZulipClientWrapper:
         return response
 
     def get_users(
-        self, client_gravatar: bool = True, include_custom_profile_fields: bool = False
+        self,
+        client_gravatar: bool = True,
+        include_custom_profile_fields: bool = False,
+        user_ids: Sequence[int] | None = None,
     ) -> dict[str, Any]:
-        """Get list of users."""
-        # Check cache first
+        """Get users, optionally only `user_ids`.
+
+        Specific IDs use GET /users?user_ids= (FL 384); older servers filter
+        the cached full roster.
+        """
+        request: dict[str, Any] = {
+            "client_gravatar": client_gravatar,
+            "include_custom_profile_fields": include_custom_profile_fields,
+        }
+        if user_ids and self.supports(384):
+            return self.client.get_users({**request, "user_ids": list(user_ids)})
+
         default_filters = client_gravatar and not include_custom_profile_fields
         cached_users = self.user_cache.get_users() if default_filters else None
         if cached_users is not None:
-            return {"result": "success", "members": cached_users}
-
-        # Fetch from API
-        response = self.client.get_users(
-            {
-                "client_gravatar": client_gravatar,
-                "include_custom_profile_fields": include_custom_profile_fields,
-            }
-        )
-        if response["result"] == "success" and default_filters:
-            self.user_cache.set_users(response["members"])
-        return response
+            response: dict[str, Any] = {"result": "success", "members": cached_users}
+        else:
+            response = self.client.get_users(request)
+            if response["result"] == "success" and default_filters:
+                self.user_cache.set_users(response["members"])
+        if user_ids is None or response.get("result") != "success":
+            return response
+        wanted = set(user_ids)
+        members = [m for m in response["members"] if m.get("user_id") in wanted]
+        return {**response, "members": members}
 
     def get_stream_topics(self, stream_id: int) -> dict[str, Any]:
         """Get recent topics for a stream."""
