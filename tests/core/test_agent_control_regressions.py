@@ -293,3 +293,56 @@ def test_control_channel_is_explicit_or_private_never_an_arbitrary_one(
 
     monkeypatch.setenv("ZULIPCHAT_AGENT_STREAM", "lab-wide")
     assert coordinator.discover_agent_stream() == "lab-wide"
+
+
+def test_session_owner_is_matched_by_user_id_when_one_is_known(coordinator):
+    session = bind_session(coordinator)
+    request = coordinator.create_request(
+        session_id=session["session_id"], prompt="Run it?", request_type="approval"
+    )
+    coordinator._owner_ids["owner@example.com"] = 7  # the configured human account
+    approve = f"/approve {request['request_id']}"
+
+    # Another account that now carries the owner's address is not the owner.
+    impostor = {**inbound(session, approve, 41), "sender_id": 8}
+    assert coordinator.record_inbound_message(impostor)["reason"] == "unauthorized"
+    assert coordinator.db.get_agent_request(request["request_id"])["status"] == (
+        "pending"
+    )
+    # The owner in a realm that hides addresses: placeholder email, same ID.
+    hidden = {
+        **inbound(session, approve, 42),
+        "sender_id": 7,
+        "sender_email": "user7@example.zulipchat.com",
+    }
+    assert coordinator.record_inbound_message(hidden)["status"] == "success"
+    assert coordinator.db.get_agent_request(request["request_id"])["response"] == (
+        "approve"
+    )
+
+    bot = MagicMock()
+    bot.get_messages_raw.return_value = {
+        "result": "success",
+        "found_newest": True,
+        "messages": [impostor, hidden],
+    }
+    decision = _wait_for_topic_decision(
+        MagicMock(bot_client=bot),
+        stream_name=session["stream_name"],
+        topic_name=session["topic_name"],
+        owner_email="owner@example.com",
+        owner_id=7,
+        request_id=request["request_id"],
+        min_message_id=10,
+        timeout_seconds=5,
+    )
+    assert decision["message_id"] == 42
+
+
+def test_owner_id_is_known_only_for_the_configured_account(coordinator):
+    coordinator.default_owner_email = lambda: "Owner@Example.com"
+    coordinator.default_owner_id = lambda: 7
+    assert coordinator.owner_id_for("owner@example.com") == 7
+    assert coordinator.owner_id_for("someone-else@example.com") is None
+    coordinator.default_owner_id = lambda: 1 / 0  # resolved once, never again
+    assert coordinator.owner_id_for("owner@example.com") == 7

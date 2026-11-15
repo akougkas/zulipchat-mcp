@@ -55,6 +55,22 @@ logger = get_logger(__name__)
 _REQUEST_ID_RE = re.compile(r"\bID:\s*([A-Za-z0-9_-]{4,})\b")
 
 
+def sender_is_owner(
+    message: dict[str, Any], owner_email: str, owner_id: int | None
+) -> bool:
+    """Whether Zulip attributes a message to the session owner.
+
+    The numeric ID decides when both sides have one: a realm that hides
+    addresses reports the owner under a placeholder email, and an address can
+    be changed while an ID cannot. Email decides only when no ID is known.
+    """
+    sender_id = message.get("sender_id")
+    if owner_id is not None and type(sender_id) is int:
+        return sender_id == owner_id
+    sender_email = str(message.get("sender_email") or "")
+    return bool(sender_email) and sender_email.casefold() == owner_email.casefold()
+
+
 class AgentCoordinator:
     """Coordinates stable agent profiles, sessions, requests, and event routing."""
 
@@ -69,6 +85,7 @@ class AgentCoordinator:
         self._bot_client = bot_client
         self._user_client = user_client
         self._owner_id: int | None = None
+        self._owner_ids: dict[str, int | None] = {}
 
     @property
     def user_client(self) -> ZulipClientWrapper:
@@ -98,6 +115,23 @@ class AgentCoordinator:
             if type(user_id) is int and not profile.get("is_bot"):
                 self._owner_id = user_id
         return self._owner_id
+
+    def owner_id_for(self, owner_email: str) -> int | None:
+        """The Zulip user ID behind a session's owner email, resolved once.
+
+        Known only for the configured human account; a session registered for
+        any other address is matched by email.
+        """
+        key = owner_email.casefold()
+        if key not in self._owner_ids:
+            found: Any = None
+            try:
+                if key == self.default_owner_email().casefold():
+                    found = self.default_owner_id()
+            except Exception:
+                found = None
+            self._owner_ids[key] = found if type(found) is int else None
+        return self._owner_ids[key]
 
     def default_owner_email(self) -> str:
         """Resolve the owning human account for a bound agent."""
@@ -526,7 +560,10 @@ class AgentCoordinator:
 
         parsed = parse_control_message(content)
         request_id = parsed.request_id or request_id
-        authorized = sender_email.lower() == str(session["owner_email"]).lower()
+        owner_email = str(session["owner_email"])
+        authorized = sender_is_owner(
+            message, owner_email, self.owner_id_for(owner_email)
+        )
 
         if not authorized:
             event_result = self.db.create_session_event(

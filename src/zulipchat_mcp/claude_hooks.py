@@ -11,7 +11,7 @@ import time
 from typing import Any
 
 from .config import init_config_manager
-from .core.agent_control import AgentCoordinator
+from .core.agent_control import AgentCoordinator, sender_is_owner
 from .core.agent_protocol import parse_control_message
 from .core.client import OUTBOUND_CLIENT_NAME
 from .utils.database import init_database
@@ -76,6 +76,7 @@ def _wait_for_topic_decision(
     request_id: str,
     min_message_id: int,
     timeout_seconds: int,
+    owner_id: int | None = None,
 ) -> dict[str, Any] | None:
     """Poll the topic directly via Zulip REST until the owner replies."""
     start = time.monotonic()
@@ -104,7 +105,7 @@ def _wait_for_topic_decision(
                 cursor = message_id
                 if message.get("client") == OUTBOUND_CLIENT_NAME:
                     continue  # sent with this server's tools: never a decision
-                if str(message.get("sender_email", "")).lower() != owner_email.lower():
+                if not sender_is_owner(message, owner_email, owner_id):
                     continue
                 parsed = parse_control_message(str(message.get("content", "")))
                 if (
@@ -193,11 +194,13 @@ def _handle_permission_request(
     ):
         return _permission_decision_output("deny")
 
+    owner_id = coordinator.owner_id_for(str(session["owner_email"]))
     decision = _wait_for_topic_decision(
         coordinator,
         stream_name=str(session["stream_name"]),
         topic_name=str(session["topic_name"]),
         owner_email=str(session["owner_email"]),
+        owner_id=owner_id if type(owner_id) is int else None,
         request_id=str(request["request_id"]),
         min_message_id=int(request.get("message_id", 0)),
         timeout_seconds=timeout_seconds,
