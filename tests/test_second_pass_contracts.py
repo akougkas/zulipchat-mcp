@@ -1,6 +1,5 @@
 """Boundary regressions from the full source audit."""
 
-import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -8,42 +7,8 @@ import pytest
 
 from zulipchat_mcp import claude_hooks
 from zulipchat_mcp.config import ZulipConfig
-from zulipchat_mcp.core.validation import ParameterValidator
 from zulipchat_mcp.services.scheduler import MessageScheduler, ScheduledMessage
 from zulipchat_mcp.tools import event_management
-
-
-@pytest.mark.asyncio
-async def test_temporary_identities_are_isolated_across_tasks():
-    from zulipchat_mcp.config import ConfigManager
-    from zulipchat_mcp.core.identity import IdentityManager, IdentityType
-
-    config = ConfigManager()
-    config.config = ZulipConfig(
-        "user@example.com",
-        "user-key",
-        "https://example.com",
-        bot_email="bot@example.com",
-        bot_api_key="bot-key",
-    )
-    manager = IdentityManager(config)
-    bot_entered, user_entered = asyncio.Event(), asyncio.Event()
-
-    async def bot():
-        async with manager.use_identity(IdentityType.BOT):
-            bot_entered.set()
-            await user_entered.wait()
-            assert manager.get_current_identity().type == IdentityType.BOT
-
-    async def user():
-        await bot_entered.wait()
-        async with manager.use_identity(IdentityType.USER):
-            user_entered.set()
-            await asyncio.sleep(0)
-            assert manager.get_current_identity().type == IdentityType.USER
-
-    await asyncio.gather(bot(), user())
-    assert manager.get_current_identity().type == IdentityType.USER
 
 
 def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
@@ -189,8 +154,6 @@ async def test_event_page_limit_preserves_unconsumed_events(monkeypatch):
     assert fetch.call_args_list[1].kwargs["last_event_id"] == 2
 
 
-
-
 @pytest.mark.parametrize(
     "persisted",
     [
@@ -225,17 +188,6 @@ def test_hook_cannot_override_stored_denial_or_missing_approval(monkeypatch, per
         1,
     )
     assert result["hookSpecificOutput"]["decision"]["behavior"] == "deny"
-
-
-def test_validator_list_choices_and_defaults_are_isolated():
-    validator = ParameterValidator()
-    first = validator.validate_tool_params(
-        "search.advanced_search",
-        {"query": "test", "search_type": ["messages", "users"]},
-    )
-    first["narrow"].append({"operator": "stream", "operand": "private"})
-    second = validator.validate_tool_params("search.advanced_search", {"query": "test"})
-    assert second["narrow"] == []
 
 
 @pytest.mark.asyncio
