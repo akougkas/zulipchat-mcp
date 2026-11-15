@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 
 from ..config import bind_client, get_client
 from ..core.api_errors import api_error
+from ..utils.narrow_helpers import wire_narrow
 
 
 def _resolve_stream_name(stream_id: int) -> str:
@@ -40,7 +41,7 @@ async def update_message_flags_for_narrow(
 
     try:
         request_data = {
-            "narrow": narrow,
+            "narrow": wire_narrow(narrow, client.supports),
             "op": op,
             "flag": flag,
             "anchor": anchor,
@@ -89,7 +90,7 @@ async def mark_stream_as_read(stream_id: int) -> dict[str, Any]:
         with bind_client(get_client()):
             stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
             # Use stream narrow to match stream messages
-            narrow = [{"operator": "stream", "operand": stream_name}]
+            narrow = [{"operator": "channel", "operand": stream_name}]
 
             return await _mark_read_pages(narrow)
     except Exception as e:
@@ -103,7 +104,7 @@ async def mark_topic_as_read(stream_id: int, topic_name: str) -> dict[str, Any]:
             stream_name = await asyncio.to_thread(_resolve_stream_name, stream_id)
             # Use stream + topic narrow to match topic messages
             narrow = [
-                {"operator": "stream", "operand": stream_name},
+                {"operator": "channel", "operand": stream_name},
                 {"operator": "topic", "operand": topic_name},
             ]
 
@@ -197,7 +198,7 @@ async def mark_messages_unread(
                         stream_name = await asyncio.to_thread(
                             _resolve_stream_name, stream_id
                         )
-                        narrow.append({"operator": "stream", "operand": stream_name})
+                        narrow.append({"operator": "channel", "operand": stream_name})
                     except ValueError as e:
                         return {"status": "error", "error": str(e)}
                 if topic_name:
@@ -237,7 +238,7 @@ async def star_messages(
                         stream_name = await asyncio.to_thread(
                             _resolve_stream_name, stream_id
                         )
-                        narrow.append({"operator": "stream", "operand": stream_name})
+                        narrow.append({"operator": "channel", "operand": stream_name})
                     except ValueError as e:
                         return {"status": "error", "error": str(e)}
                 if topic_name:
@@ -277,7 +278,7 @@ async def unstar_messages(
                         stream_name = await asyncio.to_thread(
                             _resolve_stream_name, stream_id
                         )
-                        narrow.append({"operator": "stream", "operand": stream_name})
+                        narrow.append({"operator": "channel", "operand": stream_name})
                     except ValueError as e:
                         return {"status": "error", "error": str(e)}
                 if topic_name:
@@ -331,7 +332,7 @@ async def manage_message_flags(
             except ValueError as e:
                 return {"status": "error", "error": str(e)}
             return await _update_flag_pages(
-                narrow=[{"operator": "stream", "operand": stream_name}],
+                narrow=[{"operator": "channel", "operand": stream_name}],
                 op=action,
                 flag=flag,
             )
@@ -352,7 +353,7 @@ async def manage_message_flags(
                 return {"status": "error", "error": str(e)}
             return await _update_flag_pages(
                 narrow=[
-                    {"operator": "stream", "operand": stream_name},
+                    {"operator": "channel", "operand": stream_name},
                     {"operator": "topic", "operand": topic_name},
                 ],
                 op=action,
@@ -367,7 +368,7 @@ async def manage_message_flags(
                             _resolve_stream_name, stream_id
                         )
                         built_narrow.append(
-                            {"operator": "stream", "operand": stream_name}
+                            {"operator": "channel", "operand": stream_name}
                         )
                     except ValueError as e:
                         return {"status": "error", "error": str(e)}

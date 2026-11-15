@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import quote, urlparse, urlunparse
 
 from ..config import ConfigManager
+from ..utils.narrow_helpers import wire_narrow
 from .api_budget import PoliteZulipClient as Client
 from .cache import StreamCache, UserCache
 from .snapshots import ReadSnapshots, invalidate_realm_snapshots
@@ -244,7 +245,7 @@ class ZulipClientWrapper:
             "anchor": anchor,
             "num_before": num_before,
             "num_after": num_after,
-            "narrow": narrow or [],
+            "narrow": wire_narrow(narrow or [], self.supports),
             "include_anchor": include_anchor,
             "client_gravatar": client_gravatar,
             "apply_markdown": apply_markdown,
@@ -334,7 +335,7 @@ class ZulipClientWrapper:
             )
         narrow: list[dict[str, Any]] = []
         if stream_name:
-            narrow.append({"operator": "stream", "operand": stream_name})
+            narrow.append({"operator": "channel", "operand": stream_name})
         if topic:
             narrow.append({"operator": "topic", "operand": topic})
 

@@ -93,7 +93,7 @@ async def agents_channel_topic_ops(
 
             # Find message in source topic
             narrow = [
-                {"operator": "stream", "operand": str(agents_channel_id)},
+                {"operator": "channel", "operand": str(agents_channel_id)},
                 {"operator": "topic", "operand": source_topic},
             ]
 

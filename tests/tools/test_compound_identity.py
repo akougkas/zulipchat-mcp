@@ -183,7 +183,7 @@ async def test_flag_resolution_and_all_pages_retain_client(
     assert len(requests) == 2 and requests[1]["anchor"] == 11
     if arguments.get("stream_id"):
         assert requests[0]["narrow"][0] == {
-            "operator": "stream",
+            "operator": "channel",
             "operand": "user-stream",
         }
     bot.client.call_endpoint.assert_called_once()

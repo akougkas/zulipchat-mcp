@@ -318,7 +318,7 @@ async def test_backfill_accepts_a_reply_in_the_session_creation_second(coordinat
         datetime.fromisoformat(upstream["anchor_date"]).timestamp()
         == reply["timestamp"]
     )
-    assert {part["operator"] for part in upstream["narrow"]} == {"stream", "topic"}
+    assert {part["operator"] for part in upstream["narrow"]} == {"channel", "topic"}
 
 
 async def test_backfill_uses_message_ids_for_servers_without_date_anchors(coordinator):
@@ -334,7 +334,7 @@ async def test_backfill_uses_message_ids_for_servers_without_date_anchors(coordi
     assert upstream["anchor"] == "oldest"
     assert upstream["anchor_date"] is None
     assert upstream["narrow"] == [
-        {"operator": "stream", "operand": session["stream_name"]},
+        {"operator": "channel", "operand": session["stream_name"]},
         {"operator": "topic", "operand": session["topic_name"]},
     ]
 

@@ -215,7 +215,7 @@ class MessageListener:
                     else created
                 )
             narrow = [
-                {"operator": "stream", "operand": session["stream_name"]},
+                {"operator": "channel", "operand": session["stream_name"]},
                 {"operator": "topic", "operand": session["topic_name"]},
             ]
             for _ in range(100):

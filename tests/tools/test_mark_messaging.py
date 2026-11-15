@@ -111,7 +111,7 @@ class TestUpdateMessageFlagsForNarrow:
     @pytest.mark.asyncio
     async def test_update_flags_success_full_response(self, mock_deps):
         """Test successful flag update with all response fields."""
-        narrow = [{"operator": "stream", "operand": "general"}]
+        narrow = [{"operator": "channel", "operand": "general"}]
         result = await update_message_flags_for_narrow(
             narrow=narrow, op="add", flag="read"
         )
@@ -306,7 +306,7 @@ class TestMarkTopicAsRead:
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["narrow"] == [
-            {"operator": "stream", "operand": "Engineering"},
+            {"operator": "channel", "operand": "Engineering"},
             {"operator": "topic", "operand": "bug-fixes"},
         ]
 
@@ -390,7 +390,7 @@ class TestMarkMessagesUnread:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Engineering"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": "Engineering"}]
 
     @pytest.mark.asyncio
     async def test_mark_messages_unread_by_topic(self, mock_deps):
@@ -429,7 +429,7 @@ class TestMarkMessagesUnread:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert {"operator": "stream", "operand": "Engineering"} in request["narrow"]
+        assert {"operator": "channel", "operand": "Engineering"} in request["narrow"]
         assert {"operator": "topic", "operand": "releases"} in request["narrow"]
         assert {"operator": "sender", "operand": "bob@example.com"} in request["narrow"]
 
@@ -529,7 +529,7 @@ class TestStarMessages:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Important"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": "Important"}]
         assert request["flag"] == "starred"
         assert request["op"] == "add"
 
@@ -656,7 +656,7 @@ class TestUnstarMessages:
 
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
-        assert request["narrow"] == [{"operator": "stream", "operand": "Archive"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": "Archive"}]
 
     @pytest.mark.asyncio
     async def test_unstar_messages_by_topic(self, mock_deps):

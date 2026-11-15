@@ -62,7 +62,7 @@ class TestMessageFlags:
         assert request["flag"] == "read"
         assert request["op"] == "add"
         # Should now use stream NAME resolved from ID
-        assert request["narrow"] == [{"operator": "stream", "operand": "Test Stream"}]
+        assert request["narrow"] == [{"operator": "channel", "operand": "Test Stream"}]
 
     @pytest.mark.asyncio
     async def test_mark_nonexistent_stream(self, mock_deps):
@@ -89,7 +89,7 @@ class TestMessageFlags:
         args = mock_deps.client.call_endpoint.call_args
         request = args[1]["request"]
         assert request["flag"] == "starred"
-        assert request["narrow"] == narrow
+        assert request["narrow"] == [{"operator": "is", "operand": "dm"}]
 
     @pytest.mark.asyncio
     async def test_star_empty_narrow(self, mock_deps):
