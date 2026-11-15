@@ -417,3 +417,15 @@ def test_inbox_file_from_an_older_version_gains_the_stored_column(tmp_path):
     assert opened.message(5) == {"id": 5}
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT stored FROM messages").fetchone()[0] > 0
+
+
+def test_delivery_cursor_is_compare_and_set_across_processes(inbox, tmp_path):
+    assert inbox.delivered_cursor() is None
+    assert inbox.claim(None, 11)
+    # A second process for the same bot reads the same file.
+    other = BotMentionInbox(fake_client([]), inbox.path, "account-a", "Agents-Channel")
+    assert other.delivered_cursor() == 11
+    assert not other.claim(None, 12)  # stale expectation: someone else moved it
+    assert other.claim(11, 12)
+    assert not inbox.claim(11, 13)
+    assert inbox.delivered_cursor() == 12
