@@ -86,8 +86,18 @@ class MentionAllow:
             return "everyone"
         return "allowlist" if self.configured else "owner_only"
 
-    def allows(self, sender_id: object, sender_email: object, owner_email: str) -> bool:
+    def allows(
+        self,
+        sender_id: object,
+        sender_email: object,
+        owner_email: str,
+        owner_id: int | None = None,
+    ) -> bool:
         if self.everyone:
+            return True
+        # The numeric ID is authoritative: realms that hide email addresses
+        # report the owner's messages under a userNNN@ placeholder email.
+        if owner_id is not None and type(sender_id) is int and sender_id == owner_id:
             return True
         email = str(sender_email or "").casefold()
         if email and email == owner_email.casefold():

@@ -68,6 +68,7 @@ class AgentCoordinator:
         self.db = db or DatabaseManager()
         self._bot_client = bot_client
         self._user_client = user_client
+        self._owner_id: int | None = None
 
     @property
     def user_client(self) -> ZulipClientWrapper:
@@ -85,6 +86,18 @@ class AgentCoordinator:
                 config, use_bot_identity=config.has_bot_credentials()
             )
         return self._bot_client
+
+    def default_owner_id(self) -> int | None:
+        """The owning human account's Zulip user ID, fetched once."""
+        if self._owner_id is None:
+            profile = self.user_client.client.get_profile()
+            user_id = (
+                profile.get("user_id") if profile.get("result") == "success" else None
+            )
+            # A bot-only configuration has no human owner to admit by ID.
+            if type(user_id) is int and not profile.get("is_bot"):
+                self._owner_id = user_id
+        return self._owner_id
 
     def default_owner_email(self) -> str:
         """Resolve the owning human account for a bound agent."""

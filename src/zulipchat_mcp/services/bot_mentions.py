@@ -3,7 +3,8 @@
 This is a transport inbox, not an agent runner. The tool layer withholds content
 from unauthorized senders; hosts still commit their own message-ID cursor with
 their work queue. One inbox serves one scope: a channel's @-mentions of the bot,
-or every direct and group-direct message the bot receives (stream is None).
+every direct and group-direct message the bot receives (stream is None), or
+ALL_SCOPE, which is both of those across every channel the bot can see.
 """
 
 from __future__ import annotations
@@ -24,6 +25,10 @@ from ..core.client import ZulipClientWrapper
 from ..core.process_lease import ProcessLease
 from ..core.snapshots import invalidate_realm_snapshots
 
+# Scope sentinel for one inbox holding direct messages to the bot plus its
+# @-mentions in every channel it receives.
+ALL_SCOPE = "*"
+
 
 class BotMentionInbox:
     """One lazy event queue and bounded snapshot for one account and scope."""
@@ -40,6 +45,7 @@ class BotMentionInbox:
         self.path = path
         self.stream = stream
         self.direct = stream is None
+        self.everything = stream == ALL_SCOPE
         self.initial_cursor = initial_cursor
         self._condition = threading.Condition(threading.RLock())
         self._stop = threading.Event()
@@ -77,6 +83,11 @@ class BotMentionInbox:
             )
         self._bot_id = self._state("bot_user_id")
         self._bot_verified = False
+        # Insertion-ordered so the oldest handoff is evicted first.
+        self._watched: dict[tuple[int, str], None] = {
+            (int(stream_id), str(topic)): None
+            for stream_id, topic in self._state("watched") or []
+        }
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -100,12 +111,24 @@ class BotMentionInbox:
         # reply that @-mentions the bot itself.
         if message.get("sender_id") == self._bot_id:
             return False
+        if self.everything:
+            if message.get("type") == "private":
+                return True
+            if "mentioned" in message.get("flags", []):
+                return True
+            # A conversation handed off to Zulip accepts replies without a mention.
+            key = (message.get("stream_id"), str(message.get("subject", "")).casefold())
+            return key in self._watched
         if self.direct:
             return message.get("type") == "private"
         return "mentioned" in message.get("flags", [])
 
     def _narrows(self) -> tuple[list[list[str]], list[dict[str, str]]]:
         """Event-queue narrow and equivalent history narrow for this scope."""
+        if self.everything:
+            # Zulip narrows cannot express "DM or mentioned"; a bot receives few
+            # messages, so take everything it receives and filter in _accepts.
+            return [], []
         if not self.direct:
             return (
                 [["stream", str(self.stream)]],
@@ -250,7 +273,9 @@ class BotMentionInbox:
             state = {"last_event_id": event["id"]}
             if event.get("type") == "message":
                 message = {**event["message"], "flags": event.get("flags", [])}
-                if message.get("type") == ("private" if self.direct else "stream"):
+                if self.everything or message.get("type") == (
+                    "private" if self.direct else "stream"
+                ):
                     messages.append(message)
                     state["message_cursor"] = max(
                         self._state("message_cursor") or 0, message["id"]
@@ -363,6 +388,39 @@ class BotMentionInbox:
             "acknowledgement": "host_owned_message_id_cursor",
         }
 
+    def message(self, message_id: int) -> dict[str, Any] | None:
+        """Return a retained, undeleted inbox message by ID."""
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT payload FROM messages WHERE id=? AND deleted=0", (message_id,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    @property
+    def bot_user_id(self) -> int | None:
+        return self._bot_id
+
+    def watch(self, stream_id: int, topic: str) -> None:
+        """Accept every message in a channel topic, not only @-mentions."""
+        key = (stream_id, topic.casefold())
+        with self._condition:
+            self._watched.pop(key, None)
+            self._watched[key] = None
+            # Bound the set; the oldest handoffs fall back to mention-only.
+            for stale in list(self._watched)[:-50]:
+                del self._watched[stale]
+            self._commit([], {"watched": [list(item) for item in self._watched]})
+
+    def delivered_cursor(self) -> int | None:
+        """Highest message ID already handed to a host by the server cursor."""
+        value = self._state("delivered_cursor")
+        return value if type(value) is int else None
+
+    def mark_delivered(self, message_id: int) -> None:
+        current = self.delivered_cursor()
+        if current is None or message_id > current:
+            self._commit([], {"delivered_cursor": message_id})
+
     def stop(self) -> None:
         self._stop.set()
         queue_id = self._state("queue_id")
@@ -394,8 +452,13 @@ def get_mention_inbox(
             if stream is None:
                 # Direct messages have their own cache file, queue and lease.
                 path = Path(base) / f"direct-{account_fingerprint}.sqlite3"
+            elif stream == ALL_SCOPE:
+                path = Path(base) / f"inbox-{account_fingerprint}.sqlite3"
             else:
-                if sum(1 for _, _, scope in _inboxes if scope is not None) >= 4:
+                if (
+                    sum(1 for _, _, scope in _inboxes if scope not in (None, ALL_SCOPE))
+                    >= 4
+                ):
                     raise ValueError(
                         "At most four mention channels per server are supported"
                     )
