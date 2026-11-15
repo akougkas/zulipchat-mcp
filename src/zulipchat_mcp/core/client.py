@@ -557,33 +557,36 @@ class ZulipClientWrapper:
             f"streams/{stream_id}/members", method="GET", request={}
         )
 
-    def mark_topic_as_read(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "mark_topic_as_read"):
-            return self.client.mark_topic_as_read(
-                stream_id=stream_id, topic_name=topic_name
+    def set_topic_visibility(
+        self, stream_id: int, topic_name: str, visibility_policy: int
+    ) -> dict[str, Any]:
+        """Set a topic's visibility policy: 0 inherit, 1 muted, 2 unmuted, 3 followed.
+
+        Uses POST /user_topics (FL 170; followed needs FL 219). Older servers
+        only support muting through the legacy muted_topics endpoint.
+        """
+        if self.supports(170):
+            if visibility_policy == 3 and not self.supports(219):
+                return {"result": "error", "msg": "Following topics needs FL 219"}
+            return self.client.call_endpoint(
+                "user_topics",
+                method="POST",
+                request={
+                    "stream_id": stream_id,
+                    "topic": topic_name,
+                    "visibility_policy": visibility_policy,
+                },
             )
-        return self.client.call_endpoint(
-            "mark_topic_as_read",
-            method="POST",
-            request={"stream_id": stream_id, "topic_name": topic_name},
-        )
-
-    def mute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "mute_topic"):
-            return self.client.mute_topic({"stream_id": stream_id, "topic": topic_name})
+        if visibility_policy not in (0, 1):
+            return {"result": "error", "msg": "Server only supports mute/unmute"}
         return self.client.call_endpoint(
             "users/me/subscriptions/muted_topics",
             method="PATCH",
-            request={"op": "add", "stream_id": stream_id, "topic": topic_name},
-        )
-
-    def unmute_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:
-        if hasattr(self.client, "unmute_topic"):
-            return self.client.unmute_topic(stream_id=stream_id, topic=topic_name)
-        return self.client.call_endpoint(
-            "users/me/subscriptions/muted_topics",
-            method="PATCH",
-            request={"op": "remove", "stream_id": stream_id, "topic": topic_name},
+            request={
+                "op": "add" if visibility_policy else "remove",
+                "stream_id": stream_id,
+                "topic": topic_name,
+            },
         )
 
     def delete_topic(self, stream_id: int, topic_name: str) -> dict[str, Any]:

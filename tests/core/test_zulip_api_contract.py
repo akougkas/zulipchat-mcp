@@ -34,18 +34,32 @@ def test_numeric_stream_lookup_is_get_and_preserves_the_requested_id(wrapper):
     assert result["stream_id"] == 42
 
 
-@pytest.mark.parametrize(
-    "method,operation", [("mute_topic", "add"), ("unmute_topic", "remove")]
-)
-def test_topic_mute_fallback_uses_documented_subscription_path(
-    wrapper, method, operation
-):
-    getattr(wrapper, method)(42, "Topic")
+@pytest.mark.parametrize("policy", [0, 1, 2, 3])
+def test_topic_visibility_uses_user_topics(wrapper, policy):
+    wrapper.set_topic_visibility(42, "Topic", policy)
+    wrapper.client.call_endpoint.assert_called_once_with(
+        "user_topics",
+        method="POST",
+        request={"stream_id": 42, "topic": "Topic", "visibility_policy": policy},
+    )
+
+
+@pytest.mark.parametrize("policy,operation", [(1, "add"), (0, "remove")])
+def test_topic_visibility_falls_back_to_muted_topics(wrapper, policy, operation):
+    wrapper.client.feature_level = 100
+    wrapper.set_topic_visibility(42, "Topic", policy)
     wrapper.client.call_endpoint.assert_called_once_with(
         "users/me/subscriptions/muted_topics",
         method="PATCH",
         request={"op": operation, "stream_id": 42, "topic": "Topic"},
     )
+
+
+@pytest.mark.parametrize("level,policy", [(100, 2), (200, 3)])
+def test_topic_visibility_rejects_unsupported_policy(wrapper, level, policy):
+    wrapper.client.feature_level = level
+    assert wrapper.set_topic_visibility(42, "Topic", policy)["result"] == "error"
+    wrapper.client.call_endpoint.assert_not_called()
 
 
 def test_subscription_property_fallback_uses_post(wrapper):

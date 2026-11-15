@@ -128,8 +128,8 @@ class TestTopicManagementTools:
         """Test mute topic."""
         client, _, _ = mock_deps
         client.get_stream_id.return_value = {"result": "success", "stream_id": 99}
-        client.mute_topic.return_value = {"result": "success"}
+        client.set_topic_visibility.return_value = {"result": "success"}
 
         result = await agents_channel_topic_ops("mute", "src")
         assert result["status"] == "success"
-        client.mute_topic.assert_called_with(99, "src")
+        client.set_topic_visibility.assert_called_with(99, "src", 1)

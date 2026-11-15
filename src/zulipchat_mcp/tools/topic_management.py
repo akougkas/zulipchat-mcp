@@ -155,35 +155,21 @@ async def agents_channel_topic_ops(
             else:
                 return api_error(result, "Failed to delete topic")
 
-        elif operation == "mute":
+        elif operation in ("mute", "unmute"):
             result = await asyncio.to_thread(
-                client.mute_topic, agents_channel_id, source_topic
+                client.set_topic_visibility,
+                agents_channel_id,
+                source_topic,
+                1 if operation == "mute" else 0,
             )
-            return (
-                {
-                    "status": "success",
-                    "operation": "mute",
-                    "stream": "Agents-Channel",
-                    "topic": source_topic,
-                }
-                if result.get("result") == "success"
-                else {"status": "error", "error": result.get("msg", "Failed to mute")}
-            )
-
-        elif operation == "unmute":
-            result = await asyncio.to_thread(
-                client.unmute_topic, agents_channel_id, source_topic
-            )
-            return (
-                {
-                    "status": "success",
-                    "operation": "unmute",
-                    "stream": "Agents-Channel",
-                    "topic": source_topic,
-                }
-                if result.get("result") == "success"
-                else {"status": "error", "error": result.get("msg", "Failed to unmute")}
-            )
+            if result.get("result") != "success":
+                return api_error(result, f"Failed to {operation}")
+            return {
+                "status": "success",
+                "operation": operation,
+                "stream": "Agents-Channel",
+                "topic": source_topic,
+            }
 
         else:
             return {"status": "error", "error": f"Unknown operation: {operation}"}
