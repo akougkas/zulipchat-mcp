@@ -6,13 +6,11 @@ Covers all functions including edge cases, error handling, and the registration 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastmcp import FastMCP
 
 from src.zulipchat_mcp.tools.mark_messaging import (
     mark_all_as_read,
     mark_messages_unread,
     mark_topic_as_read,
-    register_mark_messaging_tools,
     star_messages,
     unstar_messages,
     update_message_flags_for_narrow,
@@ -631,47 +629,3 @@ class TestUnstarMessages:
 
         assert result["status"] == "error"
         assert "Unexpected outer error" in result["error"]
-
-
-class TestRegisterMarkMessagingTools:
-    """Tests for register_mark_messaging_tools function."""
-
-    def test_register_tools(self):
-        """Test that all mark messaging tools are registered."""
-        mcp = MagicMock(spec=FastMCP)
-        mock_tool_decorator = MagicMock(return_value=lambda x: x)
-        mcp.tool.return_value = mock_tool_decorator
-
-        register_mark_messaging_tools(mcp)
-
-        # Verify all 7 tools are registered
-        assert mcp.tool.call_count == 7
-
-        # Extract all tool names from the calls
-        tool_names = [call.kwargs.get("name") for call in mcp.tool.call_args_list]
-
-        expected_tools = [
-            "update_message_flags_for_narrow",
-            "mark_all_as_read",
-            "mark_stream_as_read",
-            "mark_topic_as_read",
-            "mark_messages_unread",
-            "star_messages",
-            "unstar_messages",
-        ]
-
-        for expected_tool in expected_tools:
-            assert expected_tool in tool_names, f"Missing tool: {expected_tool}"
-
-    def test_register_tools_descriptions(self):
-        """Test that registered tools have descriptions."""
-        mcp = MagicMock(spec=FastMCP)
-        mock_tool_decorator = MagicMock(return_value=lambda x: x)
-        mcp.tool.return_value = mock_tool_decorator
-
-        register_mark_messaging_tools(mcp)
-
-        # All calls should have descriptions
-        for call in mcp.tool.call_args_list:
-            assert "description" in call.kwargs
-            assert len(call.kwargs["description"]) > 0

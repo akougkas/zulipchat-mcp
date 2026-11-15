@@ -7,8 +7,6 @@ Uses modern "update personal message flags for narrow" instead of deprecated end
 import asyncio
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import bind_client, get_client
 from ..core.api_errors import api_error
 from ..utils.narrow_helpers import wire_narrow
@@ -282,31 +280,3 @@ async def get_read_receipts(message_id: int) -> dict[str, Any]:
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_mark_messaging_tools(mcp: FastMCP) -> None:
-    """Register message marking tools with the MCP server."""
-    mcp.tool(
-        name="update_message_flags_for_narrow",
-        description="Update personal message flags for messages matching a narrow (modern approach)",
-    )(update_message_flags_for_narrow)
-    mcp.tool(
-        name="mark_all_as_read",
-        description="Mark all messages as read using modern narrow approach",
-    )(mark_all_as_read)
-    mcp.tool(
-        name="mark_stream_as_read", description="Mark all messages in a stream as read"
-    )(mark_stream_as_read)
-    mcp.tool(
-        name="mark_topic_as_read", description="Mark all messages in a topic as read"
-    )(mark_topic_as_read)
-    mcp.tool(
-        name="mark_messages_unread",
-        description="Mark messages as unread using flexible narrow construction",
-    )(mark_messages_unread)
-    mcp.tool(name="star_messages", description="Star messages matching criteria")(
-        star_messages
-    )
-    mcp.tool(name="unstar_messages", description="Unstar messages matching criteria")(
-        unstar_messages
-    )

@@ -8,8 +8,6 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 
@@ -308,23 +306,3 @@ async def manage_reminders(
         return {"status": "success", "reminder_id": reminder_id, "deleted": True}
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_schedule_messaging_tools(mcp: FastMCP) -> None:
-    """Register scheduled messaging tools with the MCP server."""
-    mcp.tool(
-        name="get_scheduled_messages",
-        description="Get all scheduled messages for current user",
-    )(get_scheduled_messages)
-    mcp.tool(
-        name="create_scheduled_message",
-        description="Create a scheduled message using Zulip's native API",
-    )(create_scheduled_message)
-    mcp.tool(
-        name="update_scheduled_message",
-        description="Update a scheduled message's attributes",
-    )(update_scheduled_message)
-    mcp.tool(
-        name="delete_scheduled_message",
-        description="Delete (cancel) a scheduled message",
-    )(delete_scheduled_message)

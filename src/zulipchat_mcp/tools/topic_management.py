@@ -10,8 +10,6 @@ import asyncio
 import difflib
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_bot_client, get_client, get_config_manager
 from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
@@ -320,15 +318,3 @@ async def get_message_history(message_id: int) -> dict[str, Any]:
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_topic_management_tools(mcp: FastMCP) -> None:
-    """Register topic management tools with identity protection."""
-    mcp.tool(
-        name="get_stream_topics",
-        description="Get recent topics for a stream (READ-ONLY)",
-    )(get_stream_topics)
-    mcp.tool(
-        name="agents_channel_topic_ops",
-        description="Topic operations in Agents-Channel only (BOT identity protection)",
-    )(agents_channel_topic_ops)

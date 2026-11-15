@@ -9,6 +9,7 @@ from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from starlette.testclient import TestClient
 
 from zulipchat_mcp.tools import files
+from zulipchat_mcp.tools.registration import register_tool
 
 
 @pytest.fixture
@@ -26,7 +27,9 @@ def upload_http(monkeypatch):
             tokens={"test-token": {"client_id": "test", "scopes": []}}
         ),
     )
-    files.register_files_tools(mcp)
+    register_tool(
+        mcp, files.upload_file, name="upload_file", description="Upload", title="Upload"
+    )
     app = mcp.http_app(
         json_response=True, host_origin_protection=True, allowed_hosts=["testserver"]
     )

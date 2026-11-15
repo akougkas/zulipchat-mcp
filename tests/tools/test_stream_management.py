@@ -7,7 +7,6 @@ import pytest
 from src.zulipchat_mcp.tools.stream_management import (
     get_stream_info,
     get_streams,
-    register_stream_management_tools,
 )
 
 
@@ -448,22 +447,3 @@ class TestGetStreamInfo:
         assert result["description"] is None
         assert result["invite_only"] is False  # Default
         assert result["is_web_public"] is False  # Default
-
-
-class TestRegisterStreamManagementTools:
-    """Tests for register_stream_management_tools function."""
-
-    def test_register_tools(self):
-        """Test tool registration."""
-        mock_mcp = MagicMock()
-
-        register_stream_management_tools(mock_mcp)
-
-        # Verify mcp.tool was called twice (once for each tool)
-        assert mock_mcp.tool.call_count == 2
-
-        # Verify tool names
-        calls = mock_mcp.tool.call_args_list
-        tool_names = [call.kwargs.get("name") for call in calls]
-        assert "get_streams" in tool_names
-        assert "get_stream_info" in tool_names

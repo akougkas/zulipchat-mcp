@@ -8,8 +8,6 @@ import asyncio
 import re
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client
 from ..core.api_errors import api_error
 from ..core.emoji_registry import validate_emoji_for_agent
@@ -121,14 +119,3 @@ async def remove_reaction(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_emoji_messaging_tools(mcp: FastMCP) -> None:
-    """Register emoji reaction tools with the MCP server."""
-    mcp.tool(
-        name="add_reaction",
-        description="Add emoji reaction to message with comprehensive validation",
-    )(add_reaction)
-    mcp.tool(name="remove_reaction", description="Remove emoji reaction from message")(
-        remove_reaction
-    )

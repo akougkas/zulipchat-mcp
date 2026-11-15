@@ -5,8 +5,6 @@ System information and identity management tools.
 
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_client, get_config_manager, set_current_identity
 from ..core.security import local_access_allowed
 
@@ -91,13 +89,3 @@ async def server_info() -> dict[str, Any]:
         "zulip_site": account.site,
         "mention_authorization": mention_authorization,
     }
-
-
-def register_system_tools(mcp: FastMCP) -> None:
-    """Register system tools with the MCP server."""
-    mcp.tool(
-        name="switch_identity", description="Switch between user and bot identities"
-    )(switch_identity)
-    mcp.tool(name="server_info", description="Get server information and capabilities")(
-        server_info
-    )
