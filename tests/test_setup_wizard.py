@@ -292,3 +292,58 @@ class TestIdentitySelectionHeuristics:
             result = select_identity([user_cfg, bot_cfg], "Bot")
             assert result == {"ok": True}
             mock_validate.assert_called_once_with(bot_cfg)
+
+
+class TestWizardSafety:
+    """The default choice, backups and what reaches the terminal."""
+
+    def test_your_own_zuliprc_is_listed_before_files_that_merely_arrived(
+        self, tmp_path, monkeypatch
+    ):
+        import os
+
+        home, checkout = tmp_path / "home", tmp_path / "checkout"
+        (home / "Downloads").mkdir(parents=True)
+        checkout.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.chdir(checkout)
+        mine = home / ".zuliprc"
+        named = home / ".zuliprc-lab"
+        downloaded = home / "Downloads" / "zuliprc-team"
+        shipped = checkout / "zuliprc"
+        for age, path in enumerate((downloaded, shipped, named, mine)):
+            path.write_text("[api]\nemail=x@example.com\n", encoding="utf-8")
+            os.utime(path, (2_000_000_000 - age, 2_000_000_000 - age))  # newest first
+        assert scan_for_zuliprc_files() == [mine, named, downloaded, shipped]
+
+    def test_a_second_run_keeps_the_first_backup_and_the_file_mode(self, tmp_path):
+        import os
+
+        config_path = tmp_path / "config.json"
+        config_path.write_text('{"original": true}')
+        os.chmod(config_path, 0o600)
+        assert write_config_to_file(config_path, "server", {"command": "a"})
+        assert write_config_to_file(config_path, "server", {"command": "b"})
+        assert (tmp_path / "config.json.bak").read_text() == '{"original": true}'
+        assert len(list(tmp_path.glob("config.json.bak-*"))) == 1
+        assert os.stat(config_path).st_mode & 0o777 == 0o600
+        assert not list(tmp_path.glob(".config.json.*"))  # no temp file left
+
+    def test_a_failed_write_leaves_the_client_config_untouched(self, tmp_path):
+        config_path = tmp_path / "config.json"
+        config_path.write_text('{"mcpServers": {"keep": {}}}')
+        assert not write_config_to_file(config_path, "server", {"bad": object()})
+        assert config_path.read_text() == '{"mcpServers": {"keep": {}}}'
+
+    def test_server_supplied_text_cannot_send_terminal_escapes(self):
+        from src.zulipchat_mcp.setup_wizard import _plain
+
+        assert _plain("Eve\x1b[2J\x1b]0;owned\x07 Admin\r\n") == "Eve[2J]0;owned Admin"
+
+    def test_generated_commands_pin_this_version(self):
+        from src.zulipchat_mcp import __version__
+
+        config = generate_mcp_config({"path": "/u"}, use_uvx=True)
+        assert config["args"][0] == f"zulipchat-mcp@{__version__}"
+        command = generate_claude_code_command({"path": "/u"})
+        assert f"-- uvx zulipchat-mcp@{__version__}" in command
