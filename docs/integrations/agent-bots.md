@@ -50,8 +50,12 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   behind a busy turn survives a restart. One process serves a bot: a second
   `run` while the service is up exits with status 78.
 - **One conversation, one session.** A DM with the bot (keyed by its
-  participants) or one channel topic is one ACP session. In a topic, a message
-  must mention the bot to start a turn.
+  participants) or one channel topic is one ACP session, and it lasts until you
+  send `/new`: idle stops, restarts and reboots resume it. The agent compacts
+  its own context as the session grows. A session keeps the model the agent
+  chose when it started, so after changing the agent's model settings, send
+  `/new` to pick them up. Use separate channel topics for parallel threads. In
+  a topic, a message must mention the bot to start a turn.
 - **On demand.** The agent process starts when a conversation needs it and
   stops after `idle_minutes` without work. The next message resumes the same
   session through `session/resume`, or `session/load`, when the agent supports
@@ -62,7 +66,9 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   organization administrator can reassign a bot, so the bridge refuses to
   start when Zulip reports a different owner, checks again every five minutes,
   and stops serving everyone when the owner changes. After changing the owner
-  yourself, start once with `zulipchat-mcp-agents run --accept-owner`.
+  yourself, stop the service (`systemctl --user stop zulipchat-mcp-agents` on
+  Linux), start once with `zulipchat-mcp-agents run --accept-owner`, then
+  start the service again.
 - **Turns.** The bridge reacts with :eyes:, shows a typing indicator while the
   agent works, and posts the agent's final answer as Markdown, split into at
   most five messages when long. Messages that arrive during a turn are sent
@@ -115,7 +121,7 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
 | MCP server | With each host session (Claude Code, Clio, …) | With that session |
 | Bridge | At login, from `service install`; or `run` in a terminal | `service uninstall`, SIGTERM |
 | Agent process | On a conversation's first message | After `idle_minutes` idle, `/new`, or with the bridge |
-| Agent session | `session/new` on first use | Kept by the agent on disk; resumed on the next message |
+| Agent session | `session/new` on first use | Kept by the agent on disk and resumed on the next message, until `/new` |
 
 - **Sleep and network loss.** The bridge backs off and retries. Zulip drops an
   idle event queue after about ten minutes; the bridge registers a new one and
@@ -201,7 +207,7 @@ zulipchat-mcp-agents list
 zulipchat-mcp-agents service install    # background, starts at login
 zulipchat-mcp-agents service status     # state and recent log lines
 zulipchat-mcp-agents service uninstall
-zulipchat-mcp-agents run                # foreground instead; --agent NAME, --debug
+zulipchat-mcp-agents run                # foreground instead (service stopped); --agent NAME, --debug
 ```
 
 `list` exits non-zero if any file is invalid and notes commands missing from

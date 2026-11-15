@@ -15,7 +15,7 @@ src/zulipchat_mcp/
 ├── setup_wizard.py    # interactive setup helper
 ├── core/              # client wrapper, caching, security, tool contract, skills
 ├── tools/             # MCP tool implementations
-├── services/          # bot event inbox (used by the bridge)
+├── services/          # the bot message queue the bridge drains
 ├── agents/            # zulipchat-mcp-agents: agent-bot bridge to ACP agents
 ├── integrations/      # host configuration and plugin exports
 └── utils/             # logging, redaction, metrics
@@ -78,12 +78,16 @@ MCP server lives as long as its host session, while the bridge must hold the
 bots' event queues all the time. It serves agent bots: one Zulip Generic bot
 per local ACP agent, declared in `~/.config/zulipchat-mcp/agents/<name>.toml`
 (`agents/config.py`). Per bot, `agents/bridge.py` holds the bot's event queue
-through `BotMentionInbox` (`services/bot_mentions.py`) over outbound HTTPS,
-maps each conversation to one ACP session, and launches the agent on demand
-through `agents/acp.py`. Durable state lives in
-`~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`):
-conversation to session bindings, a turn journal for restart reporting, and
-open permission requests and owner questions. `agents/service.py` installs the
+over outbound HTTPS and drains a durable message queue,
+`BotMentionInbox` in `services/bot_mentions.py` (`<name>-inbox.sqlite3`).
+Rows move `new` → `queued` (a prompt, keyed by conversation) → `running`
+(one turn) and are deleted when handled; rows still `running` at start are
+reported as cut off and never replayed. The bridge holds the queue's lease for
+its life, so one process serves a bot. It maps each conversation to one ACP
+session and launches the agent on demand through `agents/acp.py`. Bridge state
+lives in `~/.local/state/zulipchat-mcp/agents/<name>.sqlite3`
+(`agents/store.py`): conversation to session bindings and open permission
+requests and owner questions. `agents/service.py` installs the
 bridge as a systemd user unit or launchd agent.
 
 The two programs meet at two points, both through that state file:

@@ -32,11 +32,22 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 ## Messages to an agent bot get no answer
 
 - The MCP server cannot wake an agent. Zulip messages reach a coding agent only
-  through the bridge; check it with `zulipchat-mcp-agents service status`, or
-  run `zulipchat-mcp-agents run` in a terminal to see its log.
+  through the bridge; check it with `zulipchat-mcp-agents service status` and
+  its log with `journalctl --user -u zulipchat-mcp-agents -f` (Linux). To run
+  it in a terminal instead, stop the service first: a second process for the
+  same bot exits with status 78 and "another process already serves this bot".
 - The bridge hears only the bot's owner and the user IDs in the agent file's
   `allow`; everyone else is dropped without a reply.
 - In a channel, mention the bot. See [Agent bots](integrations/agent-bots.md).
+- A permission request is answered only by a message that is just `yes`, `ok`,
+  `okay`, `approve`, `no` or `deny`, or by `/approve ID` and `/deny ID`.
+  Reactions do not answer.
+
+## An agent bot answers with the wrong model
+
+- A conversation resumes the same agent session until you send `/new`, and a
+  session keeps the model it started with. Send `/new` after changing the
+  agent's model settings.
 
 ## Event queue errors
 

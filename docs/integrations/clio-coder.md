@@ -127,7 +127,7 @@ zulipchat-mcp-agents service install
 
 `add` creates the bot with `~/.zuliprc` unless `--owner-zuliprc` names another
 file. `service install` runs the bridge at login; `zulipchat-mcp-agents run`
-runs it in the foreground instead.
+runs it in the foreground instead, while the service is stopped.
 
 DM the bot, or mention it in a channel topic, and the bridge starts a Clio
 session for that conversation. The bridge starts Clio with `--autonomy default`

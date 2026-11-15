@@ -105,8 +105,10 @@ zulipchat-mcp-agents service install     # runs now and at every login
 ```
 
 Only the bot's owner, and user IDs you list, are heard; anyone else gets no
-reply. The bridge connects out to Zulip and opens no ports; agents start on the
-first message and stop when idle, and sessions resume. From a running agent,
+reply. The bridge connects out to Zulip and opens no ports. Messages wait in a
+queue on disk, so nothing you send is lost to a restart; agents start on the
+first message and stop when idle, and each DM or topic resumes the same
+session until you send `/new`. From a running agent,
 `teleport_chat(agent, message, session_id)` hands the conversation to that bot.
 See [Agent bots](docs/integrations/agent-bots.md), including what you are
 trusting.
