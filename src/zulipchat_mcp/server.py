@@ -190,8 +190,8 @@ def main() -> None:
             parser.error(
                 "Non-loopback HTTP requires --auth-token or ZULIPCHAT_HTTP_AUTH_TOKEN"
             )
-        if not 1 <= args.port <= 65335:
-            parser.error("HTTP port must be between 1 and 65335")
+        if not 1 <= args.port <= 65535:
+            parser.error("HTTP port must be between 1 and 65535")
 
     # Setup logging
     setup_structured_logging("DEBUG" if args.debug else "INFO")

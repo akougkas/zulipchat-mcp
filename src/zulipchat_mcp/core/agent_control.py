@@ -472,10 +472,10 @@ class AgentCoordinator:
         sender_email = str(message.get("sender_email") or "")
         # Zulip's message client attribution precedes persistence in a separate
         # hook process. It suppresses echoes; it never authorizes a sender.
-        if (
-            message.get("client") == OUTBOUND_CLIENT_NAME
-            and sender_email.lower() == str(self.bot_client.current_email).lower()
-        ):
+        # Whatever this server sent is an agent's output under either identity:
+        # with a bot configured, send_message still posts as the owner, and an
+        # agent must not answer its own request that way.
+        if message.get("client") == OUTBOUND_CLIENT_NAME:
             return {"status": "ignored", "reason": "outbound_echo"}
         message_id = message.get("id")
         if isinstance(message_id, int) and (
@@ -529,20 +529,15 @@ class AgentCoordinator:
                 sender_email=sender_email,
                 direction="inbound",
                 event_type="unauthorized",
-                content=content,
-                normalized_content=parsed.normalized_content,
+                # Who and when is the audit record. The text is neither kept
+                # nor answered: it must not reach an agent, and a reply per
+                # message would spam a shared topic and loop with other bots.
+                content="",
+                normalized_content="",
                 metadata="{}",
             )
             if event_result.get("status") == "error":
                 return event_result
-            if stream_name and topic_name:
-                self.send_session_message(
-                    session_id=str(session["session_id"]),
-                    content=(
-                        "Not authorized: only "
-                        f"`{session['owner_email']}` can control this agent session."
-                    ),
-                )
             return {"status": "ignored", "reason": "unauthorized"}
 
         if request_id:

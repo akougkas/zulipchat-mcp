@@ -13,6 +13,7 @@ from typing import Any
 from .config import init_config_manager
 from .core.agent_control import AgentCoordinator
 from .core.agent_protocol import parse_control_message
+from .core.client import OUTBOUND_CLIENT_NAME
 from .utils.database import init_database
 from .utils.database_manager import DatabaseManager
 from .utils.logging import get_logger, setup_structured_logging
@@ -101,6 +102,8 @@ def _wait_for_topic_decision(
                 if message_id <= cursor:
                     continue
                 cursor = message_id
+                if message.get("client") == OUTBOUND_CLIENT_NAME:
+                    continue  # sent with this server's tools: never a decision
                 if str(message.get("sender_email", "")).lower() != owner_email.lower():
                     continue
                 parsed = parse_control_message(str(message.get("content", "")))
@@ -146,6 +149,11 @@ def _permission_decision_output(decision: str) -> dict[str, Any]:
             "decision": body,
         }
     }
+
+
+def _quoted(text: Any, limit: int = 2000) -> str:
+    """Untrusted text as an inert block: no mentions, no Markdown, bounded."""
+    return "```\n" + str(text)[:limit].replace("```", "ˋˋˋ") + "\n```"
 
 
 def _announce_session_status(
@@ -259,7 +267,7 @@ def _handle_hook_event(
             coordinator,
             session_id,
             "blocked",
-            f"`{tool_name}` failed: {error}",
+            f"`{tool_name}` failed:\n{_quoted(error)}",
         )
         return None
 
@@ -302,7 +310,9 @@ def _handle_hook_event(
                 coordinator,
                 session_id,
                 "waiting",
-                str(payload.get("message", "Claude Code is waiting for attention.")),
+                _quoted(
+                    payload.get("message", "Claude Code is waiting for attention.")
+                ),
             )
         return None
 

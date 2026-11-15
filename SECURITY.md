@@ -52,7 +52,16 @@ Target response times:
 - Agent requests are bound to an owner and session topic. Approvals require
   `/approve REQUEST_ID` or `/deny REQUEST_ID`; terminal decisions are immutable.
   Polling timeouts leave requests pending. Claude hook permission deadlines deny
-  on timeout. A Zulip approval does not override the coding host's permissions.
+  on timeout. A `request_user_input` approval is an answer to the agent and does
+  not override the coding host's permissions. The Claude Code `PermissionRequest`
+  hook is different: `/approve` there answers Claude Code's own permission
+  prompt, so the owner's Zulip account can approve local tool calls.
+- A message sent through this server (Zulip client `zulipchat-mcp`) is never a
+  decision or a steering event, under the user or the bot identity. This stops
+  an agent from approving its own request with `send_message`. It does not stop
+  an agent that can already run arbitrary commands with the owner's API key.
+- Messages from anyone but the session owner in a bound topic are recorded
+  without their text and are not answered.
 
 ### Credential handling
 
@@ -60,9 +69,8 @@ Target response times:
 - `.env` is loaded from current working directory only.
 - Zulip credentials authenticate calls to the configured Zulip organization.
   File downloads validate their URL and destination before using credentials.
-- Optional server-side LLM analytics send selected message data to Anthropic
-  when `ANTHROPIC_API_KEY` is configured. Without that key, tools return raw data
-  summaries for the calling agent to analyze.
+- The server calls no LLM. Tools return Zulip data to the calling agent, which
+  sends it to whatever model provider that agent uses.
 - Run companion entrypoints through their actual distribution:
   `uvx --from zulipchat-mcp zulipchat-mcp-hook --help` (likewise `-setup` and
   `-integrate`). The companion command names are not separate PyPI packages.

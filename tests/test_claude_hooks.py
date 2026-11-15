@@ -171,3 +171,38 @@ def test_hook_environment_is_literal_shell_data(tmp_path, monkeypatch):
     )
     assert result.stdout == topic
     assert not marker.exists()
+
+
+def test_tool_errors_and_notifications_are_posted_as_inert_text():
+    from unittest.mock import MagicMock, patch
+
+    from zulipchat_mcp import claude_hooks
+
+    coordinator = MagicMock()
+    with patch.object(claude_hooks, "DatabaseManager"):
+        claude_hooks._handle_hook_event(
+            coordinator,
+            {"session_id": "s1"},
+            {
+                "hook_event_name": "PostToolUseFailure",
+                "tool_name": "Bash",
+                "error": "boom @**all** ```\n@**Ada**",
+            },
+            30,
+        )
+        claude_hooks._handle_hook_event(
+            coordinator,
+            {"session_id": "s1"},
+            {
+                "hook_event_name": "Notification",
+                "notification_type": "idle_prompt",
+                "message": "waiting @**all**",
+            },
+            30,
+        )
+    failure, waiting = (
+        call.kwargs["content"]
+        for call in coordinator.send_session_message.call_args_list
+    )
+    assert failure == "`Bash` failed:\n```\nboom @**all** ˋˋˋ\n@**Ada**\n```"
+    assert waiting == "```\nwaiting @**all**\n```"

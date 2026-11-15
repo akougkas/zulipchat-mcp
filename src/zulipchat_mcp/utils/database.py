@@ -79,6 +79,9 @@ class DatabaseManager:
 
         # Run migrations using short-lived connection
         self._run_migrations_with_retry()
+        # DuckDB creates the file with the process umask; it holds message text.
+        if os.path.isfile(db_path):
+            os.chmod(db_path, 0o600)
         self._initialized = True
 
     def _connect(self) -> duckdb.DuckDBPyConnection:

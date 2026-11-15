@@ -697,8 +697,13 @@ class AgentBridge:
         )
         return (
             f"[You are reached through the Zulip bot {self.bot_name} in {where}. Your "
-            "final answer is posted there as Markdown, so keep it concise. To ask the "
-            "owner something mid-task, use the ask_owner tool.]\n\n"
+            "final answer is posted there as Markdown, so keep it concise."
+            + (
+                " To ask the owner something mid-task, use the ask_owner tool."
+                if self.config.zulip_tools
+                else ""
+            )
+            + "]\n\n"
         )
 
     async def _ask(

@@ -31,11 +31,16 @@ server has begun with Clio Coder.
   either; otherwise a fresh session starts.
 - **Owner only.** The bridge hears the bot's owner in Zulip (`bot_owner_id`)
   and the user IDs listed in `allow`. Messages from anyone else are dropped
-  without a reply.
+  without a reply. On its first run the bridge pairs with that owner. An
+  organization administrator can reassign a bot, so the bridge refuses to
+  start when Zulip reports a different owner, checks again every five minutes,
+  and stops serving everyone when the owner changes. After changing the owner
+  yourself, start once with `zulipchat-mcp-agents run --accept-owner`.
 - **Turns.** The bridge reacts with :eyes:, shows a typing indicator while the
-  agent works, and posts the agent's final answer as Markdown, split into
-  several messages when long. Messages that arrive during a turn are sent
-  together as the next prompt.
+  agent works, and posts the agent's final answer as Markdown, split into at
+  most five messages when long. Messages that arrive during a turn are sent
+  together as the next prompt. Mentions in anything the bridge posts for the
+  agent are made silent, so an answer notifies nobody but the conversation.
 - **Progress.** A turn still running after 20 seconds gets one status message,
   edited in place every 10 seconds: elapsed time, tool call count, the current
   tool call and the agent's plan. It ends as `Finished in …`. The final answer
@@ -46,9 +51,11 @@ server has begun with Clio Coder.
   bridge does not offer it ACP file system or terminal capabilities. When the
   agent sends an ACP permission request, the bridge posts it in the
   conversation as `Permission request ID`, with the command or paths involved
-  and, from Clio, its consequence lines. Answer `yes` or `no` (or
-  `/approve ID`, `/deny ID`), or react 👍 or 👎 (✅ and ❌ also work) on the
-  request. No answer within `question_minutes` means no. A request the agent
+  and, from Clio, its consequence lines. Up to 6000 characters of a command
+  are shown, and the request says so when there is more. Answer with a
+  message that is only `yes` or `no` (or `/approve ID`, `/deny ID`), or react
+  👍 or 👎 (✅ and ❌ also work) on the request. Any other message leaves it
+  open. No answer within `question_minutes` means no. A request the agent
   withdraws, or that a `/cancel` ends, is closed in the conversation, so the
   next message starts a turn again.
 - **Clio Coder interviews.** The bridge tells Clio a person is attending
@@ -165,8 +172,10 @@ agent; file access is governed by the agent's own permission policy.
 ## The agent's environment
 
 The agent inherits the bridge's environment with every variable whose name
-starts with `ZULIP` removed, so it never sees the owner's Zulip credentials,
-plus the file's `env`. With `zulip_tools = true`, the bridge passes the agent an
+starts with `ZULIP` removed, plus the file's `env`. That keeps Zulip
+credentials out of the agent's environment. It does not keep them from the
+agent: the agent runs as you and can read any file you can, including your
+zuliprc files. With `zulip_tools = true`, the bridge passes the agent an
 MCP server over ACP `mcpServers`: this package's server, run with the bot's
 zuliprc. The agent's Zulip tools therefore read and post as the bot. That server
 also registers `ask_owner`:
@@ -222,6 +231,32 @@ that DM, the bridge resumes `session_id` if given and supported, and otherwise
 starts a fresh session in `cwd` (default: the file's `cwd`, which must lie in
 `allowed_dirs`). The bridge must be running to answer. Errors are listed in
 the [Agents API](../api-reference/agents.md#agent-bots).
+
+## What you are trusting
+
+An agent bot turns a Zulip account into a way to run a coding agent on your
+machine. Decide with these facts:
+
+- **The agent runs as you.** It has your files, your shell, your environment
+  and your network, limited only by the agent's own permission policy.
+  `allowed_dirs` chooses where it starts; it is not a sandbox. An agent set to
+  approve its own actions (Clio `yolo`, Claude `bypassPermissions` or `auto`)
+  never sends the permission requests described above.
+- **Your Zulip login is a shell login.** Whoever can send messages as the
+  bot's owner, or as a user in `allow`, drives the agent: a stolen session, a
+  leaked API key, an unlocked phone. Every user ID in `allow` gets the same
+  reach on your machine as you.
+- **Text the agent reads can steer it.** Only admitted senders start turns,
+  but with Zulip tools the agent can read channels, and a message written by
+  any member, an integration or a web hook can carry instructions. Keep the
+  bot out of channels whose authors you would not hand a terminal, and keep
+  agents that read shared channels on a permission policy that asks.
+- **Zulip sees everything the bridge posts.** Answers, questions, permission
+  requests with their commands and paths, and the progress message with tool
+  call titles all go to the conversation. The bridge replaces secret values it
+  can recognize (credential-named environment values, the bot's API key,
+  private keys, common token formats) with `[redacted]`. That is a net, not a
+  guarantee.
 
 ## Privacy
 

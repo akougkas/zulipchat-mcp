@@ -11,6 +11,7 @@ import os
 import re
 from collections.abc import Iterator
 from configparser import ConfigParser
+from configparser import Error as ConfigParserError
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -171,14 +172,21 @@ def load_zuliprc_credentials(config_file: str) -> dict[str, str]:
     """Resolve one file's credentials without SDK environment overrides."""
     config_file = str(Path(config_file).expanduser())
     parser = ConfigParser(interpolation=None)
-    with open(config_file, encoding="utf-8") as handle:
-        parser.read_file(handle)
-    credentials = {
-        "email": parser.get("api", "email").strip(),
-        "api_key": parser.get("api", "key").strip(),
-        "site": parser.get("api", "site").strip(),
-        "config_file": config_file,
-    }
+    try:
+        with open(config_file, encoding="utf-8") as handle:
+            parser.read_file(handle)
+        credentials = {
+            "email": parser.get("api", "email").strip(),
+            "api_key": parser.get("api", "key").strip(),
+            "site": parser.get("api", "site").strip(),
+            "config_file": config_file,
+        }
+    except ConfigParserError:
+        # The parser's own messages quote the offending lines, API key included.
+        raise ValueError(
+            f"{config_file} is not a valid zuliprc: it needs an [api] section "
+            "with email, key and site"
+        ) from None
     if not all(credentials.values()):
         raise ValueError("Zulip config file requires nonempty email, key, and site")
     return credentials
