@@ -21,6 +21,7 @@ from typing import Any
 
 from ..config import ConfigManager, load_zuliprc_credentials
 from ..core.client import OUTBOUND_CLIENT_NAME, ZulipClientWrapper
+from ..core.process_lease import ProcessLease
 from ..services.bot_mentions import ALL_SCOPE, BotMentionInbox
 from ..utils.logging import get_logger
 from ..utils.redaction import redact, secret_values
@@ -39,6 +40,7 @@ OFFLINE_RETRY_SECONDS = (5, 300)  # first and longest wait to reach Zulip at sta
 TYPING_REFRESH_SECONDS = 8
 PROGRESS_DELAY_SECONDS = 20  # turns shorter than this post no status message
 PROGRESS_EVERY_SECONDS = 10
+STALE_PROMPT_HOURS = 12  # a prompt older than this, found after downtime, is not run
 HELP = (
     "Commands: `/status`, `/cancel` (stop the current turn), `/new` (start a fresh "
     "session), `/cwd PATH` (switch workspace; allowed directories only), "
@@ -281,7 +283,6 @@ class Conversation:
     session_id: str | None = None
     prefaced: bool = False  # this session has been told it is reached via Zulip
     agent: AcpAgent | None = None
-    pending: list[dict[str, Any]] = field(default_factory=list)
     busy: bool = False
     last_active: float = field(default_factory=time.monotonic)
     wake: asyncio.Event = field(default_factory=asyncio.Event)
@@ -298,11 +299,12 @@ class AgentBridge:
         manager = ConfigManager(config_file=str(config.zuliprc))
         self.client = ZulipClientWrapper(manager, use_bot_identity=False)
         self.fingerprint = manager.resolved_account().fingerprint
+        listen = config.listen
         self.inbox = BotMentionInbox(
             self.client,
             config.state_path.with_name(f"{config.name}-inbox.sqlite3"),
             self.fingerprint,
-            ALL_SCOPE,
+            ALL_SCOPE if listen == "all" else None if listen == "dm" else listen[1:],
         )
         self.conversations: dict[str, Conversation] = {}
         self.secrets = known_secrets(config)
@@ -340,6 +342,20 @@ class AgentBridge:
             return None
 
     async def run(self) -> None:
+        # One process drains a bot's queue; a second would run a second agent
+        # in the same conversation.
+        try:
+            with ProcessLease(self.inbox.path.with_suffix(".lock")):
+                await self._serve()
+        except RuntimeError as error:
+            if "INBOX_ALREADY_OWNED" not in str(error):
+                raise
+            raise BridgeConfigError(
+                f"{self.config.name}: another process already serves this bot "
+                "(the login service, or a `run` in a terminal). Stop it first."
+            ) from error
+
+    async def _serve(self) -> None:
         delay, longest = OFFLINE_RETRY_SECONDS
         # A laptop starts the service before its network is up: wait, never exit.
         while (found := await asyncio.to_thread(self._whoami)) is None:
@@ -367,7 +383,7 @@ class AgentBridge:
             self.bot_name,
             self.owner_id,
         )
-        await self._report_interrupted_turns()
+        await self._recover()
         serving = self.owner_id
         reaper = asyncio.create_task(self._reap_idle())
         watcher = asyncio.create_task(self._watch_owner())
@@ -416,43 +432,21 @@ class AgentBridge:
         self.inbox.stop()
 
     async def _listen(self) -> None:
-        cursor = self.inbox.delivered_cursor()
-        if cursor is None:
-            # First start: begin from now, never replay old messages as work.
-            start = 0
-            while True:
-                page = await asyncio.to_thread(self.inbox.poll, start, 50, 0)
-                following = int(page.get("next_after_message_id") or start)
-                if following <= start:
-                    break
-                start = following
-            self.inbox.claim(None, start)
-            cursor = self.inbox.delivered_cursor() or start
         while not self._stop.is_set():
-            page = await asyncio.to_thread(self.inbox.poll, cursor, 50, 20)
-            error = page.get("listener", {}).get("error")
-            if error:
-                logger.warning("%s listener: %s", self.config.name, error)
-                await asyncio.sleep(
-                    max(5, page["listener"].get("retry_after_seconds", 5))
-                )
+            page = await asyncio.to_thread(self.inbox.pending, 20)
+            if page["error"]:
+                logger.warning("%s listener: %s", self.config.name, page["error"])
+                await asyncio.sleep(max(5, page["retry_after_seconds"]))
                 continue
-            messages = page.get("messages", [])
-            advance = max(
-                [cursor, int(page.get("next_after_message_id") or cursor)]
-                + [m["id"] for m in messages]
-            )
-            if advance == cursor:
-                continue
-            if not self.inbox.claim(cursor, advance):
-                cursor = self.inbox.delivered_cursor() or cursor
-                continue
-            cursor = advance
-            for message in messages:
-                await self.route(message)
-            # Delivered or dropped, a message is never read again: keep no copy
-            # of what strangers wrote to the bot.
-            self.inbox.forget(cursor)
+            for message in page["messages"]:
+                try:
+                    await self.route(message)
+                except Exception:  # one bad message must not stop the queue
+                    logger.exception("%s could not route a message", self.config.name)
+                finally:
+                    # Unless route() queued it as a prompt, it is handled now:
+                    # dropped, answered or a command. Keep no copy.
+                    self.inbox.settle(message["id"])
 
     # Routing
     def admitted(self, message: dict[str, Any]) -> bool:
@@ -502,8 +496,8 @@ class AgentBridge:
             return
         conversation = self._conversation(key, message)
         await self._reconcile(conversation)
-        conversation.pending.append({**message, "text": text})
-        conversation.wake.set()
+        if self.inbox.enqueue({**message, "text": text}, key):
+            conversation.wake.set()
 
     async def _answer(
         self,
@@ -560,8 +554,7 @@ class AgentBridge:
             reply = (
                 f"`{self.config.name}` is {state}. Session "
                 f"`{(bound or {}).get('session_id') or 'none'}`, workspace "
-                f"`{(bound or {}).get('cwd') or self.config.cwd}`"
-                + (f", {len(conversation.pending)} queued." if conversation else ".")
+                f"`{(bound or {}).get('cwd') or self.config.cwd}`" + "."
             )
         elif name == "/cancel":
             if conversation and conversation.agent and conversation.session_id:
@@ -627,9 +620,11 @@ class AgentBridge:
         while True:
             await conversation.wake.wait()
             conversation.wake.clear()
-            if not conversation.pending:
+            taken = self.inbox.take(conversation.key)
+            batch = [m for m in taken if not await self._stale(conversation, m)]
+            if not batch:
+                self.inbox.done([m["id"] for m in taken])
                 continue
-            batch, conversation.pending = conversation.pending, []
             conversation.busy = True
             try:
                 await self._turn(conversation, batch)
@@ -639,8 +634,23 @@ class AgentBridge:
             finally:
                 conversation.busy = False
                 conversation.last_active = time.monotonic()
-            if conversation.pending:
-                conversation.wake.set()
+            # Not reached when cancelled at shutdown: rows still running at the
+            # next start were cut off mid-turn.
+            self.inbox.done([m["id"] for m in taken])
+
+    async def _stale(self, conversation: Conversation, message: dict[str, Any]) -> bool:
+        """Tell the sender about a prompt too old to run; True if it was."""
+        sent = message.get("timestamp")
+        if type(sent) is not int or time.time() - sent < STALE_PROMPT_HOURS * 3600:
+            return False
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(sent))
+        await self._post(
+            conversation.destination,
+            f"I did not act on your message from {when} "
+            f"(“{_line(message.get('text'), 80)}”): I was offline for over "
+            f"{STALE_PROMPT_HOURS} hours. Send it again if you still need it.",
+        )
+        return True
 
     async def _ensure_agent(self, conversation: Conversation) -> tuple[AcpAgent, bool]:
         if conversation.agent and conversation.agent.alive and conversation.session_id:
@@ -696,7 +706,6 @@ class AgentBridge:
         self, conversation: Conversation, batch: list[dict[str, Any]]
     ) -> None:
         last = batch[-1]
-        self.store.start_turn(last["id"], conversation.key)
         await asyncio.to_thread(self.client.add_reaction, last["id"], "eyes")
         typing = asyncio.create_task(self._typing(conversation.destination))
         progress = Progress()
@@ -713,7 +722,6 @@ class AgentBridge:
             )
         except AcpError as error:
             conversation.agent = None
-            self.store.finish_turn(last["id"], "failed")
             await self._post(
                 conversation.destination, f"The agent could not start: {error}"
             )
@@ -724,7 +732,6 @@ class AgentBridge:
             await self._typing_stop(conversation.destination)
             if progress.message_id is not None:
                 await self._edit(progress.message_id, progress.render(done=True))
-        self.store.finish_turn(last["id"], "failed" if result.error else "done")
         if not agent.alive:
             conversation.agent = None
         if result.stop_reason == "error":
@@ -961,16 +968,23 @@ class AgentBridge:
                 ):
                     await self._close(conversation)
 
-    async def _report_interrupted_turns(self) -> None:
-        for turn in self.store.interrupted_turns():
-            bound = self.store.conversation(turn["key"])
-            if bound:
-                await self._post(
-                    bound["destination"],
-                    "I was restarted while working on an earlier message, so that "
-                    "work may be partial. Send it again if you still need it.",
-                )
-            self.store.finish_turn(turn["message_id"], "interrupted")
+    async def _recover(self) -> None:
+        """Pick up the queue a previous process left behind."""
+        # Nobody waits for an answer the previous process asked for.
+        self.store.close_all()
+        interrupted: dict[str, dict[str, Any]] = {}
+        for key, message in self.inbox.held("running"):
+            interrupted[key] = message
+            self.inbox.done([message["id"]])
+        for message in interrupted.values():
+            # Replaying a half-done turn could repeat its side effects.
+            await self._post_to(
+                message,
+                "I was restarted while working on an earlier message, so that "
+                "work may be partial. Send it again if you still need it.",
+            )
+        for key, message in self.inbox.held("queued"):
+            self._conversation(key, message).wake.set()
 
     # Zulip output
     def _outbound(self, content: str) -> str:

@@ -11,6 +11,7 @@
     question_minutes = 30 # unanswered permission requests and questions expire
     zulip_tools = "ask"   # "ask": only ask_owner; true: every tool, as the bot; false
     mode = "default"      # ACP session mode; "" keeps the agent's own
+    listen = "all"        # "all": DMs and mentions anywhere; "dm"; or "#channel"
     env = {}              # extra environment for the agent process
 
 The bot's owner in Zulip is always admitted; nobody else is unless listed.
@@ -60,6 +61,7 @@ class AgentConfig:
     zulip_tools: bool | str = "ask"
     env: dict[str, str] = field(default_factory=dict)
     mode: str | None = None  # unset: the bridge's choice for known agents
+    listen: str = "all"
 
     def permits_dir(self, path: Path) -> bool:
         return any(path == root or root in path.parents for root in self.allowed_dirs)
@@ -92,6 +94,7 @@ def load_agent(path: Path) -> AgentConfig:
         "zulip_tools",
         "env",
         "mode",
+        "listen",
     }
     if unknown:
         raise ValueError(f"{path.name}: unknown keys {sorted(unknown)}")
@@ -115,6 +118,11 @@ def load_agent(path: Path) -> AgentConfig:
     mode = raw.get("mode")
     if mode is not None and not isinstance(mode, str):
         raise ValueError(f'{path.name}: mode is an ACP session mode ID, or ""')
+    listen = raw.get("listen", "all")
+    if not isinstance(listen, str) or not (
+        listen in ("all", "dm") or (listen.startswith("#") and listen[1:].strip())
+    ):
+        raise ValueError(f'{path.name}: listen is "all", "dm" or "#channel"')
     env = raw.get("env", {})
     if not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
         raise ValueError(f"{path.name}: env values must be strings")
@@ -130,6 +138,7 @@ def load_agent(path: Path) -> AgentConfig:
         zulip_tools=tools,
         env=dict(env),
         mode=mode,
+        listen=listen,
     )
     if not config.permits_dir(cwd):
         raise ValueError(f"{path.name}: cwd must be inside allowed_dirs")

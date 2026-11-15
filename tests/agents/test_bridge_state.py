@@ -53,15 +53,29 @@ def test_agent_names_are_constrained(tmp_path):
         load_agent(write(tmp_path, 'zuliprc = "z"\ncommand = ["x"]\n', name="Bad Name"))
 
 
-def test_store_binds_sessions_and_journals_turns(tmp_path):
+def test_store_binds_sessions_and_closes_every_open_question(tmp_path):
     store = BridgeStore(tmp_path / "s.sqlite3")
     store.bind("dm:7", "sess-1", "/w", {"type": "private", "to": [7]})
     assert store.conversation("dm:7")["destination"] == {"type": "private", "to": [7]}
-    store.start_turn(10, "dm:7")
-    store.start_turn(11, "dm:7")
-    store.finish_turn(10)
-    assert [t["message_id"] for t in store.interrupted_turns()] == [11]
+    store.ask("dm:7", "permission", "rm -rf build", ["a"], 30)
+    store.ask("ch:1:x", "question", "which branch?", [], 30)
+    store.close_all()
+    assert store.open_question("dm:7") is None and store.open_question("ch:1:x") is None
     assert (tmp_path / "s.sqlite3").stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("listen", ["all", "dm", "#Agents-Channel"])
+def test_listen_picks_what_fills_the_queue(tmp_path, listen):
+    body = f'zuliprc = "z"\ncommand = ["x"]\nlisten = "{listen}"\n'
+    assert load_agent(write(tmp_path, body)).listen == listen
+
+
+@pytest.mark.parametrize("listen", ["everything", "#", "# ", 3])
+def test_listen_rejects_other_values(tmp_path, listen):
+    value = f'"{listen}"' if isinstance(listen, str) else listen
+    body = f'zuliprc = "z"\ncommand = ["x"]\nlisten = {value}\n'
+    with pytest.raises(ValueError, match="listen is"):
+        load_agent(write(tmp_path, body))
 
 
 def test_questions_answer_once_oldest_first_and_expire(tmp_path):

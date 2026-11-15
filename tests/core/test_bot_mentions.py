@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from zulipchat_mcp.core.process_lease import ProcessLease
-from zulipchat_mcp.services import bot_mentions
 from zulipchat_mcp.services.bot_mentions import BotMentionInbox
 
 
@@ -88,16 +87,23 @@ def dm_inbox(tmp_path, monkeypatch):
     return value
 
 
-def test_snapshot_registers_before_history_and_reuses_it_without_upstream_calls(inbox):
+def test_first_start_begins_from_now_and_reuses_the_queue_without_upstream_calls(
+    inbox,
+):
+    inbox.client.get_messages_raw.side_effect = [
+        {"result": "success", "messages": [message(11)], "found_newest": True},
+        {"result": "success", "messages": [], "found_newest": True},
+    ]
     inbox._bootstrap()
-    inbox._ready = True
-    assert [call[0] for call in inbox.client.mock_calls].index("register") < [
-        call[0] for call in inbox.client.mock_calls
-    ].index("get_messages_raw")
+    calls = [call[0] for call in inbox.client.mock_calls]
+    assert calls.index("register") < calls.index("get_messages_raw")
+    first = inbox.client.get_messages_raw.call_args_list[0].kwargs
+    assert first["anchor"] == "newest" and first["num_before"] == 0
+    assert inbox._state("message_cursor") == 11
+    assert inbox.pending()["messages"] == []  # old messages are not work
     for _ in range(25):
-        assert inbox.poll(0, 20)["messages"][0]["id"] == 11
         inbox._bootstrap()
-    assert inbox.client.get_messages_raw.call_count == 1
+    assert inbox.client.get_messages_raw.call_count == 2
     assert inbox.client.register.call_count == 1
     assert inbox.client.client.get_profile.call_count == 1
     assert inbox.client.get_messages_raw.call_args.kwargs["use_cache"] is False
@@ -107,12 +113,12 @@ def test_overlap_replay_deduplicates_and_commits_message_and_event_watermarks(in
     inbox._bootstrap()
     event = {"id": 4, "type": "message", "message": message(), "flags": ["mentioned"]}
     inbox._ingest_events([event, event])
-    inbox._ready = True
-    page = inbox.poll(0, 20)
+    page = inbox.pending()
     assert [item["id"] for item in page["messages"]] == [11]
     assert inbox._state("last_event_id") == 4
     assert inbox._state("message_cursor") == 11
-    assert inbox.poll(11, 20)["messages"] == []
+    inbox.settle(11)
+    assert inbox.pending()["messages"] == []
 
 
 def test_event_level_flags_are_authoritative_and_wildcards_do_not_wake(inbox):
@@ -133,32 +139,26 @@ def test_event_level_flags_are_authoritative_and_wildcards_do_not_wake(inbox):
             },
         ]
     )
-    inbox._ready = True
-    assert [item["id"] for item in inbox.poll(0, 20)["messages"]] == [14]
+    assert [item["id"] for item in inbox.pending()["messages"]] == [14]
     assert inbox._state("message_cursor") == 14
 
 
 @pytest.mark.parametrize("event_type", ["delete_message", "update_message"])
-def test_changed_or_deleted_input_is_removed_and_cursor_still_advances(
-    inbox, event_type
-):
-    inbox._commit([message()], {})
-    inbox._ingest_events([{"id": 7, "type": event_type, "message_ids": [11]}])
-    inbox._ready = True
-    page = inbox.poll(0, 20)
-    assert page["messages"] == []
-    assert page["next_after_message_id"] == 11
+def test_changed_or_deleted_input_is_dropped_unless_already_queued(inbox, event_type):
+    inbox._commit([message(11), message(12)], {})
+    inbox.enqueue(message(12), "ch:42:demo")
+    inbox._ingest_events([{"id": 7, "type": event_type, "message_ids": [11, 12]}])
+    assert inbox.pending()["messages"] == []
     with inbox._connect() as db:
-        assert (
-            db.execute("SELECT payload FROM messages WHERE id=11").fetchone()[0] == "{}"
-        )
+        assert db.execute("SELECT id, state FROM messages").fetchall() == [
+            (12, "queued")
+        ]
 
 
 def test_channel_inbox_ignores_the_bots_own_self_mentions(inbox):
     inbox._bot_id = 99
     inbox._commit([message(11), message(12, sender_id=99)], {})
-    inbox._ready = True
-    page = inbox.poll(0, 20)
+    page = inbox.pending()
     assert [item["id"] for item in page["messages"]] == [11]
 
 
@@ -174,8 +174,7 @@ def test_rendering_only_updates_such_as_link_previews_keep_the_input(inbox):
             }
         ]
     )
-    inbox._ready = True
-    assert [item["id"] for item in inbox.poll(0, 20)["messages"]] == [11]
+    assert [item["id"] for item in inbox.pending()["messages"]] == [11]
 
 
 def test_persistence_failure_does_not_acknowledge_unprocessed_input(inbox):
@@ -195,6 +194,7 @@ def test_persistence_failure_does_not_acknowledge_unprocessed_input(inbox):
 
 
 def test_expired_queue_recovery_uses_saved_message_id_and_deduplicates(inbox):
+    inbox._commit([message(11)], {"message_cursor": 11})
     inbox._bootstrap()
     inbox._ingest_events(
         [{"id": 3, "type": "message", "message": message(15), "flags": ["mentioned"]}]
@@ -204,8 +204,7 @@ def test_expired_queue_recovery_uses_saved_message_id_and_deduplicates(inbox):
     inbox._bootstrap()
     assert inbox.client.get_messages_raw.call_args.kwargs["anchor"] == "15"
     assert inbox.client.get_messages_raw.call_args.kwargs["include_anchor"] is False
-    inbox._ready = True
-    assert [item["id"] for item in inbox.poll(0, 20)["messages"]] == [11, 15, 16]
+    assert [item["id"] for item in inbox.pending()["messages"]] == [11, 15, 16]
 
 
 def test_account_binding_and_symlink_are_rejected(inbox, tmp_path):
@@ -217,14 +216,14 @@ def test_account_binding_and_symlink_are_rejected(inbox, tmp_path):
         BotMentionInbox(inbox.client, alias, "account-a", "Agents-Channel")
 
 
-def test_cached_messages_remain_readable_with_explicit_outage_health(inbox):
+def test_queued_messages_remain_readable_with_explicit_outage_health(inbox):
     inbox._commit([message()], {"bot_user_id": 9})
     inbox._error = "RATE_LIMIT_HIT"
     inbox._retry_after = 29.2
-    page = inbox.poll(0, 20)
-    assert page["status"] == "partial"
+    page = inbox.pending()
+    assert page["error"] == "RATE_LIMIT_HIT"
     assert page["messages"][0]["id"] == 11
-    assert page["listener"]["retry_after_seconds"] == 30
+    assert page["retry_after_seconds"] == 30
 
 
 def test_webhook_bot_is_rejected_before_queue_registration(inbox):
@@ -243,33 +242,16 @@ def test_restart_verifies_bot_id_even_when_email_and_queue_are_unchanged(inbox):
     assert inbox.client.client.get_profile.call_count == 2
 
 
-def test_second_process_follows_the_lease_owner_without_api_calls(inbox, monkeypatch):
-    monkeypatch.setattr(bot_mentions, "_FOLLOWER_RETRY_SECONDS", 0.01)
-    path = inbox.path.with_suffix(".lock")
-    with ProcessLease(path):
-        thread = threading.Thread(target=inbox._run)
-        thread.start()
-        for _ in range(200):
-            if inbox._follower:
-                break
-            threading.Event().wait(0.01)
-        assert inbox._follower and inbox._ready and inbox._error is None
-        assert not inbox.client.mock_calls
-        inbox._stop.set()
-        thread.join(2)
-    assert not thread.is_alive()
-    with ProcessLease(path):
-        assert path.stat().st_mode & 0o777 == 0o600
-
-
-def test_producer_lock_symlink_is_rejected_without_api_calls(inbox, tmp_path):
-    inbox.path.with_suffix(".lock").symlink_to(tmp_path / "another.lock")
-    inbox._run()
-    assert "symlink" in inbox._error
+def test_the_bridge_lease_rejects_a_symlinked_lock(inbox, tmp_path):
+    lock = inbox.path.with_suffix(".lock")
+    lock.symlink_to(tmp_path / "another.lock")
+    with pytest.raises(ValueError, match="symlink"):
+        with ProcessLease(lock):
+            pass
     assert not inbox.client.mock_calls
 
 
-def test_one_background_queue_serves_many_local_polls(inbox, monkeypatch):
+def test_one_background_event_queue_serves_many_local_reads(inbox, monkeypatch):
     release = threading.Event()
     polled = threading.Event()
 
@@ -282,12 +264,13 @@ def test_one_background_queue_serves_many_local_polls(inbox, monkeypatch):
     inbox.client.get_events.side_effect = long_poll
     monkeypatch.setattr(inbox, "start", BotMentionInbox.start.__get__(inbox))
     try:
-        assert inbox.poll(0, 20)["messages"]
+        inbox._commit([message()], {})
+        assert inbox.pending()["messages"]
         assert polled.wait(1)
         for _ in range(25):
-            assert inbox.poll(0, 20)["messages"]
+            assert inbox.pending()["messages"]
         assert inbox.client.get_events.call_count == 1
-        assert inbox.client.get_messages_raw.call_count == 1
+        assert inbox.client.get_messages_raw.call_count == 2  # newest, then after
     finally:
         inbox.stop()
         release.set()
@@ -298,7 +281,6 @@ def test_direct_inbox_registers_dm_narrow_first_and_skips_the_bots_own_messages(
     dm_inbox,
 ):
     dm_inbox._bootstrap()
-    dm_inbox._ready = True
     calls = [call[0] for call in dm_inbox.client.mock_calls]
     assert calls.index("register") < calls.index("get_messages_raw")
     register = dm_inbox.client.register.call_args.kwargs
@@ -306,8 +288,7 @@ def test_direct_inbox_registers_dm_narrow_first_and_skips_the_bots_own_messages(
     assert register["event_types"] == ["message", "update_message", "delete_message"]
     history = dm_inbox.client.get_messages_raw.call_args.kwargs
     assert history["narrow"] == [{"operator": "is", "operand": "dm"}]
-    page = dm_inbox.poll(0, 20)
-    assert page["mode"] == "bot_direct_messages"
+    page = dm_inbox.pending()
     assert [item["id"] for item in page["messages"]] == [21]
     # The excluded self-sent message still advances the upstream cursor.
     assert dm_inbox._state("message_cursor") == 22
@@ -348,8 +329,7 @@ def test_direct_inbox_ingests_dms_without_mentions_and_ignores_channel_traffic(
             {"id": 4, "type": "message", "message": direct(23), "flags": ["read"]},
         ]
     )
-    dm_inbox._ready = True
-    assert [item["id"] for item in dm_inbox.poll(0, 20)["messages"]] == [21, 23]
+    assert [item["id"] for item in dm_inbox.pending()["messages"]] == [21, 23]
     assert dm_inbox._state("message_cursor") == 25
     assert dm_inbox._state("last_event_id") == 4
 
@@ -358,15 +338,13 @@ def test_channel_inbox_still_rejects_direct_messages(inbox):
     inbox._ingest_events(
         [{"id": 1, "type": "message", "message": direct(30), "flags": ["mentioned"]}]
     )
-    inbox._ready = True
-    assert inbox.poll(0, 20)["messages"] == []
+    assert inbox.pending()["messages"] == []
 
 
 def test_direct_inbox_tombstones_edits_and_recovers_after_queue_expiry(dm_inbox):
     dm_inbox._bootstrap()
     dm_inbox._ingest_events([{"id": 5, "type": "update_message", "message_ids": [21]}])
-    dm_inbox._ready = True
-    assert dm_inbox.poll(0, 20)["messages"] == []
+    assert dm_inbox.pending()["messages"] == []
     dm_inbox._ingest_events(
         [{"id": 6, "type": "message", "message": direct(26), "flags": []}]
     )
@@ -378,31 +356,52 @@ def test_direct_inbox_tombstones_edits_and_recovers_after_queue_expiry(dm_inbox)
     dm_inbox._bootstrap()
     kwargs = dm_inbox.client.get_messages_raw.call_args.kwargs
     assert kwargs["anchor"] == "26" and kwargs["include_anchor"] is False
-    assert [item["id"] for item in dm_inbox.poll(0, 20)["messages"]] == [26, 27]
+    assert [item["id"] for item in dm_inbox.pending()["messages"]] == [26, 27]
 
 
-def test_inbox_forgets_on_request_and_ages_out_rows_with_a_gap_signal(inbox):
+def test_a_prompt_moves_new_queued_running_and_is_deleted_when_done(inbox):
     import sqlite3
     import time
 
-    inbox._ready = True
     inbox._commit([message(11), message(12), message(13)], {})
-    inbox.forget(11)  # a single consumer is done with it
-    assert inbox.message(11) is None and inbox.message(12) is not None
+    assert inbox.enqueue({**message(11), "text": "summarize"}, "ch:42:demo")
+    assert not inbox.enqueue(message(11), "ch:42:demo")  # only a new row
+    inbox.settle(12)  # an answer or a command: handled, nothing kept
+    assert [m["id"] for m in inbox.pending()["messages"]] == [13]
+    assert inbox.held("queued") == [
+        ("ch:42:demo", {**message(11), "text": "summarize"})
+    ]
+    taken = inbox.take("ch:42:demo")
+    assert [m["text"] for m in taken] == ["summarize"]
+    assert inbox.take("ch:42:demo") == []
+    assert [m["id"] for _, m in inbox.held("running")] == [11]
+    inbox._commit([message(11, content="replayed")], {})  # never resets work
+    assert inbox.held("running")[0][1]["text"] == "summarize"
+    inbox.done([11])
+    assert inbox.held("running") == []
 
     with sqlite3.connect(inbox.path) as db:
         db.execute(
-            "UPDATE messages SET stored=? WHERE id=12",
-            (time.time() - 31 * 86400,),
+            "UPDATE messages SET stored=? WHERE id=13", (time.time() - 31 * 86400,)
         )
     inbox._commit([message(14)], {})
-    assert inbox.message(12) is None  # other people's text does not stay
-    assert [m["id"] for m in inbox.poll(12, 10)["messages"]] == [13, 14]
-    assert inbox.poll(12, 10)["cache"]["cursor_gap"] is False
-    assert inbox.poll(5, 10)["cache"]["cursor_gap"] is True
+    # Other people's text does not stay on disk.
+    assert [m["id"] for m in inbox.pending()["messages"]] == [14]
 
 
-def test_inbox_file_from_an_older_version_gains_the_stored_column(tmp_path):
+def test_a_new_scope_registers_a_new_event_queue(inbox):
+    inbox._commit([], {"queue_id": "old"})
+    reopened = BotMentionInbox(inbox.client, inbox.path, "account-a", None)
+    assert reopened._state("queue_id") is None
+    again = BotMentionInbox(inbox.client, inbox.path, "account-a", None)
+    again._commit([], {"queue_id": "kept"})
+    assert (
+        BotMentionInbox(inbox.client, inbox.path, "account-a", None)._state("queue_id")
+        == "kept"
+    )
+
+
+def test_inbox_file_from_the_cursor_era_keeps_only_undelivered_work(tmp_path):
     import sqlite3
 
     path = tmp_path / "old.sqlite3"
@@ -411,21 +410,12 @@ def test_inbox_file_from_an_older_version_gains_the_stored_column(tmp_path):
             "CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);"
             "CREATE TABLE messages(id INTEGER PRIMARY KEY, payload TEXT NOT NULL,"
             " deleted INTEGER NOT NULL DEFAULT 0);"
+            "INSERT INTO metadata VALUES('delivered_cursor', '5');"
             "INSERT INTO messages(id, payload) VALUES(5, '{\"id\": 5}');"
+            "INSERT INTO messages(id, payload) VALUES(6, '{\"id\": 6}');"
+            "INSERT INTO messages(id, payload, deleted) VALUES(7, '{}', 1);"
         )
     opened = BotMentionInbox(fake_client([]), path, "account-a", "Agents-Channel")
-    assert opened.message(5) == {"id": 5}
+    assert opened.pending()["messages"] == [{"id": 6}]
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT stored FROM messages").fetchone()[0] > 0
-
-
-def test_delivery_cursor_is_compare_and_set_across_processes(inbox, tmp_path):
-    assert inbox.delivered_cursor() is None
-    assert inbox.claim(None, 11)
-    # A second process for the same bot reads the same file.
-    other = BotMentionInbox(fake_client([]), inbox.path, "account-a", "Agents-Channel")
-    assert other.delivered_cursor() == 11
-    assert not other.claim(None, 12)  # stale expectation: someone else moved it
-    assert other.claim(11, 12)
-    assert not inbox.claim(11, 13)
-    assert inbox.delivered_cursor() == 12

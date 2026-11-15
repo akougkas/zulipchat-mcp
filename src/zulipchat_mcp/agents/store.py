@@ -1,10 +1,10 @@
 """Durable bridge state for one agent bot, shared with its agent's MCP process.
 
 conversations: Zulip conversation key -> ACP session, so a restarted agent
-resumes the same session. turns: a journal of prompts in flight, so a crash
-mid-turn is reported instead of silently replayed. questions: open permission
-requests and owner questions; the owner's next message in that conversation
-answers the oldest one instead of starting a new turn.
+resumes the same session. questions: open permission requests and owner
+questions; the owner's next message in that conversation answers the oldest
+one instead of starting a new turn. Prompts in flight live in the bot's queue
+(services/bot_mentions.py), not here.
 """
 
 from __future__ import annotations
@@ -24,10 +24,6 @@ PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS conversations(
     key TEXT PRIMARY KEY, session_id TEXT, cwd TEXT NOT NULL, destination TEXT NOT NULL,
     updated REAL NOT NULL
-);
-CREATE TABLE IF NOT EXISTS turns(
-    message_id INTEGER PRIMARY KEY, key TEXT NOT NULL, status TEXT NOT NULL,
-    started REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS questions(
     id TEXT PRIMARY KEY, key TEXT NOT NULL, kind TEXT NOT NULL, prompt TEXT NOT NULL,
@@ -88,25 +84,6 @@ class BridgeStore:
                 (key, session_id, cwd, json.dumps(destination), time.time()),
             )
 
-    # Turns
-    def start_turn(self, message_id: int, key: str) -> None:
-        with self._db() as db:
-            db.execute(
-                "INSERT OR REPLACE INTO turns VALUES(?,?,'running',?)",
-                (message_id, key, time.time()),
-            )
-
-    def finish_turn(self, message_id: int, status: str = "done") -> None:
-        with self._db() as db:
-            db.execute(
-                "UPDATE turns SET status=? WHERE message_id=?", (status, message_id)
-            )
-
-    def interrupted_turns(self) -> list[dict[str, Any]]:
-        with self._db() as db:
-            rows = db.execute("SELECT * FROM turns WHERE status='running'").fetchall()
-        return [dict(row) for row in rows]
-
     # Questions
     def ask(
         self, key: str, kind: str, prompt: str, options: list[str], minutes: float
@@ -158,6 +135,14 @@ class BridgeStore:
                 (time.time(), question_id),
             ).rowcount
         return changed == 1
+
+    def close_all(self) -> None:
+        """Expire every open question: none survives the process that asked."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE questions SET deadline=? WHERE answer IS NULL AND deadline>?",
+                (time.time(), time.time()),
+            )
 
     def question(self, question_id: str) -> dict[str, Any] | None:
         with self._db() as db:

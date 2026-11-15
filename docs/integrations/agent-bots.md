@@ -38,9 +38,17 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   `~/.config/zulipchat-mcp/agents/<name>.toml`, which names the bot's zuliprc
   and the command that starts the agent in ACP mode.
 - **No inbound ports.** For each bot, the bridge holds the bot's Zulip event
-  queue over outbound HTTPS. It receives direct messages to the bot and
-  @-mentions of the bot in every channel the bot can read. On first start it
-  begins from the newest message; older messages are never replayed as work.
+  queue over outbound HTTPS. By default it receives direct messages to the bot
+  and @-mentions of the bot in every channel the bot can read; `listen`
+  narrows that to direct messages or one channel. On first start it begins
+  from the newest message; older messages are never replayed as work.
+- **A durable queue.** Every message in scope lands in the bot's queue on disk
+  before anything acts on it. The bridge drains the queue in order: messages
+  from anyone not admitted are deleted, answers and commands are handled at
+  once, and prompts wait under their conversation until its agent is free.
+  A prompt leaves the queue only when its turn ends, so a message waiting
+  behind a busy turn survives a restart. One process serves a bot: a second
+  `run` while the service is up exits with status 78.
 - **One conversation, one session.** A DM with the bot (keyed by its
   participants) or one channel topic is one ACP session. In a topic, a message
   must mention the bot to start a turn.
@@ -93,9 +101,12 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   comma-separated, when it allows more than one) or in your own words. The
   option Clio would take if nobody answered is marked `(recommended)`. Workers'
   permission requests arrive like any other permission request.
-- **Restarts.** A journal records turns in flight. After a crash or restart the
-  bridge tells each affected conversation that the earlier message may be only
-  partly done; it never replays it.
+- **Restarts.** After a crash or restart the bridge tells each conversation
+  whose turn was cut off that the earlier message may be only partly done; it
+  never replays it. Prompts that were still waiting run then, unless they are
+  more than 12 hours old: those get a reply saying they were not acted on.
+  Requests the previous process asked are closed, so your next message is
+  never taken as their answer.
 
 ## Lifecycle
 
@@ -121,9 +132,10 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   systemd unit does not restart; `service status` shows the reason.
 
 Per-bot state lives in `~/.local/state/zulipchat-mcp/agents/` (honoring
-`XDG_STATE_HOME`): `<name>.sqlite3` holds conversation bindings, the turn
-journal and open questions; `<name>-inbox.sqlite3` holds messages not yet
-handled and is emptied as they are delivered or dropped. An answer written
+`XDG_STATE_HOME`): `<name>.sqlite3` holds conversation bindings and open
+questions; `<name>-inbox.sqlite3` is the queue, holding only messages not yet
+handled and prompts in flight. Rows are deleted as soon as they are handled,
+and nothing stays past 30 days. An answer written
 into the state file decides nothing: the bridge acts only on answers it took
 from Zulip itself.
 
@@ -221,6 +233,7 @@ idle_minutes = 30
 question_minutes = 30
 zulip_tools = "ask"
 mode = ""
+listen = "all"
 env = {}
 ```
 
@@ -235,6 +248,7 @@ env = {}
 | `question_minutes` | `30` | Lifetime of permission requests and `ask_owner` questions. |
 | `zulip_tools` | `"ask"` | `"ask"`: only `ask_owner`. `true`: every tool of this server, acting as the bot. `false`: none. |
 | `mode` | see below | ACP session mode set on every session; `""` keeps the agent's own. Unset: `default` for `claude-agent-acp`, the agent's own otherwise. A mode the agent does not offer fails the turn. |
+| `listen` | `"all"` | What fills the queue. `"all"`: direct messages and @-mentions in every channel. `"dm"`: direct messages only. `"#channel"`: @-mentions in that one channel. Replies in a topic the bot is working in count without a mention in every scope. |
 | `env` | `{}` | Extra environment variables (strings) for the agent. |
 
 File names are the agent names: lowercase, starting with a letter, at most 32

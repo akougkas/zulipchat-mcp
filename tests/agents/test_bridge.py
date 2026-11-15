@@ -1,7 +1,9 @@
 """The Zulip-to-ACP bridge against the fake ACP agent and a mocked Zulip."""
 
 import asyncio
+import json
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -11,6 +13,7 @@ import pytest_asyncio
 
 from zulipchat_mcp.agents import bridge as bridge_module
 from zulipchat_mcp.agents.config import AgentConfig
+from zulipchat_mcp.core.process_lease import ProcessLease
 
 FAKE_AGENT = [sys.executable, str(Path(__file__).with_name("fake_acp_agent.py"))]
 OWNER, BOT, STRANGER = 7, 9, 66
@@ -71,6 +74,17 @@ async def make_bridge(tmp_path, monkeypatch):
         )
         bridge = bridge_module.AgentBridge(config, accept_owner)
         bridge.owner_id, bridge.bot_id, bridge.bot_name = OWNER, BOT, "Clio"
+        route = bridge.route
+
+        async def deliver(message):
+            # As the listener and _listen do: a new row, then queued or settled.
+            queue(bridge, message)
+            try:
+                await route(message)
+            finally:
+                bridge.inbox.settle(message["id"])
+
+        bridge.route = deliver
         bridges.append(bridge)
         return bridge
 
@@ -81,6 +95,23 @@ async def make_bridge(tmp_path, monkeypatch):
                 conversation.task.cancel()
             if conversation.agent:
                 await conversation.agent.close()
+
+
+def queue(bridge, message, state="new", key=None):
+    with bridge.inbox._connect() as db:
+        db.execute(
+            "INSERT OR IGNORE INTO messages(id, payload, stored, state, key) "
+            "VALUES(?, ?, ?, ?, ?)",
+            (message["id"], json.dumps(message), time.time(), state, key),
+        )
+
+
+async def drained(bridge, timeout=10.0):
+    for _ in range(int(timeout / 0.05)):
+        if not bridge.inbox.held("queued") and not bridge.inbox.held("running"):
+            return
+        await asyncio.sleep(0.05)
+    raise AssertionError("the queue still holds work")
 
 
 async def posted(client, count, timeout=10.0):
@@ -105,7 +136,7 @@ async def test_owner_dm_runs_one_turn_and_replies_in_place(make_bridge):
     client.add_reaction.assert_any_call(100, "eyes")
     bound = bridge.store.conversation(f"dm:{OWNER}")
     assert bound["session_id"]
-    assert bridge.store.interrupted_turns() == []
+    await drained(bridge)
 
 
 @pytest.mark.asyncio
@@ -184,22 +215,71 @@ async def test_cwd_is_limited_to_allowed_dirs(make_bridge, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_restart_resumes_the_bound_session_and_reports_lost_turns(make_bridge):
+async def test_restart_reports_cut_off_turns_and_runs_what_was_queued(make_bridge):
     build, client = make_bridge
     first = build()
     await first.route(dm(160, "remember this"))
     await posted(client, 1)
     session = first.store.conversation(f"dm:{OWNER}")["session_id"]
-    first.store.start_turn(161, f"dm:{OWNER}")  # crashed mid-turn
+    await drained(first)
     await first.conversations[f"dm:{OWNER}"].agent.close()
+    # The process died mid-turn on 161 with 162 waiting behind it.
+    key = f"dm:{OWNER}"
+    queue(first, {**dm(161, "half done"), "text": "half done"}, "running", key)
+    queue(first, {**dm(162, "and now?"), "text": "and now?"}, "queued", key)
+    first.store.ask(key, "permission", "Write file", ["allow"], 30)
 
     second = build()
-    await second._report_interrupted_turns()
-    posts = await posted(client, 2)
-    assert "restarted while working" in posts[-1][2]
-    await second.route(dm(162, "and now?"))
-    await posted(client, 3)
-    assert second.store.conversation(f"dm:{OWNER}")["session_id"] == session
+    await second._recover()
+    posts = await posted(client, 3)
+    assert "restarted while working" in posts[1][2]
+    assert "and now?" in posts[2][2] and "half done" not in posts[2][2]
+    assert second.store.conversation(key)["session_id"] == session
+    assert second.store.open_question(key) is None  # its asker is gone
+    await drained(second)
+
+
+@pytest.mark.asyncio
+async def test_a_prompt_older_than_the_stale_limit_is_not_run(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    old = int(time.time()) - 13 * 3600
+    queue(
+        bridge,
+        {**dm(170, "deploy now"), "timestamp": old, "text": "deploy now"},
+        "queued",
+        f"dm:{OWNER}",
+    )
+    await bridge._recover()
+    (_, _, body, _), *_ = await posted(client, 1)
+    assert "did not act on your message" in body and "deploy now" in body
+    await drained(bridge)
+    await asyncio.sleep(0.2)
+    assert client.send_message.call_count == 1  # the agent never ran
+
+
+@pytest.mark.asyncio
+async def test_a_message_waiting_behind_a_busy_turn_is_durable(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(180, "slow job"))
+    conversation = bridge.conversations[f"dm:{OWNER}"]
+    for _ in range(200):
+        if conversation.busy:
+            break
+        await asyncio.sleep(0.05)
+    await bridge.route(dm(181, "next one"))
+    # Not in memory only: a restart now would still find it.
+    assert [m["id"] for _, m in bridge.inbox.held("queued")] == [181]
+
+
+@pytest.mark.asyncio
+async def test_a_second_process_for_the_same_bot_refuses_to_start(make_bridge):
+    build, _ = make_bridge
+    first = build()
+    with ProcessLease(first.inbox.path.with_suffix(".lock")):
+        with pytest.raises(bridge_module.BridgeConfigError, match="already serves"):
+            await build().run()
 
 
 @pytest.mark.asyncio

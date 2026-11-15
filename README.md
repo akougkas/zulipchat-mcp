@@ -301,7 +301,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide, and [CLAUDE.md](CLAUD
 src/zulipchat_mcp/
 ├── core/           # Client wrapper, identity, caching, security
 ├── tools/          # MCP tool implementations (two-tier registration)
-├── services/       # Bot event inbox used by the bridge
+├── services/       # The bot message queue the bridge drains
 ├── agents/         # zulipchat-mcp-agents bridge (agent bots over ACP)
 ├── utils/          # Logging, redaction, metrics
 └── config.py       # config loading (zuliprc + environment fallback)
