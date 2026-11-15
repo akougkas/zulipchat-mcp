@@ -268,10 +268,15 @@ async def test_bridge_opts_into_clio_interviews_and_worker_permissions(make_brid
     bridge = build()
     await bridge.route(dm(180, "show-meta"))
     (_, _, body, _), *_ = await posted(client, 1)
+    # Both opt-ins name the window: question_minutes, here one minute.
     assert (
-        '"clio-coder/interviews": {"request": "_clio-coder/interview/request"' in body
+        '"clio-coder/interviews": {"request": "_clio-coder/interview/request", '
+        '"timeoutMs": 60000, "version": 1}' in body
     )
-    assert '"clio-coder/workerPermissions": {"version": 1, "withdraw": ' in body
+    assert (
+        '"clio-coder/workerPermissions": {"timeoutMs": 60000, "version": 1, '
+        '"withdraw": "_clio-coder/permission/withdraw"}' in body
+    )
 
 
 @pytest.mark.asyncio
@@ -281,7 +286,8 @@ async def test_interview_questions_are_asked_one_at_a_time_and_mapped(make_bridg
     await bridge.route(dm(190, "needs-interview"))
     (_, _, first, _), *_ = await posted(client, 1)
     assert "Question (Storage)" in first and "Which database?" in first
-    assert "1. **DuckDB**: embedded" in first and "2. **Postgres**" in first
+    assert "1. **DuckDB**: embedded (recommended)" in first
+    assert "2. **Postgres**" in first and "Postgres** (recommended)" not in first
     await bridge.route(dm(191, "2"))
     posts = await posted(client, 2)
     assert "Anything else?" in posts[1][2]
@@ -337,17 +343,17 @@ def test_interview_answers_accept_numbers_labels_and_free_text():
     }
 
 
-def test_clio_waits_as_long_as_zulip_questions_stay_open(make_bridge, tmp_path):
+def test_clio_is_held_to_default_autonomy_unless_the_file_names_a_level(make_bridge):
     build, _ = make_bridge
     assert build(command=["clio-coder", "acp"])._agent_command() == [
         "clio-coder",
         "acp",
-        "--permission-timeout",
-        "60000",
+        "--autonomy",
+        "default",
     ]
-    custom = ["clio-coder", "acp", "--permission-timeout", "5"]
-    assert build(command=custom)._agent_command() == custom
-    assert build()._agent_command() == FAKE_AGENT
+    chosen = ["clio-coder", "acp", "--autonomy", "yolo"]
+    assert build(command=chosen)._agent_command() == chosen
+    assert build()._agent_command() == FAKE_AGENT  # other agents are untouched
 
 
 @pytest.mark.asyncio
@@ -450,14 +456,67 @@ async def test_only_a_bare_verdict_answers_a_permission_request(make_bridge):
     bridge = build()
     await bridge.route(topic(300, "@**Clio** needs-permission please"))
     await posted(client, 1)
-    # Said to a colleague in the same topic while the request is open.
+    # Said to a colleague in the same topic while the request is open: ignored.
     await bridge.route(topic(301, "ok sounds good, see you at 3", mentioned=False))
+    await asyncio.sleep(0.2)
+    assert client.send_message.call_count == 1
+    # Addressed to the bot but not a verdict: the request stays open.
+    await bridge.route(topic(302, "@**Clio** ok sounds good"))
     posts = await posted(client, 2)
     assert "is waiting: answer `yes` or `no`" in posts[1][2]
     assert bridge.store.open_question("ch:5:release") is not None
-    await bridge.route(topic(302, "Yes.", mentioned=False))
+    await bridge.route(topic(303, "Yes.", mentioned=False))
     posts = await posted(client, 3)
     assert "chose allow_once" in posts[-1][2]
+
+
+@pytest.mark.asyncio
+async def test_in_a_topic_free_text_answers_need_a_mention(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(topic(350, "@**Clio** needs-interview"))
+    await posted(client, 1)
+    await bridge.route(topic(351, "postgres is what Bob prefers", mentioned=False))
+    await asyncio.sleep(0.2)
+    assert client.send_message.call_count == 1  # not taken as the answer
+    await bridge.route(topic(352, "postgres", mentioned=False))  # an exact label
+    posts = await posted(client, 2)
+    assert "Anything else?" in posts[1][2]
+    await bridge.route(topic(353, "nothing, thanks", mentioned=False))
+    await asyncio.sleep(0.2)
+    assert client.send_message.call_count == 2  # free text without a mention
+    await bridge.route(topic(354, "@**Clio** keep it small"))
+    posts = await posted(client, 3)
+    assert '"answer": "Postgres"' in posts[2][2]
+    assert '"answer": "keep it small"' in posts[2][2]
+
+
+@pytest.mark.asyncio
+async def test_an_answer_written_into_the_store_decides_nothing(make_bridge):
+    build, client = make_bridge
+    bridge = build(question_minutes=0.05)
+    await bridge.route(dm(360, "needs-permission please"))
+    await posted(client, 1)
+    question = bridge.store.open_question(f"dm:{OWNER}")
+    # The agent runs as the same user and can write this file.
+    assert bridge.store.answer(question["id"], "allow")
+    posts = await posted(client, 2, timeout=15)
+    assert "chose allow_once" not in posts[-1][2]
+    assert "chose reject_once" in posts[-1][2]
+
+
+@pytest.mark.asyncio
+async def test_a_withdrawn_main_session_request_closes_in_the_conversation(
+    make_bridge,
+):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(370, "main-ask withdraw"))
+    posts = await posted(client, 3)
+    assert "Permission request" in posts[0][2]
+    assert "withdrawn" in posts[1][2]
+    assert "chose" not in posts[2][2]
+    assert bridge.store.open_question(f"dm:{OWNER}") is None
 
 
 @pytest.mark.asyncio

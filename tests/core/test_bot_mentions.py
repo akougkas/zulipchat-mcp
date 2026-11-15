@@ -678,3 +678,41 @@ def test_owner_is_admitted_by_user_id_when_the_realm_hides_emails(inbox, monkeyp
     assert [event["message_id"] for event in result["events"]] == [11]
     assert result["events"][0]["is_configured_owner"] is True
     assert [item["message_id"] for item in result["ignored_unauthorized"]] == [12]
+
+
+def test_inbox_forgets_on_request_and_ages_out_rows_with_a_gap_signal(inbox):
+    import sqlite3
+    import time
+
+    inbox._ready = True
+    inbox._commit([message(11), message(12), message(13)], {})
+    inbox.forget(11)  # a single consumer is done with it
+    assert inbox.message(11) is None and inbox.message(12) is not None
+
+    with sqlite3.connect(inbox.path) as db:
+        db.execute(
+            "UPDATE messages SET stored=? WHERE id=12",
+            (time.time() - 31 * 86400,),
+        )
+    inbox._commit([message(14)], {})
+    assert inbox.message(12) is None  # other people's text does not stay
+    assert [m["id"] for m in inbox.poll(12, 10)["messages"]] == [13, 14]
+    assert inbox.poll(12, 10)["cache"]["cursor_gap"] is False
+    assert inbox.poll(5, 10)["cache"]["cursor_gap"] is True
+
+
+def test_inbox_file_from_an_older_version_gains_the_stored_column(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "old.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.executescript(
+            "CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT);"
+            "CREATE TABLE messages(id INTEGER PRIMARY KEY, payload TEXT NOT NULL,"
+            " deleted INTEGER NOT NULL DEFAULT 0);"
+            "INSERT INTO messages(id, payload) VALUES(5, '{\"id\": 5}');"
+        )
+    opened = BotMentionInbox(fake_client([]), path, "account-a", "Agents-Channel")
+    assert opened.message(5) == {"id": 5}
+    with sqlite3.connect(path) as db:
+        assert db.execute("SELECT stored FROM messages").fetchone()[0] > 0

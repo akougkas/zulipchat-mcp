@@ -128,9 +128,52 @@ def handle_prompt(message):
                         },
                         {"question": "Anything else?"},
                     ],
+                    "_meta": {
+                        "clio-coder/interview": {
+                            "version": 1,
+                            "operatorOnly": False,
+                            "recommended": [0, None],
+                        }
+                    },
                 },
             )
         ] = prompt
+    elif "main-ask" in text:
+        waiting[
+            request(
+                "session/request_permission",
+                {
+                    "sessionId": session_id,
+                    "toolCall": {"toolCallId": "call-4", "title": "Run command"},
+                    "options": [
+                        {
+                            "optionId": "allow-once",
+                            "name": "Allow",
+                            "kind": "allow_once",
+                        },
+                        {
+                            "optionId": "reject-once",
+                            "name": "Deny",
+                            "kind": "reject_once",
+                        },
+                    ],
+                    "_meta": {
+                        "clio-coder/permissionAsk": {"version": 1, "requestId": "m-1"}
+                    },
+                },
+            )
+        ] = prompt
+        if "withdraw" in text:
+            threading.Timer(
+                0.5,
+                send,
+                [
+                    {
+                        "method": "_clio-coder/permission/withdraw",
+                        "params": {"sessionId": session_id, "requestId": "m-1"},
+                    }
+                ],
+            ).start()
     elif "worker-ask" in text:
         ask_id = request(
             "session/request_permission",

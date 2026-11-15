@@ -29,6 +29,7 @@ from ..core.snapshots import invalidate_realm_snapshots
 # @-mentions in every channel it receives.
 ALL_SCOPE = "*"
 _FOLLOWER_RETRY_SECONDS = 5.0
+RETENTION_DAYS = 30
 
 
 class BotMentionInbox:
@@ -74,6 +75,12 @@ class BotMentionInbox:
                     deleted INTEGER NOT NULL DEFAULT 0
                 );
                 """)
+            if "stored" not in {
+                row[1] for row in db.execute("PRAGMA table_info(messages)")
+            }:
+                # When the row was written here, for retention by age.
+                db.execute("ALTER TABLE messages ADD COLUMN stored REAL")
+                db.execute("UPDATE messages SET stored=?", (time.time(),))
             bound = db.execute(
                 "SELECT value FROM metadata WHERE key='account'"
             ).fetchone()
@@ -167,9 +174,9 @@ class BotMentionInbox:
                 payload["content"] = content[:6000]
                 payload["content_truncated"] = len(content) > 6000
                 db.execute(
-                    "INSERT INTO messages(id, payload) VALUES(?, ?) "
+                    "INSERT INTO messages(id, payload, stored) VALUES(?, ?, ?) "
                     "ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                    (message_id, json.dumps(payload)),
+                    (message_id, json.dumps(payload), time.time()),
                 )
             for message_id in deleted_ids or []:
                 db.execute(
@@ -182,14 +189,25 @@ class BotMentionInbox:
                     (key, json.dumps(value)),
                 )
             # Keep a bounded rolling snapshot; detect consumers behind retention.
+            # Other people's messages do not stay on disk past RETENTION_DAYS.
+            floor = None
             cutoff = db.execute(
                 "SELECT id FROM messages ORDER BY id DESC LIMIT 1 OFFSET 9999"
             ).fetchone()
             if cutoff:
                 db.execute("DELETE FROM messages WHERE id < ?", (cutoff[0],))
+                floor = cutoff[0]
+            aged = db.execute(
+                "SELECT MAX(id) FROM messages WHERE stored < ?",
+                (time.time() - RETENTION_DAYS * 86400,),
+            ).fetchone()[0]
+            if aged:
+                db.execute("DELETE FROM messages WHERE id <= ?", (aged,))
+                floor = max(floor or 0, aged)
+            if floor:
                 db.execute(
                     "INSERT OR REPLACE INTO metadata VALUES('retention_floor', ?)",
-                    (json.dumps(cutoff[0]),),
+                    (json.dumps(floor),),
                 )
         with self._condition:
             self._condition.notify_all()
@@ -450,6 +468,11 @@ class BotMentionInbox:
             for stale in list(self._watched)[:-50]:
                 del self._watched[stale]
             self._commit([], {"watched": [list(item) for item in self._watched]})
+
+    def forget(self, up_to_message_id: int) -> None:
+        """Drop stored messages a single consumer has finished with."""
+        with self._condition, self._connect() as db:
+            db.execute("DELETE FROM messages WHERE id <= ?", (up_to_message_id,))
 
     def delivered_cursor(self) -> int | None:
         """Highest message ID already handed to a host by the server cursor."""

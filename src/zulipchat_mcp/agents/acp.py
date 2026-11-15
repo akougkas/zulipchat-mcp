@@ -33,12 +33,17 @@ UpdateHandler = Callable[[dict[str, Any]], None]
 
 # Clio Coder's attended-surface extensions. Advertising them tells the agent a
 # person answers: its ask_user interviews and its workers' permission asks are
-# sent here instead of being cancelled or denied at once. Other agents ignore
-# unknown _meta keys.
+# sent here instead of being cancelled or denied at once. Each opt-in may name
+# timeoutMs, how long the agent waits for that person (Clio Coder 0.8.2).
+# Other agents ignore unknown _meta keys.
 INTERVIEW_REQUEST = "_clio-coder/interview/request"
 INTERVIEW_CANCEL = "_clio-coder/interview/cancel"
 PERMISSION_WITHDRAW = "_clio-coder/permission/withdraw"
 WORKER_ASK_META = "clio-coder/workerAsk"
+# {version, requestId} on a main-session permission request: the ID a later
+# withdraw notification names when the agent gives the request up.
+PERMISSION_ASK_META = "clio-coder/permissionAsk"
+MAX_ASK_TIMEOUT_MS = 2_147_483_647
 
 _RPC_CODES = {
     -32000: "auth_required",
@@ -119,6 +124,7 @@ class AcpAgent:
         cwd: str | None = None,
         on_permission: PermissionHandler | None = None,
         on_interview: InterviewHandler | None = None,
+        ask_timeout_ms: int | None = None,
         request_timeout: float = 120.0,
     ) -> None:
         self.command = list(command)
@@ -126,6 +132,11 @@ class AcpAgent:
         self.cwd = cwd
         self.on_permission = on_permission
         self.on_interview = on_interview
+        self.ask_timeout_ms = (
+            None
+            if ask_timeout_ms is None
+            else min(max(int(ask_timeout_ms), 1), MAX_ASK_TIMEOUT_MS)
+        )
         self.request_timeout = request_timeout
         self._proc: asyncio.subprocess.Process | None = None
         self._capabilities: dict[str, Any] = {}
@@ -173,15 +184,20 @@ class AcpAgent:
         self._spawn(self._read_stdout())
         self._spawn(self._read_stderr())
         extensions: dict[str, Any] = {}
+        window = (
+            {} if self.ask_timeout_ms is None else {"timeoutMs": self.ask_timeout_ms}
+        )
         if self.on_interview is not None:
             extensions["clio-coder/interviews"] = {
                 "version": 1,
                 "request": INTERVIEW_REQUEST,
+                **window,
             }
         if self.on_permission is not None:
             extensions["clio-coder/workerPermissions"] = {
                 "version": 1,
                 "withdraw": PERMISSION_WITHDRAW,
+                **window,
             }
         result = await self._request(
             "initialize",
@@ -464,19 +480,25 @@ class AcpAgent:
             elif method == INTERVIEW_CANCEL:
                 self._withdraw(f"interview:{params.get('interviewId')}")
             elif method == PERMISSION_WITHDRAW:
-                self._withdraw(f"worker:{params.get('requestId')}")
+                self._withdraw(f"permission:{params.get('requestId')}")
             return
         if method == "session/request_permission":
             if self.on_permission is None:
                 self._spawn(self._reply(message["id"], result=_reject_option(params)))
                 return
             meta = params.get("_meta")
-            worker = meta.get(WORKER_ASK_META) if isinstance(meta, dict) else None
-            key = (
-                f"worker:{worker.get('requestId')}"
-                if isinstance(worker, dict)
-                else None
+            meta = meta if isinstance(meta, dict) else {}
+            # A worker's ask and a main-session ask both name the request ID a
+            # withdraw notification will carry.
+            asked = next(
+                (
+                    meta[name]
+                    for name in (WORKER_ASK_META, PERMISSION_ASK_META)
+                    if isinstance(meta.get(name), dict)
+                ),
+                None,
             )
+            key = f"permission:{asked.get('requestId')}" if asked else None
             self._serve(message["id"], params, self.on_permission, _CANCELLED, key)
             return
         if method == INTERVIEW_REQUEST and self.on_interview is not None:

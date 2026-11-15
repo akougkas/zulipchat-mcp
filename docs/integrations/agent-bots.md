@@ -57,12 +57,20 @@ server has begun with Clio Coder.
   👍 or 👎 (✅ and ❌ also work) on the request. Any other message leaves it
   open. No answer within `question_minutes` means no. A request the agent
   withdraws, or that a `/cancel` ends, is closed in the conversation, so the
-  next message starts a turn again.
+  next message starts a turn again. Clio withdraws main-session and worker
+  requests alike when it gives one up.
+- **Answers in a topic.** In a channel topic every message for the bot
+  mentions it. The exception is an exact choice for the open request: `yes` or
+  `no` for a permission, an option's number or label for an interview. A
+  free-text answer needs the mention, and anything else you write there is
+  ignored, so a remark to a colleague is never taken as your answer. A direct
+  message needs no mention.
 - **Clio Coder interviews.** The bridge tells Clio a person is attending
   (`clio-coder/interviews` and `clio-coder/workerPermissions` in
   `clientCapabilities._meta`). Clio's `ask_user` questions then arrive as
   `Question ID`, one at a time; reply with an option's number or label (several,
-  comma-separated, when it allows more than one) or in your own words. Workers'
+  comma-separated, when it allows more than one) or in your own words. The
+  option Clio would take if nobody answered is marked `(recommended)`. Workers'
   permission requests arrive like any other permission request.
 - **Restarts.** A journal records turns in flight. After a crash or restart the
   bridge tells each affected conversation that the earlier message may be only
@@ -70,7 +78,10 @@ server has begun with Clio Coder.
 
 Per-bot state lives in `~/.local/state/zulipchat-mcp/agents/` (honoring
 `XDG_STATE_HOME`): `<name>.sqlite3` holds conversation bindings, the turn
-journal and open questions; `<name>-inbox.sqlite3` holds the event snapshot.
+journal and open questions; `<name>-inbox.sqlite3` holds messages not yet
+handled and is emptied as they are delivered or dropped. An answer written
+into the state file decides nothing: the bridge acts only on answers it took
+from Zulip itself.
 
 ## Set up a bot
 
@@ -104,9 +115,17 @@ bundles its own Claude Code, and the API refuses models to an outdated one, so
 upgrade the package when Claude Code moves. An unpinned `npx` would resolve to
 whatever old copy is installed globally.
 
-The bridge passes `--permission-timeout` to `clio-coder acp` so Clio waits for
-a permission answer or an interview as long as the question stays open in Zulip
-(`question_minutes`). Clio's own default is two minutes.
+Clio Coder needs 0.8.2 or later. The bridge starts it as
+`clio-coder acp --autonomy default`: a person in Zulip is not at the keyboard,
+so Clio asks before it acts and refuses `yolo` for every session the bridge
+hosts. To run it at your configured level, name the level in the file:
+`command = ["clio-coder", "acp", "--autonomy", "yolo"]`. Read
+[what you are trusting](#what-you-are-trusting) first.
+
+The bridge tells Clio how long to wait for an answer (`timeoutMs` in both
+opt-ins, equal to `question_minutes`), so a permission request or an interview
+stays open in Clio as long as it stays open in Zulip. Do not add
+`--permission-timeout` to the command: it overrides that window.
 
 ```bash
 uvx --from zulipchat-mcp zulipchat-mcp-agents add reviewer \

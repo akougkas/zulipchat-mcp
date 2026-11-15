@@ -49,6 +49,7 @@ HELP = (
 _YES = {"yes", "y", "approve", "allow", "ok", "/approve"}
 _NO = {"no", "n", "deny", "reject", "/deny"}
 DECISION_META = "clio-coder/decision"
+INTERVIEW_META = "clio-coder/interview"
 MAX_ANSWER_CHARS = 16 * 1024
 
 
@@ -194,6 +195,21 @@ def describe_permission(params: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def exact_choice(question: dict[str, Any], text: str) -> bool:
+    """Whether text is nothing but a valid choice for an open request."""
+    words = text.split()
+    if words[:1] in (["/approve"], ["/deny"]) and len(words) == 2:
+        return True
+    if question.get("kind") == "permission":
+        return text.strip().rstrip(".!").casefold() in _YES | _NO
+    labels = [str(label).casefold() for label in question.get("options") or []]
+    picks = [pick.strip().rstrip(".").casefold() for pick in text.split(",")]
+    return bool(labels) and all(
+        pick in labels or (pick.isdigit() and 1 <= int(pick) <= len(labels))
+        for pick in picks
+    )
+
+
 def interview_answer(question: dict[str, Any], text: str) -> dict[str, Any]:
     """Map a reply onto Clio's answer contract: numbers or labels pick options."""
     labels = [str(o.get("label")) for o in question.get("options") or []]
@@ -303,6 +319,7 @@ class AgentBridge:
         )
         self.conversations: dict[str, Conversation] = {}
         self.secrets = known_secrets(config)
+        self._verdicts: dict[str, str] = {}  # answers taken from Zulip, by question
         self._revoked = False
         self.owner_id: int | None = None
         self.bot_id: int | None = None
@@ -417,6 +434,9 @@ class AgentBridge:
             cursor = advance
             for message in messages:
                 await self.route(message)
+            # Delivered or dropped, a message is never read again: keep no copy
+            # of what strangers wrote to the bot.
+            self.inbox.forget(cursor)
 
     # Routing
     def admitted(self, message: dict[str, Any]) -> bool:
@@ -432,10 +452,15 @@ class AgentBridge:
             return  # strangers get nothing, not even a refusal
         key = conversation_key(message, self.bot_id)
         question = self.store.open_question(key)
-        direct = message.get("type") == "private"
-        if not direct and "mentioned" not in message.get("flags", []) and not question:
-            return  # owner chatter in a topic the bot watches for answers
+        addressed = message.get("type") == "private" or "mentioned" in message.get(
+            "flags", []
+        )
         content = str(message.get("content", ""))
+        # In a topic every message for the bot mentions it. The one exception is
+        # an exact choice for the open request; anything else there is the
+        # owner talking to other people and is never taken as an answer.
+        if not addressed and not (question and exact_choice(question, content)):
+            return
         if message.get("content_truncated"):
             # The inbox keeps 6000 characters; half an instruction is not one.
             full = await asyncio.to_thread(
@@ -493,6 +518,7 @@ class AgentBridge:
         else:
             answer = text
         if self.store.answer(question["id"], answer):
+            self._verdicts[question["id"]] = answer
             await asyncio.to_thread(
                 self.client.add_reaction, message["id"], "check_mark"
             )
@@ -606,6 +632,9 @@ class AgentBridge:
             on_interview=lambda session_id, params: self._interview(
                 conversation, params
             ),
+            # The agent waits for an answer as long as the question stays open
+            # in Zulip; Clio's own default is two minutes.
+            ask_timeout_ms=int(self.config.question_minutes * 60_000),
         )
         await agent.start()
         previous = conversation.session_id
@@ -737,7 +766,9 @@ class AgentBridge:
             while time.monotonic() < deadline and answer is None:
                 await asyncio.sleep(1)
                 tick += 1
-                answer = (self.store.question(question_id) or {}).get("answer")
+                # Only an answer this process took from Zulip counts. The store
+                # is a file the agent can write, so it never decides a request.
+                answer = self._verdicts.pop(question_id, None)
                 if (
                     answer is None
                     and react_to is not None
@@ -805,14 +836,22 @@ class AgentBridge:
     ) -> dict[str, Any]:
         """Ask a Clio interview round in Zulip, one question at a time."""
         answers = []
-        for question in params.get("questions") or []:
+        # Clio names, per question, the option index it would take for an
+        # absent operator.
+        recommended = _dict(_dict(params.get("_meta")).get(INTERVIEW_META)).get(
+            "recommended"
+        )
+        recommended = recommended if isinstance(recommended, list) else []
+        for position, question in enumerate(params.get("questions") or []):
             options = question.get("options") or []
+            preferred = recommended[position] if position < len(recommended) else None
             lines = [str(question.get("question", ""))]
             for number, option in enumerate(options, 1):
                 described = (
                     f": {option['description']}" if option.get("description") else ""
                 )
-                lines.append(f"{number}. **{option.get('label')}**{described}")
+                marked = " (recommended)" if preferred == number - 1 else ""
+                lines.append(f"{number}. **{option.get('label')}**{described}{marked}")
             if options:
                 lines.append(
                     "Reply with a number or label"
@@ -852,15 +891,15 @@ class AgentBridge:
 
     def _agent_command(self) -> list[str]:
         command = list(self.config.command)
-        # Clio stops waiting on a permission or interview after
-        # --permission-timeout (2 min by default); match the Zulip question window.
+        # A person in Zulip is not at the keyboard. Clio is held to its default
+        # autonomy, so it asks before acting, unless the file names a level
+        # itself. The flag can lower Clio's configured level, never raise it.
         if (
             Path(command[0]).name == "clio-coder"
             and "acp" in command
-            and "--permission-timeout" not in command
+            and "--autonomy" not in command
         ):
-            minutes = self.config.question_minutes
-            command += ["--permission-timeout", str(int(minutes * 60_000))]
+            command += ["--autonomy", "default"]
         return command
 
     def _mcp_servers(self, conversation: Conversation) -> list[dict[str, Any]]:
