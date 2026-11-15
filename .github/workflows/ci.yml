@@ -55,7 +55,7 @@ jobs:
           .pkg-smoke/bin/zulipchat-mcp-setup --version
           .pkg-smoke/bin/zulipchat-mcp-integrate --version
           .pkg-smoke/bin/zulipchat-mcp-integrate list
-          .pkg-smoke/bin/zulipchat-mcp-hook --help > /dev/null
+          .pkg-smoke/bin/zulipchat-mcp-agents --help > /dev/null
 
       - name: Run installed MCP stdio smoke
         run: |
@@ -94,7 +94,7 @@ jobs:
           uv run zulipchat-mcp-setup --version
           uv run zulipchat-mcp-integrate --version
           uv run zulipchat-mcp-integrate list
-          uv run zulipchat-mcp-hook --help > /dev/null
+          uv run zulipchat-mcp-agents --help > /dev/null
 
       - name: MCP stdio smoke
         run: |

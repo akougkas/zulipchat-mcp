@@ -112,7 +112,7 @@ jobs:
           .pkg-smoke/bin/zulipchat-mcp-setup --version
           .pkg-smoke/bin/zulipchat-mcp-integrate --version
           .pkg-smoke/bin/zulipchat-mcp-integrate list
-          .pkg-smoke/bin/zulipchat-mcp-hook --help > /dev/null
+          .pkg-smoke/bin/zulipchat-mcp-agents --help > /dev/null
 
       - name: Smoke test installed MCP stdio server
         run: |
