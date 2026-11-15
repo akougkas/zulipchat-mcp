@@ -836,21 +836,14 @@ class ZulipClientWrapper:
     def get_daily_summary(
         self, streams: list[str] | None = None, hours_back: int = 24
     ) -> dict[str, Any]:
-        """Get daily message summary."""
-        if not streams:
-            # Get all subscribed streams
-            streams_response = self.get_streams()
-            if streams_response["result"] == "success":
-                streams = [
-                    s["name"]
-                    for s in streams_response["streams"]
-                    if not s.get("invite_only", False)
-                ]
-            else:
-                raise RuntimeError(
-                    streams_response.get("msg", "Failed to fetch streams")
-                )
+        """Count recent messages per channel, topic, and sender.
 
+        Without explicit streams on FL 445+, one GET /messages over
+        channels:public anchored at the cutoff date covers every public
+        channel (up to 1000 messages; `truncated` reports more). Explicit
+        streams or older servers fetch each channel separately.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours_back)
         summary: dict[str, Any] = {
             "total_messages": 0,
             "streams": {},
@@ -858,45 +851,67 @@ class ZulipClientWrapper:
             "time_range": f"Last {hours_back} hours",
         }
 
-        for stream_name in streams:
-            messages_response = self.get_messages_from_stream(
-                stream_name, hours_back=hours_back
+        def tally(stream_name: str, messages: list[dict[str, Any]]) -> None:
+            stream = summary["streams"].setdefault(
+                stream_name, {"message_count": 0, "topics": {}}
             )
-
-            if messages_response.get("result") != "success":
-                summary.setdefault("unavailable_streams", []).append(stream_name)
-                continue
-
-            messages = messages_response.get("messages", [])
-            summary["streams"][stream_name] = {
-                "message_count": len(messages),
-                "topics": {},
-            }
-
             for msg in messages:
                 summary["total_messages"] += 1
-
-                # Count by sender
+                stream["message_count"] += 1
                 sender = msg.get("sender_full_name", "Unknown")
                 summary["top_senders"][sender] = (
                     summary["top_senders"].get(sender, 0) + 1
                 )
-
-                # Count by topic
                 topic = msg.get("subject")
                 if topic:
-                    topic_count = summary["streams"][stream_name]["topics"].get(
-                        topic, 0
-                    )
-                    summary["streams"][stream_name]["topics"][topic] = topic_count + 1
+                    stream["topics"][topic] = stream["topics"].get(topic, 0) + 1
 
-        # Sort top senders
+        if not streams and self.supports(445):
+            response = self.get_messages_raw(
+                anchor="date",
+                anchor_date=cutoff.replace(microsecond=0).isoformat(),
+                num_before=0,
+                num_after=1000,
+                narrow=[{"operator": "channels", "operand": "public"}],
+                apply_markdown=False,
+            )
+            if response.get("result") != "success":
+                raise RuntimeError(response.get("msg", "Failed to fetch messages"))
+            by_stream: dict[str, list[dict[str, Any]]] = {}
+            for msg in response.get("messages", []):
+                if msg.get("timestamp", 0) >= cutoff.timestamp():
+                    name = str(msg.get("display_recipient", "Unknown"))
+                    by_stream.setdefault(name, []).append(msg)
+            for name, messages in by_stream.items():
+                tally(name, messages)
+            if not response.get("found_newest", True):
+                summary["truncated"] = True
+        else:
+            if not streams:
+                streams_response = self.get_streams()
+                if streams_response["result"] != "success":
+                    raise RuntimeError(
+                        streams_response.get("msg", "Failed to fetch streams")
+                    )
+                streams = [
+                    s["name"]
+                    for s in streams_response["streams"]
+                    if not s.get("invite_only", False)
+                ]
+            for stream_name in streams:
+                messages_response = self.get_messages_from_stream(
+                    stream_name, hours_back=hours_back
+                )
+                if messages_response.get("result") != "success":
+                    summary.setdefault("unavailable_streams", []).append(stream_name)
+                    continue
+                tally(stream_name, messages_response.get("messages", []))
+
         summary["top_senders"] = dict(
             sorted(summary["top_senders"].items(), key=lambda x: x[1], reverse=True)[
                 :10
             ]
         )
-
         return summary
 
 

@@ -1,5 +1,6 @@
 """Tests for core/client.py."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -346,3 +347,78 @@ def test_get_users_by_ids_uses_server_filter_when_supported(level):
         # The full roster stays cached for the next caller.
         assert len(wrapper.get_users()["members"]) == 3
         assert sdk.get_users.call_count == 1
+
+
+def test_daily_summary_uses_one_date_anchored_request():
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=513)
+    now = datetime.now(timezone.utc).timestamp()
+    sdk.get_messages.return_value = {
+        "result": "success",
+        "found_newest": False,
+        "messages": [
+            {
+                "display_recipient": "a",
+                "sender_full_name": "U1",
+                "subject": "t",
+                "timestamp": now,
+            },
+            {
+                "display_recipient": "b",
+                "sender_full_name": "U2",
+                "subject": "t",
+                "timestamp": now,
+            },
+            {
+                "display_recipient": "a",
+                "sender_full_name": "U1",
+                "subject": "old",
+                "timestamp": now - 3 * 86400,
+            },
+        ],
+    }
+    wrapper._client = sdk
+
+    summary = wrapper.get_daily_summary(hours_back=24)
+
+    sdk.get_messages.assert_called_once()
+    sdk.get_streams.assert_not_called()
+    request = sdk.get_messages.call_args[0][0]
+    assert request["anchor"] == "date" and request["anchor_date"]
+    assert request["narrow"] == [{"operator": "channels", "operand": "public"}]
+    assert request["apply_markdown"] is False
+    assert summary["total_messages"] == 2
+    assert summary["streams"]["a"] == {"message_count": 1, "topics": {"t": 1}}
+    assert summary["top_senders"] == {"U1": 1, "U2": 1}
+    assert summary["truncated"] is True
+
+
+def test_daily_summary_loops_per_stream_before_fl_445():
+    config = MagicMock()
+    config.get_zulip_client_config.return_value = {
+        "email": "owner@example.com",
+        "api_key": "fake",
+        "site": "https://example.com",
+    }
+    wrapper = ZulipClientWrapper(config)
+    sdk = MagicMock(feature_level=400)
+    sdk.get_streams.return_value = {
+        "result": "success",
+        "streams": [{"name": "a"}, {"name": "secret", "invite_only": True}],
+    }
+    sdk.get_messages.return_value = {"result": "success", "messages": []}
+    wrapper._client = sdk
+
+    summary = wrapper.get_daily_summary()
+
+    assert sdk.get_messages.call_count == 1
+    assert sdk.get_messages.call_args[0][0]["narrow"] == [
+        {"operator": "channel", "operand": "a"}
+    ]
+    assert summary["streams"] == {"a": {"message_count": 0, "topics": {}}}
