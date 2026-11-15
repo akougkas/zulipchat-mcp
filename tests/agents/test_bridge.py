@@ -681,3 +681,50 @@ def test_an_agent_gets_only_ask_owner_unless_all_tools_are_granted(make_bridge):
     bridge.config = dataclasses.replace(bridge.config, zulip_tools=True)
     (server,) = bridge._mcp_servers(conversation)
     assert "--tool-profile" not in server["args"]
+
+
+@pytest.mark.asyncio
+async def test_start_waits_for_the_network_instead_of_exiting(make_bridge, monkeypatch):
+    monkeypatch.setattr(bridge_module, "OFFLINE_RETRY_SECONDS", (0.01, 0.02))
+    build, client = make_bridge
+    online = {"result": "success", "is_bot": True, "user_id": BOT, "full_name": "C"}
+    client.client.get_profile.side_effect = [
+        ConnectionError("no route to host"),
+        {"result": "http-error", "msg": "502"},
+        online,
+    ]
+    monkeypatch.setattr(bridge_module, "bot_owner_id", lambda client: OWNER)
+    bridge = build()
+    serving = asyncio.create_task(_serve_until_stopped(bridge))
+    for _ in range(200):
+        if bridge.store.owner() is not None:
+            break
+        await asyncio.sleep(0.01)
+    bridge.stop()
+    await asyncio.wait_for(serving, 5)
+    assert bridge.store.owner() == OWNER and client.client.get_profile.call_count == 3
+
+    offline = build()
+    client.client.get_profile.side_effect = ConnectionError("still offline")
+    task = asyncio.create_task(offline.run())
+    await asyncio.sleep(0.05)
+    offline.stop()
+    await asyncio.wait_for(task, 5)  # stopping while offline is a clean exit
+
+
+@pytest.mark.asyncio
+async def test_a_refused_zuliprc_is_a_config_error_with_exit_status_78(
+    make_bridge, monkeypatch
+):
+    from zulipchat_mcp.agents import cli
+
+    build, client = make_bridge
+    client.client.get_profile.return_value = {
+        "result": "error",
+        "code": "UNAUTHORIZED",
+        "msg": "Invalid API key",
+    }
+    with pytest.raises(bridge_module.BridgeConfigError, match="Invalid API key"):
+        await build().run()
+    config = build().config
+    assert await cli._serve([config]) == 78

@@ -126,7 +126,8 @@ def cmd_list(_: argparse.Namespace) -> int:
 
 
 async def _serve(agents: list[AgentConfig], accept_owner: bool = False) -> int:
-    from .bridge import AgentBridge
+    from .bridge import AgentBridge, BridgeConfigError
+    from .service import CONFIG_ERROR
 
     bridges = [AgentBridge(agent, accept_owner) for agent in agents]
     loop = asyncio.get_running_loop()
@@ -138,24 +139,29 @@ async def _serve(agents: list[AgentConfig], accept_owner: bool = False) -> int:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop_all)
     results = await asyncio.gather(*(b.run() for b in bridges), return_exceptions=True)
-    failed = 0
-    for agent, result in zip(agents, results, strict=True):
-        if isinstance(result, Exception):
-            print(f"{agent.name}: {result}", file=sys.stderr)
-            failed = 1
-    return failed
+    errors = [result for result in results if isinstance(result, Exception)]
+    for error in errors:
+        print(error, file=sys.stderr)
+    if errors and all(isinstance(error, BridgeConfigError) for error in errors):
+        return CONFIG_ERROR  # a supervisor restarting the bridge would not help
+    return 1 if errors else 0
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     from ..utils.logging import setup_structured_logging
+    from .service import CONFIG_ERROR
 
     setup_structured_logging("DEBUG" if args.debug else "INFO")
-    agents = load_agents()
+    try:
+        agents = load_agents()
+    except (ValueError, OSError) as error:
+        print(f"Invalid agent file: {error}", file=sys.stderr)
+        return CONFIG_ERROR
     if args.agent:
         agents = [a for a in agents if a.name in args.agent]
     if not agents:
         print(f"No agent bots declared in {config_dir()}", file=sys.stderr)
-        return 1
+        return CONFIG_ERROR
     return asyncio.run(_serve(agents, args.accept_owner))
 
 

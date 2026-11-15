@@ -35,6 +35,7 @@ ZULIP_MESSAGE_LIMIT = 9500
 MAX_ANSWER_PARTS = 5  # one answer never floods a conversation
 PERMISSION_TARGET_LIMIT = 6000  # the approver must see what they approve
 OWNER_CHECK_SECONDS = 300
+OFFLINE_RETRY_SECONDS = (5, 300)  # first and longest wait to reach Zulip at start
 TYPING_REFRESH_SECONDS = 8
 PROGRESS_DELAY_SECONDS = 20  # turns shorter than this post no status message
 PROGRESS_EVERY_SECONDS = 10
@@ -52,6 +53,10 @@ _NO = {"no", "n", "deny", "reject", "/deny"}
 DECISION_META = "clio-coder/decision"
 INTERVIEW_META = "clio-coder/interview"
 MAX_ANSWER_CHARS = 16 * 1024
+
+
+class BridgeConfigError(RuntimeError):
+    """Restarting cannot fix this: the zuliprc, the bot or its owner is wrong."""
 
 
 def conversation_key(message: dict[str, Any], bot_id: int | None) -> str:
@@ -305,24 +310,53 @@ class AgentBridge:
         self._stop = asyncio.Event()
 
     # Lifecycle
-    async def run(self) -> None:
-        profile = await asyncio.to_thread(self.client.client.get_profile)
-        if profile.get("result") != "success" or not profile.get("is_bot"):
-            raise RuntimeError(f"{self.config.name}: zuliprc must belong to a bot")
-        self.bot_id, self.bot_name = profile["user_id"], profile.get("full_name")
+    def _whoami(self) -> tuple[dict[str, Any], int | None] | None:
+        """The bot's profile and owner, or None while Zulip is unreachable."""
         try:
-            self.owner_id = await asyncio.to_thread(bot_owner_id, self.client)
+            profile = self.client.client.get_profile()
+            if profile.get("result") == "error" and profile.get("code") != (
+                "RATE_LIMIT_HIT"
+            ):
+                raise BridgeConfigError(
+                    f"{self.config.name}: Zulip refused the zuliprc: {profile.get('msg')}"
+                )
+            if profile.get("result") != "success":
+                return None  # a server error page or rate limit
+            if not profile.get("is_bot"):
+                raise BridgeConfigError(
+                    f"{self.config.name}: zuliprc must belong to a bot"
+                )
+            return profile, bot_owner_id(self.client)
         except ProvisionError as error:
-            raise RuntimeError(f"{self.config.name}: {error}") from error
+            raise BridgeConfigError(f"{self.config.name}: {error}") from error
+        except BridgeConfigError:
+            raise
+        except Exception as error:  # offline, DNS, TLS, the server restarting
+            logger.warning("%s cannot reach Zulip: %s", self.config.name, error)
+            return None
+
+    async def run(self) -> None:
+        delay, longest = OFFLINE_RETRY_SECONDS
+        # A laptop starts the service before its network is up: wait, never exit.
+        while (found := await asyncio.to_thread(self._whoami)) is None:
+            try:
+                await asyncio.wait_for(self._stop.wait(), delay)
+                return
+            except asyncio.TimeoutError:
+                delay = min(delay * 2, longest)
+        profile, self.owner_id = found
+        self.bot_id, self.bot_name = profile["user_id"], profile.get("full_name")
         if self.owner_id is None:
-            raise RuntimeError(f"{self.config.name}: the bot has no owner in Zulip")
+            raise BridgeConfigError(
+                f"{self.config.name}: the bot has no owner in Zulip"
+            )
         # An organization administrator can reassign a bot. The owner drives a
         # local agent, so a new owner is never adopted from Zulip silently.
         paired = self.store.owner()
         if paired is None or self.accept_owner:
             self.store.pair_owner(self.owner_id)
         elif paired != self.owner_id:
-            raise RuntimeError(self._owner_changed(paired, self.owner_id))
+            raise BridgeConfigError(self._owner_changed(paired, self.owner_id))
         logger.info(
             "agent bot %s (%s) serving owner %s",
             self.config.name,
@@ -340,7 +374,7 @@ class AgentBridge:
             watcher.cancel()
             await self.shutdown()
         if self.owner_id != serving:
-            raise RuntimeError(self._owner_changed(serving, self.owner_id))
+            raise BridgeConfigError(self._owner_changed(serving, self.owner_id))
 
     def _owner_changed(self, paired: int, current: int | None) -> str:
         return (
