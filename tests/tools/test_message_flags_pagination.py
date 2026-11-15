@@ -82,13 +82,13 @@ async def call_registered(arguments):
         (
             "stream",
             {"stream_id": 7},
-            [{"operator": "channel", "operand": "engineering"}],
+            [{"operator": "channel", "operand": 7}],
         ),
         (
             "topic",
             {"stream_id": 7, "topic_name": "deploy"},
             [
-                {"operator": "channel", "operand": "engineering"},
+                {"operator": "channel", "operand": 7},
                 {"operator": "topic", "operand": "deploy"},
             ],
         ),

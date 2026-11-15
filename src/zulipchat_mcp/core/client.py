@@ -534,12 +534,16 @@ class ZulipClientWrapper:
             f"streams/{stream_id}", method="DELETE", request={}
         )
 
+    def get_stream(self, stream_id: int) -> dict[str, Any]:
+        """Fetch one channel by ID (GET /streams/{id})."""
+        return self.client.call_endpoint(
+            f"streams/{stream_id}", method="GET", request={}
+        )
+
     def get_stream_id(self, stream: int | str) -> dict[str, Any]:
         if isinstance(stream, int):
             try:
-                response = self.client.call_endpoint(
-                    f"streams/{stream}", method="GET", request={}
-                )
+                response = self.get_stream(stream)
                 if response.get("result") == "success":
                     return {**response, "stream_id": stream}
                 return response

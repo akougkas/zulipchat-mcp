@@ -145,9 +145,9 @@ async def test_registered_send_retains_rate_limit_code_and_never_retries(
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
 async def test_requested_details_are_partial_when_upstream_fails(mode, monkeypatch):
     upstream = MagicMock()
-    upstream.get_streams.return_value = {
+    upstream.get_stream.return_value = {
         "result": "success",
-        "streams": [{"stream_id": 42, "name": "Demo"}],
+        "stream": {"stream_id": 42, "name": "Demo"},
     }
     upstream.get_stream_topics.return_value = {
         "result": "error",
