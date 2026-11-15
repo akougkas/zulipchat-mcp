@@ -42,7 +42,10 @@ def _build_base_config(
     extended_tools: bool,
     tool_profile: str = "full",
 ) -> dict[str, Any]:
-    args = ["zulipchat-mcp", "--zulip-config-file", zulip_config_file]
+    # Pinned to the exporting version: the command holds the Zulip key, and an
+    # unpinned uvx runs whatever the index serves at each start. Upgrading is a
+    # new export with --force.
+    args = [f"zulipchat-mcp@{__version__}", "--zulip-config-file", zulip_config_file]
     if zulip_bot_config_file:
         args.extend(["--zulip-bot-config-file", zulip_bot_config_file])
     if extended_tools:

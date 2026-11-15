@@ -343,3 +343,68 @@ def test_read_only_clio_export_runs_in_a_read_only_sandbox(tmp_path):
     assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
     assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
     assert set(server["toolActionClasses"].values()) == {"read"}
+
+
+def test_exports_pin_the_exporting_version_and_upgrade_only_with_force(tmp_path):
+    from zulipchat_mcp import __version__
+
+    export_agent_package(
+        tmp_path / "generic",
+        client="generic",
+        zulip_config_file="/home/test/.zuliprc",
+    )
+    config_path, _, key = LAYOUTS["generic"]
+    server = json.loads((tmp_path / "generic" / config_path).read_text())[key][
+        "zulipchat"
+    ]
+    assert server["command"] == "uvx"
+    assert server["args"][0] == f"zulipchat-mcp@{__version__}"
+
+    project = tmp_path / "claude"
+    settings_path = project / ".claude/settings.json"
+    settings_path.parent.mkdir(parents=True)
+    # What an exporter before pinning wrote, beside a hook the user owns.
+    unpinned = (
+        "uvx --from zulipchat-mcp zulipchat-mcp-hook "
+        "--zulip-config-file /home/test/.zuliprc"
+    )
+    settings_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PermissionRequest": [
+                        {
+                            "matcher": ".*",
+                            "hooks": [
+                                {"type": "command", "command": unpinned, "timeout": 900}
+                            ],
+                        },
+                        {
+                            "matcher": ".*",
+                            "hooks": [{"type": "command", "command": "echo keep"}],
+                        },
+                    ]
+                }
+            }
+        )
+    )
+    with pytest.raises(FileExistsError, match="--force"):
+        export_claude_code_package(project, zulip_config_file="/home/test/.zuliprc")
+    assert unpinned in settings_path.read_text()  # nothing changed without consent
+    export_claude_code_package(
+        project, zulip_config_file="/home/test/.zuliprc", force=True
+    )
+    commands = [
+        hook["command"]
+        for groups in json.loads(settings_path.read_text())["hooks"].values()
+        for group in groups
+        for hook in group["hooks"]
+    ]
+    pinned = (
+        f"uvx --from zulipchat-mcp=={__version__} zulipchat-mcp-hook "
+        "--zulip-config-file /home/test/.zuliprc"
+    )
+    assert pinned in commands and "echo keep" in commands
+    assert unpinned not in commands
+    mcp = json.loads((project / ".mcp.json").read_text())["mcpServers"]["zulipchat"]
+    assert mcp["args"][0] == f"zulipchat-mcp@{__version__}"

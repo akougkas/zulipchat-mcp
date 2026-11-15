@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ def _build_mcp_args(
     *,
     extended_tools: bool,
 ) -> list[str]:
-    args = ["zulipchat-mcp", "--zulip-config-file", zulip_config_file]
+    args = [f"zulipchat-mcp@{__version__}", "--zulip-config-file", zulip_config_file]
     if zulip_bot_config_file:
         args.extend(["--zulip-bot-config-file", zulip_bot_config_file])
     if extended_tools:
@@ -30,10 +31,11 @@ def _build_hook_command(
     zulip_config_file: str,
     zulip_bot_config_file: str | None,
 ) -> str:
+    # Pinned: this command answers Claude Code's permission prompts.
     command = [
         "uvx",
         "--from",
-        "zulipchat-mcp",
+        f"zulipchat-mcp=={__version__}",
         "zulipchat-mcp-hook",
         "--zulip-config-file",
         zulip_config_file,
@@ -383,7 +385,13 @@ def _owned_hook(hook: Any) -> bool:
         tokens = shlex.split(hook.get("command", ""))
     except (ValueError, TypeError):
         return False
-    if tokens[:4] != ["uvx", "--from", "zulipchat-mcp", "zulipchat-mcp-hook"]:
+    # Any version this exporter pinned, or the unpinned form older ones wrote.
+    if (
+        len(tokens) < 4
+        or tokens[:2] != ["uvx", "--from"]
+        or not re.fullmatch(r"zulipchat-mcp(==[\w.+!-]+)?", tokens[2])
+        or tokens[3] != "zulipchat-mcp-hook"
+    ):
         return False
     tail = tokens[4:]
     return (

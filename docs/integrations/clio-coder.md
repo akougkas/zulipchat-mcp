@@ -33,7 +33,7 @@ servers:
   - id: zulipchat
     command: uvx
     args:
-      - zulipchat-mcp
+      - zulipchat-mcp@0.8.0
       - --zulip-config-file
       - /absolute/path/to/.zuliprc
       - --extended-tools
@@ -44,6 +44,12 @@ servers:
       get_message: read
       # ... one entry for every exported tool
 ```
+
+Exports pin the command to the version of the exporter that wrote them
+(`zulipchat-mcp@X.Y.Z`, and `--from zulipchat-mcp==X.Y.Z` for the Claude Code
+hook): the command holds your Zulip key, and an unpinned `uvx` runs whatever
+the index serves at each start. To upgrade, run the export again from the new
+version with `--force`; Clio then asks you to trust the changed declaration.
 
 The timeout accommodates the approval-wait tool. Prefer short, repeated
 `wait_for_response` calls during interactive work so the host remains responsive.
