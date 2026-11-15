@@ -41,7 +41,7 @@ class ToolCountingMCP:
 # --- Core vs Extended registration tests ---
 
 
-EXTENDED_TOOL_COUNT = 55
+EXTENDED_TOOL_COUNT = 53
 
 
 class TestToolRegistration:
@@ -51,7 +51,7 @@ class TestToolRegistration:
         mcp = ToolCountingMCP()
         register_core_tools(mcp)
         assert mcp.tool_names == set(CORE_TOOLS)
-        assert mcp.tool_count == len(CORE_TOOLS) == 21
+        assert mcp.tool_count == len(CORE_TOOLS) == 19
 
     def test_extended_adds_tools_beyond_core(self):
         from zulipchat_mcp.tools import register_core_tools, register_extended_tools

@@ -4,6 +4,8 @@ Descriptions lead with one self-contained sentence: hosts that search tools
 lazily (Clio's gateway, Claude Code's tool search) show only that sentence.
 """
 
+import os
+
 from fastmcp import FastMCP
 
 from .registration import optional_background_task, register_tool
@@ -12,9 +14,7 @@ __all__ = ["register_core_tools", "register_extended_tools", "CORE_TOOLS"]
 
 CORE_TOOLS = (
     "send_message",
-    "reply",
     "teleport_chat",
-    "wait_for_mentions",
     "edit_message",
     "add_reaction",
     "get_message",
@@ -46,7 +46,7 @@ def register_core_tools(mcp: FastMCP) -> None:
         wait_for_response,
     )
     from .emoji_messaging import add_reaction
-    from .inbox import reply, teleport_chat, wait_for_mentions
+    from .handoff import ask_owner, teleport_chat
     from .mark_messaging import manage_message_flags
     from .messaging import edit_message, get_message, send_message
     from .search import search_messages
@@ -103,39 +103,30 @@ def register_core_tools(mcp: FastMCP) -> None:
         title="Search messages",
     )
 
-    # Bot inbox: the owner talks to the agent through the bot.
-    register_tool(
-        mcp,
-        wait_for_mentions,
-        name="wait_for_mentions",
-        description=(
-            "Wait for the owner to @-mention or DM the bot in Zulip and return "
-            "their requests; answer each with reply."
-        ),
-        title="Wait for mentions",
-        task=waiting,
-    )
-    register_tool(
-        mcp,
-        reply,
-        name="reply",
-        description=(
-            "Reply as the bot to a wait_for_mentions request, in the "
-            "conversation it came from."
-        ),
-        title="Reply to request",
-    )
+    # Agent bots: hand a conversation to Zulip, or ask the owner from inside one.
     register_tool(
         mcp,
         teleport_chat,
         name="teleport_chat",
         description=(
-            "Hand this conversation to Zulip: the bot DMs the owner or opens a "
-            "channel topic, and replies arrive via wait_for_mentions."
+            "Hand this conversation to the owner's Zulip agent bot so they can "
+            "continue it in a DM with that bot."
         ),
         title="Teleport chat to Zulip",
-        task=waiting,
     )
+    if os.getenv("ZULIPCHAT_AGENT_STATE"):
+        # Present only in agents launched by the local bridge.
+        register_tool(
+            mcp,
+            ask_owner,
+            name="ask_owner",
+            description=(
+                "Ask the owner a question in this Zulip conversation and wait "
+                "for their answer."
+            ),
+            title="Ask owner",
+            task=waiting,
+        )
 
     # Discovery
     register_tool(

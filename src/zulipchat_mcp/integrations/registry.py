@@ -258,7 +258,7 @@ def main() -> None:
     print_parser.add_argument("--zulip-bot-config-file")
     print_parser.add_argument("--extended-tools", action="store_true")
     print_parser.add_argument(
-        "--tool-profile", choices=["full", "read-only", "bot"], default="full"
+        "--tool-profile", choices=["full", "read-only"], default="full"
     )
     print_parser.add_argument(
         "--server-id",
@@ -311,12 +311,9 @@ def main() -> None:
     export_parser.add_argument("--extended-tools", action="store_true")
     export_parser.add_argument(
         "--tool-profile",
-        choices=["full", "read-only", "bot"],
+        choices=["full", "read-only"],
         default="full",
-        help=(
-            "read-only: only read tools. bot: a Zulip-invoked session that "
-            "listens for owner mentions and replies in place. Not for claude-code."
-        ),
+        help="read-only: expose and permit only read tools (not for claude-code)",
     )
     export_parser.add_argument(
         "--server-id",

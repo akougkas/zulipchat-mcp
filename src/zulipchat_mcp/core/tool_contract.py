@@ -36,26 +36,9 @@ READ_ONLY_TOOLS = frozenset(
     }
 )
 
-# Surface for a session the owner invokes from Zulip: it listens, reads with the
-# bot's own visibility, and answers only in the conversation that asked.
-BOT_TOOLS = frozenset(
-    {
-        "wait_for_mentions",
-        "reply",
-        "server_info",
-        "get_message",
-        "search_messages",
-        "get_streams",
-        "get_stream_topics",
-        "resolve_user",
-        "get_users",
-    }
-)
-
 PROFILE_TOOLS: dict[str, frozenset[str] | None] = {
     "full": None,
     "read-only": READ_ONLY_TOOLS,
-    "bot": BOT_TOOLS,
 }
 
 
