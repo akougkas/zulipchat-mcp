@@ -10,14 +10,9 @@ servers:
   timeoutMs: 900000
   toolActionClasses:
     add_reaction: execute
-    advanced_search: read
     agent_message: execute
-    agents_channel_topic_ops: destructive
-    analyze_stream_with_llm: execute
-    analyze_team_activity_with_llm: execute
     check_messages_match_narrow: read
     close_agent_session: execute
-    construct_narrow: read
     create_draft: execute
     cross_post_message: execute
     delete_draft: destructive
@@ -25,9 +20,8 @@ servers:
     edit_draft: destructive
     edit_message: destructive
     ensure_agent_session: execute
-    execute_chain: execute
-    get_daily_summary: execute
-    get_drafts: execute
+    get_daily_summary: read
+    get_drafts: read
     get_events: execute
     get_message: read
     get_own_user: read
@@ -42,31 +36,26 @@ servers:
     get_user_presence: read
     get_user_status: read
     get_users: read
-    intelligent_report_generator: execute
-    is_user_group_member: read
-    list_command_types: read
-    list_instances: read
     list_sessions: read
     listen_events: execute
     manage_files: destructive
     manage_message_flags: execute
     manage_scheduled_message: destructive
-    manage_task: execute
     manage_user_mute: execute
     poll_agent_events: execute
     register_agent: execute
     register_events: execute
+    reply: execute
     request_user_input: execute
     resolve_user: read
     search_messages: read
-    send_agent_status: execute
     send_message: execute
     server_info: read
     switch_identity: execute
     teleport_chat: execute
-    toggle_reaction: execute
     update_message_flags_for_narrow: execute
     update_status: execute
     upload_file: execute
+    wait_for_mentions: execute
     wait_for_response: execute
 
