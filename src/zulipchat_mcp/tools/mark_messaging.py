@@ -259,6 +259,31 @@ async def manage_message_flags(
     )
 
 
+async def get_read_receipts(message_id: int) -> dict[str, Any]:
+    """Users who have read a message, with names from the cached roster."""
+    client = get_client()
+    try:
+        result = await asyncio.to_thread(
+            client.client.call_endpoint,
+            f"messages/{message_id}/read_receipts",
+            method="GET",
+            request={},
+        )
+        if result.get("result") != "success":
+            return api_error(result, "Failed to get read receipts")
+        user_ids = result.get("user_ids", [])
+        users = await asyncio.to_thread(client.get_users)
+        names = {u.get("user_id"): u.get("full_name") for u in users.get("members", [])}
+        return {
+            "status": "success",
+            "message_id": message_id,
+            "readers": [{"user_id": uid, "name": names.get(uid)} for uid in user_ids],
+            "count": len(user_ids),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 def register_mark_messaging_tools(mcp: FastMCP) -> None:
     """Register message marking tools with the MCP server."""
     mcp.tool(

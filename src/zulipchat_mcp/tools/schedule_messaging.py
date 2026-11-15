@@ -5,7 +5,7 @@ Direct mapping to API without unnecessary complexity.
 """
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastmcp import FastMCP
@@ -223,6 +223,91 @@ async def manage_scheduled_message(
         return await delete_scheduled_message(scheduled_message_id)
     else:
         return {"status": "error", "error": f"Unknown action: {action}"}
+
+
+def _timestamp(value: datetime | str) -> int:
+    when = datetime.fromisoformat(value) if isinstance(value, str) else value
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return int(when.timestamp())
+
+
+def _iso(timestamp: Any) -> str | None:
+    if not isinstance(timestamp, (int, float)):
+        return None
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+
+async def manage_reminders(
+    action: Literal["list", "create", "delete"],
+    message_id: int | None = None,
+    deliver_at: datetime | str | None = None,
+    note: str | None = None,
+    reminder_id: int | None = None,
+) -> dict[str, Any]:
+    """List, create, or delete message reminders (FL 381/399/415).
+
+    Naive deliver_at values are UTC.
+    """
+    client = get_client()
+    try:
+        if action == "list":
+            result = await asyncio.to_thread(
+                client.client.call_endpoint, "reminders", method="GET", request={}
+            )
+            if result.get("result") != "success":
+                return api_error(result, "Failed to list reminders")
+            reminders = [
+                {
+                    "reminder_id": r.get("reminder_id"),
+                    "message_id": r.get("reminder_target_message_id"),
+                    "deliver_at": _iso(r.get("scheduled_delivery_timestamp")),
+                    "failed": r.get("failed", False),
+                }
+                for r in result.get("reminders", [])
+            ]
+            return {
+                "status": "success",
+                "reminders": reminders,
+                "count": len(reminders),
+            }
+
+        if action == "create":
+            if message_id is None or deliver_at is None:
+                return {
+                    "status": "error",
+                    "error": "message_id and deliver_at are required to create",
+                }
+            request: dict[str, Any] = {
+                "message_id": message_id,
+                "scheduled_delivery_timestamp": _timestamp(deliver_at),
+            }
+            if note:
+                request["note"] = note
+            result = await asyncio.to_thread(
+                client.client.call_endpoint, "reminders", method="POST", request=request
+            )
+            if result.get("result") != "success":
+                return api_error(result, "Failed to create reminder")
+            return {
+                "status": "success",
+                "reminder_id": result.get("reminder_id"),
+                "deliver_at": _iso(request["scheduled_delivery_timestamp"]),
+            }
+
+        if reminder_id is None:
+            return {"status": "error", "error": "reminder_id is required to delete"}
+        result = await asyncio.to_thread(
+            client.client.call_endpoint,
+            f"reminders/{reminder_id}",
+            method="DELETE",
+            request={},
+        )
+        if result.get("result") != "success":
+            return api_error(result, "Failed to delete reminder")
+        return {"status": "success", "reminder_id": reminder_id, "deleted": True}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 def register_schedule_messaging_tools(mcp: FastMCP) -> None:
