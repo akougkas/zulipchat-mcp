@@ -35,9 +35,9 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 53 tools instead of the 19-tool core set
-- `--tool-profile {full,read-only}`: Enforce the selected Zulip tool surface (`full` by default)
-- `--ephemeral-state`: Requires `--tool-profile read-only`. Keeps local state in a private temporary database removed at exit, instead of the account database. Use it where the state directory is not writable, such as a Clio read-only worker sandbox. Sessions and approvals do not persist.
+- `--extended-tools`: Register all 45 tools instead of the 13-tool core set
+- `--tool-profile {full,read-only,ask-owner}`: Enforce the selected Zulip tool surface (`full` by default). `ask-owner` exposes only `ask_owner`, for agents launched by `zulipchat-mcp-agents`.
+- `--ephemeral-state`: Write no files. Read caches stay in memory instead of the account cache directory. Use it where the state directory is not writable, such as a sandboxed worker.
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)
@@ -46,11 +46,11 @@ zulipchat-mcp [options]
 - `--allowed-origin URL`: Additional trusted browser origin (repeatable)
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
-- `--enable-listener`: Backward-compatibility flag
 
-Note: listener services are lazy-started by tools that need them. The
-`--enable-listener` flag starts the listener eagerly and remains for
-compatibility.
+`--enable-listener`, `--associate-existing-db` and `--mention-allow` belonged
+to the agent session tools removed in 0.8.0. They are still accepted so 0.7
+host configurations start, and the server logs a warning that it ignores them.
+To reach an agent from Zulip, use the [agent bridge](../integrations/agent-bots.md).
 
 ## Read-only tool profile
 
@@ -60,29 +60,23 @@ For bounded discovery and Zulip reads, use:
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --tool-profile read-only
 ```
 
-The profile exposes seven core reads, or 22 with `--extended-tools`. Discovery
+The profile exposes seven core reads, or 21 with `--extended-tools`. Discovery
 omits writes and mixed-operation tools. A direct call to an excluded tool is
 also rejected with `isError=true`, `error_code="POLICY_DENIED"`, and
 `retryable=false`, before the operation executes. `resolve_user` is a read and
-remains available. Polling and interactive session tools are excluded because
-they can register remote event queues or post messages. The profile rejects
-`--enable-listener` and `--unsafe` at startup.
+remains available. Event tools are excluded because they register remote
+event queues. The profile rejects `--unsafe` at startup.
 
 `server_info.capabilities` reports the effective tool names and count, profile,
 transport, and availability of identity switching. Use this information and
 the current tool schemas to plan calls. The profile covers the configured
 account; it does not confine reads to one channel, sandbox the coding host, or
-make the server's local database and caches immutable. The `full` profile
-retains the 19/53-tool surface and existing safety checks.
+make the server's local caches immutable. The `full` profile retains the
+13/45-tool surface and existing safety checks.
 
 Application failures now set MCP `isError=true` while preserving structured
 error details. Partial delivery retains its message IDs and is not converted
-to an execution error. A bounded `wait_for_response` that elapses returns
-`status="timeout"`, `request_status="pending"`, the same `request_id`, and
-`retryable=true`. Resume that wait instead of reposting the question. This
-changes the former `status="error", error="Response timeout"` classification;
-the diagnostic `error` string is retained for existing callers. Stored
-terminal decisions remain immutable.
+to an execution error.
 
 ## Environment variables
 
@@ -99,11 +93,6 @@ terminal decisions remain immutable.
 - `ZULIP_CONFIG_FILE`
 - `ZULIP_BOT_CONFIG_FILE`
 
-### Server-side LLM Provider
-
-- `ANTHROPIC_API_KEY`: API key for server-side AI analytics tools (`analyze_stream_with_llm`, `analyze_team_activity_with_llm`, `intelligent_report_generator`)
-- `ANTHROPIC_MODEL`: Optional model override (default: `claude-opus-5`)
-
 ### HTTP Transport & Security
 
 - `ZULIPCHAT_HTTP_AUTH_TOKEN`: Bearer token required for `--transport http` requests
@@ -117,42 +106,26 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
-- `ZULIPCHAT_DB_PATH`: explicit DuckDB path; the default is account-scoped under `$XDG_STATE_HOME/zulipchat-mcp/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb` (normally `~/.local/state/...`), shared by every project and host using that account. A database in the server's working directory is never picked up on its own, because hosts start the server inside whatever project is open. To keep using a v0.7.4 database at `.mcp/zulipchat/accounts/ACCOUNT_FINGERPRINT/zulipchat.duckdb`, set `ZULIPCHAT_DB_PATH` to its absolute path.
-- `ZULIPCHAT_MENTION_ALLOW` / `--mention-allow`: senders whose bot mentions and direct messages `poll_agent_events` returns. Default: only the configured owner. A comma-separated list of emails and numeric user IDs adds senders; `everyone` admits all. Other senders are reported without content. In realms that hide email addresses, list the owner's numeric user ID.
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
-- `ZULIPCHAT_AGENT_STREAM=<stream>`: the control channel for agent session topics. Without it (and without an explicit `stream_name`), the first existing channel among `Agents-Channel`, `AI Bots`, `sandbox` and `general` is used, and only if it is private: sessions post permission requests there with commands and file contents. A public match, or no match, is an error that names this variable; nothing is posted to an arbitrary channel.
-- `ZULIPCHAT_APPROVAL_TIMEOUT=<seconds>`: timeout for Claude hook approval waits
+
+`ZULIPCHAT_DB_PATH` and `ZULIPCHAT_MENTION_ALLOW` are no longer read.
 
 ## Persistent state and account migration
 
-The default database path now includes a non-secret SHA-256 fingerprint of the
-normalized realm and effective user/bot principals. Key rotation does not change
-that fingerprint. Different realms or principals use different default paths.
-An explicit `ZULIPCHAT_DB_PATH` is bound to the same identity and refuses reuse
-by another account, even with the association flag. Initialization or binding
-failure aborts startup; an unverified candidate is not available to later tools.
+The server keeps no account database. Read caches live in
+`$XDG_STATE_HOME/zulipchat-mcp/accounts/ACCOUNT_FINGERPRINT/cache` (normally
+`~/.local/state/...`), shared by every project and host using that account.
+The fingerprint is a non-secret SHA-256 of the normalized realm and effective
+user/bot principals. Key rotation does not change it; a different realm or
+principal uses a different directory, so changing organization starts a fresh
+cache rather than migrating one. `--ephemeral-state` keeps the caches in
+memory. Nothing in the server's working directory is picked up as state.
 
-The pre-0.7.4 `.mcp/zulipchat/zulipchat.duckdb` remains intact. Starting with the
-new default does not migrate its sessions or approvals. To retain verified old
-state, first confirm the account that created it and make a backup, then select
-that exact file and explicitly associate it:
-
-```bash
-ZULIPCHAT_DB_PATH=/absolute/path/to/project/.mcp/zulipchat/zulipchat.duckdb \
-  uv run zulipchat-mcp --zulip-config-file /absolute/path/to/.zuliprc \
-  --associate-existing-db
-```
-
-The flag alone does not select the legacy path. It associates an unbound
-database with the configured account; it never overrides an existing different
-binding. Retain the same explicit path for subsequent server and Claude hook
-processes. Hooks use the account-scoped default when that variable is absent.
-
-This protects sequential account changes as well as concurrent use. It does
-not make separate processes/replicas interchangeable: use one listener/server
-instance per account/session workflow. Named organization profiles remain a
-separate [proposed feature](../developer-guide/organization-profiles.md).
+A DuckDB database left by 0.7.x (`zulipchat.duckdb` under the same account
+directory, or `.mcp/zulipchat/` in a project) is no longer read. Delete it when
+you no longer need its history. Named organization profiles remain a separate
+[proposed feature](../developer-guide/organization-profiles.md).
 
 ## Configuration precedence
 
@@ -167,25 +140,15 @@ silently switch to another account. File paths expand `~`.
 Clients and caches are isolated by configuration and user/bot identity. Restart
 the server after changing credential files so cached clients reload them.
 
-## Approval and listener behavior
+## Write delivery
 
-Owner approvals must name the request: `/approve REQUEST_ID` or
-`/deny REQUEST_ID`. Bare `approve`/`deny` messages do not answer a pending
-request. Once answered or cancelled, a request cannot be overwritten by a later
-message. A `wait_for_response` polling timeout leaves the request pending so
-another call can resume waiting. The Claude permission hook has a separate
-approval deadline and denies execution on timeout or persistence failure.
-
-The listener persists its cursor after processing each event. An interrupted
-poll can take up to the 90-second HTTP timeout to finish; shutdown does not start
-a replacement listener while the old one is still running. SDK automatic
-retries are disabled so an ambiguous failed write is not silently sent again.
-After a failed send, check Zulip before retrying it manually.
+SDK automatic retries are disabled so an ambiguous failed write is not silently
+sent again. After a failed send, check Zulip before retrying it manually.
 
 ## Safety model
 
 - Default mode is safe.
-- `--unsafe` enables attachment deletion and topic deletion in `agents_channel_topic_ops`.
+- `--unsafe` enables attachment deletion in `manage_files`.
 - HTTP disables local file paths. Use inline uploads or returned download URLs; use stdio for local file operations.
 
 ## Dual identity
@@ -199,8 +162,7 @@ uvx zulipchat-mcp \
 ```
 
 Use `switch_identity` at runtime over stdio. HTTP uses the configured user identity
-for ordinary tools and rejects process-wide identity changes; session tools still
-use the configured bot account where needed.
+and rejects process-wide identity changes.
 
 ## Test configuration quickly
 

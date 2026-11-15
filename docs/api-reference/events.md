@@ -36,7 +36,7 @@ await listen_events(
   `partial` when events were collected; recovered failures appear in
   `polling_errors`.
 - Queue lifespan and timeout values are capped by tool logic.
-- To read the owner's mentions of and direct messages to the bot, use
-  `poll_agent_events(mentions_stream=...)` or `direct_messages=True` instead of
-  a raw queue; see the [Agents API](agents.md).
+- These tools return events to the calling agent only; they do not wake an
+  agent. To act on messages sent to a bot, run the
+  [agent bridge](../integrations/agent-bots.md).
 - Events are returned to the caller only. The server has no webhook and sends Zulip data to no other host.

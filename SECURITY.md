@@ -32,36 +32,39 @@ Target response times:
 
 `zulipchat-mcp` starts in safe mode.
 
-`--unsafe` must be explicitly enabled for guarded destructive flows. In current code, this includes destructive topic operations through `agents_channel_topic_ops`.
+`--unsafe` must be explicitly enabled for guarded destructive flows. In current code, this is attachment deletion through `manage_files`.
 
 ### Identity boundaries
 
 - Default identity is user identity.
 - Bot identity is optional and requires separate credentials.
 - `switch_identity` fails for bot mode if bot credentials are missing.
-- `agents_channel_topic_ops` is restricted to bot identity and `Agents-Channel`.
 - A selected credential file supplies its email, API key, and site together.
   Clients and caches are isolated by configuration and identity. Restart the
   process after changing credential files.
 - Environment bot credentials without a separately selected bot file use the
   selected user's effective realm. An ambient site cannot redirect that bot's key.
-- Local session/request state is bound to the effective realms and principals.
-  Default databases are account-scoped and explicit paths reject mismatches.
-  Legacy database adoption requires a verified explicit path and operator
-  association. All binding failures abort startup, including storage failures.
-- Agent requests are bound to an owner and session topic. Approvals require
-  `/approve REQUEST_ID` or `/deny REQUEST_ID`; terminal decisions are immutable.
-  Polling timeouts leave requests pending. Claude hook permission deadlines deny
-  on timeout. A `request_user_input` approval is an answer to the agent and does
-  not override the coding host's permissions. The Claude Code `PermissionRequest`
-  hook is different: `/approve` there answers Claude Code's own permission
-  prompt, so the owner's Zulip account can approve local tool calls.
-- A message sent through this server (Zulip client `zulipchat-mcp`) is never a
-  decision or a steering event, under the user or the bot identity. This stops
-  an agent from approving its own request with `send_message`. It does not stop
-  an agent that can already run arbitrary commands with the owner's API key.
-- Messages from anyone but the session owner in a bound topic are recorded
-  without their text and are not answered.
+- Read caches are stored per account fingerprint (effective realms and
+  principals), so a different account never reads another's cache. Account
+  resolution failures abort startup.
+- The MCP server cannot wake an agent and answers no request from Zulip. The
+  agent bridge (`zulipchat-mcp-agents`) acts only on messages from the bot's
+  owner in Zulip and the user IDs the agent file lists; everyone else is
+  dropped without a reply. It pairs with the owner it first sees and stops
+  serving if Zulip later reports another owner (`run --accept-owner` pairs
+  again). Messages sent through this package's MCP server (Zulip client
+  `zulipchat-mcp`) never prompt or answer an agent, so an agent that uses the
+  owner's account through this server cannot drive another. Anything else that
+  holds the owner's API key can, and a 👍 or 👎 reaction answers a permission
+  request whichever program added it under the owner's account. Do not give
+  agents tools that act as the owner.
+- The bridge redacts credential values and silences mentions in what it
+  posts. By default it gives each agent only `ask_owner`
+  (`zulip_tools = "ask"`). Bridged agents run with the local user's authority
+  under their own permission policy. The bridge starts Clio at autonomy
+  `default` and Claude in ACP mode `default` unless the agent file says
+  otherwise, so both ask before acting; a permission request the owner leaves
+  unanswered is denied.
 
 ### Credential handling
 
@@ -70,16 +73,15 @@ Target response times:
   `ZULIP_API_KEY`, `ZULIP_SITE`, `ZULIP_BOT_EMAIL` and `ZULIP_BOT_API_KEY`, and
   only when the real environment sets none of that credential set. Every other
   key in it is ignored: hosts start the server inside the open project, so the
-  file may belong to an untrusted checkout. A database under `.mcp/zulipchat/`
-  in the working directory is likewise used only when `ZULIPCHAT_DB_PATH`
-  names it.
+  file may belong to an untrusted checkout. The server reads no other state
+  from the working directory.
 - Zulip credentials authenticate calls to the configured Zulip organization.
   File downloads validate their URL and destination before using credentials.
 - The server calls no LLM. Tools return Zulip data to the calling agent, which
   sends it to whatever model provider that agent uses.
 - Run companion entrypoints through their actual distribution:
-  `uvx --from zulipchat-mcp zulipchat-mcp-hook --help` (likewise `-setup` and
-  `-integrate`). The companion command names are not separate PyPI packages.
+  `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help` (likewise `-setup`
+  and `-agents`). The companion command names are not separate PyPI packages.
 
 ### HTTP and local filesystem boundaries
 
@@ -87,8 +89,8 @@ Target response times:
   Origin validation remain enabled; configure allowed public hostnames explicitly.
 - Remote HTTP tools reject server-local file paths and runtime
   identity switching. Stdio operations use the local operator's authorization.
-- Task/session storage and listener cursors belong to one instance. Stateless HTTP
-  transport does not make independent replicas interchangeable for these workflows.
+- Task storage and read caches are local to one machine. Stateless HTTP
+  transport does not make independent replicas share them.
 - Exported skills are immutable packaged instructions. Their SHA-256 manifests
   verify content integrity; they do not establish publisher trust or grant access.
   Plugin and MCP execution trust belong to the host. Export refuses symlink paths
@@ -102,7 +104,8 @@ Target response times:
 
 ### Rate limiting and retries
 
-- The codebase includes rate-limiter and retry primitives (`core/error_handling.py`, `core/security.py`) used for controlled API behavior.
+- `core/api_budget.py` spaces requests per realm and principal and honors
+  Zulip rate-limit cooldowns. It never retries a request transparently.
 - Zulip server-side limits still apply.
 
 ## Operator guidance

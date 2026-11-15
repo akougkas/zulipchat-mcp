@@ -8,23 +8,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Install from PyPI: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`. Install this branch locally for dogfooding: `uv tool install --force --reinstall --from . zulipchat-mcp` (provides `zulipchat-mcp`, `zulipchat-mcp-agents`, `zulipchat-mcp-integrate`).
 
-Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help`. Always use `--from zulipchat-mcp` for the setup wizard, integration exporter, and hook bridge.
+Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help`. Always use `--from zulipchat-mcp` for the setup wizard, integration exporter, and agent bridge. The bridge's background service needs a durable install (`uv tool install`), not `uvx`.
 
 ### Production safety: grc-iit (grc.zulipchat.com)
 The owner's real organization is production. Only the owner (Anthony Kougkas, user ID 502495, `~/.zuliprc-grc`) and his bot Clio-Coder (user ID 1213477, `~/.zuliprc-grc-bot`, owner 502495) may be involved in any live test. Never message, mention, DM, react to, or create topics involving any other person; never post in shared channels for testing (prefer DMs between the owner and the bot). Never create or delete bots, change subscriptions, or edit other people's messages there without an explicit instruction. Read-only calls are fine. Use a mock Zulip (see `scripts/clio_mcp_smoke.mjs`) for anything else.
 
 ### Where the work stands
-- Done on the branch: dependency security bumps (FastMCP 4.1.4, authlib 1.9.1), Zulip API corrections by feature level, compact Markdown reads, `send_message` by name, owner matched by user ID, removal of 13 redundant or LLM-calling tools and about 7,000 lines of dead code, and the agent bridge below.
+- Done on the branch: dependency security bumps (FastMCP 4.1.4, authlib 1.9.1), Zulip API corrections by feature level, compact Markdown reads, `send_message` by name, removal of 13 redundant or LLM-calling tools and about 7,000 lines of dead code, and the agent bridge below.
+- Architecture decision (2026-11-15, owner): the bridge is the only listener and the only way Zulip reaches an agent. The MCP-side control plane (register_agent … poll_agent_events, list_sessions, close_agent_session, the listener, `zulipchat-mcp-hook`, the session-operator/loop/notifyme skills, DuckDB) was deleted, about 9,500 lines. Its 0.7 flags (`--enable-listener`, `--associate-existing-db`, `--mention-allow`) are hidden no-ops that warn. Do not reintroduce a pull model in the MCP server.
 - The agent bridge has unit and fake-agent tests, and real Clio and Claude (`claude-agent-acp` 0.107.0) turns were driven through `AgentBridge` with a mocked Zulip client (prompt, resume, Clio interview, progress). Live dogfooding on grc with the Clio-Coder bot is under way.
+- Bridge lifecycle: `zulipchat-mcp-agents service install|uninstall|status` (`agents/service.py`) writes a systemd user unit or launchd agent that records the shell's PATH and runs `sys.executable -m zulipchat_mcp.agents.cli run`; it refuses a uvx environment. `add` defaults to `~/.zuliprc` and restarts an installed service. At start the bridge retries until Zulip is reachable; `BridgeConfigError` exits 78, which the unit does not restart. Claude sessions are set to ACP mode `default` (agent file `mode` overrides, `""` keeps Claude's own).
 - Bridge features: Clio HITL opt-in (`clio-coder/interviews`, `clio-coder/workerPermissions`, withdraw/cancel notifications), `--permission-timeout` derived from `question_minutes`, one edited-in-place progress message per long turn, 👍/👎 reactions answer permission requests, `zulipchat-mcp-agents teleport NAME` resumes the newest local session for a cwd. Channels keep the mention-every-message rule (owner's decision).
-- Declared on the owner's machine: `~/.config/zulipchat-mcp/agents/clio.toml` (Clio-Coder bot, `clio-coder acp`, cwd `~/projects`, allowed `~/projects` and `~/iowarp`). The owner's Clio config `~/.config/clio-coder/mcp.yaml` runs this branch's MCP server as `zulipchat-grc` with per-tool action classes (backup `mcp.yaml.bak-2026-11-15-zulipchat`). Clio runs at the owner's `yolo` autonomy and Claude at `defaultMode: auto`, so bridged agents rarely ask permission.
-- Security review done on the branch (2026-11-15): the working directory is no longer trusted (`.env` supplies only the five credential variables, no `./zuliprc` discovery, no `./.mcp/zulipchat` database), server-sent messages never decide a request, the control channel must be private or explicit, `listen_events` has no `callback_url`, and the bridge pairs with the bot's owner (`run --accept-owner` to pair again), redacts and silences what it posts, and gives agents only `ask_owner` unless the file says `zulip_tools = true` (new `--tool-profile ask-owner`).
-- Still open on the owner's machine, outside this repo: `clio.toml` says `zulip_tools = true`, Clio's user-level `mcp.yaml` gives every Clio session `zulipchat-grc` as the owner with extended tools, Clio runs `yolo` unsandboxed, and the Clio-Coder bot is subscribed to shared channels (Clio is web-public; Gnosis Github Metrics is fed by a GitHub integration). Text from those channels can still steer a bridged Clio that runs shell as the owner. The owner decides those changes.
+- Declared on the owner's machine: `~/.config/zulipchat-mcp/agents/clio.toml` (Clio-Coder bot, `clio-coder acp`, cwd `~/projects`, allowed `~/projects` and `~/iowarp`). The owner's Clio config `~/.config/clio-coder/mcp.yaml` runs this branch's MCP server as `zulipchat-grc` with per-tool action classes (backup `mcp.yaml.bak-2026-11-15-zulipchat`). Clio runs at the owner's `yolo` autonomy in a terminal, but the bridge holds it to `--autonomy default`.
+- Security review done on the branch (2026-11-15): the working directory is no longer trusted (`.env` supplies only the five credential variables, no `./zuliprc` discovery, no `./.mcp/zulipchat` database), `listen_events` has no `callback_url`, and the bridge pairs with the bot's owner (`run --accept-owner` to pair again), redacts and silences what it posts, and gives agents only `ask_owner` unless the file says `zulip_tools = true` (new `--tool-profile ask-owner`). The owner's `clio.toml` now says `zulip_tools = "ask"`.
+- Still open on the owner's machine, outside this repo: Clio's user-level `mcp.yaml` gives every Clio session `zulipchat-grc` as the owner with extended tools, Clio runs `yolo` unsandboxed, and the Clio-Coder bot is subscribed to shared channels (Clio is web-public; Gnosis Github Metrics is fed by a GitHub integration). Text from those channels can still steer a bridged Clio that runs shell as the owner. The owner decides those changes.
 - No Claude Code agent bot exists on grc yet; the owner declined creating one for now. `claude-agent-acp` must be the global npm package (0.79.0 is too old for current models); `~/.local/bin/claude-agent-acp` points at the nvm v24.22.2 install.
 
 ## Project Overview
 
-ZulipChat MCP Server v0.8.0 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses FastMCP framework with DuckDB for persistence and async-first architecture.
+ZulipChat MCP Server v0.8.0 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses the FastMCP framework and an async-first architecture. The server keeps no conversation state; the agent bridge keeps its state in SQLite.
 
 ## Essential Development Commands
 
@@ -78,8 +80,8 @@ uv run python -c "from zulipchat_mcp.server import main; print('OK')"
 src/zulipchat_mcp/
 ├── core/           # Business logic (client, identity, commands, batch processing)
 ├── tools/          # MCP tool implementations (messaging, streams, search, events, users, files)
-├── utils/          # Shared utilities (logging, database, health, metrics)
-├── services/       # Background services (scheduler, message listener)
+├── utils/          # Shared utilities (logging, redaction, metrics)
+├── services/       # Bot event inbox the bridge uses (bot_mentions.py)
 ├── agents/         # Local bridge: Zulip agent bots <-> ACP coding agents
 ├── integrations/   # AI client integrations
 └── config.py       # Configuration management
@@ -87,25 +89,16 @@ src/zulipchat_mcp/
 
 ### Key Components
 
-- **Entry Point**: `src/zulipchat_mcp/server.py` - Main MCP server with CLI argument parsing
-- **Client Wrapper**: `src/zulipchat_mcp/core/client.py` - Dual identity Zulip API wrapper with caching
-- **Tools**: `src/zulipchat_mcp/tools/*.py` - MCP tool implementations
-- **Configuration**: `src/zulipchat_mcp/config.py` - Environment/CLI configuration management
-- **Database**: DuckDB integration for persistence and caching
-- **Account binding**: immutable effective realm/principal resolution and
-  fingerprint-scoped persistence; all initialization/binding failures abort startup
-- **Packaged skills**: four canonical `src/zulipchat_mcp/skills/*/SKILL.md` documents, a dependency-light
+- **Entry Point**: `src/zulipchat_mcp/server.py`, the MCP server with CLI argument parsing
+- **Client Wrapper**: `src/zulipchat_mcp/core/client.py`, the dual identity Zulip API wrapper with caching
+- **Tools**: `src/zulipchat_mcp/tools/*.py`, the MCP tool implementations
+- **Configuration**: `src/zulipchat_mcp/config.py`, environment and CLI configuration
+- **Account fingerprint**: `ConfigManager.resolved_account()` names the realm and
+  principals; read caches live per fingerprint under `~/.local/state/zulipchat-mcp/accounts/`
+- **Packaged skill**: one canonical `src/zulipchat_mcp/skills/zulipchat/SKILL.md`, a dependency-light
   loader, immutable Resources, and SEP-2640 discovery on MCP 2026-07-28
 - **Integration exports**: native configurations for seven host families and
   schema-validated portable plugin content; host trust remains an operator action
-
-Use `/reply REQUEST_ID answer` for questions and `/approve REQUEST_ID` or
-`/deny REQUEST_ID` for permissions. Prefer 30-second waits on the same pending
-request. Use explicit scoped event acknowledgements when delivery must survive
-a lost tool response. New prompts require listener readiness, while persisted
-decisions and events remain available during outages. See
-[the integration guide](docs/integrations/agent-skills.md) and
-[account migration](docs/user-guide/configuration.md#persistent-state-and-account-migration).
 
 ### Dual Identity System
 The client supports both user and bot credentials:
@@ -135,12 +128,12 @@ register_tool(
     task=optional_background_task(),  # only for long-running tools
 )
 ```
-Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `ask_owner`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
+Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `ask_owner`, `listen_events`). Normal fast tools omit `task=`.
 
 ## Tool Modes
 
-- **Default**: 19 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`. `ask_owner` is added only inside agents the bridge launches (`ZULIPCHAT_AGENT_STATE` set).
-- **Extended (53 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Default**: 13 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`. `ask_owner` is added only inside agents the bridge launches (`ZULIPCHAT_AGENT_STATE` set).
+- **Extended (45 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
 - **Profiles** (`core/tool_contract.py`): `full`, `read-only` (`READ_ONLY_TOOLS`) and `ask-owner` (only `ask_owner`; what the bridge gives agents by default).
 
 `tools/__init__.py` is the only place tools are registered. Each description leads with one self-contained sentence: Clio's `gateway(op="find")` shows only that sentence.
@@ -215,7 +208,7 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 ## Agent-Facing Behavior
 
 ### Agent bridge (`agents/`, command `zulipchat-mcp-agents`)
-The MCP server is a tool surface; it cannot wake an agent. Inbound Zulip-to-agent traffic belongs to the bridge, a local process the owner runs (`zulipchat-mcp-agents run`, or a systemd user unit from `zulipchat-mcp-agents service`).
+The MCP server is a tool surface; it cannot wake an agent. Inbound Zulip-to-agent traffic belongs to the bridge, a local process the owner runs (`zulipchat-mcp-agents service install` for a login service, or `run` in a terminal).
 - One Zulip Generic bot per agent, declared in `~/.config/zulipchat-mcp/agents/<name>.toml` (`agents/config.py`). `zulipchat-mcp-agents add` writes it and can create the bot with the owner's key (`agents/provision.py`, `POST /bots`).
 - The bridge holds the bot's event queue (`services/bot_mentions.py`, `ALL_SCOPE`, lease plus compare-and-set cursor) over outbound HTTPS only. Owner = the bot's `bot_owner_id` in Zulip plus `allow` user IDs; everyone else is dropped without a reply.
 - Each conversation (a DM with the bot, or a channel topic where the bot is mentioned) is one ACP session (`agents/bridge.py`), driven by the hand-rolled ACP client `agents/acp.py`. Agents start on the first message, stop after `idle_minutes`, and resume with `session/resume` or `session/load`. State lives in `~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`).
@@ -235,16 +228,6 @@ Agents should use only these 12 emoji for consistency and quick responses:
 
 Invalid emoji (e.g., `thumbsup` without underscore) will fail at runtime. See `src/zulipchat_mcp/core/emoji_registry.py`.
 
-### Agent-to-User Bidirectional Communication
-Complete implementation exists at `src/zulipchat_mcp/tools/agents.py`:
-- Agents can register stable profiles: `register_agent(agent_name, agent_type)`
-- Agents can bind sessions to topics: `ensure_agent_session(agent_id, ...)`
-- Agents can send messages: `agent_message(session_id, content, category=...)`
-- Agents can request input: `request_user_input(session_id, question, options)`
-- Agents can wait for responses: `wait_for_response(request_id)`
-- Background MessageListener processes Zulip replies automatically
-- Claude Code lifecycle hooks can be bridged via `zulipchat-mcp-hook`
-
 ## Common Issues
 
 ### Coverage / cache contamination
@@ -254,23 +237,12 @@ rm -rf .venv .pytest_cache **/__pycache__ htmlcov .coverage* coverage.xml .uv_ca
 uv sync --reinstall
 ```
 
-### DuckDB lock after unclean shutdown
-Stale lock recovery shipped in commit `3db725a`. If you still hit "Database is locked by another process", check that no zombie `zulipchat-mcp` process holds the account database under `~/.local/state/zulipchat-mcp/accounts/`.
+## Exported Claude assets
 
-## Exported Claude skills
-
-Claude package templates under `integrations/claude-code/` include three
-host-specific control-plane skills plus the portable `zulipchat` skill. Export
-them with `zulipchat-mcp-integrate export --client claude-code`; standalone mode
-places them in the destination project's `.claude/skills/`. The three native
-skills require a topic-bound hook session and read `ZULIPCHAT_SESSION_ID`,
-`ZULIPCHAT_SESSION_STREAM`, and `ZULIPCHAT_SESSION_TOPIC` from the shell:
-
-- **`zulipchat-session-operator`**: treats Zulip as the owner control plane. Polls `poll_agent_events`, handles `/status`, `/pause`, `/resume`, `/cancel`, `/handoff`, enforces lifecycle-only posting discipline.
-- **`zulipchat-loop`**: per-cycle policy for `/loop` runs. Each turn polls events, applies steering, emits at most one lifecycle message, does one unit of work.
-- **`zulipchat-notifyme`**: explicit post into the bound topic with category (`message`/`started`/`blocked`/`waiting`/`completed`/`failed`).
-
-If a session is not bound, these skills stop and explain rather than calling MCP tools blind.
+`zulipchat-mcp-integrate export --client claude-code` writes `.mcp.json` and
+the portable `zulipchat` skill into `.claude/skills/` (standalone), or a Claude
+plugin (`.claude-plugin/plugin.json`, `.mcp.json`, `skills/zulipchat/`). There
+are no hooks: to reach a Claude session from Zulip, run it under an agent bot.
 
 ## Release Process
 
@@ -279,7 +251,7 @@ Full checklist and rationale in [RELEASING.md](RELEASING.md). Key invariants:
 - Tag must match `pyproject.toml` version exactly (`v0.7.1` ↔ `version = "0.7.1"`).
 - Version must be in sync across `pyproject.toml`, `src/zulipchat_mcp/__init__.py`, `src/zulipchat_mcp/tools/system.py`, `server.json`, and release docs. Run `uv run python scripts/release_preflight.py --version X.Y.Z` to verify.
 - `scripts/pre_release_smoke.sh` is a blocking gate. It installs the built wheel and starts the MCP stdio server with fake credentials, catching startup-only failures that `--version` cannot.
-- FastMCP feature changes require real-registration tests and the MCP stdio smoke. Pay special attention to optional extras, `task` support, async task functions, and lifespan-managed services.
+- FastMCP feature changes require real-registration tests and the MCP stdio smoke. Pay special attention to optional extras, `task` support and async task functions.
 - GitHub release must be published, not draft. `publish.yml` only triggers on `published`.
 - After publishing, verify: GitHub release shows "Latest", PyPI shows new version, `uvx --refresh-package zulipchat-mcp zulipchat-mcp --version` installs it.
 

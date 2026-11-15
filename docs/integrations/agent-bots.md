@@ -1,17 +1,36 @@
 # Agent bots
 
-`zulipchat-mcp-agents` lets the owner of a Zulip account talk to coding agents
-running on their own machine. Each agent gets its own Zulip Generic bot, called
-an agent bot. The owner DMs the bot, or mentions it in a channel topic, and a
-local bridge relays the conversation to the agent over the
-[Agent Client Protocol](https://agentclientprotocol.com) (ACP).
+Your coding agents get Zulip accounts. You DM "Claude" or "Clio" from your
+phone; the agent runs on your machine, in your repositories, under its own
+permission rules, and asks you in the chat when it needs a decision. Each agent
+has its own Zulip Generic bot, called an agent bot. A local bridge,
+`zulipchat-mcp-agents`, relays the conversation to the agent over the
+[Agent Client Protocol](https://agentclientprotocol.com) (ACP). Nothing listens
+on a port: the bridge connects out to Zulip.
+
+The bridge is a separate long-running process, not part of the MCP server. An
+MCP server lives as long as the host session that started it and cannot wake
+an agent; the bridge holds the bots' event queues all the time and starts
+agents when a message arrives. Both ship in the `zulipchat-mcp` package and
+meet at two points: the bridge gives each agent this MCP server for
+`ask_owner`, and the MCP server's `teleport_chat` hands a session to the
+bridge.
 
 Status: new in v0.8.0, which is not yet released. The bridge is tested with a
-fake ACP agent and a mocked Zulip client. Real Clio Coder and Claude Code
-(`claude-agent-acp`) turns were run through the bridge with a mocked Zulip:
-prompts, resume, Clio interviews and the progress message. OpenCode and Goose
-were probed for start, session creation and resume. Live use against a Zulip
-server has begun with Clio Coder.
+fake ACP agent and a mocked Zulip client, and in live use with Clio Coder.
+Real Claude Code (`claude-agent-acp`) turns were run through it with a mocked
+Zulip. OpenCode and Goose were probed for start, session creation and resume.
+
+## Quick start
+
+```bash
+uv tool install zulipchat-mcp          # a background service needs a durable install
+zulipchat-mcp-agents add claude        # creates the bot "Claude" with ~/.zuliprc
+zulipchat-mcp-agents service install   # runs the bridge now and at every login
+```
+
+Then open Zulip on any device and DM the new bot. `~/.zuliprc` is your own
+zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
 
 ## How it works
 
@@ -76,6 +95,29 @@ server has begun with Clio Coder.
   bridge tells each affected conversation that the earlier message may be only
   partly done; it never replays it.
 
+## Lifecycle
+
+| Piece | Starts | Stops |
+| --- | --- | --- |
+| MCP server | With each host session (Claude Code, Clio, …) | With that session |
+| Bridge | At login, from `service install`; or `run` in a terminal | `service uninstall`, SIGTERM |
+| Agent process | On a conversation's first message | After `idle_minutes` idle, `/new`, or with the bridge |
+| Agent session | `session/new` on first use | Kept by the agent on disk; resumed on the next message |
+
+- **Sleep and network loss.** The bridge backs off and retries. Zulip drops an
+  idle event queue after about ten minutes; the bridge registers a new one and
+  fetches what it missed from its saved cursor, so messages sent meanwhile are
+  handled on wake.
+- **Start without network.** The bridge waits, retrying from 5 seconds up to
+  5 minutes, instead of exiting.
+- **Reboot.** The service starts at login, or at boot with
+  `loginctl enable-linger $USER` on Linux. Messages sent while the machine was
+  off are handled then.
+- **Crash.** systemd and launchd restart the bridge after 10 to 30 seconds.
+  Errors a restart cannot fix (a refused zuliprc, an account that is not a bot,
+  a changed owner, an invalid agent file) exit with status 78, which the
+  systemd unit does not restart; `service status` shows the reason.
+
 Per-bot state lives in `~/.local/state/zulipchat-mcp/agents/` (honoring
 `XDG_STATE_HOME`): `<name>.sqlite3` holds conversation bindings, the turn
 journal and open questions; `<name>-inbox.sqlite3` holds messages not yet
@@ -86,11 +128,11 @@ from Zulip itself.
 ## Set up a bot
 
 Create a Generic bot you own and declare it in one step. The owner zuliprc must
-belong to a human, non-guest account:
+belong to a human, non-guest account; it defaults to `~/.zuliprc`:
 
 ```bash
-uvx --from zulipchat-mcp zulipchat-mcp-agents add clio \
-  --owner-zuliprc ~/.zuliprc --cwd ~/projects
+zulipchat-mcp-agents add clio --cwd ~/projects
+zulipchat-mcp-agents add claude --owner-zuliprc ~/.zuliprc-work
 ```
 
 This creates the bot through `POST /bots`, writes its key to
@@ -115,6 +157,11 @@ bundles its own Claude Code, and the API refuses models to an outdated one, so
 upgrade the package when Claude Code moves. An unpinned `npx` would resolve to
 whatever old copy is installed globally.
 
+The adapter starts sessions in Claude's `auto` mode, which never asks. The
+bridge switches each Claude session to `default` mode (ask before edits and
+commands), so you approve from Zulip. Name another ACP mode in the file, for
+example `mode = "acceptEdits"`, or `mode = ""` to keep Claude's own setting.
+
 Clio Coder needs 0.8.2 or later. The bridge starts it as
 `clio-coder acp --autonomy default`: a person in Zulip is not at the keyboard,
 so Clio asks before it acts and refuses `yolo` for every session the bridge
@@ -128,7 +175,7 @@ stays open in Clio as long as it stays open in Zulip. Do not add
 `--permission-timeout` to the command: it overrides that window.
 
 ```bash
-uvx --from zulipchat-mcp zulipchat-mcp-agents add reviewer \
+zulipchat-mcp-agents add reviewer \
   --command "my-agent --acp" --bot-zuliprc ~/.zuliprc-reviewer \
   --cwd ~/projects/app --allowed-dir ~/projects
 ```
@@ -136,23 +183,28 @@ uvx --from zulipchat-mcp zulipchat-mcp-agents add reviewer \
 Then validate and serve:
 
 ```bash
-uvx --from zulipchat-mcp zulipchat-mcp-agents list
-uvx --from zulipchat-mcp zulipchat-mcp-agents run            # every declared bot
-uvx --from zulipchat-mcp zulipchat-mcp-agents run --agent clio
+zulipchat-mcp-agents list
+zulipchat-mcp-agents service install    # background, starts at login
+zulipchat-mcp-agents service status     # state and recent log lines
+zulipchat-mcp-agents service uninstall
+zulipchat-mcp-agents run                # foreground instead; --agent NAME, --debug
 ```
 
 `list` exits non-zero if any file is invalid and notes commands missing from
-`PATH`. `run` serves until SIGINT or SIGTERM; `--debug` raises the log level.
-From a source checkout, use `uv run zulipchat-mcp-agents`.
+`PATH`. `add` restarts an installed service, so a new bot is served at once;
+after editing an agent file, run `service install` again to restart it.
 
-To keep the bridge running, `service` prints a systemd user unit:
-
-```bash
-uvx --from zulipchat-mcp zulipchat-mcp-agents service \
-  > ~/.config/systemd/user/zulipchat-mcp-agents.service
-systemctl --user daemon-reload
-systemctl --user enable --now zulipchat-mcp-agents
-```
+`service install` writes a systemd user unit on Linux and WSL
+(`~/.config/systemd/user/zulipchat-mcp-agents.service`; WSL needs systemd
+enabled in `/etc/wsl.conf`) or a launchd agent on macOS
+(`~/Library/LaunchAgents/io.github.akougkas.zulipchat-mcp-agents.plist`, logs
+in `~/Library/Logs/zulipchat-mcp-agents.log`). Native Windows has no service;
+keep `run` open. The service runs the interpreter that installed it, so install
+with `uv tool install`; it refuses a temporary `uvx` environment. It records
+your shell's `PATH`, which agents such as `clio-coder` and `claude-agent-acp`
+(Node scripts) need. Other variables an agent needs, such as API keys set in a
+shell profile, go in the agent file's `env`. Run `service install` again after
+changing `PATH`.
 
 ## Agent file
 
@@ -166,6 +218,7 @@ allow = []
 idle_minutes = 30
 question_minutes = 30
 zulip_tools = "ask"
+mode = ""
 env = {}
 ```
 
@@ -179,6 +232,7 @@ env = {}
 | `idle_minutes` | `30` | Stop an idle agent process; its session resumes later. |
 | `question_minutes` | `30` | Lifetime of permission requests and `ask_owner` questions. |
 | `zulip_tools` | `"ask"` | `"ask"`: only `ask_owner`. `true`: every tool of this server, acting as the bot. `false`: none. |
+| `mode` | see below | ACP session mode set on every session; `""` keeps the agent's own. Unset: `default` for `claude-agent-acp`, the agent's own otherwise. A mode the agent does not offer fails the turn. |
 | `env` | `{}` | Extra environment variables (strings) for the agent. |
 
 File names are the agent names: lowercase, starting with a letter, at most 32
@@ -264,13 +318,22 @@ machine. Decide with these facts:
 
 - **The agent runs as you.** It has your files, your shell, your environment
   and your network, limited only by the agent's own permission policy.
-  `allowed_dirs` chooses where it starts; it is not a sandbox. An agent set to
-  approve its own actions (Clio `yolo`, Claude `bypassPermissions` or `auto`)
-  never sends the permission requests described above.
+  `allowed_dirs` chooses where it starts; it is not a sandbox. The bridge holds
+  Clio to `--autonomy default` and Claude to `default` mode. An agent file that
+  lifts that (Clio `yolo`, Claude `bypassPermissions` or `auto`) means the
+  agent never sends the permission requests described above.
+- **The agent also loads its own configuration.** `zulip_tools` governs only the
+  MCP server the bridge passes in. MCP servers in the agent's own user or
+  project configuration load as well, with whatever identity they declare. The
+  bridge ignores messages sent through this package's MCP server, but an agent
+  with Zulip tools acting as you could still answer its own permission request
+  with a 👍 reaction. Give agents the bot's identity, never yours.
 - **Your Zulip login is a shell login.** Whoever can send messages as the
   bot's owner, or as a user in `allow`, drives the agent: a stolen session, a
-  leaked API key, an unlocked phone. Every user ID in `allow` gets the same
-  reach on your machine as you.
+  leaked API key, an unlocked phone, or the operator of a self-hosted Zulip
+  server. Every user ID in `allow` gets the same reach on your machine as you.
+  Organization administrators can read the bot's key and post as the bot, but
+  the bridge never takes instructions from the bot's own messages.
 - **Text the agent reads can steer it.** Only admitted senders start turns,
   but with Zulip tools the agent can read channels, and a message written by
   any member, an integration or a web hook can carry instructions. Keep the
@@ -300,3 +363,6 @@ machine. Decide with these facts:
 - `teleport_chat` works over stdio only; HTTP deployments refuse it.
 - Run one bridge per bot. Two bridges for the same bot on different machines
   would both answer.
+- The bridge reads agent files at start. `add` restarts an installed service;
+  after editing a file, run `service install` again.
+- macOS launchd support is covered by unit tests only.

@@ -25,28 +25,30 @@
 
 ## Security helpers (`core/security.py`)
 
-- Stores unsafe-mode context flag.
-- Provides validation/sanitization helpers.
-- Includes optional rate-limiter primitives.
+- Stores the unsafe-mode context flag.
+- Provides emoji and email validation helpers.
 
-## Error handling (`core/error_handling.py`)
+## Request shaping (`core/api_budget.py`, `core/api_errors.py`)
 
-- Retry helpers and async rate-limiter primitives.
-- Shared wrappers for robust tool-side calls where used.
+- `PoliteZulipClient` admits each request once per principal, spaces requests,
+  honors Zulip rate-limit cooldowns, and never retries transparently.
+- `api_error` turns a failed Zulip response into a tool error result.
 
-## Services (`core/service_manager.py`, `services/`)
+## Persistent state (`core/snapshots.py`)
 
-- Listener startup/supervision lives in the service layer.
-- Inbound topic messages are classified into session events and owner-policy decisions.
-- Agent communication tooling uses persistent DuckDB-backed state shared with the Claude hook bridge.
+- The server keeps no account database. Bounded read snapshots live per
+  account in SQLite files under
+  `$XDG_STATE_HOME/zulipchat-mcp/accounts/<fingerprint>/cache`.
+  `--ephemeral-state` keeps them in memory and writes no files.
 
-## Agent control plane (`core/agent_control.py`, `core/agent_protocol.py`)
+## Agent bridge (`agents/`, `services/bot_mentions.py`)
 
-- Stable agent profiles and topic bindings are coordinated outside the tool layer.
-- Shared parsing helpers classify topic replies into steering, command, and approval events.
-- Session lifecycle messages use a consistent topic format and owner-controlled request flow.
+- `zulipchat-mcp-agents` is the only process that listens to Zulip and wakes
+  agents. It holds each agent bot's event queue and drives one ACP session per
+  conversation. See [Agent bots](../integrations/agent-bots.md).
 
 ## Tool registration (`tools/__init__.py`)
 
-- `register_core_tools` defines the 20-tool baseline.
+- `register_core_tools` defines the 13-tool baseline (`ask_owner` is added
+  inside agents the bridge launches).
 - `register_extended_tools` appends the extended tool set.

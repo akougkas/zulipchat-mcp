@@ -1,19 +1,24 @@
 # Architecture Overview
 
-ZulipChat MCP is organized around a compact default tool surface, optional extended tooling, and a DuckDB-backed agent control plane for Zulip-bound sessions.
+The package ships two programs with one job each. `zulipchat-mcp` is an MCP
+server: a tool surface for an agent that is already running. It never listens
+for messages and keeps no conversation state. `zulipchat-mcp-agents` is the
+bridge: the one long-running process that listens to Zulip and wakes local
+coding agents. They meet at two points, described under [Agent bridge](#agent-bridge).
 
 ## Top-level modules
 
 ```text
 src/zulipchat_mcp/
-├── server.py          # CLI entrypoint and tool registration mode
+├── server.py          # MCP server entry point and tool registration mode
 ├── config.py          # zuliprc/env config loading + identity state
 ├── setup_wizard.py    # interactive setup helper
-├── core/              # client wrapper, caching, security, command engine
+├── core/              # client wrapper, caching, security, tool contract, skills
 ├── tools/             # MCP tool implementations
-├── services/          # listener/service manager, bot mention inbox
+├── services/          # bot event inbox (used by the bridge)
 ├── agents/            # zulipchat-mcp-agents: agent-bot bridge to ACP agents
-└── utils/             # logging, metrics, duckdb managers
+├── integrations/      # host configuration and plugin exports
+└── utils/             # logging, redaction, metrics
 ```
 
 ## Tool registration model
@@ -25,8 +30,8 @@ src/zulipchat_mcp/
 
 This produces:
 
-- Core mode: 19 tools
-- Extended mode: 53 tools
+- Core mode: 13 tools
+- Extended mode: 45 tools
 - `ask_owner` is added to either mode only when `ZULIPCHAT_AGENT_STATE` is set,
   that is, in the server the agent bridge injects into each agent it launches.
 
@@ -42,62 +47,54 @@ This produces:
 1. Load compatible FastMCP 4 (`>=4.1.4,<5`, locked at 4.1.4) and MCP types 2
    (locked at 2.3.0), without protocol monkey patches.
 2. Parse CLI flags (`--transport stdio|http`, `--host`, `--port`, `--auth-token`).
-3. Initialize config manager.
-4. Validate credentials (`zuliprc` or env fallback).
-5. Set unsafe-mode context.
-6. Resolve the effective account and associate its persistent state; initialize services.
-7. Register FastMCP with SEP-2663 `TasksExtension`, SEP-2640 skills, and legacy skill Resources.
-8. Register tools (core 19 or extended 53).
-9. Leave user/stream caches lazy so startup does not contact Zulip.
-10. Run FastMCP server (`stdio` or streamable `http`).
+   Flags of the control plane removed in 0.8.0 (`--enable-listener`,
+   `--associate-existing-db`, `--mention-allow`) are accepted and ignored with
+   a warning.
+3. Initialize config manager and validate credentials (`zuliprc` or env fallback).
+4. Set unsafe-mode context.
+5. Resolve the effective account and point the shared read cache at
+   `$XDG_STATE_HOME/zulipchat-mcp/accounts/<fingerprint>/cache`, unless
+   `--ephemeral-state` keeps it in memory.
+6. Register FastMCP with SEP-2663 `TasksExtension`, SEP-2640 skills, and legacy skill Resources.
+7. Register tools (core 13 or extended 45).
+8. Leave user/stream caches lazy so startup does not contact Zulip.
+9. Run FastMCP server (`stdio` or streamable `http`).
 
-## Server-Side LLM Provider (`core/llm.py`)
+## No server-side LLM
 
 MCP sampling is deprecated in the 2026-07-28 specification. This server has no LLM of its own: tools return compact data and the calling agent does the reasoning.
 
-## Stateless HTTP Transport & Multi-Replica Caveat
+## Stateless HTTP transport
 
-`--transport http` enables streamable-HTTP serving. Requests are stateless and self-contained under the 2026-07-28 protocol, but agent sessions and task storage still require application-level state.
-
-> **Single-instance workflows**: DuckDB storage (`zulipchat.duckdb`) is single-writer and the default task backend is local. Use one instance for agent sessions, approvals, and event listeners. Distinct DB paths avoid lock contention but do not share data, so round-robin routing across independent replicas is not supported. Legacy HTTP clients may retain transport sessions.
-
-## Service behavior
-
-- Listener services start through `ServiceManager`.
-- The listener persists queue state and dispatches inbound topic messages into session events.
-- Interactive MCP requests wait for queue readiness before announcing prompts.
-  Queue replacement registers first, backfills bound topics from message
-  watermarks, and deduplicates overlap with live events.
-- Outbound echoes are recognized by message IDs, allowing owner replies when
-  transport and owner use the same account.
-- Owner policy is enforced at the session-topic boundary, not via AFK state.
-
-## Agent control plane
-
-- Stable agent profiles live in DuckDB and are keyed by owner + agent type + agent name.
-- Agent sessions bind one Zulip topic to one agent runtime session.
-- Requests and approvals are persisted separately from raw inbound events.
-- Questions use `/reply REQUEST_ID ANSWER`; approvals use `/approve` or `/deny`
-  with the request ID. Polling timeouts leave the request pending.
-- Control-event polling excludes audit records by default and offers explicit
-  acknowledgement for replay after an interrupted response.
-- Databases are associated with the normalized realm and user/bot principals.
-  Unbound legacy history requires explicit association; mismatches are rejected.
-- `zulipchat-mcp-hook` bridges Claude Code lifecycle hooks into the same session model.
+`--transport http` enables streamable-HTTP serving. Requests are self-contained
+under the 2026-07-28 protocol. The default background-task backend is local to
+one process, so a task's follow-up requests must reach the instance that
+started it. Legacy HTTP clients may retain transport sessions.
 
 ## Agent bridge
 
-`zulipchat-mcp-agents` is a separate process, not part of the MCP server. It
-serves agent bots: one Zulip Generic bot per local ACP agent, declared in
-`~/.config/zulipchat-mcp/agents/<name>.toml` (`agents/config.py`). Per bot,
-`agents/bridge.py` holds the bot's event queue through `BotMentionInbox` over
-outbound HTTPS, maps each conversation to one ACP session, and launches the
-agent on demand through `agents/acp.py`. Durable state lives in
+`zulipchat-mcp-agents` is a separate process, not part of the MCP server: an
+MCP server lives as long as its host session, while the bridge must hold the
+bots' event queues all the time. It serves agent bots: one Zulip Generic bot
+per local ACP agent, declared in `~/.config/zulipchat-mcp/agents/<name>.toml`
+(`agents/config.py`). Per bot, `agents/bridge.py` holds the bot's event queue
+through `BotMentionInbox` (`services/bot_mentions.py`) over outbound HTTPS,
+maps each conversation to one ACP session, and launches the agent on demand
+through `agents/acp.py`. Durable state lives in
 `~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`):
 conversation to session bindings, a turn journal for restart reporting, and
-open permission requests and owner questions. The injected MCP server reads
-the same file to implement `ask_owner`. See
-[Agent bots](../integrations/agent-bots.md).
+open permission requests and owner questions. `agents/service.py` installs the
+bridge as a systemd user unit or launchd agent.
+
+The two programs meet at two points, both through that state file:
+
+- The bridge passes each agent this MCP server, run with the bot's zuliprc and
+  `--tool-profile ask-owner`. Its `ask_owner` tool posts in the agent's own
+  conversation and reads the answer the bridge records.
+- `teleport_chat` (and `zulipchat-mcp-agents teleport`) binds the owner's DM
+  with a bot to a session, so the bridge resumes it on the owner's reply.
+
+See [Agent bots](../integrations/agent-bots.md).
 
 ## Security-related boundaries
 
@@ -105,3 +102,5 @@ the same file to implement `ask_owner`. See
 - Bearer token authentication required on non-loopback HTTP binds (`--auth-token` / `ZULIPCHAT_HTTP_AUTH_TOKEN`).
 - Topic resolution goes through `resolve_topic`, which Clio exports classify as destructive.
 - Agent emoji usage is validated against a fixed approved list.
+- The bridge hears only the bot's owner (by user ID) and listed user IDs, and
+  answers permission requests only from what it read in Zulip itself.

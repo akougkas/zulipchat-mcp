@@ -5,7 +5,7 @@ The registry lives in `src/zulipchat_mcp/tools/__init__.py`: `CORE_TOOLS` and
 the rest. Profiles in `src/zulipchat_mcp/core/tool_contract.py` narrow either
 surface.
 
-## Core mode (19 tools)
+## Core mode (13 tools)
 
 ### Messaging and reactions (5)
 
@@ -29,21 +29,12 @@ surface.
 - `resolve_user`
 - `get_users`
 
-### Agent sessions (6)
-
-- `register_agent`
-- `ensure_agent_session`
-- `agent_message`
-- `request_user_input`
-- `wait_for_response`
-- `poll_agent_events`
-
 ### System (2)
 
 - `server_info`
 - `switch_identity`
 
-## Extended additions (34 tools, 53 total)
+## Extended additions (32 tools, 45 total)
 
 ### Users and presence (10)
 
@@ -71,10 +62,6 @@ surface.
 
 - `register_events`, `get_events`, `listen_events`, `deregister_events`
 
-### Agent sessions (2)
-
-- `list_sessions`, `close_agent_session`
-
 ### Files (2)
 
 - `upload_file`, `manage_files`
@@ -83,8 +70,9 @@ surface.
 
 | Profile | Core | Extended |
 | --- | --- | --- |
-| `full` | 19 | 53 |
-| `read-only` | 7 | 22 |
+| `full` | 13 | 45 |
+| `read-only` | 7 | 21 |
+| `ask-owner` | `ask_owner` only | `ask_owner` only |
 
 `read-only` keeps `READ_ONLY_TOOLS`: `server_info`, `get_message`,
 `search_messages`, `get_streams`, `get_stream_topics`, `resolve_user` and
@@ -92,13 +80,14 @@ surface.
 `get_user_status`, `get_user_presence`, `get_presence`, `get_user_groups`,
 `get_user_group_members`, `check_messages_match_narrow`,
 `get_scheduled_messages`, `get_drafts`, `get_read_receipts`,
-`get_message_history`, `get_daily_summary` and `list_sessions` in extended mode.
+`get_message_history` and `get_daily_summary` in extended mode.
 Mixed-operation tools stay out because their names alone cannot establish that
-a call is read-only.
+a call is read-only. `ask-owner` is the profile the agent bridge gives the
+agents it launches when their agent file keeps the default `zulip_tools = "ask"`.
 
 ## Design intent
 
 - Keep common workflows on a compact default registry.
 - Move specialized operations to explicit extended mode.
-- Keep `teleport_chat` and session binding in core mode so an agent can reach
-  its owner in Zulip without enabling the extended set.
+- Keep `teleport_chat` in core mode so an agent can hand its conversation to
+  the owner's agent bot without enabling the extended set.

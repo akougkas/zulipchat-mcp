@@ -1,7 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
   "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
-  "registered_tools": 53,
+  "registered_tools": 45,
   "operations": [
     {
       "method": "POST",
@@ -61,16 +61,12 @@
       ],
       "tools": [
         "get_events",
-        "listen_events",
-        "poll_agent_events",
-        "request_user_input",
-        "wait_for_response"
+        "listen_events"
       ],
       "wrappers": [
         "get_events"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -82,14 +78,12 @@
       ],
       "tools": [
         "deregister_events",
-        "listen_events",
-        "poll_agent_events"
+        "listen_events"
       ],
       "wrappers": [
         "deregister"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -497,11 +491,8 @@
       ],
       "tools": [
         "get_daily_summary",
-        "poll_agent_events",
-        "request_user_input",
         "resolve_topic",
-        "search_messages",
-        "wait_for_response"
+        "search_messages"
       ],
       "wrappers": [
         "get_daily_summary",
@@ -510,8 +501,7 @@
         "get_messages_raw",
         "search_messages"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "POST",
@@ -522,12 +512,9 @@
         "messages"
       ],
       "tools": [
-        "agent_message",
         "ask_owner",
-        "close_agent_session",
         "cross_post_message",
         "manage_files",
-        "request_user_input",
         "send_message",
         "teleport_chat",
         "upload_file"
@@ -535,8 +522,7 @@
       "wrappers": [
         "send_message"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -608,8 +594,7 @@
       "wrappers": [
         "add_reaction"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -850,12 +835,10 @@
       ],
       "tools": [
         "get_own_user",
-        "poll_agent_events",
         "teleport_chat"
       ],
       "wrappers": [],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "DELETE",
@@ -1764,16 +1747,12 @@
       ],
       "tools": [
         "listen_events",
-        "poll_agent_events",
-        "register_events",
-        "request_user_input",
-        "wait_for_response"
+        "register_events"
       ],
       "wrappers": [
         "register"
       ],
-      "status": "registered_tool",
-      "manual_review": "Includes shared coordinator/listener or command-engine paths."
+      "status": "registered_tool"
     },
     {
       "method": "GET",
@@ -2222,7 +2201,7 @@
     "sdk_bootstrap": 1,
     "wrapper_only": 12
   },
-  "method": "Static registered-tool/client/SDK call reachability, with manually reviewed coordinator, listener, analytics and command-engine paths. A mapped endpoint is not certification of all parameters or live permissions. registered_tools counts the extended surface; ask_owner, registered only inside agents launched by zulipchat-mcp-agents, is listed but not counted.",
+  "method": "Static registered-tool/client/SDK call reachability; manual_review notes explain the exceptions. Tool lists reflect the 0.8.0 surface, which removed the agent session tools and their listener. A mapped endpoint is not certification of all parameters or live permissions. registered_tools counts the extended surface; ask_owner, registered only inside agents launched by zulipchat-mcp-agents, is listed but not counted.",
   "reviewed_at_utc": "2026-10-09T16:28:29.246349+00:00",
   "source_retrieved_date": "2026-10-09",
   "rest_operation_count": 163

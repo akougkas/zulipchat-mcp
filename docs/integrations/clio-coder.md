@@ -3,10 +3,9 @@
 The [fake-only integration check](#repeat-the-fake-only-integration-check)
 drives this server through Clio Coder's own stdio MCP client against a mock
 Zulip: export parsing, per-tool action classes, discovery of every exported
-tool, profile and session binding, and a direct message sent by first name.
-Earlier live experiments against a real organization, with tools since
-removed, are described in [live read-only use](../testing/clio-live-readonly.md)
-and [live bot mentions](../testing/clio-bot-mentions.md).
+tool, and a direct message sent by first name. An earlier live experiment
+against a real organization, with tools since removed, is described in
+[live read-only use](../testing/clio-live-readonly.md).
 
 Clio loads MCP tools lazily through its `gateway` tool, so the number of tools
 costs little; what costs tokens is calls per task and result size. This server
@@ -39,24 +38,22 @@ servers:
       - --extended-tools
     timeoutMs: 900000
     toolActionClasses:
-      agent_message: execute
+      add_reaction: execute
       delete_draft: destructive
       get_message: read
       # ... one entry for every exported tool
 ```
 
 Exports pin the command to the version of the exporter that wrote them
-(`zulipchat-mcp@X.Y.Z`, and `--from zulipchat-mcp==X.Y.Z` for the Claude Code
-hook): the command holds your Zulip key, and an unpinned `uvx` runs whatever
+(`zulipchat-mcp@X.Y.Z`): the command holds your Zulip key, and an unpinned `uvx` runs whatever
 the index serves at each start. To upgrade, run the export again from the new
 version with `--force`; Clio then asks you to trust the changed declaration.
 
-The timeout accommodates the approval-wait tool. Prefer short, repeated
-`wait_for_response` calls during interactive work so the host remains responsive.
+The 15-minute timeout covers long-running tools such as `listen_events`.
 `toolActionClasses` classifies every tool from the server's own annotations:
 tools in the server's read-only set are `read`, tools that edit or delete
 existing content are `destructive`, and all others are `execute`. The export
-also installs four instructions into `.clio-coder/skills`.
+also installs the `zulipchat` skill into `.clio-coder/skills`.
 
 The export does not approve execution. Inside that project inspect the
 declaration and trust it using Clio's operator command:
@@ -100,9 +97,8 @@ clio-coder mcp trust zulipchat-chronolog --action-class execute --network
 
 For every project, copy the same `servers` entries into Clio's user-level
 `~/.config/clio-coder/mcp.yaml`, which Clio trusts by authorship, and the skills
-into `~/.config/clio-coder/skills`. Each account's state lives under
-`~/.local/state/zulipchat-mcp/accounts/`, so all projects share one database per
-account.
+into `~/.config/clio-coder/skills`. Each account's read caches live under
+`~/.local/state/zulipchat-mcp/accounts/`, so all projects share them.
 
 ## Drive the server
 
@@ -114,11 +110,9 @@ gateway(op="describe", capability="mcp_zulipchat__server_info")
 gateway(op="call", capability="mcp_zulipchat__server_info", args={})
 ```
 
-Inspect each tool's actual schema before calling it. Register with
-`agent_type="clio-coder"`, retain `agent_id`, bind with `ensure_agent_session`,
-and retain `session_id`. Use `agent_message` for results, `poll_agent_events`
-for owner steering, and `request_user_input` plus bounded `wait_for_response`
-for decisions. Use the [workflow example](agent-workflow.md) and bundled skills.
+Inspect each tool's actual schema before calling it. The bundled `zulipchat`
+skill describes the common reads and writes. To reach the owner from Zulip,
+use the agent bridge below rather than polling from inside a session.
 
 ## Invoke Clio from Zulip
 
@@ -126,15 +120,20 @@ Clio speaks ACP (`clio-coder acp`), so the [agent bridge](agent-bots.md) can
 serve it behind its own Zulip bot:
 
 ```bash
-uvx --from zulipchat-mcp zulipchat-mcp-agents add clio \
-  --owner-zuliprc ~/.zuliprc --cwd ~/projects
-uvx --from zulipchat-mcp zulipchat-mcp-agents run
+uv tool install zulipchat-mcp
+zulipchat-mcp-agents add clio --cwd ~/projects
+zulipchat-mcp-agents service install
 ```
 
+`add` creates the bot with `~/.zuliprc` unless `--owner-zuliprc` names another
+file. `service install` runs the bridge at login; `zulipchat-mcp-agents run`
+runs it in the foreground instead.
+
 DM the bot, or mention it in a channel topic, and the bridge starts a Clio
-session for that conversation. Clio runs under its own permission policy; an
-ACP permission request appears in the conversation as a yes/no question. Only
-the bot's owner and listed user IDs are heard.
+session for that conversation. The bridge starts Clio with `--autonomy default`
+unless the agent command names a level, so Clio asks before acting; an ACP
+permission request appears in the conversation as a yes/no question. Only the
+bot's owner and listed user IDs are heard.
 
 From a running Clio session, `teleport_chat(agent="clio", message=...,
 session_id=...)` hands the conversation to that bot; the owner continues it in
@@ -163,7 +162,7 @@ full server usable there: reads work and every write is refused before it
 reaches Zulip.
 
 A read-only worker runs its MCP servers in a sandbox where nothing persistent
-is writable, so the server cannot open its account database. Export a second,
+is writable, so the server cannot write its account cache. Export a second,
 read-only declaration for workers:
 
 ```bash
@@ -175,9 +174,8 @@ clio-coder mcp trust zulipchat-read --action-class read --network
 ```
 
 It runs the server with `--tool-profile read-only --ephemeral-state`, which
-registers and permits only the 22 read tools and keeps local state in a private
-temporary database removed at exit. Agent sessions and approvals are
-unavailable in that mode. A worker recipe names the exact
+registers and permits only the 21 read tools and keeps read caches in memory.
+A worker recipe names the exact
 capabilities it may call, such as `mcp_zulipchat-read__search_messages`, and
 uses `capabilityClass: read-only`.
 
@@ -200,7 +198,7 @@ The check creates and removes its own temporary project and fake credentials.
 It validates both export formats and their per-tool action classes,
 negotiates MCP 2026-07-28 (or 2025-06-18 with older Clio builds), checks that
 tool annotations agree with the read classes, reads server information,
-exercises local profile/session binding, and sends a direct message by name
+and sends a direct message by name
 (and refuses an unknown name) against a mock Zulip it starts on a loopback port.
 It does not connect to a real Zulip or change Clio's configuration or trust
 records.

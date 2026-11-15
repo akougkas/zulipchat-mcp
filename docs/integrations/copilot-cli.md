@@ -20,8 +20,9 @@ copilot mcp add zulipchat -- uvx zulipchat-mcp \
 ```
 
 Inspect the connection with `copilot mcp list`. The tools can write to Zulip;
-loading the skills does not authorize messaging or grant approval to the host's
-other tools. Follow the [agent workflow](agent-workflow.md).
+loading the skill does not authorize messaging or grant approval to the host's
+other tools. To reach an agent from Zulip, use the
+[agent bridge](agent-bots.md).
 
 This CLI format differs from VS Code's `servers` configuration; use the
 [VS Code guide](vscode-copilot.md) for that host. Paths and the `type="local"`
