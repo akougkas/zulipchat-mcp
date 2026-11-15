@@ -163,11 +163,6 @@ class ZulipClientWrapper:
             raise ConnectionError(f"Failed to connect to Zulip: {e}") from e
 
     @property
-    def is_connected(self) -> bool:
-        """Check if client connection has been established."""
-        return self._client is not None
-
-    @property
     def base_url(self) -> str:
         """Get the base URL for API calls. Ensures client is initialized to load config."""
         if not self._base_url and self._client is None:

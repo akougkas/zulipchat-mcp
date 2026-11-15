@@ -6,7 +6,7 @@ to provide convenient methods used by tools and services.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from .database import get_database
@@ -79,32 +79,6 @@ class DatabaseManager:
             )
         except Exception as e:
             logger.error(f"Failed to get agent profile: {e}")
-            raise
-
-    def get_agent_profile_by_name(
-        self, agent_name: str, owner_email: str
-    ) -> dict[str, Any] | None:
-        try:
-            return self._db.query_one_as_dict(
-                """
-                SELECT * FROM agent_profiles
-                WHERE agent_name = ? AND owner_email = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-                """,
-                [agent_name, owner_email],
-            )
-        except Exception as e:
-            logger.error(f"Failed to get agent profile by name: {e}")
-            raise
-
-    def list_agent_profiles(self) -> list[dict[str, Any]]:
-        try:
-            return self._db.query_as_dicts(
-                "SELECT * FROM agent_profiles ORDER BY updated_at DESC"
-            )
-        except Exception as e:
-            logger.error(f"Failed to list agent profiles: {e}")
             raise
 
     def upsert_agent_session(
@@ -321,24 +295,6 @@ class DatabaseManager:
             logger.error(f"Failed to get agent request: {e}")
             raise
 
-    def get_latest_pending_request(
-        self, session_id: str, request_type: str | None = None
-    ) -> dict[str, Any] | None:
-        try:
-            sql = """
-                SELECT * FROM agent_requests
-                WHERE session_id = ? AND status = 'pending'
-            """
-            params: list[Any] = [session_id]
-            if request_type:
-                sql += " AND request_type = ?"
-                params.append(request_type)
-            sql += " ORDER BY created_at DESC LIMIT 1"
-            return self._db.query_one_as_dict(sql, params)
-        except Exception as e:
-            logger.error(f"Failed to get latest pending request: {e}")
-            raise
-
     def update_agent_request(self, request_id: str, **updates: Any) -> dict[str, Any]:
         """Transition a pending request once; terminal decisions are immutable."""
         try:
@@ -510,180 +466,6 @@ class DatabaseManager:
     ) -> tuple[Any, ...] | None:
         return self._db.query_one(sql, params or [])
 
-    # Agent operations
-    def create_agent_instance(
-        self,
-        agent_id: str,
-        agent_type: str,
-        project_name: str,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        try:
-            self._db.execute(
-                """
-                INSERT INTO agent_instances
-                (instance_id, agent_id, session_id, project_dir, host, started_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    kwargs.get("instance_id"),
-                    agent_id,
-                    kwargs.get("session_id"),
-                    kwargs.get("project_dir"),
-                    kwargs.get("host"),
-                    datetime.now(timezone.utc),
-                ],
-            )
-            return {"status": "success", "agent_id": agent_id}
-        except Exception as e:
-            logger.error(f"Failed to create agent instance: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def get_agent_instance(self, agent_id: str) -> dict[str, Any] | None:
-        try:
-            return self._db.query_one_as_dict(
-                "SELECT * FROM agent_instances WHERE agent_id = ? ORDER BY started_at DESC LIMIT 1",
-                [agent_id],
-            )
-        except Exception as e:
-            logger.error(f"Failed to get agent instance: {e}")
-            raise
-
-    # User input requests
-    def create_input_request(
-        self,
-        request_id: str,
-        agent_id: str,
-        question: str,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        try:
-            self._db.execute(
-                """
-                INSERT INTO user_input_requests
-                (request_id, agent_id, question, options, context, status, created_at)
-                VALUES (?, ?, ?, ?, ?, 'pending', ?)
-                """,
-                [
-                    request_id,
-                    agent_id,
-                    question,
-                    kwargs.get("options"),
-                    kwargs.get("context"),
-                    datetime.now(timezone.utc),
-                ],
-            )
-            return {"status": "success", "request_id": request_id}
-        except Exception as e:
-            logger.error(f"Failed to create input request: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def get_input_request(self, request_id: str) -> dict[str, Any] | None:
-        try:
-            return self._db.query_one_as_dict(
-                "SELECT * FROM user_input_requests WHERE request_id = ?",
-                [request_id],
-            )
-        except Exception as e:
-            logger.error(f"Failed to get input request: {e}")
-            raise
-
-    def get_pending_input_requests(self) -> list[dict[str, Any]]:
-        try:
-            return self._db.query_as_dicts(
-                "SELECT * FROM user_input_requests WHERE status = 'pending'"
-            )
-        except Exception as e:
-            logger.error(f"Failed to list pending input requests: {e}")
-            raise
-
-    def update_input_request(self, request_id: str, **updates: Any) -> dict[str, Any]:
-        try:
-            if not updates:
-                return {"status": "success"}
-            set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-            values = list(updates.values()) + [request_id]
-            self._db.execute(
-                f"UPDATE user_input_requests SET {set_clause} WHERE request_id = ?",
-                values,
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to update input request: {e}")
-            return {"status": "error", "error": str(e)}
-
-    # Task operations
-    def create_task(
-        self, task_id: str, agent_id: str, name: str, **kwargs: Any
-    ) -> dict[str, Any]:
-        try:
-            self._db.execute(
-                """
-                INSERT INTO tasks
-                (task_id, agent_id, name, description, status, progress, started_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    task_id,
-                    agent_id,
-                    name,
-                    kwargs.get("description", ""),
-                    kwargs.get("status", "started"),
-                    kwargs.get("progress", 0),
-                    datetime.now(timezone.utc),
-                ],
-            )
-            return {"status": "success", "task_id": task_id}
-        except Exception as e:
-            logger.error(f"Failed to create task: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def update_task(self, task_id: str, **updates: Any) -> dict[str, Any]:
-        try:
-            if not updates:
-                return {"status": "success"}
-            set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-            values = list(updates.values()) + [task_id]
-            self._db.execute(
-                f"UPDATE tasks SET {set_clause} WHERE task_id = ?",
-                values,
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to update task: {e}")
-            return {"status": "error", "error": str(e)}
-
-    # Legacy AFK state helpers retained for backward compatibility.
-    def get_afk_state(self) -> dict[str, Any] | None:
-        try:
-            return self._db.query_one_as_dict(
-                "SELECT * FROM afk_state ORDER BY updated_at DESC LIMIT 1"
-            )
-        except Exception as e:
-            logger.error(f"Failed to get AFK state: {e}")
-            raise
-
-    def set_afk_state(
-        self, enabled: bool, reason: str = "", hours: int = 0
-    ) -> dict[str, Any]:
-        try:
-            now = datetime.now(timezone.utc)
-            auto_return_at = (
-                now + timedelta(hours=hours) if enabled and hours > 0 else None
-            )
-            # Clear existing state and insert new
-            self._db.execute(
-                """
-                INSERT OR REPLACE INTO afk_state (id, is_afk, reason, auto_return_at, updated_at)
-                VALUES (1, ?, ?, ?, ?)
-                """,
-                [enabled, reason, auto_return_at, now],
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to set AFK state: {e}")
-            return {"status": "error", "error": str(e)}
-
     # Listener state persistence
     def save_listener_state(
         self, queue_id: str, last_event_id: int | None
@@ -709,23 +491,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to get listener state: {e}")
             raise
-
-    # Agent status audit trail
-    def create_agent_status(
-        self, status_id: str, agent_type: str, status: str, message: str = ""
-    ) -> dict[str, Any]:
-        try:
-            self._db.execute(
-                """
-                INSERT INTO agent_status (status_id, agent_type, status, message, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                [status_id, agent_type, status, message, datetime.now(timezone.utc)],
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to create agent status: {e}")
-            return {"status": "error", "error": str(e)}
 
     # Agent chat events
     def create_agent_event(
@@ -755,36 +520,4 @@ class DatabaseManager:
             return {"status": "success"}
         except Exception as e:
             logger.error(f"Failed to create agent event: {e}")
-            return {"status": "error", "error": str(e)}
-
-    def get_unacked_events(
-        self, limit: int = 50, topic_prefix: str | None = None
-    ) -> list[dict[str, Any]]:
-        try:
-            if topic_prefix:
-                return self._db.query_as_dicts(
-                    "SELECT * FROM agent_events WHERE acked = FALSE AND topic LIKE ? ORDER BY created_at DESC LIMIT ?",
-                    [f"{topic_prefix}%", limit],
-                )
-            else:
-                return self._db.query_as_dicts(
-                    "SELECT * FROM agent_events WHERE acked = FALSE ORDER BY created_at DESC LIMIT ?",
-                    [limit],
-                )
-        except Exception as e:
-            logger.error(f"Failed to fetch unacked events: {e}")
-            raise
-
-    def ack_events(self, ids: list[str]) -> dict[str, Any]:
-        try:
-            if not ids:
-                return {"status": "success"}
-            placeholders = ",".join(["?"] * len(ids))
-            self._db.execute(
-                f"UPDATE agent_events SET acked = TRUE WHERE id IN ({placeholders})",
-                ids,
-            )
-            return {"status": "success"}
-        except Exception as e:
-            logger.error(f"Failed to ack events: {e}")
             return {"status": "error", "error": str(e)}

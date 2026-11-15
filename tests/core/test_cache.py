@@ -1,6 +1,6 @@
 """Tests for core/cache.py."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -8,8 +8,6 @@ from src.zulipchat_mcp.core.cache import (
     MessageCache,
     StreamCache,
     UserCache,
-    async_cache_decorator,
-    cache_decorator,
 )
 
 
@@ -92,12 +90,6 @@ class TestStreamCache:
         cache.set_streams(streams)
         assert cache.get_streams() == streams
 
-    def test_stream_info(self, cache):
-        """Test storing stream info."""
-        info = {"id": 1, "name": "s1"}
-        cache.set_stream_info("s1", info)
-        assert cache.get_stream_info("s1") == info
-
 
 class TestUserCache:
     """Tests for UserCache."""
@@ -112,53 +104,6 @@ class TestUserCache:
         cache.set_users(users)
         assert cache.get_users() == users
 
-    def test_user_info(self, cache):
-        """Test storing user info."""
-        info = {"id": 1, "email": "u1"}
-        cache.set_user_info("u1", info)
-        assert cache.get_user_info("u1") == info
-
 
 class TestCacheDecorators:
     """Tests for decorators."""
-
-    def test_cache_decorator(self):
-        """Test sync cache decorator."""
-        mock_func = Mock(return_value="result")
-
-        @cache_decorator(ttl=60)
-        def decorated(arg):
-            return mock_func(arg)
-
-        # First call: executes function
-        assert decorated("test") == "result"
-        assert mock_func.call_count == 1
-
-        # Second call: cached
-        assert decorated("test") == "result"
-        assert mock_func.call_count == 1
-
-        # Different arg: executes function
-        assert decorated("other") == "result"
-        assert mock_func.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_async_cache_decorator(self):
-        """Test async cache decorator."""
-        mock_func = Mock(return_value="result")
-
-        @async_cache_decorator(ttl=60)
-        async def decorated(arg):
-            return mock_func(arg)
-
-        # First call
-        assert await decorated("test") == "result"
-        assert mock_func.call_count == 1
-
-        # Second call
-        assert await decorated("test") == "result"
-        assert mock_func.call_count == 1
-
-        # Different arg
-        assert await decorated("other") == "result"
-        assert mock_func.call_count == 2

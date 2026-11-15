@@ -67,12 +67,12 @@ def test_approval_is_bound_to_one_request_and_terminal_decision(coordinator):
     assert len([event for event in events if event["direction"] == "inbound"]) == 1
 
 
-def test_poll_timeout_does_not_cancel_other_waiters(coordinator):
+async def test_poll_timeout_does_not_cancel_other_waiters(coordinator):
     session = bind_session(coordinator)
     request = coordinator.create_request(
         session_id=session["session_id"], prompt="Question?"
     )["request_id"]
-    result = coordinator.wait_for_request(request, timeout_seconds=0)
+    result = await coordinator.wait_for_request_async(request, timeout_seconds=0)
     assert result["status"] == "timeout"
     assert result["request_id"] == request
     assert result["retryable"] is True
@@ -91,7 +91,10 @@ def test_failed_announcement_cancels_request(coordinator):
         )["status"]
         == "error"
     )
-    assert coordinator.db.get_latest_pending_request(session["session_id"]) is None
+    assert not coordinator.db.query(
+        "SELECT 1 FROM agent_requests WHERE session_id = ? AND status = 'pending'",
+        [session["session_id"]],
+    )
 
 
 def test_ensuring_session_preserves_topic_and_project(coordinator):

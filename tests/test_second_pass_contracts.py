@@ -1,13 +1,10 @@
 """Boundary regressions from the full source audit."""
 
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from zulipchat_mcp import claude_hooks
-from zulipchat_mcp.config import ZulipConfig
-from zulipchat_mcp.services.scheduler import MessageScheduler, ScheduledMessage
 from zulipchat_mcp.tools import event_management
 
 
@@ -67,54 +64,6 @@ def test_service_replacement_is_refused_while_previous_listener_is_stopping(
         service_manager.init_service_manager(MagicMock())
     service_manager.shutdown_service_manager()
     assert service_manager._instance is previous
-
-
-@pytest.mark.asyncio
-async def test_scheduler_uses_selected_realm_and_rejects_partial_recipients(
-    monkeypatch,
-):
-    monkeypatch.setenv("ZULIP_SITE", "https://ambient.example.com")
-    scheduler = MessageScheduler(
-        ZulipConfig("owner@selected.com", "key", "https://selected.example.com")
-    )
-    assert scheduler.base_url == "https://selected.example.com/api/v1"
-    assert scheduler._lookup_client.config_manager.config is scheduler.config
-    scheduler._lookup_client.get_users = MagicMock(
-        return_value={
-            "result": "success",
-            "members": [{"email": "found@example.com", "user_id": 1}],
-        }
-    )
-    scheduler.client = AsyncMock()
-    message = ScheduledMessage(
-        content="private",
-        message_type="private",
-        recipients=["found@example.com", "missing@example.com"],
-        scheduled_time=datetime.now(timezone.utc),
-    )
-    with pytest.raises(ValueError, match="nothing was scheduled"):
-        await scheduler.schedule_message(message)
-    scheduler.client.post.assert_not_called()
-    await scheduler.close()
-    assert scheduler.client is None
-
-
-@pytest.mark.asyncio
-async def test_scheduler_bulk_retains_failed_input_positions():
-    scheduler = MessageScheduler(
-        ZulipConfig("owner@example.com", "key", "https://example.com")
-    )
-    scheduler.schedule_message = AsyncMock(
-        side_effect=[
-            {"result": "success", "scheduled_message_id": 1},
-            RuntimeError("rejected"),
-            {"result": "success", "scheduled_message_id": 3},
-        ]
-    )
-    result = await scheduler.bulk_schedule([MagicMock(), MagicMock(), MagicMock()])
-    assert len(result) == 3
-    assert result[1] == {"status": "error", "error": "rejected"}
-    assert result[2]["scheduled_message_id"] == 3
 
 
 @pytest.mark.asyncio
