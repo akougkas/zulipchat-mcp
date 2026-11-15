@@ -54,10 +54,10 @@ Target response times:
   serving if Zulip later reports another owner (`run --accept-owner` pairs
   again). Messages sent through this package's MCP server (Zulip client
   `zulipchat-mcp`) never prompt or answer an agent, so an agent that uses the
-  owner's account through this server cannot drive another. Anything else that
-  holds the owner's API key can, and a 👍 or 👎 reaction answers a permission
-  request whichever program added it under the owner's account. Do not give
-  agents tools that act as the owner.
+  owner's account through this server cannot drive another. Permission
+  requests are answered only by typed messages, never by reactions, which
+  carry no client name. Anything else that holds the owner's API key can still
+  post as the owner. Do not give agents tools that act as the owner.
 - The bridge redacts credential values and silences mentions in what it
   posts. By default it gives each agent only `ask_owner`
   (`zulip_tools = "ask"`). Bridged agents run with the local user's authority

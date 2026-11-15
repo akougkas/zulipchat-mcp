@@ -439,25 +439,54 @@ async def test_refused_edits_never_spam_status_messages(
 
 
 @pytest.mark.asyncio
-async def test_owner_reaction_answers_a_permission_request(make_bridge, monkeypatch):
-    monkeypatch.setattr(bridge_module, "REACTION_POLL_SECONDS", 1)
+async def test_reactions_never_answer_a_permission_request(make_bridge):
     build, client = make_bridge
     client.client.get_raw_message.return_value = {
-        "message": {
-            "reactions": [
-                {"user_id": BOT, "emoji_code": "1f44d"},  # the bot's own seed
-                {"user_id": STRANGER, "emoji_code": "1f44d"},
-                {"user_id": OWNER, "emoji_code": "1f44e"},
-            ]
-        }
+        "message": {"reactions": [{"user_id": OWNER, "emoji_code": "1f44d"}]}
     }
-    bridge = build()
+    bridge = build(question_minutes=0.02)
     await bridge.route(dm(230, "needs-permission please"))
-    posts = await posted(client, 2)
-    assert "react 👍 or 👎" in posts[0][2]
+    posts = await posted(client, 3, timeout=15)
+    assert "react" not in posts[0][2] and "`yes` (or `ok`) or `no`" in posts[0][2]
     assert "chose reject_once" in posts[-1][2]
-    client.add_reaction.assert_any_call(1, "thumbs_up")
-    client.add_reaction.assert_any_call(1, "thumbs_down")
+    seeded = [c.args[1] for c in client.add_reaction.call_args_list]
+    assert "thumbs_up" not in seeded and "thumbs_down" not in seeded
+    client.client.get_raw_message.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("yes", "allow"),
+        ("OK", "allow"),
+        ("Okay!", "allow"),
+        (" approve. ", "allow"),
+        ("y", "allow"),
+        ("No.", "deny"),
+        ("DENY", "deny"),
+        ("ok sounds good", None),
+        ("👍", None),
+        (":thumbs_up:", None),
+        ("", None),
+    ],
+)
+def test_verdict_words_are_forgiving_but_whole(text, expected):
+    assert bridge_module.verdict(text) == expected
+
+
+@pytest.mark.asyncio
+async def test_approve_and_deny_by_id(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(240, "needs-permission please"))
+    await posted(client, 1)
+    question = bridge.store.open_question(f"dm:{OWNER}")
+    await bridge.route(dm(241, "/approve nope"))
+    posts = await posted(client, 2)
+    assert "No open request `nope` here." in posts[1][2]
+    await bridge.route(dm(242, f"/deny {question['id']}"))
+    posts = await posted(client, 3)
+    assert "chose reject_once" in posts[-1][2]
 
 
 def test_permission_prompt_never_hides_part_of_a_long_command():

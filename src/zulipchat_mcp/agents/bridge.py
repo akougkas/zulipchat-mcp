@@ -39,17 +39,15 @@ OFFLINE_RETRY_SECONDS = (5, 300)  # first and longest wait to reach Zulip at sta
 TYPING_REFRESH_SECONDS = 8
 PROGRESS_DELAY_SECONDS = 20  # turns shorter than this post no status message
 PROGRESS_EVERY_SECONDS = 10
-REACTION_POLL_SECONDS = 3
-# Reactions that answer a permission request, by Unicode emoji code.
-_ALLOW_EMOJI = {"1f44d", "2705", "2714"}  # thumbs up, check marks
-_DENY_EMOJI = {"1f44e", "274c", "1f6ab"}  # thumbs down, cross mark, no entry
 HELP = (
     "Commands: `/status`, `/cancel` (stop the current turn), `/new` (start a fresh "
     "session), `/cwd PATH` (switch workspace; allowed directories only), "
     "`/approve ID`, `/deny ID`."
 )
-_YES = {"yes", "y", "approve", "allow", "ok", "/approve"}
-_NO = {"no", "n", "deny", "reject", "/deny"}
+# A permission request is answered only by a typed message. Reactions carry no
+# client name, so an agent acting as the owner could approve itself with one.
+_YES = {"yes", "y", "ok", "okay", "approve", "allow"}
+_NO = {"no", "n", "deny", "reject"}
 DECISION_META = "clio-coder/decision"
 INTERVIEW_META = "clio-coder/interview"
 MAX_ANSWER_CHARS = 16 * 1024
@@ -178,13 +176,19 @@ def describe_permission(params: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def verdict(text: str) -> str | None:
+    """allow or deny when the whole text is a yes or no word, else None."""
+    word = text.strip().rstrip(".!").strip().casefold()
+    return "allow" if word in _YES else "deny" if word in _NO else None
+
+
 def exact_choice(question: dict[str, Any], text: str) -> bool:
     """Whether text is nothing but a valid choice for an open request."""
     words = text.split()
     if words[:1] in (["/approve"], ["/deny"]) and len(words) == 2:
         return True
     if question.get("kind") == "permission":
-        return text.strip().rstrip(".!").casefold() in _YES | _NO
+        return verdict(text) is not None
     labels = [str(label).casefold() for label in question.get("options") or []]
     picks = [pick.strip().rstrip(".").casefold() for pick in text.split(",")]
     return bool(labels) and all(
@@ -522,14 +526,18 @@ class AgentBridge:
         if question["kind"] == "permission":
             # The whole message must be the verdict: "ok, looking" said to a
             # colleague in the same topic approves nothing.
-            verdict = words[0] if explicit else text.strip().rstrip(".!").casefold()
-            if verdict not in _YES | _NO:
+            decided = (
+                ("allow" if words[0] == "/approve" else "deny")
+                if explicit
+                else verdict(text)
+            )
+            if decided is None:
                 await self._post_to(
                     message,
                     f"Request `{question['id']}` is waiting: answer `yes` or `no`.",
                 )
                 return True
-            answer = "allow" if verdict in _YES else "deny"
+            answer = decided
         else:
             answer = text
         if self.store.answer(question["id"], answer):
@@ -771,31 +779,17 @@ class AgentBridge:
         """
         minutes = self.config.question_minutes
         question_id = self.store.ask(conversation.key, kind, body, options, minutes)
-        message_id = await self._post(
+        await self._post(
             conversation.destination, f"**{label} `{question_id}`**: {body}"
         )
-        react_to = message_id if kind == "permission" else None
-        if react_to is not None:
-            for emoji in ("thumbs_up", "thumbs_down"):  # one click to answer
-                await asyncio.to_thread(self.client.add_reaction, react_to, emoji)
         deadline = time.monotonic() + minutes * 60
         answer = None
         try:
-            tick = 0
             while time.monotonic() < deadline and answer is None:
                 await asyncio.sleep(1)
-                tick += 1
                 # Only an answer this process took from Zulip counts. The store
                 # is a file the agent can write, so it never decides a request.
                 answer = self._verdicts.pop(question_id, None)
-                if (
-                    answer is None
-                    and react_to is not None
-                    and tick % REACTION_POLL_SECONDS == 0
-                ):
-                    verdict = await self._reaction_verdict(react_to)
-                    if verdict and self.store.answer(question_id, verdict):
-                        answer = verdict
         except asyncio.CancelledError:
             if self.store.close(question_id):
                 await self._post(
@@ -824,7 +818,7 @@ class AgentBridge:
                 if "allow_always" in offered and "allow_once" not in offered
                 else ""
             )
-            + "\nAnswer `yes` or `no`, or react 👍 or 👎. No answer within "
+            + "\nAnswer `yes` (or `ok`) or `no`. No answer within "
             + f"{self.config.question_minutes:g} min means no."
         )
         answer = await self._ask(
@@ -893,20 +887,6 @@ class AgentBridge:
                 return {"cancelled": True}
             answers.append(interview_answer(question, answer.strip()))
         return {"answers": answers} if answers else {"cancelled": True}
-
-    async def _reaction_verdict(self, message_id: int) -> str | None:
-        """allow or deny from the owner's reaction on a request, if any."""
-        response: dict[str, Any] = await asyncio.to_thread(
-            self.client.client.get_raw_message, message_id
-        )
-        for reaction in _dict(response.get("message")).get("reactions") or []:
-            if not self.admitted({"sender_id": reaction.get("user_id")}):
-                continue
-            if reaction.get("emoji_code") in _ALLOW_EMOJI:
-                return "allow"
-            if reaction.get("emoji_code") in _DENY_EMOJI:
-                return "deny"
-        return None
 
     def _agent_command(self) -> list[str]:
         command = list(self.config.command)

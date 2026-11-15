@@ -93,7 +93,7 @@ tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
 
 Your coding agents get Zulip accounts. DM "Claude" or "Clio" from your phone;
 the agent runs on your machine, in your repositories, under its own permission
-rules, and asks you in the chat (👍 or 👎) before risky steps. The
+rules, and asks you in the chat (answer `yes` or `no`) before risky steps. The
 `zulipchat-mcp-agents` bridge serves one Zulip Generic bot per agent that
 speaks the Agent Client Protocol (Clio Coder, OpenCode, Goose, Gemini CLI, and
 Claude Code or Codex through their ACP adapters).

@@ -72,9 +72,11 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   conversation as `Permission request ID`, with the command or paths involved
   and, from Clio, its consequence lines. Up to 6000 characters of a command
   are shown, and the request says so when there is more. Answer with a
-  message that is only `yes` or `no` (or `/approve ID`, `/deny ID`), or react
-  👍 or 👎 (✅ and ❌ also work) on the request. Any other message leaves it
-  open. No answer within `question_minutes` means no. A request the agent
+  message that is only `yes`, `ok`, `okay` or `approve`, or only `no` or
+  `deny`, in any case and with or without a final period (or `/approve ID`,
+  `/deny ID`). Reactions answer nothing: they carry no client name, so an
+  agent acting as you could approve itself with one. Any other message leaves
+  it open. No answer within `question_minutes` means no. A request the agent
   withdraws, or that a `/cancel` ends, is closed in the conversation, so the
   next message starts a turn again. Clio withdraws main-session and worker
   requests alike when it gives one up.
@@ -325,9 +327,9 @@ machine. Decide with these facts:
 - **The agent also loads its own configuration.** `zulip_tools` governs only the
   MCP server the bridge passes in. MCP servers in the agent's own user or
   project configuration load as well, with whatever identity they declare. The
-  bridge ignores messages sent through this package's MCP server, but an agent
-  with Zulip tools acting as you could still answer its own permission request
-  with a 👍 reaction. Give agents the bot's identity, never yours.
+  bridge ignores messages sent through this package's MCP server and never
+  reads reactions, but an agent that holds your API key through another
+  program can still post as you. Give agents the bot's identity, never yours.
 - **Your Zulip login is a shell login.** Whoever can send messages as the
   bot's owner, or as a user in `allow`, drives the agent: a stolen session, a
   leaked API key, an unlocked phone, or the operator of a self-hosted Zulip
