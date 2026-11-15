@@ -23,6 +23,7 @@ from ..config import ConfigManager, load_zuliprc_credentials
 from ..core.client import ZulipClientWrapper
 from ..services.bot_mentions import ALL_SCOPE, BotMentionInbox
 from ..utils.logging import get_logger
+from ..utils.redaction import redact, secret_values
 from .acp import WORKER_ASK_META, AcpAgent, AcpError
 from .config import AgentConfig
 from .provision import ProvisionError, bot_owner_id
@@ -117,17 +118,6 @@ def _fenced(text: str, limit: int = PERMISSION_TARGET_LIMIT) -> str:
 
 
 _MENTION = re.compile(r"@(?=\*)")
-_SECRET_NAME = re.compile(
-    r"(?:^|_)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?)(?:_|$)", re.I
-)
-_SECRET_SHAPES = re.compile(
-    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|\Z)"
-    r"|\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}"
-    r"|github_pat_[A-Za-z0-9_]{30,}|hf_[A-Za-z0-9]{30,}"
-    r"|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16})",
-    re.S,
-)
-_ZULIPRC_KEY = re.compile(r"(?im)^(\s*key\s*=\s*)\S{20,}\s*$")
 
 
 def silence_mentions(text: str) -> str:
@@ -139,23 +129,11 @@ def silence_mentions(text: str) -> str:
 
 def known_secrets(config: AgentConfig) -> list[str]:
     """Secret values this process can see: they must never be posted to Zulip."""
-    values = {
-        value
-        for name, value in {**os.environ, **config.env}.items()
-        if _SECRET_NAME.search(name) and len(value) >= 12
-    }
     try:
-        values.add(load_zuliprc_credentials(str(config.zuliprc))["api_key"])
+        bot_key = load_zuliprc_credentials(str(config.zuliprc))["api_key"]
     except (OSError, ValueError, KeyError, LookupError):
-        pass  # the client reports an unusable zuliprc
-    return sorted(values, key=len, reverse=True)
-
-
-def redact(text: str, secrets: list[str]) -> str:
-    for secret in secrets:
-        text = text.replace(secret, "[redacted]")
-    text = _ZULIPRC_KEY.sub(r"\1[redacted]", text)
-    return _SECRET_SHAPES.sub("[redacted]", text)
+        bot_key = None  # the client reports an unusable zuliprc
+    return secret_values(os.environ, config.env, extra=[bot_key])
 
 
 def describe_permission(params: dict[str, Any]) -> str:

@@ -8,6 +8,7 @@ import asyncio
 import difflib
 import hashlib
 import json
+import os
 import threading
 import time
 from typing import Any, Literal
@@ -16,10 +17,37 @@ from ..config import get_bot_client, get_client, get_config_manager
 from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
 from ..core.security import local_access_allowed
+from ..utils.redaction import redact, secret_values
+
+_agent_secrets: list[str] | None = None
+
+
+def _secrets_of_a_bridged_agent() -> list[str]:
+    """Secret values visible to this server, resolved once."""
+    global _agent_secrets
+    if _agent_secrets is None:
+        keys: list[str | None] = []
+        try:
+            config = get_config_manager()
+            keys = [
+                config.get_zulip_client_config(use_bot=use_bot).get("api_key")
+                for use_bot in (False, True)
+            ]
+        except Exception:
+            pass  # the environment still names the usual secrets
+        _agent_secrets = secret_values(os.environ, extra=keys)
+    return _agent_secrets
 
 
 def sanitize_content(content: str, max_length: int = 50000) -> str:
-    """Sanitize and truncate content."""
+    """Truncate content, and for a bridged agent replace secrets it could leak.
+
+    An agent the bridge launched is driven from a Zulip conversation: nobody
+    at a keyboard reads its messages before they are sent. The bridge redacts
+    what it posts for the agent; this covers what the agent sends itself.
+    """
+    if os.getenv("ZULIPCHAT_AGENT_STATE"):
+        content = redact(content, _secrets_of_a_bridged_agent())
     if len(content) > max_length:
         return content[:max_length] + "\n... [Content truncated]"
     return content
