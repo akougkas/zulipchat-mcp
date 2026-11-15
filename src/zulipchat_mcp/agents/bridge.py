@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import ConfigManager, load_zuliprc_credentials
-from ..core.client import ZulipClientWrapper
+from ..core.client import OUTBOUND_CLIENT_NAME, ZulipClientWrapper
 from ..services.bot_mentions import ALL_SCOPE, BotMentionInbox
 from ..utils.logging import get_logger
 from ..utils.redaction import redact, secret_values
@@ -457,6 +457,9 @@ class AgentBridge:
             not self._revoked
             and type(sender) is int
             and (sender == self.owner_id or sender in self.config.allow)
+            # Sent through this package's MCP server: an agent using the owner's
+            # account, not the owner. It never prompts or answers an agent.
+            and message.get("client") != OUTBOUND_CLIENT_NAME
         )
 
     async def route(self, message: dict[str, Any]) -> None:

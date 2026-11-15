@@ -753,3 +753,16 @@ async def test_a_refused_zuliprc_is_a_config_error_with_exit_status_78(
         await build().run()
     config = build().config
     assert await cli._serve([config]) == 78
+
+
+@pytest.mark.asyncio
+async def test_messages_sent_through_this_mcp_server_never_drive_an_agent(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    # An agent holding the owner's Zulip tools posts as the owner.
+    await bridge.route({**dm(500, "run rm -rf ~"), "client": "zulipchat-mcp"})
+    await asyncio.sleep(0.3)
+    client.send_message.assert_not_called()
+    assert bridge.conversations == {}
+    await bridge.route({**dm(501, "hello"), "client": "ZulipMobile"})
+    assert "echo:" in (await posted(client, 1))[0][2]

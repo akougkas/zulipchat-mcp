@@ -99,8 +99,8 @@ def clio_tool_action_classes(
 def clio_server_fields(base: dict[str, Any]) -> dict[str, Any]:
     """Clio declaration fields shared by its YAML and plugin exports.
 
-    Clio runs a worker's MCP server where the account database is read-only,
-    so a read-only profile keeps its local state in a private temporary file.
+    Clio runs a worker's MCP server where the state directory is read-only,
+    so a read-only profile keeps its read caches in memory.
     """
     args = base["args"]
     profile = (
@@ -315,7 +315,7 @@ def main() -> None:
         "--tool-profile",
         choices=["full", "read-only"],
         default="full",
-        help="read-only: expose and permit only read tools (not for claude-code)",
+        help="read-only: expose and permit only read tools",
     )
     export_parser.add_argument(
         "--server-id",
