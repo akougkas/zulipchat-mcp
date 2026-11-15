@@ -291,7 +291,7 @@ def test_failed_binding_cannot_publish_an_unverified_candidate(
 
 
 async def test_backfill_accepts_a_reply_in_the_session_creation_second(coordinator):
-    coordinator.bot_client.client.feature_level = 445
+    coordinator.bot_client.supports.side_effect = lambda level: level <= 445
     session = bind_session(coordinator)
     request = coordinator.create_request(
         session_id=session["session_id"], prompt="Choose"
@@ -322,7 +322,7 @@ async def test_backfill_accepts_a_reply_in_the_session_creation_second(coordinat
 
 
 async def test_backfill_uses_message_ids_for_servers_without_date_anchors(coordinator):
-    coordinator.bot_client.client.feature_level = 444
+    coordinator.bot_client.supports.side_effect = lambda level: level <= 444
     session = bind_session(coordinator)
     coordinator.bot_client.get_messages_raw.return_value = {
         "result": "success",
