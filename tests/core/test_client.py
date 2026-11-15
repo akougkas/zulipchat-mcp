@@ -297,30 +297,6 @@ class TestZulipClientWrapper:
             assert summary["streams"]["general"]["topics"]["Topic1"] == 2
 
 
-def test_get_messages_by_ids_and_empty_topic_flag():
-    config = MagicMock()
-    config.get_zulip_client_config.return_value = {
-        "email": "owner@example.com",
-        "api_key": "fake",
-        "site": "https://example.com",
-    }
-    wrapper = ZulipClientWrapper(config)
-    sdk = MagicMock(feature_level=513)
-    sdk.get_messages.return_value = {"result": "success", "messages": []}
-    wrapper._client = sdk
-
-    wrapper.get_messages_by_ids([3, 4])
-    assert sdk.get_messages.call_args[0][0] == {
-        "message_ids": [3, 4],
-        "apply_markdown": False,
-        "allow_empty_topic_name": True,
-    }
-
-    sdk.feature_level = 300
-    wrapper.get_messages_raw(use_cache=False)
-    assert "allow_empty_topic_name" not in sdk.get_messages.call_args[0][0]
-
-
 @pytest.mark.parametrize("level", [513, 300])
 def test_get_users_by_ids_uses_server_filter_when_supported(level):
     config = MagicMock()

@@ -54,7 +54,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "zulip>=0.9.0",
     "structlog>=25.4.0",
-    "prometheus-client>=0.22.0",
     "duckdb>=1.3.0",
     "requests>=2.33.0",
     # Security floors for the MCP HTTP/auth dependency stack.

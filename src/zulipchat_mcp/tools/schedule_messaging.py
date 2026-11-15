@@ -224,7 +224,12 @@ async def manage_scheduled_message(
 
 
 def _timestamp(value: datetime | str) -> int:
-    when = datetime.fromisoformat(value) if isinstance(value, str) else value
+    # Python 3.10 fromisoformat rejects a trailing Z.
+    when = (
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if isinstance(value, str)
+        else value
+    )
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
     return int(when.timestamp())

@@ -158,7 +158,7 @@ async def test_reminders_list_create_delete(client):
 
     call.return_value = {**OK, "reminder_id": 5}
     created = await schedule_messaging.manage_reminders(
-        "create", message_id=42, deliver_at="2030-01-01T00:00:00", note="ship"
+        "create", message_id=42, deliver_at="2030-01-01T00:00:00Z", note="ship"
     )
     expected_ts = int(datetime(2030, 1, 1, tzinfo=timezone.utc).timestamp())
     call.assert_called_with(

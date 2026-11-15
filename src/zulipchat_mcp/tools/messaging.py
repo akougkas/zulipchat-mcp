@@ -12,8 +12,6 @@ import threading
 import time
 from typing import Any, Literal
 
-from fastmcp import FastMCP
-
 from ..config import get_bot_client, get_client, get_config_manager
 from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
@@ -424,23 +422,3 @@ async def cross_post_message(
 
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-def register_messaging_tools(mcp: FastMCP) -> None:
-    """Register core messaging tools with the MCP server."""
-    mcp.tool(
-        name="send_message",
-        description=(
-            "Send one message to a stream topic or users. Sends once; an identical "
-            "repeat within two minutes is suppressed. The result reports sent_as."
-        ),
-    )(send_message)
-    mcp.tool(
-        name="edit_message",
-        description="Edit message content, topic, or move between streams with propagation control",
-    )(edit_message)
-    mcp.tool(name="get_message", description="Get a single message by ID")(get_message)
-    mcp.tool(
-        name="cross_post_message",
-        description="Share/duplicate message across multiple streams with attribution",
-    )(cross_post_message)

@@ -256,20 +256,6 @@ class ZulipClientWrapper:
             request, lambda: self.client.get_messages(request), use_cache=use_cache
         )
 
-    def get_messages_by_ids(
-        self, ids: Sequence[int], apply_markdown: bool = False
-    ) -> dict[str, Any]:
-        """Fetch specific messages by ID in one request (FL 300)."""
-        request: dict[str, Any] = {
-            "message_ids": list(ids),
-            "apply_markdown": apply_markdown,
-        }
-        if self.supports(334):
-            request["allow_empty_topic_name"] = True
-        return self.read_snapshots.fetch(
-            request, lambda: self.client.get_messages(request)
-        )
-
     def get_messages(
         self,
         anchor: str = "newest",
