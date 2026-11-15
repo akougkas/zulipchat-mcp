@@ -11,9 +11,9 @@ from zulipchat_mcp.tools import messaging
 
 
 @pytest.mark.parametrize("apply_markdown", [None, False, True])
-@pytest.mark.parametrize("sdk_method", [True, False])
-def test_message_wrapper_rendering_option(apply_markdown, sdk_method):
-    sdk = MagicMock() if sdk_method else SimpleNamespace(call_endpoint=MagicMock())
+@pytest.mark.parametrize("feature_level", [513, 300])
+def test_message_wrapper_rendering_option(apply_markdown, feature_level):
+    sdk = SimpleNamespace(call_endpoint=MagicMock(), feature_level=feature_level)
     config = MagicMock()
     config.get_zulip_client_config.return_value = {
         "email": "owner@example.com",
@@ -24,12 +24,11 @@ def test_message_wrapper_rendering_option(apply_markdown, sdk_method):
     wrapper._client = sdk
     wrapper.get_message(42, apply_markdown=apply_markdown)
     request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}
-    if sdk_method:
-        sdk.get_message.assert_called_once_with(message_id=42, **request)
-    else:
-        sdk.call_endpoint.assert_called_once_with(
-            "messages/42", method="GET", request=request
-        )
+    if feature_level >= 334:
+        request["allow_empty_topic_name"] = True
+    sdk.call_endpoint.assert_called_once_with(
+        "messages/42", method="GET", request=request
+    )
 
 
 async def test_cross_post_wire_preserves_markdown_and_captured_identity(monkeypatch):

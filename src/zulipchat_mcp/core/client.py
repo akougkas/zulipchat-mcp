@@ -253,9 +253,25 @@ class ZulipClientWrapper:
         # Add anchor_date for time-based queries (Zulip 12.0+, feature level 445)
         if anchor == "date" and anchor_date:
             request["anchor_date"] = anchor_date
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
 
         return self.read_snapshots.fetch(
             request, lambda: self.client.get_messages(request), use_cache=use_cache
+        )
+
+    def get_messages_by_ids(
+        self, ids: Sequence[int], apply_markdown: bool = False
+    ) -> dict[str, Any]:
+        """Fetch specific messages by ID in one request (FL 300)."""
+        request: dict[str, Any] = {
+            "message_ids": list(ids),
+            "apply_markdown": apply_markdown,
+        }
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
+        return self.read_snapshots.fetch(
+            request, lambda: self.client.get_messages(request)
         )
 
     def get_messages(
@@ -657,23 +673,17 @@ class ZulipClientWrapper:
 
         Omitting apply_markdown preserves the SDK's default rendering behavior.
         """
-        request = {} if apply_markdown is None else {"apply_markdown": apply_markdown}
-
-        def fetch() -> dict[str, Any]:
-            if hasattr(self.client, "get_message"):
-                try:
-                    return self.client.get_message(message_id=message_id, **request)
-                except TypeError:
-                    return self.client.get_message(
-                        {"message_id": message_id, **request}
-                    )
-            return self.client.call_endpoint(
-                f"messages/{message_id}", method="GET", request=request
-            )
+        request: dict[str, Any] = (
+            {} if apply_markdown is None else {"apply_markdown": apply_markdown}
+        )
+        if self.supports(334):
+            request["allow_empty_topic_name"] = True
 
         return self.read_snapshots.fetch(
             {"endpoint": "message", "message_id": message_id, **request},
-            fetch,
+            lambda: self.client.call_endpoint(
+                f"messages/{message_id}", method="GET", request=request
+            ),
             use_cache=not fresh,
         )
 
