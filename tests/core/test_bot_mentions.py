@@ -467,12 +467,20 @@ def test_direct_and_channel_inboxes_have_distinct_state_and_do_not_use_the_cap(
         bot_mentions.get_mention_inbox(client, "fp", "Channel 5", None)
 
 
-def poll(inbox, monkeypatch, allow=None, owner="owner@example.com", **arguments):
+def poll(
+    inbox,
+    monkeypatch,
+    allow=None,
+    owner="owner@example.com",
+    owner_id=None,
+    **arguments,
+):
     config = MagicMock()
     config.has_bot_credentials.return_value = True
     config.mention_allow_policy.return_value = parse_mention_allow(allow)
     coordinator = MagicMock()
     coordinator.default_owner_email.return_value = owner
+    coordinator.default_owner_id.return_value = owner_id
     monkeypatch.setattr(agents, "get_config_manager", lambda: config)
     monkeypatch.setattr(agents, "_get_coordinator", lambda: coordinator)
     monkeypatch.setattr(bot_mentions, "get_mention_inbox", lambda *args: inbox)
@@ -658,3 +666,15 @@ async def test_registered_direct_message_contract(mode, dm_inbox, monkeypatch):
         ]
         assert result["ignored_unauthorized"] == []
         assert result["next_after_message_id"] == 21
+
+
+def test_owner_is_admitted_by_user_id_when_the_realm_hides_emails(inbox, monkeypatch):
+    hidden = {"sender_email": "user7@example.zulipchat.com"}
+    inbox.client.get_messages_raw.return_value["messages"] = [
+        message(11, **hidden),
+        message(12, sender_id=8, sender_email="user8@example.zulipchat.com"),
+    ]
+    result = poll(inbox, monkeypatch, owner_id=7, mentions_stream="Agents-Channel")
+    assert [event["message_id"] for event in result["events"]] == [11]
+    assert result["events"][0]["is_configured_owner"] is True
+    assert [item["message_id"] for item in result["ignored_unauthorized"]] == [12]

@@ -374,6 +374,12 @@ def _poll_bot_mentions(
     )
     result = inbox.poll(after_message_id, limit, wait_seconds)
     owner = coordinator.default_owner_email().casefold()
+    try:
+        # Realms that hide emails report the owner under a placeholder address.
+        found = coordinator.default_owner_id()
+        owner_id = found if type(found) is int else None
+    except Exception:
+        owner_id = None
     bot_user_id = result.get("bot_user_id")
     kind = "direct_message" if direct else "mention"
     events = []
@@ -394,7 +400,7 @@ def _poll_bot_mentions(
             else {"stream_id": message.get("stream_id")}
         )
         if not policy.allows(
-            message.get("sender_id"), message.get("sender_email"), owner
+            message.get("sender_id"), message.get("sender_email"), owner, owner_id
         ):
             # Metadata only: a host must not be able to act on unauthorized text.
             ignored.append(
@@ -415,8 +421,8 @@ def _poll_bot_mentions(
             "message_id": message_id,
             "sender_id": message.get("sender_id"),
             "sender_email": message.get("sender_email"),
-            "is_configured_owner": str(message.get("sender_email", "")).casefold()
-            == owner,
+            "is_configured_owner": message.get("sender_id") == owner_id
+            or str(message.get("sender_email", "")).casefold() == owner,
             **where,
         }
         if direct:
