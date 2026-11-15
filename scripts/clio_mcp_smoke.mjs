@@ -65,7 +65,7 @@ const push = (message, flags = []) => pending.push({ id: (eventId += 1), type: "
 const credentials = path.join(workspace, "zuliprc");
 const botCredentials = path.join(workspace, "zuliprc-bot");
 const fakeEnv = {
-  ANTHROPIC_API_KEY: "", ZULIPCHAT_DB_PATH: path.join(workspace, "smoke.duckdb"),
+  ZULIPCHAT_DB_PATH: path.join(workspace, "smoke.duckdb"),
   XDG_STATE_HOME: path.join(workspace, "state"),
 };
 let client;

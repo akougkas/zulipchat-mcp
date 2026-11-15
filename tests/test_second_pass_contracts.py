@@ -10,7 +10,7 @@ from zulipchat_mcp import claude_hooks
 from zulipchat_mcp.config import ZulipConfig
 from zulipchat_mcp.core.validation import ParameterValidator
 from zulipchat_mcp.services.scheduler import MessageScheduler, ScheduledMessage
-from zulipchat_mcp.tools import ai_analytics, event_management, search
+from zulipchat_mcp.tools import event_management
 
 
 @pytest.mark.asyncio
@@ -189,20 +189,6 @@ async def test_event_page_limit_preserves_unconsumed_events(monkeypatch):
     assert fetch.call_args_list[1].kwargs["last_event_id"] == 2
 
 
-@pytest.mark.asyncio
-async def test_team_analytics_does_not_report_api_failure_as_no_activity(monkeypatch):
-    monkeypatch.setattr(ai_analytics, "get_client", MagicMock())
-    monkeypatch.setattr(
-        search,
-        "search_messages",
-        AsyncMock(return_value={"status": "error", "error": "permission denied"}),
-    )
-    generate = AsyncMock()
-    monkeypatch.setattr(ai_analytics, "generate", generate)
-    result = await ai_analytics.analyze_team_activity_with_llm(["private"], "progress")
-    assert result["status"] == "error"
-    assert "permission denied" in result["error"]
-    generate.assert_not_called()
 
 
 @pytest.mark.parametrize(

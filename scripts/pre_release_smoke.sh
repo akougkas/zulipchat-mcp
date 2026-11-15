@@ -95,7 +95,7 @@ smoke_command() {
     ZULIP_CONFIG_FILE="$SMOKE_CONFIG" ZULIP_BOT_CONFIG_FILE="$SMOKE_CONFIG" \
     ZULIP_EMAIL=test@example.com ZULIP_API_KEY=test-key \
     ZULIP_BOT_EMAIL=test@example.com ZULIP_BOT_API_KEY=test-key \
-    ZULIP_SITE=http://127.0.0.1:9 ANTHROPIC_API_KEY= \
+    ZULIP_SITE=http://127.0.0.1:9 \
     ZULIPCHAT_DB_PATH="$SMOKE_TMP_DIR/smoke.duckdb" "$@")
 }
 

@@ -278,14 +278,6 @@ def main() -> None:
     else:
         logger.info("Database not available (agent features disabled)")
 
-    # Server-side LLM analytics: MCP sampling is deprecated in the 2026-07-28
-    # protocol, so analytics tools call a provider owned by this server
-    # (see src/zulipchat_mcp/core/llm.py) instead of delegating to the client.
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        logger.debug(
-            "ANTHROPIC_API_KEY not set - AI analytics tools return structured data only"
-        )
-
     # HTTP transport auth: require an explicit bearer token when binding
     # beyond localhost unless the operator opts out with a loopback bind.
     auth = None

@@ -42,7 +42,6 @@ async def _smoke(command: list[str], expected_version: str) -> None:
             "ZULIP_BOT_CONFIG_FILE": str(config_file),
             "ZULIPCHAT_DB_PATH": str(Path(scratch) / "smoke.duckdb"),
             "ZULIPCHAT_EXTENDED_TOOLS": "0",
-            "ANTHROPIC_API_KEY": "",
         }
         for name in ("UV_PROJECT_ENVIRONMENT", "UV_CACHE_DIR"):
             if name in os.environ:

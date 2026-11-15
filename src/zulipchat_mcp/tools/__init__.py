@@ -250,7 +250,6 @@ def register_core_tools(mcp: FastMCP) -> None:
 def register_extended_tools(mcp: FastMCP) -> None:
     """Register the rest of the Zulip API surface after the core tools."""
     from .agents import close_agent_session, list_sessions
-    from .ai_analytics import register_ai_analytics_tools
     from .drafts import register_drafts_tools
     from .event_management import (
         deregister_events,
@@ -262,7 +261,7 @@ def register_extended_tools(mcp: FastMCP) -> None:
     from .mark_messaging import update_message_flags_for_narrow
     from .messaging import cross_post_message
     from .schedule_messaging import get_scheduled_messages, manage_scheduled_message
-    from .search import check_messages_match_narrow
+    from .search import check_messages_match_narrow, get_daily_summary
     from .stream_management import get_stream_info
     from .users import (
         get_own_user,
@@ -397,7 +396,13 @@ def register_extended_tools(mcp: FastMCP) -> None:
         idempotent=True,
     )
 
-    register_ai_analytics_tools(mcp)
+    register_tool(
+        mcp,
+        get_daily_summary,
+        name="get_daily_summary",
+        description="Count Zulip messages per channel and topic over recent hours.",
+        title="Get daily summary",
+    )
 
     register_tool(
         mcp,

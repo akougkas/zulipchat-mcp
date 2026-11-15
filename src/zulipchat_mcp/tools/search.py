@@ -1,7 +1,7 @@
 """Search tools for ZulipChat MCP v0.4.0.
 
 Core search operations: search messages, advanced search, narrow construction.
-Analytics moved to ai_analytics.py for LLM elicitation.
+Per-channel activity counts live in get_daily_summary.
 """
 
 import asyncio
@@ -525,5 +525,20 @@ async def check_messages_match_narrow(
         else:
             return api_error(result, "Failed to check messages against narrow")
 
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+async def get_daily_summary(
+    streams: list[str] | None = None,
+    hours_back: int = 24,
+) -> dict[str, Any]:
+    """Count messages per channel and topic over the last hours_back hours."""
+    client = get_client()
+    try:
+        summary = await asyncio.to_thread(
+            client.get_daily_summary, streams=streams, hours_back=hours_back
+        )
+        return {"status": "success", "hours_back": hours_back, "summary": summary}
     except Exception as e:
         return {"status": "error", "error": str(e)}

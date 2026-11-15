@@ -47,9 +47,6 @@ IDEMPOTENT_WRITES = {
     "deregister_events",
     "edit_draft",
     "delete_draft",
-    "analyze_stream_with_llm",
-    "analyze_team_activity_with_llm",
-    "intelligent_report_generator",
 }
 
 
@@ -81,7 +78,7 @@ async def _annotations(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 21), (True, 52)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 21), (True, 49)])
 async def test_every_tool_advertises_complete_annotations(mode, extended, count):
     wire = await _annotations(extended=extended, read_only=False, mode=mode)
     assert len(wire) == count
