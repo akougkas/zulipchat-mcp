@@ -666,6 +666,10 @@ class AgentBridge:
             conversation.session_id = await agent.open_session(
                 str(conversation.cwd), servers, None
             )
+        mode = self._session_mode()
+        if mode:
+            # Fails closed: a mode the agent does not offer stops the turn.
+            await agent.set_mode(conversation.session_id, mode)
         conversation.agent = agent
         self.store.bind(
             conversation.key,
@@ -913,6 +917,19 @@ class AgentBridge:
         ):
             command += ["--autonomy", "default"]
         return command
+
+    def _session_mode(self) -> str | None:
+        """The ACP session mode the bridge asks for, if any.
+
+        Claude Code starts in auto mode, which never asks. A person in Zulip is
+        not at the keyboard, so it runs in default mode, which asks before
+        edits and commands, unless the file names a mode ("" keeps Claude's).
+        """
+        if self.config.mode is not None:
+            return self.config.mode or None
+        if Path(self.config.command[0]).name == "claude-agent-acp":
+            return "default"
+        return None
 
     def _mcp_servers(self, conversation: Conversation) -> list[dict[str, Any]]:
         if not self.config.zulip_tools:

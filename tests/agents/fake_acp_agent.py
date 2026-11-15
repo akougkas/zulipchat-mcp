@@ -349,6 +349,11 @@ def handle(message):
                 },
             }
         )
+    elif method == "session/set_mode":
+        if params.get("modeId") not in ("default", "acceptEdits"):
+            send({"id": message["id"], "error": {"code": -32602, "message": "mode"}})
+            return
+        send({"id": message["id"], "result": {}})
     elif method == "session/close":
         sessions.pop(params.get("sessionId"), None)
         send({"id": message["id"], "result": {}})

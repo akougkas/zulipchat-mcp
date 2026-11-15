@@ -356,6 +356,31 @@ def test_clio_is_held_to_default_autonomy_unless_the_file_names_a_level(make_bri
     assert build()._agent_command() == FAKE_AGENT  # other agents are untouched
 
 
+def test_claude_is_held_to_its_asking_mode_unless_the_file_names_one(make_bridge):
+    build, _ = make_bridge
+    assert build(command=["claude-agent-acp"])._session_mode() == "default"
+    assert build(command=["claude-agent-acp"], mode="")._session_mode() is None
+    assert build(command=["claude-agent-acp"], mode="plan")._session_mode() == "plan"
+    assert build()._session_mode() is None  # other agents keep their own
+
+
+@pytest.mark.asyncio
+async def test_the_session_mode_is_set_and_an_unoffered_one_stops_the_turn(
+    make_bridge, tmp_path
+):
+    build, client = make_bridge
+    log = tmp_path / "methods.log"
+    bridge = build(mode="acceptEdits", env={"FAKE_ACP_LOG": str(log)})
+    await bridge.route(dm(400, "hello"))
+    assert "echo:" in (await posted(client, 1))[0][2]
+    methods = log.read_text().split()
+    assert methods.index("session/set_mode") < methods.index("session/prompt")
+
+    refused = build(mode="bypassPermissions")
+    await refused.route(dm(401, "hello"))
+    assert "could not start" in (await posted(client, 2))[1][2]
+
+
 @pytest.mark.asyncio
 async def test_long_turn_shows_one_status_message_edited_in_place(
     make_bridge, monkeypatch

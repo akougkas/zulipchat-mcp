@@ -258,6 +258,12 @@ class AcpAgent:
         self._sessions.add(new_id)
         return new_id
 
+    async def set_mode(self, session_id: str, mode: str) -> None:
+        """Switch a session to one of the agent's advertised modes."""
+        await self._request(
+            "session/set_mode", {"sessionId": session_id, "modeId": mode}
+        )
+
     async def list_sessions(self, cwd: str) -> list[dict[str, Any]]:
         """``session/list`` for ``cwd``; empty when the agent cannot list."""
         session_caps = self._capabilities.get("sessionCapabilities") or {}
