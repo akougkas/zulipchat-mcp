@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .config import AgentConfig, config_dir, load_agent, load_agents
 
+DEFAULT_ZULIPRC = Path.home() / ".zuliprc"
 KNOWN_AGENTS = {
     "clio": ["clio-coder", "acp"],
     "opencode": ["opencode", "acp"],
@@ -43,15 +44,18 @@ def cmd_add(args: argparse.Namespace) -> int:
     if shutil.which(command[0]) is None:
         print(f"Warning: {command[0]} is not on PATH.", file=sys.stderr)
     zuliprc = directory / f"{args.name}.zuliprc"
+    owner_zuliprc = args.owner_zuliprc
+    if not args.bot_zuliprc and not owner_zuliprc and DEFAULT_ZULIPRC.is_file():
+        owner_zuliprc = str(DEFAULT_ZULIPRC)
     if args.bot_zuliprc:
         zuliprc = Path(args.bot_zuliprc).expanduser().resolve()
-    elif args.owner_zuliprc:
+    elif owner_zuliprc:
         from ..config import ConfigManager
         from ..core.client import ZulipClientWrapper
         from .provision import ProvisionError, create_agent_bot, write_bot_zuliprc
 
         owner = ZulipClientWrapper(
-            ConfigManager(config_file=str(Path(args.owner_zuliprc).expanduser()))
+            ConfigManager(config_file=str(Path(owner_zuliprc).expanduser()))
         )
         try:
             created = create_agent_bot(
@@ -66,7 +70,9 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"Created bot {created['email']} owned by you; key saved to {zuliprc}")
     else:
         print(
-            "Pass --bot-zuliprc for an existing bot, or --owner-zuliprc to create one.",
+            f"No {DEFAULT_ZULIPRC}. Download your zuliprc from Zulip (Settings > "
+            "Account & privacy > API key), or pass --owner-zuliprc PATH, or "
+            "--bot-zuliprc PATH for an existing bot.",
             file=sys.stderr,
         )
         return 1
@@ -84,7 +90,20 @@ def cmd_add(args: argparse.Namespace) -> int:
     )
     target.chmod(0o600)
     load_agent(target)
-    print(f"Wrote {target}. Start the bridge with: zulipchat-mcp-agents run")
+    print(f"Wrote {target}.")
+    from . import service
+
+    if service.installed():
+        try:
+            service.restart()
+            print(f"Restarted the bridge; DM the bot to talk to {args.name}.")
+        except service.ServiceError as error:
+            print(f"Could not restart the bridge: {error}", file=sys.stderr)
+    else:
+        print(
+            "Next: zulipchat-mcp-agents service install (runs the bridge now and "
+            "at login), or zulipchat-mcp-agents run in a terminal."
+        )
     return 0
 
 
@@ -173,17 +192,28 @@ def cmd_teleport(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_service(_: argparse.Namespace) -> int:
-    executable = shutil.which("zulipchat-mcp-agents") or sys.argv[0]
-    print(
-        "# Save as ~/.config/systemd/user/zulipchat-mcp-agents.service, then:\n"
-        "#   systemctl --user daemon-reload\n"
-        "#   systemctl --user enable --now zulipchat-mcp-agents\n"
-        "[Unit]\nDescription=Zulip agent bots bridge\n"
-        "After=network-online.target\n\n"
-        f"[Service]\nExecStart={executable} run\nRestart=on-failure\nRestartSec=10\n\n"
-        "[Install]\nWantedBy=default.target"
-    )
+def cmd_service(args: argparse.Namespace) -> int:
+    from . import service
+
+    try:
+        if args.action == "install":
+            if not load_agents():
+                print(
+                    f"No agent bots in {config_dir()}; add one first: "
+                    "zulipchat-mcp-agents add claude",
+                    file=sys.stderr,
+                )
+                return 1
+            print(service.install())
+        elif args.action == "uninstall":
+            print(service.uninstall())
+        else:
+            code, text = service.status()
+            print(text)
+            return code
+    except (service.ServiceError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -200,7 +230,8 @@ def main(argv: list[str] | None = None) -> int:
     add.add_argument("--allowed-dir", action="append", default=[])
     add.add_argument("--bot-zuliprc", help="zuliprc of an existing Generic bot")
     add.add_argument(
-        "--owner-zuliprc", help="your own zuliprc; creates a new Generic bot you own"
+        "--owner-zuliprc",
+        help="your own zuliprc; creates a new Generic bot you own (default ~/.zuliprc)",
     )
     add.add_argument("--full-name", help="bot display name when creating it")
     add.add_argument("--short-name", help="bot username part when creating it")
@@ -227,9 +258,11 @@ def main(argv: list[str] | None = None) -> int:
     teleport.add_argument("--cwd", default=".", help="the session's workspace")
     teleport.add_argument("--message", help="what the bot says in the DM")
     teleport.set_defaults(func=cmd_teleport)
-    sub.add_parser("service", help="Print a systemd user unit").set_defaults(
-        func=cmd_service
+    service = sub.add_parser(
+        "service", help="Run the bridge in the background, starting at login"
     )
+    service.add_argument("action", choices=["install", "uninstall", "status"])
+    service.set_defaults(func=cmd_service)
     args = parser.parse_args(argv)
     return int(args.func(args))
 
