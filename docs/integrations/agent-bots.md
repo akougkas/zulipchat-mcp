@@ -1,6 +1,6 @@
 # Agent bots
 
-Your coding agents get Zulip accounts. You DM "Claude" or "Clio" from your
+Your coding agents get Zulip accounts. You DM "Claude" or "Codex" from your
 phone; the agent runs on your machine, in your repositories, under its own
 permission rules, and asks you in the chat when it needs a decision. Each agent
 has its own Zulip Generic bot, called an agent bot. A local bridge,
@@ -16,10 +16,12 @@ meet at two points: the bridge gives each agent this MCP server for
 `ask_owner`, and the MCP server's `teleport_chat` hands a session to the
 bridge.
 
-Status: new in v0.8.0, which is not yet released. The bridge is tested with a
-fake ACP agent and a mocked Zulip client, and in live use with Clio Coder.
-Real Claude Code (`claude-agent-acp`) turns were run through it with a mocked
-Zulip. OpenCode and Goose were probed for start, session creation and resume.
+Any agent that speaks ACP works; the bridge needs only its launch command.
+Status: new in v0.8.0. The bridge is tested with a fake ACP agent and a mocked
+Zulip client, and in live use against a real Zulip organization with Clio
+Coder as the agent. Real Claude Code (`claude-agent-acp`) turns were run
+through it with a mocked Zulip. OpenCode and Goose were probed for start,
+session creation and resume.
 
 ## Quick start
 
@@ -118,7 +120,7 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
 
 | Piece | Starts | Stops |
 | --- | --- | --- |
-| MCP server | With each host session (Claude Code, Clio, …) | With that session |
+| MCP server | With each host session (Claude Code, Codex, …) | With that session |
 | Bridge | At login, from `service install`; or `run` in a terminal | `service uninstall`, SIGTERM |
 | Agent process | On a conversation's first message | After `idle_minutes` idle, `/new`, or with the bridge |
 | Agent session | `session/new` on first use | Kept by the agent on disk and resumed on the next message, until `/new` |
@@ -151,13 +153,13 @@ Create a Generic bot you own and declare it in one step. The owner zuliprc must
 belong to a human, non-guest account; it defaults to `~/.zuliprc`:
 
 ```bash
-zulipchat-mcp-agents add clio --cwd ~/projects
-zulipchat-mcp-agents add claude --owner-zuliprc ~/.zuliprc-work
+zulipchat-mcp-agents add claude --cwd ~/projects
+zulipchat-mcp-agents add codex --owner-zuliprc ~/.zuliprc-work
 ```
 
 This creates the bot through `POST /bots`, writes its key to
-`~/.config/zulipchat-mcp/agents/clio.zuliprc` (mode 0600, never overwritten),
-and writes `clio.toml` beside it. To use an existing Generic bot instead, pass
+`~/.config/zulipchat-mcp/agents/claude.zuliprc` (mode 0600, never overwritten),
+and writes `claude.toml` beside it. To use an existing Generic bot instead, pass
 `--bot-zuliprc PATH`; the bot must have an owner in Zulip, and that owner is
 who the bridge hears. `--full-name` and `--short-name` name a new bot.
 
@@ -229,9 +231,9 @@ changing `PATH`.
 ## Agent file
 
 ```toml
-# ~/.config/zulipchat-mcp/agents/clio.toml
-zuliprc = "~/.config/zulipchat-mcp/agents/clio.zuliprc"
-command = ["clio-coder", "acp"]
+# ~/.config/zulipchat-mcp/agents/claude.toml
+zuliprc = "~/.config/zulipchat-mcp/agents/claude.zuliprc"
+command = ["claude-agent-acp"]
 cwd = "~/projects"
 allowed_dirs = ["~/projects"]
 allow = []
@@ -308,11 +310,11 @@ Any other command shows this list.
 ## Hand a session to Zulip
 
 From a terminal session of an agent that has a bot, run in the session's
-workspace (in Claude Code or Clio, prefix it with `!`):
+workspace (in Claude Code, prefix it with `!`):
 
 ```bash
-zulipchat-mcp-agents teleport clio            # or: teleport claude
-zulipchat-mcp-agents teleport clio --session ID --cwd DIR --message TEXT
+zulipchat-mcp-agents teleport claude          # the bot's agent name
+zulipchat-mcp-agents teleport claude --session ID --cwd DIR --message TEXT
 ```
 
 Without `--session`, the agent lists its sessions for `--cwd` (default: the

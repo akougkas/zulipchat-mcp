@@ -54,7 +54,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 
 ```bash
 # Substitute another supported client as needed.
-uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client clio-coder \
+uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client claude-code \
   --output-dir /absolute/path/to/project \
   --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
 ```
@@ -63,10 +63,9 @@ Exports support `claude-code`, `codex`, `opencode`, `copilot`, `vscode`,
 `antigravity-cli`, `clio-coder`, and `generic`. Add `--mode plugin` for a package.
 For several Zulip organizations, export once per organization with
 `--server-id zulipchat-<org>`; exports merge into one host configuration.
-Account state lives under `~/.local/state/zulipchat-mcp/`. Host trust remains explicit;
-Clio configures MCP execution separately from plugin content. See the
-[capability matrix](docs/integrations/agent-skills.md),
-[Clio guide](docs/integrations/clio-coder.md), and
+Account state lives under `~/.local/state/zulipchat-mcp/`. Host trust remains
+explicit. See the [capability matrix](docs/integrations/agent-skills.md), the
+per-host [integration guides](docs/integrations/README.md), and
 [agent bots](docs/integrations/agent-bots.md).
 
 For read-only access, add `--tool-profile read-only`: discovery and execution
@@ -79,7 +78,7 @@ fake-credential checks, not live sessions.
 ## Tool Set
 
 **13 core tools** by default, **45** with `--extended-tools`. Hosts that search
-tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
+tools lazily, such as Claude Code, pay almost nothing for the larger set.
 
 | Category | Core tools |
 |----------|-------|
@@ -91,12 +90,12 @@ tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
 
 ### Talk to your agent from Zulip
 
-Your coding agents get Zulip accounts. DM "Claude" or "Clio" from your phone;
+Your coding agents get Zulip accounts. DM "Claude" or "Codex" from your phone;
 the agent runs on your machine, in your repositories, under its own permission
 rules, and asks you in the chat (answer `yes` or `no`) before risky steps. The
 `zulipchat-mcp-agents` bridge serves one Zulip Generic bot per agent that
-speaks the Agent Client Protocol (Clio Coder, OpenCode, Goose, Gemini CLI, and
-Claude Code or Codex through their ACP adapters).
+speaks the Agent Client Protocol: Claude Code and Codex through their ACP
+adapters, OpenCode, Goose, Gemini CLI, Clio Coder, or any other ACP agent.
 
 ```bash
 uv tool install zulipchat-mcp
@@ -270,7 +269,7 @@ The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` 
 → Assistant calls `send_message(type="direct", to="Jaime", ...)`. One call; an ambiguous name returns candidates and sends nothing.
 
 **"Continue this on Zulip, I'm heading out"**
-→ Assistant calls `teleport_chat(agent="clio", message=..., session_id=...)`; the Clio bot DMs you and the bridge resumes the session when you reply.
+→ Assistant calls `teleport_chat(agent="claude", message=..., session_id=...)`; the Claude bot DMs you and the bridge resumes the session when you reply.
 
 ## Development
 
