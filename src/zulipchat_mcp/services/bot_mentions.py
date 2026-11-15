@@ -28,6 +28,7 @@ from ..core.snapshots import invalidate_realm_snapshots
 # Scope sentinel for one inbox holding direct messages to the bot plus its
 # @-mentions in every channel it receives.
 ALL_SCOPE = "*"
+_FOLLOWER_RETRY_SECONDS = 5.0
 
 
 class BotMentionInbox:
@@ -51,6 +52,7 @@ class BotMentionInbox:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._ready = False
+        self._follower = False
         self._error: str | None = None
         self._retry_after = 0.0
         self._bot_id: int | None = None
@@ -297,14 +299,38 @@ class BotMentionInbox:
             self._commit(messages, state, deleted)
 
     def _run(self) -> None:
-        try:
-            with ProcessLease(self.path.with_suffix(".lock")):
-                self._run_owned()
-        except Exception as error:
-            with self._condition:
-                self._ready = False
-                self._error = str(error)
-                self._condition.notify_all()
+        """Own the event queue, or follow the process that does.
+
+        Several hosts may run a server for the same account. One process holds
+        the lease and feeds the shared snapshot; the others read that snapshot
+        and take over the lease if its owner exits.
+        """
+        while not self._stop.is_set():
+            try:
+                with ProcessLease(self.path.with_suffix(".lock")):
+                    with self._condition:
+                        self._follower = False
+                    self._run_owned()
+                return
+            except RuntimeError as error:
+                if not str(error).startswith("INBOX_ALREADY_OWNED"):
+                    self._fail(error)
+                    return
+                with self._condition:
+                    self._follower = True
+                    self._ready = True
+                    self._error = None
+                    self._condition.notify_all()
+                self._stop.wait(_FOLLOWER_RETRY_SECONDS)
+            except Exception as error:
+                self._fail(error)
+                return
+
+    def _fail(self, error: Exception) -> None:
+        with self._condition:
+            self._ready = False
+            self._error = str(error)
+            self._condition.notify_all()
 
     def _run_owned(self) -> None:
         failures = 0
@@ -368,7 +394,10 @@ class BotMentionInbox:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     break
-                self._condition.wait(remaining)
+                # A follower learns of new rows only by re-reading the snapshot.
+                self._condition.wait(
+                    min(remaining, 1.0) if self._follower else remaining
+                )
         floor = self._state("retention_floor")
         gap = floor is not None and (after_message_id or 0) < floor
         return {
@@ -427,10 +456,31 @@ class BotMentionInbox:
         value = self._state("delivered_cursor")
         return value if type(value) is int else None
 
-    def mark_delivered(self, message_id: int) -> None:
-        current = self.delivered_cursor()
-        if current is None or message_id > current:
-            self._commit([], {"delivered_cursor": message_id})
+    def claim(self, expected: int | None, new: int) -> bool:
+        """Advance the shared delivery cursor only if no other process moved it.
+
+        Hosts for the same account share this cursor, so each request is
+        delivered to exactly one of them.
+        """
+        with self._condition:
+            db = sqlite3.connect(self.path, timeout=5, isolation_level=None)
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute(
+                    "SELECT value FROM metadata WHERE key='delivered_cursor'"
+                ).fetchone()
+                current = json.loads(row[0]) if row else None
+                if current != expected:
+                    db.execute("ROLLBACK")
+                    return False
+                db.execute(
+                    "INSERT OR REPLACE INTO metadata VALUES('delivered_cursor', ?)",
+                    (json.dumps(new),),
+                )
+                db.execute("COMMIT")
+                return True
+            finally:
+                db.close()
 
     def stop(self) -> None:
         self._stop.set()

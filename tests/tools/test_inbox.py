@@ -165,3 +165,17 @@ def test_bot_profile_exposes_only_listening_reading_and_reply():
 def test_bot_mention_is_stripped_by_name_and_id():
     text = "@**Clio Coder** hi @_**Clio Coder|9** there @**Ana**"
     assert inbox_tools._strip_bot_mention(text, 9, "Clio Coder") == "hi  there @**Ana**"
+
+
+def test_delivery_cursor_is_compare_and_set_across_processes(tmp_path):
+    first = BotMentionInbox(
+        fake_client([]), tmp_path / "shared.sqlite3", "a", ALL_SCOPE
+    )
+    second = BotMentionInbox(
+        fake_client([]), tmp_path / "shared.sqlite3", "a", ALL_SCOPE
+    )
+    assert first.claim(None, 5)
+    assert not second.claim(None, 9)  # a stale view never re-delivers
+    assert second.delivered_cursor() == 5
+    assert second.claim(5, 9)
+    assert not first.claim(5, 7)

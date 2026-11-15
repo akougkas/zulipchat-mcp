@@ -168,13 +168,14 @@ async def wait_for_mentions(
             if following <= start:
                 break
             start = following
-        inbox.mark_delivered(start)
-        cursor = start
+        inbox.claim(None, start)
+        cursor = inbox.delivered_cursor() or start
 
     deadline = time.monotonic() + wait_seconds
-    requests: list[dict[str, Any]] = []
+    claimed: list[dict[str, Any]] = []
     ignored = 0
     listener: dict[str, Any] = {}
+    bot_id: int | None = None
     while True:
         remaining = max(0.0, deadline - time.monotonic())
         page = await asyncio.to_thread(
@@ -182,42 +183,54 @@ async def wait_for_mentions(
         )
         listener = page.get("listener", {})
         bot_id = page.get("bot_user_id")
+        batch: list[dict[str, Any]] = []
+        skipped = 0
+        advance = cursor
         for message in page.get("messages", []):
-            if len(requests) >= limit:
+            if len(batch) >= limit:
                 break
-            cursor = max(cursor, message["id"])
-            if not allowed(message):
-                ignored += 1
-                continue
-            request: dict[str, Any] = {
-                "request_id": f"{REQUEST_PREFIX}{message['id']}",
-                "from": message.get("sender_full_name"),
-                "where": _where(message),
-                "sent": datetime.fromtimestamp(
-                    message.get("timestamp", 0), tz=timezone.utc
-                ).isoformat(timespec="seconds"),
-                "text": _strip_bot_mention(
-                    str(message.get("content", "")), bot_id, inbox.bot_full_name
-                ),
-            }
-            if message.get("content_truncated"):
-                request["text_truncated"] = True
-            if context_messages:
-                request["context"] = await asyncio.to_thread(
-                    _context, message, context_messages, allowed, bot_id
-                )
-            if acknowledge:
-                # Best effort: a failed reaction must not lose the request.
-                await asyncio.to_thread(
-                    _get_coordinator().bot_client.add_reaction, message["id"], "eyes"
-                )
-            requests.append(request)
+            advance = max(advance, message["id"])
+            if allowed(message):
+                batch.append(message)
+            else:
+                skipped += 1
         else:
-            # A full page was consumed; skip past tombstoned or filtered rows too.
-            cursor = max(cursor, int(page.get("next_after_message_id") or cursor))
-        inbox.mark_delivered(cursor)
-        if requests or listener.get("error") or remaining <= 0:
+            # A full page was consumed; skip past tombstoned rows too.
+            advance = max(advance, int(page.get("next_after_message_id") or advance))
+        if advance > cursor:
+            if not inbox.claim(cursor, advance):
+                # Another host for this account took these; continue after them.
+                cursor = inbox.delivered_cursor() or cursor
+                continue
+            cursor = advance
+            claimed, ignored = batch, ignored + skipped
+        if claimed or listener.get("error") or remaining <= 0:
             break
+
+    bot = _get_coordinator().bot_client
+    requests: list[dict[str, Any]] = []
+    for message in claimed:
+        request: dict[str, Any] = {
+            "request_id": f"{REQUEST_PREFIX}{message['id']}",
+            "from": message.get("sender_full_name"),
+            "where": _where(message),
+            "sent": datetime.fromtimestamp(
+                message.get("timestamp", 0), tz=timezone.utc
+            ).isoformat(timespec="seconds"),
+            "text": _strip_bot_mention(
+                str(message.get("content", "")), bot_id, inbox.bot_full_name
+            ),
+        }
+        if message.get("content_truncated"):
+            request["text_truncated"] = True
+        if context_messages:
+            request["context"] = await asyncio.to_thread(
+                _context, message, context_messages, allowed, bot_id
+            )
+        if acknowledge:
+            # Best effort: a failed reaction must not lose the request.
+            await asyncio.to_thread(bot.add_reaction, message["id"], "eyes")
+        requests.append(request)
 
     result: dict[str, Any] = {"status": "success", "requests": requests}
     if ignored:

@@ -248,14 +248,21 @@ def test_restart_verifies_bot_id_even_when_email_and_queue_are_unchanged(inbox):
     assert inbox.client.client.get_profile.call_count == 2
 
 
-def test_second_producer_is_rejected_before_any_api_call_and_lease_is_reusable(inbox):
+def test_second_process_follows_the_lease_owner_without_api_calls(inbox, monkeypatch):
+    monkeypatch.setattr(bot_mentions, "_FOLLOWER_RETRY_SECONDS", 0.01)
     path = inbox.path.with_suffix(".lock")
     with ProcessLease(path):
-        inbox._run()
-        assert inbox._error.startswith("INBOX_ALREADY_OWNED")
-        assert inbox._ready is False
-        inbox.client.assert_not_called()
+        thread = threading.Thread(target=inbox._run)
+        thread.start()
+        for _ in range(200):
+            if inbox._follower:
+                break
+            threading.Event().wait(0.01)
+        assert inbox._follower and inbox._ready and inbox._error is None
         assert not inbox.client.mock_calls
+        inbox._stop.set()
+        thread.join(2)
+    assert not thread.is_alive()
     with ProcessLease(path):
         assert path.stat().st_mode & 0o777 == 0o600
 
