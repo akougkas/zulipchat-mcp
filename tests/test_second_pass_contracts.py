@@ -258,3 +258,32 @@ def test_validator_list_choices_and_defaults_are_isolated():
     first["narrow"].append({"operator": "stream", "operand": "private"})
     second = validator.validate_tool_params("search.advanced_search", {"query": "test"})
     assert second["narrow"] == []
+
+
+@pytest.mark.asyncio
+async def test_listen_events_waits_out_server_retry_after(monkeypatch):
+    monkeypatch.setattr(
+        event_management,
+        "register_events",
+        AsyncMock(
+            return_value={"status": "success", "queue_id": "q", "last_event_id": 0}
+        ),
+    )
+    client = MagicMock()
+    client.get_events.side_effect = [
+        {"result": "error", "code": "RATE_LIMIT_HIT", "msg": "slow", "retry-after": 7},
+        {"result": "success", "events": [{"id": 1, "type": "message"}]},
+    ]
+    monkeypatch.setattr(event_management, "get_client", lambda: client)
+    monkeypatch.setattr(event_management, "deregister_events", AsyncMock())
+    sleep = AsyncMock()
+    monkeypatch.setattr(event_management.asyncio, "sleep", sleep)
+    monkeypatch.setattr(
+        event_management,
+        "time",
+        MagicMock(monotonic=MagicMock(side_effect=[0, 0, 1, 30, 31])),
+    )
+    result = await event_management.listen_events(["message"], duration=30)
+    assert sleep.await_args_list[0].args[0] == 7
+    assert result["polling_errors"][0]["retry_after_seconds"] == 7
+    assert result["event_count"] == 1

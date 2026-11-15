@@ -21,7 +21,6 @@ from .exceptions import (
     AuthenticationError,
     RateLimitError,
     ValidationError,
-    ZulipMCPError,
 )
 from .exceptions import (
     ConnectionError as ZulipConnectionError,
@@ -230,16 +229,6 @@ class ErrorHandler:
         for error_type in self.retry_config.retryable_errors:
             if isinstance(error, error_type):
                 return True
-
-        # Check for specific error conditions
-        if isinstance(error, ZulipMCPError):
-            # Check for specific Zulip error codes
-            if hasattr(error, "details") and error.details:
-                code = error.details.get("code")
-                if code in ["RATE_LIMIT_HIT", "REALM_DEACTIVATED"]:
-                    return True
-                if code in ["BAD_REQUEST", "UNAUTHORIZED", "FORBIDDEN"]:
-                    return False
 
         # Default to not retrying unknown errors
         return False

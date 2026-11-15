@@ -171,3 +171,26 @@ async def test_teleport_reply_is_scoped_and_newer_than_send(monkeypatch):
         {"operator": "topic", "operand": "specific"},
     ]
     assert client.get_messages_raw.call_args.kwargs["anchor"] == "100"
+
+
+@pytest.mark.asyncio
+async def test_listener_honors_rate_limit_retry_after(monkeypatch):
+    client = MagicMock()
+    client.client.call_endpoint.return_value = {
+        "result": "error",
+        "code": "RATE_LIMIT_HIT",
+        "retry-after": 300,
+    }
+    listener = MessageListener(client, MagicMock())
+    listener._queue_id = "q"
+    listener._ensure_queue = AsyncMock()
+    waits = []
+
+    def wait(delay):
+        waits.append(delay)
+        listener.request_stop()
+        return True
+
+    monkeypatch.setattr(listener._stop_event, "wait", wait)
+    await listener.start()
+    assert waits == [300.0]
