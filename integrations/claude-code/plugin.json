@@ -1,4 +1,0 @@
-{
-    "deprecated": true,
-    "message": "Use integrations/claude-code/plugin/ for the current Claude Code plugin layout, or run `zulipchat-mcp-integrate export --client claude-code` to scaffold `.claude/` assets."
-}

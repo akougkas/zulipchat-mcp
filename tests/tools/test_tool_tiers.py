@@ -41,7 +41,7 @@ class ToolCountingMCP:
 # --- Core vs Extended registration tests ---
 
 
-EXTENDED_TOOL_COUNT = 53
+EXTENDED_TOOL_COUNT = 45
 
 
 class TestToolRegistration:
@@ -51,7 +51,7 @@ class TestToolRegistration:
         mcp = ToolCountingMCP()
         register_core_tools(mcp)
         assert mcp.tool_names == set(CORE_TOOLS)
-        assert mcp.tool_count == len(CORE_TOOLS) == 19
+        assert mcp.tool_count == len(CORE_TOOLS) == 13
 
     def test_extended_adds_tools_beyond_core(self):
         from zulipchat_mcp.tools import register_core_tools, register_extended_tools
@@ -224,24 +224,6 @@ class TestManageUserMute:
         result = _run(manage_user_mute(muted_user_id=42, action="unmute"))
         assert result["status"] == "success"
         mock_unmute.assert_called_once_with(42)
-
-
-class TestSessionTools:
-
-    @patch("zulipchat_mcp.tools.agents.DatabaseManager")
-    @patch("zulipchat_mcp.tools.agents._get_coordinator")
-    def test_close_agent_session(self, mock_coordinator_factory, mock_db_cls):
-        from zulipchat_mcp.tools.agents import close_agent_session
-
-        mock_db = mock_db_cls.return_value
-        mock_db.get_agent_session.return_value = {"session_id": "s1"}
-        mock_db.update_agent_session.return_value = {"status": "success"}
-        mock_coord = mock_coordinator_factory.return_value
-        mock_coord.send_session_message.return_value = {"status": "success"}
-
-        result = close_agent_session("s1", summary="Done")
-        assert result["status"] == "success"
-        mock_db.update_agent_session.assert_called_once()
 
 
 class TestManageScheduledMessage:

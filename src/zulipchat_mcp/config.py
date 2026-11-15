@@ -8,7 +8,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 from collections.abc import Iterator
 from configparser import ConfigParser
 from configparser import Error as ConfigParserError
@@ -17,7 +16,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit, urlunsplit
 
 if TYPE_CHECKING:
@@ -71,87 +70,6 @@ class ZulipConfig:
     bot_name: str = "Claude Code"
     bot_avatar_url: str | None = None
     bot_config_file: str | None = None
-    # Raw --mention-allow / ZULIPCHAT_MENTION_ALLOW value; parsed on demand.
-    mention_allow: str | None = None
-
-
-_MENTION_ALLOW_EMAIL = re.compile(r"[^@\s,]+@[^@\s,]+")
-
-
-@dataclass(frozen=True)
-class MentionAllow:
-    """Senders whose bot mentions and direct messages may be returned to a host.
-
-    The default (nothing configured) admits only the configured owner. An
-    explicit list extends that default; the owner is always admitted.
-    """
-
-    everyone: bool = False
-    emails: frozenset[str] = frozenset()
-    user_ids: frozenset[int] = frozenset()
-    configured: bool = False
-
-    @property
-    def mode(self) -> str:
-        if self.everyone:
-            return "everyone"
-        return "allowlist" if self.configured else "owner_only"
-
-    def allows(
-        self,
-        sender_id: object,
-        sender_email: object,
-        owner_email: str,
-        owner_id: int | None = None,
-    ) -> bool:
-        if self.everyone:
-            return True
-        # The numeric ID is authoritative: realms that hide email addresses
-        # report the owner's messages under a userNNN@ placeholder email.
-        if owner_id is not None and type(sender_id) is int and sender_id == owner_id:
-            return True
-        email = str(sender_email or "").casefold()
-        if email and email == owner_email.casefold():
-            return True
-        return email in self.emails or (
-            type(sender_id) is int and sender_id in self.user_ids
-        )
-
-    def summary(self, owner_email: str) -> dict[str, Any]:
-        return {
-            "mode": self.mode,
-            "owner_email": owner_email if self.mode == "owner_only" else None,
-            "emails": sorted(self.emails),
-            "user_ids": sorted(self.user_ids),
-        }
-
-
-def parse_mention_allow(value: str | None) -> MentionAllow:
-    """Parse comma-separated emails and numeric user IDs, or the word everyone."""
-    if value is None or not value.strip():
-        return MentionAllow()
-    entries = [entry.strip() for entry in value.split(",")]
-    if "" in entries:
-        raise ValueError("Mention allow list contains an empty entry")
-    if any(entry.casefold() == "everyone" for entry in entries):
-        if len(entries) > 1:
-            raise ValueError("'everyone' cannot be combined with other entries")
-        return MentionAllow(everyone=True, configured=True)
-    emails: set[str] = set()
-    user_ids: set[int] = set()
-    for entry in entries:
-        if len(entry) <= 254 and entry.isascii() and entry.isdigit() and int(entry):
-            user_ids.add(int(entry))
-        elif len(entry) <= 254 and _MENTION_ALLOW_EMAIL.fullmatch(entry):
-            emails.add(entry.casefold())
-        else:
-            raise ValueError(
-                f"Invalid mention allow entry {entry[:60]!r}: use a Zulip email, "
-                "a positive numeric user ID, or the single word 'everyone'"
-            )
-    return MentionAllow(
-        emails=frozenset(emails), user_ids=frozenset(user_ids), configured=True
-    )
 
 
 @dataclass(frozen=True)
@@ -210,13 +128,11 @@ class ConfigManager:
         config_file: str | None = None,
         bot_config_file: str | None = None,
         debug: bool | None = None,
-        mention_allow: str | None = None,
     ) -> None:
         self.config = self._load_config(
             cli_config_file=config_file,
             cli_bot_config_file=bot_config_file,
             cli_debug=debug,
-            cli_mention_allow=mention_allow,
         )
 
     def _load_config(
@@ -224,7 +140,6 @@ class ConfigManager:
         cli_config_file: str | None = None,
         cli_bot_config_file: str | None = None,
         cli_debug: bool | None = None,
-        cli_mention_allow: str | None = None,
     ) -> ZulipConfig:
         """Load configuration from env/CLI/defaults with zuliprc + env support."""
         # Check environment for config file paths
@@ -254,11 +169,6 @@ class ConfigManager:
                 str(Path(final_bot_config_file).expanduser())
                 if final_bot_config_file
                 else None
-            ),
-            mention_allow=(
-                cli_mention_allow
-                if cli_mention_allow is not None
-                else self._env("ZULIPCHAT_MENTION_ALLOW")
             ),
         )
 
@@ -330,10 +240,6 @@ class ConfigManager:
 
         return False
 
-    def mention_allow_policy(self) -> MentionAllow:
-        """Parse the configured mention/direct-message sender policy."""
-        return parse_mention_allow(self.config.mention_allow)
-
     def has_bot_credentials(self) -> bool:
         """Check if bot credentials are configured."""
         if self.config.bot_config_file and os.path.exists(self.config.bot_config_file):
@@ -397,7 +303,6 @@ def init_config_manager(
     config_file: str | None = None,
     bot_config_file: str | None = None,
     debug: bool | None = None,
-    mention_allow: str | None = None,
 ) -> ConfigManager:
     """Initialize the global ConfigManager singleton.
 
@@ -408,7 +313,6 @@ def init_config_manager(
         config_file: Path to user zuliprc file
         bot_config_file: Path to bot zuliprc file
         debug: Enable debug mode
-        mention_allow: Comma-separated sender emails/IDs, or "everyone"
 
     Returns:
         The initialized ConfigManager instance
@@ -418,7 +322,6 @@ def init_config_manager(
         config_file=config_file,
         bot_config_file=bot_config_file,
         debug=debug,
-        mention_allow=mention_allow,
     )
     _current_identity = "user"
     _get_cached_client.cache_clear()

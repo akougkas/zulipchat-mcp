@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from zulipchat_mcp.services.message_listener import MessageListener
 from zulipchat_mcp.tools import mark_messaging, search, users
 
 
@@ -40,46 +39,6 @@ async def test_slow_zulip_call_does_not_block_the_event_loop(monkeypatch, lazy_s
     finally:
         release.set()
     assert (await pending)["status"] == "success"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("fail", [False, True])
-async def test_listener_acknowledges_only_processed_events(fail):
-    db = MagicMock()
-    listener = MessageListener(MagicMock(), db)
-    listener._queue_id = "queue"
-    listener._last_event_id = 40
-    listener._get_events = AsyncMock(
-        return_value=[{"type": "message", "id": 41, "message": {"id": 10}}]
-    )
-
-    async def process(message):
-        listener.request_stop()
-        if fail:
-            raise RuntimeError("disk failure")
-
-    listener._process_message = process
-    await listener.start()
-    if fail:
-        assert listener._last_event_id == 40
-        db.save_listener_state.assert_not_called()
-    else:
-        assert listener._last_event_id == 41
-        db.save_listener_state.assert_called_once_with("queue", 41)
-
-
-@pytest.mark.asyncio
-async def test_listener_backoff_remains_bounded_after_many_errors():
-    listener = MessageListener(MagicMock(), MagicMock())
-    listener._consecutive_errors = 10000
-
-    async def unavailable():
-        listener.request_stop()
-        return None
-
-    listener._get_events = unavailable
-    await listener.start()
-    assert listener._consecutive_errors == 10001
 
 
 @pytest.mark.asyncio
@@ -135,29 +94,6 @@ async def test_search_honors_upper_time_bound_sort_and_limit(monkeypatch):
         1970, 1, 1, 0, 0, 6, tzinfo=timezone.utc
     )
     assert args["num_after"] == 0
-
-
-@pytest.mark.asyncio
-async def test_listener_honors_rate_limit_retry_after(monkeypatch):
-    client = MagicMock()
-    client.client.call_endpoint.return_value = {
-        "result": "error",
-        "code": "RATE_LIMIT_HIT",
-        "retry-after": 300,
-    }
-    listener = MessageListener(client, MagicMock())
-    listener._queue_id = "q"
-    listener._ensure_queue = AsyncMock()
-    waits = []
-
-    def wait(delay):
-        waits.append(delay)
-        listener.request_stop()
-        return True
-
-    monkeypatch.setattr(listener._stop_event, "wait", wait)
-    await listener.start()
-    assert waits == [300.0]
 
 
 @pytest.mark.asyncio

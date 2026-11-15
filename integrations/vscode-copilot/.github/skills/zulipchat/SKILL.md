@@ -1,12 +1,12 @@
 ---
 name: zulipchat
-description: Use ZulipChat MCP for authorized Zulip messaging, reading, and owner-to-agent conversations through a Zulip bot. Apply when the user asks to work in Zulip, message teammates, or be reachable from Zulip.
+description: Use ZulipChat MCP for authorized Zulip messaging and reading, and to hand a conversation to the owner's Zulip agent bot. Apply when the user asks to work in Zulip, message teammates, or be reachable from Zulip.
 license: MIT
 ---
 
 Tool names may carry a host prefix; use the discovered name. `server_info`
 shows the account, identities, active profile and enabled tools. The default
-profile has 19 core tools; `--extended-tools` adds the rest of the Zulip API.
+profile has 13 core tools; `--extended-tools` adds the rest of the Zulip API.
 The `read-only` profile cannot be widened by retrying,
 changing the sender, or a one-call host approval. On a policy denial, stop and
 explain; distinguish it from a transient failure or invalid arguments.
@@ -50,16 +50,6 @@ Inside an agent the bridge launched, `ask_owner(question)` asks the owner in
 that Zulip conversation and waits. On `status="pending"`, call again with the
 same `question_id` instead of asking twice. Never put secrets, credentials or
 local machine details into Zulip unless the owner asked for them.
-
-## Agent sessions bound to a topic
-
-Hook-driven hosts bind a session to a topic: `register_agent` with the real
-host type, then `ensure_agent_session` with a stable external session ID. Post
-milestones with `agent_message(session_id, content, category)`, read steering
-with `poll_agent_events(session_id=...)`, and ask with `request_user_input`.
-Only `/approve REQUEST_ID` or `/deny REQUEST_ID` answers an approval; poll
-`wait_for_response(request_id=..., timeout_seconds=30)` and keep the same ID
-after a timeout. An approval in Zulip does not bypass the host's permissions.
 
 ## Organizations and hosts
 

@@ -65,7 +65,6 @@ const push = (message, flags = []) => pending.push({ id: (eventId += 1), type: "
 const credentials = path.join(workspace, "zuliprc");
 const botCredentials = path.join(workspace, "zuliprc-bot");
 const fakeEnv = {
-  ZULIPCHAT_DB_PATH: path.join(workspace, "smoke.duckdb"),
   XDG_STATE_HOME: path.join(workspace, "state"),
 };
 let client;
@@ -112,18 +111,7 @@ try {
   const info = await client.callTool("server_info", {});
   assert.equal(info.isError, false);
   assert.equal(info.structuredContent.version, values["expected-version"]);
-  // Explicit owner and stream avoid any Zulip lookup; these calls use local state.
-  const registered = await client.callTool("register_agent", {
-    agent_name: "clio-smoke", agent_type: "clio-coder",
-    owner_email: "test@example.com", stream_name: "Agents-Channel",
-  });
-  assert.equal(registered.structuredContent.status, "success");
-  const bound = await client.callTool("ensure_agent_session", {
-    agent_id: registered.structuredContent.agent_id,
-    external_session_id: "clio-smoke", project_dir: workspace,
-  });
-  assert.equal(bound.structuredContent.status, "success");
-  console.log(`ok: Clio MCP ${discovered.protocolVersion}, ${toolCount} tools, server_info v${values["expected-version"]}, profile/session binding`);
+  console.log(`ok: Clio MCP ${discovered.protocolVersion}, ${toolCount} tools, server_info v${values["expected-version"]}`);
 
   // A direct message by first name resolves to one user ID in one call.
   const named = await client.callTool("send_message", { type: "direct", to: "jaime", content: "PR is ready" });

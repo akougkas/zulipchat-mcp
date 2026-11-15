@@ -61,7 +61,7 @@ def test_server_disables_global_fastmcp_tasks():
         patch("src.zulipchat_mcp.server.setup_structured_logging"),
         patch("src.zulipchat_mcp.server.get_logger", return_value=logger),
         patch("src.zulipchat_mcp.server.init_config_manager", return_value=cfg),
-        patch("src.zulipchat_mcp.server.init_database"),
+        patch("src.zulipchat_mcp.server.configure_snapshot_root"),
         patch("src.zulipchat_mcp.server.FastMCP", return_value=mcp) as mock_fastmcp,
         patch("src.zulipchat_mcp.server.register_core_tools") as mock_register_core,
         patch.object(sys, "argv", ["zulipchat-mcp"]),
@@ -70,48 +70,8 @@ def test_server_disables_global_fastmcp_tasks():
 
     kwargs = mock_fastmcp.call_args.kwargs
     assert kwargs["tasks"] is False
-    assert kwargs["lifespan"] is not None
     mock_register_core.assert_called_once_with(mcp)
     mcp.run.assert_called_once_with()
-
-
-@pytest.mark.asyncio
-async def test_server_lifespan_keeps_listener_lazy_when_disabled():
-    """Default startup should not initialize the listener until a tool needs it."""
-    cfg = MagicMock()
-    svc = MagicMock()
-
-    with (
-        patch(
-            "src.zulipchat_mcp.server.init_service_manager", return_value=svc
-        ) as mock_init,
-        patch("src.zulipchat_mcp.server.shutdown_service_manager") as mock_shutdown,
-    ):
-        server_lifespan = server._build_server_lifespan(cfg, enable_listener=False)
-        async with server_lifespan(MagicMock()) as context:
-            assert context["service_manager"] is svc
-
-    mock_init.assert_called_once_with(cfg, enable_listener=False)
-    svc.start.assert_not_called()
-    mock_shutdown.assert_called_once_with()
-
-
-@pytest.mark.asyncio
-async def test_server_lifespan_starts_listener_when_enabled():
-    """The explicit listener flag should still start services at server boot."""
-    cfg = MagicMock()
-    svc = MagicMock()
-
-    with (
-        patch("src.zulipchat_mcp.server.init_service_manager", return_value=svc),
-        patch("src.zulipchat_mcp.server.shutdown_service_manager") as mock_shutdown,
-    ):
-        server_lifespan = server._build_server_lifespan(cfg, enable_listener=True)
-        async with server_lifespan(MagicMock()) as context:
-            assert context["service_manager"] is svc
-
-    svc.start.assert_called_once_with()
-    mock_shutdown.assert_called_once_with()
 
 
 def test_version_flag_exits_zero():
@@ -132,7 +92,7 @@ def test_http_transport_passes_host_port_and_registers_tasks_extension():
         patch("src.zulipchat_mcp.server.setup_structured_logging"),
         patch("src.zulipchat_mcp.server.get_logger", return_value=MagicMock()),
         patch("src.zulipchat_mcp.server.init_config_manager", return_value=cfg),
-        patch("src.zulipchat_mcp.server.init_database"),
+        patch("src.zulipchat_mcp.server.configure_snapshot_root"),
         patch("src.zulipchat_mcp.server.FastMCP", return_value=mcp),
         patch("src.zulipchat_mcp.server.register_core_tools"),
         patch.object(
@@ -192,7 +152,7 @@ def test_http_transport_with_token_configures_auth():
         patch("src.zulipchat_mcp.server.setup_structured_logging"),
         patch("src.zulipchat_mcp.server.get_logger", return_value=MagicMock()),
         patch("src.zulipchat_mcp.server.init_config_manager", return_value=cfg),
-        patch("src.zulipchat_mcp.server.init_database"),
+        patch("src.zulipchat_mcp.server.configure_snapshot_root"),
         patch("src.zulipchat_mcp.server.FastMCP", return_value=mcp) as mock_fastmcp,
         patch("src.zulipchat_mcp.server.register_core_tools"),
         patch.object(
@@ -214,7 +174,7 @@ def test_startup_does_not_make_zulip_api_calls(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["zulipchat-mcp"])
     with (
         patch.object(server, "init_config_manager", return_value=cfg),
-        patch.object(server, "init_database"),
+        patch.object(server, "configure_snapshot_root"),
         patch.object(server, "FastMCP"),
         patch.object(server, "register_core_tools"),
         patch("src.zulipchat_mcp.config.get_client") as get_client,
@@ -223,10 +183,9 @@ def test_startup_does_not_make_zulip_api_calls(monkeypatch):
     get_client.assert_not_called()
 
 
-@pytest.mark.parametrize("flag", ["--enable-listener", "--unsafe"])
-def test_read_only_profile_rejects_mutating_startup_flags(monkeypatch, flag):
+def test_read_only_profile_rejects_unsafe_mode(monkeypatch):
     monkeypatch.setattr(
-        sys, "argv", ["zulipchat-mcp", "--tool-profile", "read-only", flag]
+        sys, "argv", ["zulipchat-mcp", "--tool-profile", "read-only", "--unsafe"]
     )
     with patch.object(server, "init_config_manager") as init:
         with pytest.raises(SystemExit) as exc:
@@ -235,34 +194,40 @@ def test_read_only_profile_rejects_mutating_startup_flags(monkeypatch, flag):
     init.assert_not_called()
 
 
-def test_ephemeral_state_requires_read_only_profile(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["zulipchat-mcp", "--ephemeral-state"])
-    with patch.object(server, "init_config_manager") as init:
-        with pytest.raises(SystemExit) as exc:
-            server.main()
-    assert exc.value.code == 2
-    init.assert_not_called()
-
-
-def test_ephemeral_state_uses_a_private_temporary_database(monkeypatch, tmp_path):
-    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
-    monkeypatch.setenv("ZULIPCHAT_DB_PATH", "/account/state.duckdb")
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["zulipchat-mcp", "--tool-profile", "read-only", "--ephemeral-state"],
-    )
+def _start(monkeypatch, *argv):
+    monkeypatch.setattr(sys, "argv", ["zulipchat-mcp", *argv])
     cfg = MagicMock()
     cfg.validate_config.return_value = True
+    cfg.resolved_account.return_value.fingerprint = "fp"
+    logger = MagicMock()
     with (
         patch.object(server, "init_config_manager", return_value=cfg),
-        patch.object(server, "init_database") as init_database,
+        patch.object(server, "get_logger", return_value=logger),
+        patch.object(server, "configure_snapshot_root") as snapshot_root,
         patch.object(server, "FastMCP"),
         patch.object(server, "register_core_tools"),
-        patch("atexit.register") as register_cleanup,
     ):
         server.main()
-    db_path = init_database.call_args.args[0]
-    state_dir = register_cleanup.call_args.args[1]
-    assert db_path.startswith(str(tmp_path))
-    assert db_path.startswith(state_dir)
+    return snapshot_root, logger
+
+
+def test_read_caches_are_shared_per_account_unless_ephemeral(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    snapshot_root, _ = _start(monkeypatch)
+    snapshot_root.assert_called_once_with(
+        tmp_path / "zulipchat-mcp" / "accounts" / "fp" / "cache"
+    )
+    snapshot_root, _ = _start(monkeypatch, "--ephemeral-state")
+    snapshot_root.assert_not_called()
+
+
+def test_flags_of_the_removed_control_plane_still_start(monkeypatch):
+    _, logger = _start(
+        monkeypatch,
+        "--enable-listener",
+        "--associate-existing-db",
+        "--mention-allow",
+        "7",
+    )
+    warning = logger.warning.call_args.args
+    assert "--enable-listener, --associate-existing-db, --mention-allow" in warning

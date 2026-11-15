@@ -54,7 +54,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "zulip>=0.9.0",
     "structlog>=25.4.0",
-    "duckdb>=1.3.0",
     "requests>=2.33.0",
     # Security floors for the MCP HTTP/auth dependency stack.
     "cryptography>=50.0.0",
@@ -102,7 +101,6 @@ Changelog = "https://github.com/akougkas/zulipchat-mcp/releases"
 zulipchat-mcp = "zulipchat_mcp.server:main"
 zulipchat-mcp-integrate = "zulipchat_mcp.integrations.registry:main"
 zulipchat-mcp-setup = "zulipchat_mcp.setup_wizard:main"
-zulipchat-mcp-hook = "zulipchat_mcp.claude_hooks:main"
 zulipchat-mcp-agents = "zulipchat_mcp.agents.cli:main"
 
 [tool.hatch.build.targets.wheel]

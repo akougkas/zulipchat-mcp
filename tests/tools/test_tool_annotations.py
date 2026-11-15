@@ -29,8 +29,6 @@ DESTRUCTIVE = {
 LOCAL_ONLY = {
     "server_info",
     "switch_identity",
-    "ensure_agent_session",
-    "list_sessions",
 }
 
 # Non-read-only tools where repeating the same call has no further effect.
@@ -44,10 +42,7 @@ IDEMPOTENT_WRITES = {
     "manage_user_mute",
     "manage_message_flags",
     "update_message_flags_for_narrow",
-    "register_agent",
-    "ensure_agent_session",
     "switch_identity",
-    "wait_for_response",
     "get_events",
     "deregister_events",
     "edit_draft",
@@ -83,7 +78,7 @@ async def _annotations(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 19), (True, 53)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 13), (True, 45)])
 async def test_every_tool_advertises_complete_annotations(mode, extended, count):
     wire = await _annotations(extended=extended, read_only=False, mode=mode)
     assert len(wire) == count
@@ -93,7 +88,7 @@ async def test_every_tool_advertises_complete_annotations(mode, extended, count)
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 22)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 21)])
 async def test_read_only_hint_is_exactly_the_read_only_profile(mode, extended, count):
     full = await _annotations(extended=extended, read_only=False, mode=mode)
     read_only_hinted = {n for n, d in full.items() if d["readOnlyHint"]}
@@ -123,7 +118,6 @@ async def test_write_tool_classification():
     for name in (
         "send_message",
         "teleport_chat",
-        "agent_message",
         "cross_post_message",
     ):
         assert writes[name]["idempotentHint"] is False, name

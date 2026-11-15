@@ -9,7 +9,6 @@ ALL_SCOPE, which is both of those across every channel the bot can see.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -515,47 +514,3 @@ class BotMentionInbox:
             except Exception:
                 # Retain the queue identity for replay on a same-account restart.
                 pass
-
-
-_inboxes: dict[tuple[str, str, str | None], BotMentionInbox] = {}
-_inboxes_lock = threading.Lock()
-
-
-def get_mention_inbox(
-    client: ZulipClientWrapper,
-    account_fingerprint: str,
-    stream: str | None,
-    initial_cursor: int | None,
-) -> BotMentionInbox:
-    from ..utils.database import get_database
-
-    base = str(Path(get_database().db_path).resolve().parent / "cache")
-    key = (base, account_fingerprint, stream)
-    with _inboxes_lock:
-        if key not in _inboxes:
-            if stream is None:
-                # Direct messages have their own cache file, queue and lease.
-                path = Path(base) / f"direct-{account_fingerprint}.sqlite3"
-            elif stream == ALL_SCOPE:
-                path = Path(base) / f"inbox-{account_fingerprint}.sqlite3"
-            else:
-                if (
-                    sum(1 for _, _, scope in _inboxes if scope not in (None, ALL_SCOPE))
-                    >= 4
-                ):
-                    raise ValueError(
-                        "At most four mention channels per server are supported"
-                    )
-                digest = hashlib.sha256(stream.encode()).hexdigest()[:16]
-                path = Path(base) / f"mentions-{account_fingerprint}-{digest}.sqlite3"
-            _inboxes[key] = BotMentionInbox(
-                client, path, account_fingerprint, stream, initial_cursor
-            )
-        return _inboxes[key]
-
-
-def shutdown_mention_inboxes() -> None:
-    with _inboxes_lock:
-        for inbox in _inboxes.values():
-            inbox.stop()
-        _inboxes.clear()

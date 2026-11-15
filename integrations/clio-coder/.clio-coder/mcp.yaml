@@ -10,16 +10,13 @@ servers:
   timeoutMs: 900000
   toolActionClasses:
     add_reaction: execute
-    agent_message: execute
     check_messages_match_narrow: read
-    close_agent_session: execute
     create_draft: execute
     cross_post_message: execute
     delete_draft: destructive
     deregister_events: execute
     edit_draft: destructive
     edit_message: destructive
-    ensure_agent_session: execute
     get_daily_summary: read
     get_drafts: read
     get_events: execute
@@ -38,17 +35,13 @@ servers:
     get_user_presence: read
     get_user_status: read
     get_users: read
-    list_sessions: read
     listen_events: execute
     manage_files: destructive
     manage_message_flags: execute
     manage_reminders: destructive
     manage_scheduled_message: destructive
     manage_user_mute: execute
-    poll_agent_events: execute
-    register_agent: execute
     register_events: execute
-    request_user_input: execute
     resolve_topic: destructive
     resolve_user: read
     search_messages: read
@@ -61,5 +54,4 @@ servers:
     update_message_flags_for_narrow: execute
     update_status: execute
     upload_file: execute
-    wait_for_response: execute
 

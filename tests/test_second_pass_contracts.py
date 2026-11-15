@@ -4,23 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from zulipchat_mcp import claude_hooks
 from zulipchat_mcp.tools import event_management
-
-
-def test_generated_topics_are_bounded_and_keep_distinct_session_ids():
-    from zulipchat_mcp.core.agent_protocol import make_session_topic
-
-    topics = {
-        make_session_topic(
-            "long-project-name" * 5,
-            "agent" * 10,
-            external_session_id=f"shared-prefix-{'x' * 60}-{i}",
-        )
-        for i in range(10)
-    }
-    assert len(topics) == 10
-    assert all(len(topic) <= 60 for topic in topics)
 
 
 def test_setup_uvx_command_matches_generated_arguments(monkeypatch):
@@ -32,20 +16,6 @@ def test_setup_uvx_command_matches_generated_arguments(monkeypatch):
     )
     assert config["command"] == "/bin/uvx"
     assert config["args"][0] == f"zulipchat-mcp@{__version__}"
-
-
-def test_service_replacement_is_refused_while_previous_listener_is_stopping(
-    monkeypatch,
-):
-    from zulipchat_mcp.core import service_manager
-
-    previous = MagicMock()
-    previous.stop.return_value = False
-    monkeypatch.setattr(service_manager, "_instance", previous)
-    with pytest.raises(RuntimeError, match="still stopping"):
-        service_manager.init_service_manager(MagicMock())
-    service_manager.shutdown_service_manager()
-    assert service_manager._instance is previous
 
 
 @pytest.mark.asyncio
@@ -83,42 +53,6 @@ async def test_event_page_limit_preserves_unconsumed_events(monkeypatch):
     )
     assert [event["id"] for event in result["collected_events"]] == [2, 3]
     assert fetch.call_args_list[1].kwargs["last_event_id"] == 2
-
-
-@pytest.mark.parametrize(
-    "persisted",
-    [
-        None,
-        {"status": "cancelled", "response": "approve"},
-        {"status": "answered", "response": "deny"},
-    ],
-)
-def test_hook_cannot_override_stored_denial_or_missing_approval(monkeypatch, persisted):
-    coordinator = MagicMock()
-    coordinator.create_request.return_value = {
-        "status": "success",
-        "request_id": "request",
-        "message_id": 10,
-    }
-    coordinator.db.update_agent_request.return_value = {"status": "success"}
-    coordinator.db.get_agent_request.return_value = persisted
-    monkeypatch.setattr(
-        claude_hooks,
-        "_wait_for_topic_decision",
-        lambda *a, **kw: {"decision": "approve"},
-    )
-    result = claude_hooks._handle_permission_request(
-        coordinator,
-        {
-            "session_id": "session",
-            "stream_name": "agents",
-            "topic_name": "session",
-            "owner_email": "owner@example.com",
-        },
-        {},
-        1,
-    )
-    assert result["hookSpecificOutput"]["decision"]["behavior"] == "deny"
 
 
 @pytest.mark.asyncio

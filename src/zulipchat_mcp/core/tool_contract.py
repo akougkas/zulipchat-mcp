@@ -32,7 +32,6 @@ READ_ONLY_TOOLS = frozenset(
         "get_read_receipts",
         "get_message_history",
         "get_daily_summary",
-        "list_sessions",
     }
 )
 

@@ -10,14 +10,14 @@ from scripts import release_preflight
 @pytest.mark.parametrize(
     "command,passes",
     [
-        ("uvx zulipchat-mcp-hook --zulip-config-file /tmp/zuliprc", False),
+        ("uvx zulipchat-mcp-agents --zulip-config-file /tmp/zuliprc", False),
         ("uvx --python 3.12 zulipchat-mcp-integrate list", False),
-        ("uvx --from '' zulipchat-mcp-hook --help", False),
+        ("uvx --from '' zulipchat-mcp-agents --help", False),
         ("uvx --from= zulipchat-mcp-setup", False),
-        ("uvx --from zulipchat-mcp zulipchat-mcp-hook --help", True),
+        ("uvx --from zulipchat-mcp zulipchat-mcp-agents --help", True),
         ("uvx --from=zulipchat-mcp zulipchat-mcp-integrate list", True),
         ("uvx --from 'zulipchat-mcp==0.7.4' zulipchat-mcp-setup", True),
-        ("uvx \\\n  --from zulipchat-mcp \\\n  zulipchat-mcp-hook --help", True),
+        ("uvx \\\n  --from zulipchat-mcp \\\n  zulipchat-mcp-agents --help", True),
         ("uvx zulipchat-mcp --zulip-config-file /tmp/zuliprc", True),
     ],
 )
@@ -32,11 +32,11 @@ def test_companion_commands_require_nonempty_package_source(
 @pytest.mark.parametrize(
     "args,passes",
     [
-        (["zulipchat-mcp-hook", "--help"], False),
+        (["zulipchat-mcp-agents", "--help"], False),
         (["--python", "3.10", "zulipchat-mcp-integrate", "list"], False),
-        (["zulipchat-mcp-hook", "--from", "zulipchat-mcp"], False),
-        (["--from", "", "zulipchat-mcp-hook"], False),
-        (["--from", "zulipchat-mcp", "zulipchat-mcp-hook", "--help"], True),
+        (["zulipchat-mcp-agents", "--from", "zulipchat-mcp"], False),
+        (["--from", "", "zulipchat-mcp-agents"], False),
+        (["--from", "zulipchat-mcp", "zulipchat-mcp-agents", "--help"], True),
         (["--from=zulipchat-mcp", "zulipchat-mcp-integrate", "list"], True),
         (["zulipchat-mcp", "--extended-tools"], True),
     ],

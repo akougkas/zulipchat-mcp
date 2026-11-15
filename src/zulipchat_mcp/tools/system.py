@@ -51,13 +51,6 @@ async def server_info() -> dict[str, Any]:
     config = get_config_manager()
     account = config.resolved_account()
     bot_available = config.has_bot_credentials()
-    try:
-        mention_authorization = config.mention_allow_policy().summary(
-            account.user_email
-        )
-    except ValueError as error:
-        # Polling fails closed on the same error; surface it instead of hiding it.
-        mention_authorization = {"mode": "invalid", "error": str(error)}
 
     return {
         "status": "success",
@@ -87,5 +80,4 @@ async def server_info() -> dict[str, Any]:
             "dual_identity",
         ],
         "zulip_site": account.site,
-        "mention_authorization": mention_authorization,
     }

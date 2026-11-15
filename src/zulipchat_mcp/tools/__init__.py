@@ -24,12 +24,6 @@ CORE_TOOLS = (
     "resolve_user",
     "get_users",
     "manage_message_flags",
-    "register_agent",
-    "ensure_agent_session",
-    "agent_message",
-    "request_user_input",
-    "wait_for_response",
-    "poll_agent_events",
     "server_info",
     "switch_identity",
 )
@@ -37,14 +31,6 @@ CORE_TOOLS = (
 
 def register_core_tools(mcp: FastMCP) -> None:
     """Register the default tool surface."""
-    from .agents import (
-        agent_message,
-        ensure_agent_session,
-        poll_agent_events,
-        register_agent,
-        request_user_input,
-        wait_for_response,
-    )
     from .emoji_messaging import add_reaction
     from .handoff import ask_owner, teleport_chat
     from .mark_messaging import manage_message_flags
@@ -166,55 +152,6 @@ def register_core_tools(mcp: FastMCP) -> None:
         idempotent=True,
     )
 
-    # Agent sessions bound to a topic (hook-driven hosts such as Claude Code).
-    register_tool(
-        mcp,
-        register_agent,
-        name="register_agent",
-        description="Register or update a stable agent profile for Zulip control.",
-        title="Register agent",
-        idempotent=True,
-    )
-    register_tool(
-        mcp,
-        ensure_agent_session,
-        name="ensure_agent_session",
-        description="Create or refresh the Zulip topic binding for an agent session.",
-        title="Ensure agent session",
-        idempotent=True,
-        open_world=False,
-    )
-    register_tool(
-        mcp,
-        agent_message,
-        name="agent_message",
-        description="Post a lifecycle update into an agent session's bound topic.",
-        title="Send agent message",
-    )
-    register_tool(
-        mcp,
-        request_user_input,
-        name="request_user_input",
-        description="Ask the owner a question or approval in an agent session topic.",
-        title="Request user input",
-    )
-    register_tool(
-        mcp,
-        wait_for_response,
-        name="wait_for_response",
-        description="Wait for the owner's answer to a request_user_input request.",
-        title="Wait for response",
-        idempotent=True,
-        task=waiting,
-    )
-    register_tool(
-        mcp,
-        poll_agent_events,
-        name="poll_agent_events",
-        description=("Read owner steering events for a bound agent session."),
-        title="Poll agent events",
-    )
-
     # System
     register_tool(
         mcp,
@@ -237,7 +174,6 @@ def register_core_tools(mcp: FastMCP) -> None:
 
 def register_extended_tools(mcp: FastMCP) -> None:
     """Register the rest of the Zulip API surface after the core tools."""
-    from .agents import close_agent_session, list_sessions
     from .drafts import register_drafts_tools
     from .event_management import (
         deregister_events,
@@ -445,22 +381,6 @@ def register_extended_tools(mcp: FastMCP) -> None:
         name="get_daily_summary",
         description="Count Zulip messages per channel and topic over recent hours.",
         title="Get daily summary",
-    )
-
-    register_tool(
-        mcp,
-        list_sessions,
-        name="list_sessions",
-        description="List known agent sessions and their Zulip topics.",
-        title="List agent sessions",
-        open_world=False,
-    )
-    register_tool(
-        mcp,
-        close_agent_session,
-        name="close_agent_session",
-        description="Close an agent session binding and optionally announce it.",
-        title="Close agent session",
     )
 
     # Files

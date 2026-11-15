@@ -14,7 +14,7 @@ fi
 echo "User zuliprc: $ZULIP_CONFIG_FILE"
 echo "Bot zuliprc: ${BOT_ARGS[1]:-none}"
 
-# The export writes .mcp.json, the hooks and the skills into the project, all
+# The export writes .mcp.json and the zulipchat skill into the project, both
 # pinned to this version. It does not also register the server with
 # `claude mcp add`: that would declare it twice.
 uvx --from zulipchat-mcp==0.8.0 zulipchat-mcp-integrate export \

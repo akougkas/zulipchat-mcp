@@ -40,7 +40,7 @@ async def _smoke(command: list[str], expected_version: str) -> None:
             **FAKE_ENV,
             "ZULIP_CONFIG_FILE": str(config_file),
             "ZULIP_BOT_CONFIG_FILE": str(config_file),
-            "ZULIPCHAT_DB_PATH": str(Path(scratch) / "smoke.duckdb"),
+            "XDG_STATE_HOME": str(Path(scratch) / "state"),
             "ZULIPCHAT_EXTENDED_TOOLS": "0",
         }
         for name in ("UV_PROJECT_ENVIRONMENT", "UV_CACHE_DIR"):
@@ -87,7 +87,7 @@ async def _smoke_connection(
         if missing:
             raise AssertionError(f"Missing required tools: {missing}")
         expected_count = (
-            (22 if extended else 7) if read_only else (53 if extended else 19)
+            (21 if extended else 7) if read_only else (45 if extended else 13)
         )
         if len(tools) != expected_count:
             raise AssertionError(f"Expected {expected_count} tools, got {len(tools)}")
@@ -117,9 +117,9 @@ async def _smoke_connection(
                 raise AssertionError("Policy denial must prohibit unchanged retries")
 
         resources = await client.list_resources()
-        if len(resources) != 4:
+        if len(resources) != 1:
             raise AssertionError(
-                f"Expected four packaged skills, got {len(resources)} resources"
+                f"Expected the packaged skill, got {len(resources)} resources"
             )
         for resource in resources:
             content = await client.read_resource(str(resource.uri))
@@ -128,7 +128,7 @@ async def _smoke_connection(
 
         print(
             f"ok: {mode}, {capabilities['tool_profile']}, {len(tools)} tools, "
-            f"four skills, server_info v{data['version']}"
+            f"one skill, server_info v{data['version']}"
         )
 
 

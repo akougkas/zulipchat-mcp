@@ -95,8 +95,7 @@ smoke_command() {
     ZULIP_CONFIG_FILE="$SMOKE_CONFIG" ZULIP_BOT_CONFIG_FILE="$SMOKE_CONFIG" \
     ZULIP_EMAIL=test@example.com ZULIP_API_KEY=test-key \
     ZULIP_BOT_EMAIL=test@example.com ZULIP_BOT_API_KEY=test-key \
-    ZULIP_SITE=http://127.0.0.1:9 \
-    ZULIPCHAT_DB_PATH="$SMOKE_TMP_DIR/smoke.duckdb" "$@")
+    ZULIP_SITE=http://127.0.0.1:9 XDG_STATE_HOME="$SMOKE_TMP_DIR/state" "$@")
 }
 
 PREFLIGHT_ARGS=(--version "$VERSION")
@@ -115,7 +114,7 @@ smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp --version
 smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp-setup --version
 smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp-integrate --version
 smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp-integrate list
-smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp-hook --help > /dev/null
+smoke_command uv run --project "$ROOT_DIR" zulipchat-mcp-agents --help > /dev/null
 
 echo "==> MCP stdio smoke (project env, fake credentials)"
 uv run python scripts/mcp_stdio_smoke.py --expected-version "$VERSION" -- uv run zulipchat-mcp
@@ -138,7 +137,7 @@ smoke_command "$SMOKE_VENV/bin/zulipchat-mcp" --version
 smoke_command "$SMOKE_VENV/bin/zulipchat-mcp-setup" --version
 smoke_command "$SMOKE_VENV/bin/zulipchat-mcp-integrate" --version
 smoke_command "$SMOKE_VENV/bin/zulipchat-mcp-integrate" list
-smoke_command "$SMOKE_VENV/bin/zulipchat-mcp-hook" --help > /dev/null
+smoke_command "$SMOKE_VENV/bin/zulipchat-mcp-agents" --help > /dev/null
 
 echo "==> Installed-wheel MCP stdio smoke (fake credentials)"
 uv run --no-project --python "$SMOKE_VENV/bin/python" scripts/mcp_stdio_smoke.py \
@@ -146,7 +145,7 @@ uv run --no-project --python "$SMOKE_VENV/bin/python" scripts/mcp_stdio_smoke.py
   -- "$SMOKE_VENV/bin/zulipchat-mcp"
 
 echo "==> Companion commands resolve from the built wheel through uvx --from"
-for companion in zulipchat-mcp-setup zulipchat-mcp-integrate zulipchat-mcp-hook; do
+for companion in zulipchat-mcp-setup zulipchat-mcp-integrate zulipchat-mcp-agents; do
   smoke_command uvx --from "$ROOT_DIR/$WHEEL_PATH" "$companion" --help > /dev/null
 done
 
@@ -155,7 +154,7 @@ if [[ "$WITH_GIT" -eq 1 ]]; then
   smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp --version
   smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-setup --version
   smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-integrate --version
-  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-hook --help > /dev/null
+  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-agents --help > /dev/null
 fi
 
 if [[ "$WITH_TESTPYPI" -eq 1 ]]; then

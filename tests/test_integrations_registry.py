@@ -157,26 +157,11 @@ def test_print_requires_config_file_for_local(monkeypatch):
         _run_main(monkeypatch, ["print", "--client", "generic"])
 
 
-def test_export_claude_code_standalone_merges_settings(monkeypatch, capsys, tmp_path):
-    """Standalone export should merge hooks and write `.claude` assets."""
-    settings_dir = tmp_path / ".claude"
-    settings_dir.mkdir()
-    existing_settings = {
-        "theme": "light",
-        "hooks": {
-            "SessionStart": [
-                {
-                    "matcher": "startup",
-                    "hooks": [{"type": "command", "command": "echo existing"}],
-                }
-            ]
-        },
-    }
-    (settings_dir / "settings.json").write_text(
-        json.dumps(existing_settings),
-        encoding="utf-8",
+def test_export_claude_code_standalone_merges_mcp_json(monkeypatch, capsys, tmp_path):
+    """Standalone export merges .mcp.json and adds the portable skill."""
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"other": {"command": "other"}}}), encoding="utf-8"
     )
-
     _run_main(
         monkeypatch,
         [
@@ -189,28 +174,15 @@ def test_export_claude_code_standalone_merges_settings(monkeypatch, capsys, tmp_
             str(tmp_path),
             "--zulip-config-file",
             "/home/test/.zuliprc",
-            "--zulip-bot-config-file",
-            "/home/test/.zuliprc-bot",
+            "--server-id",
+            "zulipchat-grc",
         ],
     )
-
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["status"] == "success"
-
-    settings = json.loads((settings_dir / "settings.json").read_text(encoding="utf-8"))
-    assert settings["theme"] == "light"
-    assert (
-        settings["hooks"]["SessionStart"][0]["hooks"][0]["command"] == "echo existing"
-    )
-    assert "Notification" in settings["hooks"]
-    assert any(
-        "zulipchat-mcp-hook" in group["hooks"][0]["command"]
-        for group in settings["hooks"]["PermissionRequest"]
-    )
-    assert (
-        tmp_path / ".claude" / "skills" / "zulipchat-session-operator" / "SKILL.md"
-    ).exists()
-    assert (tmp_path / ".claude" / "agents" / "zulip-session-operator.md").exists()
+    assert json.loads(capsys.readouterr().out)["status"] == "success"
+    servers = json.loads((tmp_path / ".mcp.json").read_text())["mcpServers"]
+    assert set(servers) == {"other", "zulipchat-grc"}
+    assert (tmp_path / ".claude/skills/zulipchat/SKILL.md").exists()
+    assert not (tmp_path / ".claude/settings.json").exists()
 
 
 def test_export_claude_code_plugin_writes_modern_layout(monkeypatch, capsys, tmp_path):
@@ -242,11 +214,11 @@ def test_export_claude_code_plugin_writes_modern_layout(monkeypatch, capsys, tmp
     assert manifest["name"] == "zulipchat"
     assert manifest["version"] == __version__
 
+    assert "$schema" not in manifest
+
     mcp_config = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
+    assert set(mcp_config) == {"mcpServers"}
     assert mcp_config["mcpServers"]["zulipchat"]["type"] == "stdio"
     assert "--extended-tools" in mcp_config["mcpServers"]["zulipchat"]["args"]
-
-    hooks = json.loads((tmp_path / "hooks" / "hooks.json").read_text(encoding="utf-8"))
-    assert "Notification" in hooks["hooks"]
-    assert (tmp_path / "skills" / "zulipchat-loop" / "SKILL.md").exists()
-    assert (tmp_path / "agents" / "zulip-session-operator.md").exists()
+    assert (tmp_path / "skills" / "zulipchat" / "SKILL.md").exists()
+    assert not (tmp_path / "hooks").exists()

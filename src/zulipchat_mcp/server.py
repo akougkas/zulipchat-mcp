@@ -2,57 +2,29 @@
 
 import argparse
 import os
-from collections.abc import AsyncIterator
-from typing import Any
+from pathlib import Path
 
 from fastmcp import FastMCP
-from fastmcp.server.lifespan import lifespan
 from fastmcp_tasks import TasksExtension
 
 from . import __version__
-from .config import ConfigManager, init_config_manager, parse_mention_allow
+from .config import init_config_manager
 from .core.security import set_unsafe_mode
 from .core.skills import register_skills
+from .core.snapshots import configure_snapshot_root
 from .core.tool_contract import ToolContractMiddleware
-
-# Optional service manager for background services
-try:
-    from .core.service_manager import init_service_manager, shutdown_service_manager
-
-    service_manager_available = True
-except ImportError:
-    service_manager_available = False
-
 from .tools import register_core_tools, register_extended_tools
-
-try:
-    from .utils.database import AccountBindingError, init_database
-
-    database_available = True
-except ImportError:
-    database_available = False
-
 from .utils.logging import get_logger, setup_structured_logging
 
+# Flags of the agent control plane removed in 0.8.0. Host configurations
+# written for 0.7 still pass them, so they are accepted and ignored.
+_RETIRED_FLAGS = ("--enable-listener", "--associate-existing-db")
 
-def _build_server_lifespan(config_manager: ConfigManager, enable_listener: bool) -> Any:
-    """Build a FastMCP lifespan for ZulipChat background services."""
 
-    @lifespan
-    async def server_lifespan(server: FastMCP[Any]) -> AsyncIterator[dict[str, Any]]:
-        if not service_manager_available:
-            yield {}
-            return
-
-        svc = init_service_manager(config_manager, enable_listener=enable_listener)
-        if enable_listener:
-            svc.start()
-        try:
-            yield {"service_manager": svc}
-        finally:
-            shutdown_service_manager()
-
-    return server_lifespan
+def account_cache_dir(fingerprint: str) -> Path:
+    """Per-account cache shared by every server process for that account."""
+    base = os.getenv("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(base) / "zulipchat-mcp" / "accounts" / fingerprint / "cache"
 
 
 def main() -> None:
@@ -86,18 +58,13 @@ def main() -> None:
         help="Enable dangerous tools (delete messages/users, mass unsubscribe). Default: SAFE mode.",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument(
-        "--enable-listener", action="store_true", help="Enable message listener service"
-    )
-    parser.add_argument(
-        "--associate-existing-db",
-        action="store_true",
-        help="Associate an unbound legacy database with this verified account (never overrides a different existing binding).",
-    )
+    for flag in _RETIRED_FLAGS:
+        parser.add_argument(flag, action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--mention-allow", help=argparse.SUPPRESS)
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all 53 tools instead of the 19-tool core set.",
+        help="Register all 45 tools instead of the 13-tool core set.",
     )
     parser.add_argument(
         "--tool-profile",
@@ -113,21 +80,9 @@ def main() -> None:
         "--ephemeral-state",
         action="store_true",
         help=(
-            "Keep local state in a private temporary database removed at exit "
-            "instead of the account database. Requires --tool-profile read-only; "
-            "for hosts that run the server where the account database is not "
-            "writable, such as a sandboxed read-only worker."
-        ),
-    )
-
-    parser.add_argument(
-        "--mention-allow",
-        default=os.getenv("ZULIPCHAT_MENTION_ALLOW"),
-        help=(
-            "Senders whose bot mentions and direct messages poll_agent_events may "
-            "return: comma-separated Zulip emails and/or numeric user IDs, or "
-            "'everyone' (or set ZULIPCHAT_MENTION_ALLOW). Default: only the "
-            "configured owner; a list adds to the owner. Others are reported without content."
+            "Write no files: read caches stay in memory. For hosts that run the "
+            "server where the state directory is not writable, such as a "
+            "sandboxed worker."
         ),
     )
 
@@ -139,8 +94,7 @@ def main() -> None:
         help=(
             "Transport to serve on (default: stdio). 'http' runs the "
             "streamable-HTTP transport; on the 2026-07-28 protocol each "
-            "request is self-contained. Agent sessions and tasks still "
-            "require a single server instance with local persistence."
+            "request is self-contained."
         ),
     )
     parser.add_argument(
@@ -174,16 +128,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    if args.tool_profile == "read-only" and (args.enable_listener or args.unsafe):
-        parser.error(
-            "The read-only tool profile cannot enable a listener or unsafe mode"
-        )
-    if args.ephemeral_state and args.tool_profile != "read-only":
-        parser.error("--ephemeral-state requires --tool-profile read-only")
-    try:
-        parse_mention_allow(args.mention_allow)
-    except ValueError as error:
-        parser.error(f"--mention-allow / ZULIPCHAT_MENTION_ALLOW: {error}")
+    if args.tool_profile == "read-only" and args.unsafe:
+        parser.error("The read-only tool profile cannot enable unsafe mode")
     if args.transport == "http":
         if args.auth_token is not None and (
             not args.auth_token.strip()
@@ -200,13 +146,23 @@ def main() -> None:
     # Setup logging
     setup_structured_logging("DEBUG" if args.debug else "INFO")
     logger = get_logger(__name__)
+    retired = [
+        flag
+        for flag in (*_RETIRED_FLAGS, "--mention-allow")
+        if getattr(args, flag[2:].replace("-", "_"))
+    ]
+    if retired:
+        logger.warning(
+            "Ignoring %s: the agent control plane was removed in 0.8.0; "
+            "see zulipchat-mcp-agents",
+            ", ".join(retired),
+        )
 
     # Initialize configuration (zuliprc files and/or env credentials)
     config_manager = init_config_manager(
         config_file=args.zulip_config_file,
         bot_config_file=args.zulip_bot_config_file,
         debug=args.debug,
-        mention_allow=args.mention_allow,
     )
 
     # Validate configuration
@@ -223,42 +179,13 @@ def main() -> None:
     if args.unsafe:
         logger.warning("RUNNING IN UNSAFE MODE - Dangerous tools enabled")
 
-    # Initialize database (optional for agent features)
-    if database_available:
+    if not args.ephemeral_state:
         try:
-            ephemeral_path = None
-            if args.ephemeral_state:
-                import atexit
-                import shutil
-                import tempfile
-
-                state_dir = tempfile.mkdtemp(prefix="zulipchat-mcp-")
-                atexit.register(shutil.rmtree, state_dir, ignore_errors=True)
-                ephemeral_path = os.path.join(state_dir, "zulipchat.duckdb")
-            database = init_database(
-                ephemeral_path,
-                account_fingerprint=config_manager.resolved_account().fingerprint,
-                associate_existing=args.associate_existing_db,
-            )
-            from pathlib import Path
-
-            from .core.snapshots import configure_snapshot_root
-
-            database_path = getattr(database, "db_path", None)
-            configure_snapshot_root(
-                Path(database_path).resolve().parent / "cache"
-                if isinstance(database_path, (str, os.PathLike))
-                else None
-            )
-            logger.info("Database initialized")
-        except AccountBindingError as e:
-            logger.error(str(e))
-            raise SystemExit(1) from e
-        except Exception as e:
-            logger.error(f"Database/account initialization failed: {e}")
-            raise SystemExit(1) from e
-    else:
-        logger.info("Database not available (agent features disabled)")
+            fingerprint = config_manager.resolved_account().fingerprint
+        except ValueError as error:
+            logger.error(str(error))
+            raise SystemExit(1) from error
+        configure_snapshot_root(account_cache_dir(fingerprint))
 
     # HTTP transport auth: require an explicit bearer token when binding
     # beyond localhost unless the operator opts out with a loopback bind.
@@ -293,7 +220,6 @@ def main() -> None:
         # server default forbidden prevents sync/fast tools from being advertised
         # as task-capable by accident.
         tasks=False,
-        lifespan=_build_server_lifespan(config_manager, args.enable_listener),
     )
 
     # Register the SEP-2663 Tasks extension: in FastMCP 4, tools declared with
@@ -320,9 +246,9 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (53 tools)")
+        logger.info("Registered extended tool set (45 tools)")
     else:
-        logger.info("Registered core tool set (19 tools)")
+        logger.info("Registered core tool set (13 tools)")
 
     logger.info("Starting ZulipChat MCP server (transport=%s)...", args.transport)
     if args.transport == "http":

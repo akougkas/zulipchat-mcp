@@ -29,7 +29,7 @@ def test_modern_skill_discovery_manifest_and_direct_lookup():
         assert listed["resultType"] == "complete"
         assert listed["ttlMs"] == 300000
         assert listed["cacheScope"] == "public"
-        assert len(listed["skills"]) == 4
+        assert len(listed["skills"]) == 1
         for entry in listed["skills"]:
             fetched = rpc(client, "skills/get", {"uri": entry["uri"]}).json()["result"]
             assert fetched["skill"] == entry
@@ -76,6 +76,6 @@ async def test_legacy_clients_can_read_packaged_skills_without_extension_support
     register_skills(server)
     async with Client(server, mode="legacy") as client:
         resources = await client.list_resources()
-        assert len(resources) == 4
+        assert len(resources) == 1
         content = await client.read_resource("skill://zulipchat/SKILL.md")
         assert "name: zulipchat\n" in content[0].text

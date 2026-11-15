@@ -17,7 +17,6 @@ from typing import Any
 import yaml
 
 from .. import __version__
-from .claude_code_package import export_claude_code_package
 
 CLIENTS = [
     "claude-code",
@@ -364,37 +363,17 @@ def main() -> None:
     if args.command == "export":
         from .agent_package import export_agent_package
 
-        exporter = (
-            export_claude_code_package
-            if args.client == "claude-code"
-            else export_agent_package
-        )
-        options: dict[str, str] = (
-            {} if args.client == "claude-code" else {"client": args.client}
-        )
-        if args.tool_profile != "full":
-            if args.client == "claude-code":
-                export_parser.error(
-                    "--tool-profile is not supported for claude-code "
-                    "exports; its hooks post lifecycle messages"
-                )
-            options["tool_profile"] = args.tool_profile
-        if args.server_id != "zulipchat":
-            if args.client == "claude-code":
-                export_parser.error(
-                    "--server-id is not supported for claude-code exports; "
-                    "its hooks bind one account per project"
-                )
-            options["server_id"] = args.server_id
         try:
-            results = exporter(
+            results = export_agent_package(
                 Path(args.output_dir),
                 zulip_config_file=args.zulip_config_file,
                 zulip_bot_config_file=args.zulip_bot_config_file,
                 mode=args.mode,
                 extended_tools=args.extended_tools,
                 force=args.force,
-                **options,
+                client=args.client,
+                server_id=args.server_id,
+                tool_profile=args.tool_profile,
             )
         except (ValueError, OSError) as error:
             export_parser.error(str(error))

@@ -12,40 +12,30 @@ from zulipchat_mcp.tools import register_core_tools, register_extended_tools
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-async def test_task_enabled_wait_tool_completes_with_real_protocol(mode, monkeypatch):
-    from unittest.mock import AsyncMock, MagicMock
+async def test_task_enabled_wait_tool_completes_with_real_protocol(
+    mode, monkeypatch, tmp_path
+):
+    from zulipchat_mcp.agents.store import BridgeStore
 
-    from zulipchat_mcp.tools import agents
-
-    coordinator = MagicMock()
-    coordinator.wait_for_request_async = AsyncMock(
-        return_value={
-            "status": "success",
-            "request_status": "answered",
-            "response": "approve",
-        }
-    )
-    monkeypatch.setattr(agents, "ensure_listener", lambda: None)
-    monkeypatch.setattr(agents, "_get_coordinator", lambda: coordinator)
+    store = BridgeStore(tmp_path / "bridge.sqlite3")
+    store.bind("dm:7", None, str(tmp_path), {"type": "private", "to": [7]})
+    question_id = store.ask("dm:7", "question", "Ship it?", [], 5)
+    store.answer(question_id, "yes")
+    monkeypatch.setenv("ZULIPCHAT_AGENT_STATE", str(store.path))
+    monkeypatch.setenv("ZULIPCHAT_AGENT_CONVERSATION", "dm:7")
     mcp = FastMCP("task-execution-contract", tasks=False)
     mcp.add_extension(TasksExtension())
     register_core_tools(mcp)
     mcp.add_middleware(ToolContractMiddleware())
+    arguments = {"question_id": question_id, "wait_seconds": 1}
     async with Client(mcp, mode=mode, timeout=10) as client:
         if mode == "legacy":
             assert await client.ping()
-            result = await client.call_tool(
-                "wait_for_response", {"request_id": "request-1"}
-            )
+            result = await client.call_tool("ask_owner", arguments)
         else:
-            task = await call_tool_task(
-                client, "wait_for_response", {"request_id": "request-1"}
-            )
+            task = await call_tool_task(client, "ask_owner", arguments)
             result = await task.result()
-        assert result.data["response"] == "approve"
-    coordinator.wait_for_request_async.assert_awaited_once_with(
-        "request-1", timeout_seconds=300
-    )
+        assert result.data["answer"] == "yes"
 
 
 @pytest.mark.asyncio
@@ -61,8 +51,7 @@ async def test_task_support_is_opt_in_for_long_running_tools() -> None:
         name for name, tool in tools.items() if tool.task_config.supports_tasks()
     }
 
-    assert task_tools == {"listen_events", "wait_for_response"}
-    assert tools["wait_for_response"].task_config.mode == "optional"
+    assert task_tools == {"listen_events"}
     assert tools["listen_events"].task_config.mode == "optional"
 
 

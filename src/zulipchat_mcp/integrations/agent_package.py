@@ -25,6 +25,7 @@ MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 # Antigravity CLI uses a user-scoped MCP file; its export is a staging fragment.
 # Project skills can be installed independently.
 LAYOUTS = {
+    "claude-code": (".mcp.json", ".claude/skills", "mcpServers"),
     "codex": (".codex/config.toml", ".agents/skills", "mcp_servers"),
     "opencode": ("opencode.json", ".opencode/skills", "mcp"),
     "copilot": (".mcp.json", ".github/skills", "mcpServers"),
@@ -49,7 +50,7 @@ def portable_plugin_files(
         "$schema": PLUGIN_SCHEMA,
         "name": "zulipchat",
         "version": __version__,
-        "description": "Zulip messaging, search, and topic-bound agent collaboration.",
+        "description": "Zulip messaging and search, and hand-off to Zulip agent bots.",
         "author": {"name": "Anthony Kougkas"},
         "homepage": "https://github.com/akougkas/zulipchat-mcp",
         "repository": "https://github.com/akougkas/zulipchat-mcp",
@@ -165,11 +166,18 @@ def export_agent_package(
     )
     if mode == "plugin":
         host_fields = clio_server_fields(base) if client == "clio-coder" else None
-        return write_package(
-            output_dir,
-            portable_plugin_files(base, server_id, host_fields),
-            force=force,
-        )
+        files = portable_plugin_files(base, server_id, host_fields)
+        if client == "claude-code":
+            # Claude Code reads its manifest and servers from these two paths
+            # and knows nothing of the Agent Plugins schemas.
+            for source, target in (
+                ("plugin.json", ".claude-plugin/plugin.json"),
+                ("mcp.json", ".mcp.json"),
+            ):
+                payload = json.loads(files.pop(source))
+                payload.pop("$schema")
+                files[target] = json.dumps(payload, indent=2) + "\n"
+        return write_package(output_dir, files, force=force)
     if mode != "standalone" or client not in LAYOUTS:
         raise ValueError(f"Unsupported standalone export client/mode: {client}/{mode}")
     config_path, skill_root, key = LAYOUTS[client]
@@ -177,8 +185,9 @@ def export_agent_package(
         raise ValueError(
             "Existing opencode.jsonc: merge a printed snippet manually instead of creating a competing opencode.json"
         )
+    renderer = "generic" if client == "claude-code" else client
     documents = {
-        config_path: _render_for_client(client, base, server_id) + "\n",
+        config_path: _render_for_client(renderer, base, server_id) + "\n",
         **{
             f"{skill_root}/{relative}": content
             for relative, content in skill_files().items()
