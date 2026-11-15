@@ -408,3 +408,61 @@ def test_exports_pin_the_exporting_version_and_upgrade_only_with_force(tmp_path)
     assert unpinned not in commands
     mcp = json.loads((project / ".mcp.json").read_text())["mcpServers"]["zulipchat"]
     assert mcp["args"][0] == f"zulipchat-mcp@{__version__}"
+
+
+def test_merged_host_config_is_backed_up_and_keeps_its_mode(tmp_path):
+    import os
+
+    config_path, _, key = LAYOUTS["codex"]
+    target = tmp_path / config_path
+    target.parent.mkdir(parents=True)
+    original = '# my own notes\n[mcp_servers.other]\ncommand = "other"\n'
+    target.write_text(original)
+    os.chmod(target, 0o640)
+    previous = os.umask(0o022)
+    try:
+        results = export_agent_package(
+            tmp_path, client="codex", zulip_config_file="/home/test/.zuliprc"
+        )
+    finally:
+        os.umask(previous)
+    (merged,) = [item for item in results if item["action"] == "merged"]
+    assert Path(merged["backup"]).read_text() == original  # comments survive here
+    assert os.stat(merged["backup"]).st_mode & 0o777 == 0o640
+    assert os.stat(target).st_mode & 0o777 == 0o640
+    assert "other" in target.read_text() and "zulipchat" in target.read_text()
+    written = [item for item in results if item["action"] == "written"]
+    assert written and all("backup" not in item for item in written)
+    assert all(os.stat(item["path"]).st_mode & 0o777 == 0o644 for item in written)
+
+    again = export_agent_package(
+        tmp_path, client="codex", zulip_config_file="/home/test/.zuliprc"
+    )
+    assert {item["action"] for item in again} == {"unchanged"}
+    assert len(list(target.parent.glob("*.bak-*"))) == 1
+
+
+def test_checked_in_templates_pin_the_current_version():
+    import re
+
+    from zulipchat_mcp import __version__
+
+    root = Path(__file__).parents[1] / "integrations"
+    unpinned = re.compile(
+        r"uvx zulipchat-mcp(?![@\w-])|--from zulipchat-mcp zulipchat-mcp-hook"
+        r'|"zulipchat-mcp"\s*[,\]]|^\s*- zulipchat-mcp$'
+        r'|"command": "zulipchat-mcp-hook |uv run zulipchat-mcp',
+        re.M,
+    )
+    pins = set()
+    for path in root.rglob("*"):
+        if not path.is_file() or "skills" in path.parts:
+            continue
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            continue
+        assert not unpinned.search(text), f"{path} runs an unpinned zulipchat-mcp"
+        pins.update(re.findall(r"zulipchat-mcp(?:@|==)([0-9][\w.]*)", text))
+    # A version bump that misses the templates fails here.
+    assert pins == {__version__}

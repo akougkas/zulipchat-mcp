@@ -40,5 +40,5 @@ and the distinction between plugin content and MCP execution trust.
 ## Common runtime command
 
 ```bash
-uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
+uvx zulipchat-mcp@0.8.0 --zulip-config-file ~/.zuliprc
 ```

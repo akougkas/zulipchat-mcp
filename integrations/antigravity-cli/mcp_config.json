@@ -3,7 +3,7 @@
     "zulipchat": {
       "command": "uvx",
       "args": [
-        "zulipchat-mcp",
+        "zulipchat-mcp@0.8.0",
         "--zulip-config-file",
         "/absolute/path/to/.zuliprc",
         "--extended-tools"
