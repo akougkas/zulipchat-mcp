@@ -627,7 +627,14 @@ def get_database() -> DatabaseManager:
             "Database initialization did not complete; explicitly initialize and verify the account before using persistent state"
         ) from _database_initialization_error
     if _db_manager is None:
-        db_path = os.getenv("ZULIPCHAT_DB_PATH", ".mcp/zulipchat/zulipchat.duckdb")
+        # Persistent state is per account: unbound access would create an
+        # unpruned database in whatever directory the process runs in.
+        db_path = os.getenv("ZULIPCHAT_DB_PATH")
+        if not db_path:
+            raise AccountBindingError(
+                "Persistent state is not initialized; call init_database with the "
+                "account fingerprint, or set ZULIPCHAT_DB_PATH"
+            )
         _db_manager = DatabaseManager(db_path)
     return _db_manager
 

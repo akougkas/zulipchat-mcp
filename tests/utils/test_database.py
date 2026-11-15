@@ -245,3 +245,17 @@ class TestDatabaseManager:
         # Verify calling DatabaseManager() directly also returns the same instance
         db3 = DatabaseManager(":memory:")
         assert db3 is db
+
+
+def test_unbound_database_access_is_refused(monkeypatch, tmp_path):
+    """Without init_database or ZULIPCHAT_DB_PATH, nothing is created in the cwd."""
+    from src.zulipchat_mcp.utils import database
+    from src.zulipchat_mcp.utils.database import AccountBindingError
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ZULIPCHAT_DB_PATH", raising=False)
+    monkeypatch.setattr(database, "_db_manager", None)
+    monkeypatch.setattr(database, "_database_initialization_error", None)
+    with pytest.raises(AccountBindingError, match="not initialized"):
+        get_database()
+    assert list(tmp_path.iterdir()) == []
