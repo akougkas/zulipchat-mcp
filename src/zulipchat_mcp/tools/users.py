@@ -18,16 +18,31 @@ def validate_email(email: str) -> bool:
     return bool(re.match(pattern, email))
 
 
-USER_SUMMARY_FIELDS = (
-    "user_id",
-    "full_name",
-    "email",
-    "role",
-    "is_bot",
-    "is_active",
-    "timezone",
-    "profile_data",
-)
+# Zulip's numeric roles, by the name an agent would ask for.
+ROLES: dict[Any, str] = {
+    100: "owner",
+    200: "admin",
+    300: "moderator",
+    400: "member",
+    600: "guest",
+}
+
+
+def _user_row(user: dict[str, Any]) -> dict[str, Any]:
+    """One member in few tokens: flags only when set, role by name."""
+    row: dict[str, Any] = {
+        "user_id": user.get("user_id"),
+        "name": user.get("full_name"),
+        "email": user.get("email"),
+        "role": ROLES.get(user.get("role"), user.get("role")),
+    }
+    if user.get("is_bot"):
+        row["bot"] = True
+    if user.get("is_active") is False:
+        row["inactive"] = True
+    if user.get("profile_data"):
+        row["profile_data"] = user["profile_data"]
+    return row
 
 
 async def get_users(
@@ -35,8 +50,9 @@ async def get_users(
     include_custom_profile_fields: bool = False,
     user_ids: list[int] | None = None,
     verbose: bool = False,
+    role: Literal["owner", "admin", "moderator", "member", "guest"] | None = None,
 ) -> dict[str, Any]:
-    """Get all users in organization (READ-ONLY). Set verbose for raw objects."""
+    """Organization members; role narrows to one role. Set verbose for raw objects."""
     client = get_client()
 
     try:
@@ -49,19 +65,11 @@ async def get_users(
 
         if result.get("result") == "success":
             users = result.get("members", [])
+            if role is not None:
+                users = [u for u in users if ROLES.get(u.get("role")) == role]
             if not verbose:
-                users = [
-                    {key: user[key] for key in USER_SUMMARY_FIELDS if key in user}
-                    for user in users
-                ]
-
-            return {
-                "status": "success",
-                "users": users,
-                "count": len(users),
-                "client_gravatar": client_gravatar,
-                "include_custom_profile_fields": include_custom_profile_fields,
-            }
+                users = [_user_row(user) for user in users]
+            return {"status": "success", "users": users, "count": len(users)}
         else:
             return api_error(result, "Failed to get users")
 

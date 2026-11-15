@@ -84,9 +84,26 @@ class TestUsersTools:
         mock_deps.get_users.return_value = {"result": "success", "members": [raw]}
 
         assert (await get_users())["users"] == [
-            {"user_id": 1, "full_name": "U", "email": "u1@e.com"}
+            {"user_id": 1, "name": "U", "email": "u1@e.com", "role": None}
         ]
         assert (await get_users(verbose=True))["users"] == [raw]
+
+    @pytest.mark.asyncio
+    async def test_get_users_names_roles_and_filters_by_role(self, mock_deps):
+        mock_deps.get_users.return_value = {
+            "result": "success",
+            "members": [
+                {"user_id": 1, "full_name": "Owner", "role": 100, "timezone": "UTC"},
+                {"user_id": 2, "full_name": "Admin", "role": 200, "is_active": False},
+                {"user_id": 3, "full_name": "Bot", "role": 400, "is_bot": True},
+            ],
+        }
+        rows = (await get_users())["users"]
+        assert [row["role"] for row in rows] == ["owner", "admin", "member"]
+        assert "timezone" not in rows[0]
+        assert rows[1]["inactive"] is True and rows[2]["bot"] is True
+        admins = await get_users(role="admin")
+        assert [row["name"] for row in admins["users"]] == ["Admin"]
 
     @pytest.mark.asyncio
     async def test_get_user_by_id(self, mock_deps):
