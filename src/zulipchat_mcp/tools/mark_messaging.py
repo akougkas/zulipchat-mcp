@@ -13,11 +13,11 @@ from ..utils.narrow_helpers import wire_narrow
 
 
 def _criteria_narrow(
-    stream_id: int | None = None,
+    stream_id: int | str | None = None,
     topic_name: str | None = None,
     sender_email: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Narrow from convenience filters; the channel operand accepts an ID."""
+    """Narrow from convenience filters; the channel operand takes an ID or a name."""
     narrow: list[dict[str, Any]] = []
     if stream_id:
         narrow.append({"operator": "channel", "operand": stream_id})
@@ -142,7 +142,7 @@ async def _flag_matching(
     op: Literal["add", "remove"],
     flag: Literal["read", "starred"],
     narrow: list[dict[str, Any]] | None,
-    stream_id: int | None,
+    stream_id: int | str | None,
     topic_name: str | None,
     sender_email: str | None,
 ) -> dict[str, Any]:
@@ -163,14 +163,15 @@ async def manage_message_flags(
     flag: Literal["read", "starred"],
     action: Literal["add", "remove"],
     scope: Literal["all", "stream", "topic", "narrow"] = "narrow",
-    stream_id: int | None = None,
+    stream_id: int | str | None = None,
     topic_name: str | None = None,
     sender_email: str | None = None,
     narrow: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Mark the entire matching scope read/unread or star/unstar.
 
-    A partial result includes counts for completed pages when a later page fails.
+    stream_id takes a channel ID or name. A partial result includes counts for
+    completed pages when a later page fails.
     """
     if scope == "all":
         with bind_client(get_client()):

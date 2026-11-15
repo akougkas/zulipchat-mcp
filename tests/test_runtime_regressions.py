@@ -158,3 +158,20 @@ async def test_listener_honors_rate_limit_retry_after(monkeypatch):
     monkeypatch.setattr(listener._stop_event, "wait", wait)
     await listener.start()
     assert waits == [300.0]
+
+
+@pytest.mark.asyncio
+async def test_flag_scope_accepts_a_channel_name(monkeypatch):
+    monkeypatch.setattr(mark_messaging, "get_client", MagicMock())
+    update = AsyncMock(
+        return_value={"status": "success", "processed_count": 1, "found_newest": True}
+    )
+    monkeypatch.setattr(mark_messaging, "update_message_flags_for_narrow", update)
+    result = await mark_messaging.manage_message_flags(
+        "starred", "add", scope="topic", stream_id="Agents-Channel", topic_name="t"
+    )
+    assert result["status"] == "success"
+    assert update.call_args.kwargs["narrow"] == [
+        {"operator": "channel", "operand": "Agents-Channel"},
+        {"operator": "topic", "operand": "t"},
+    ]

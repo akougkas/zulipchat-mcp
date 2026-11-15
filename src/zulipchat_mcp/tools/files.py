@@ -10,7 +10,7 @@ import mimetypes
 import os
 from base64 import b64decode, b64encode
 from binascii import Error as Base64Error
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse, urlunparse
 
@@ -308,7 +308,7 @@ async def upload_file(
                 "file_size": validation["metadata"]["size"],
                 "mime_type": mime_type,
                 "hash": validation["metadata"]["hash"],
-                "upload_timestamp": datetime.now().isoformat(),
+                "upload_timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if validation["warnings"]:

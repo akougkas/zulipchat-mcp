@@ -181,14 +181,32 @@ class TestUsersTools:
     @pytest.mark.asyncio
     async def test_get_user_groups(self, mock_deps):
         """Test get_user_groups."""
+        raw = {
+            "id": 1,
+            "name": "role:owners",
+            "description": "Owners",
+            "members": [7, 8],
+            "is_system_group": True,
+            "can_manage_group": 3,
+            "date_created": 1727225467,
+        }
         mock_deps.client.call_endpoint.return_value = {
             "result": "success",
-            "user_groups": [{"id": 1}],
+            "user_groups": [raw],
         }
 
         result = await get_user_groups()
         assert result["status"] == "success"
-        assert result["count"] == 1
+        assert result["user_groups"] == [
+            {
+                "id": 1,
+                "name": "role:owners",
+                "description": "Owners",
+                "member_count": 2,
+                "is_system_group": True,
+            }
+        ]
+        assert (await get_user_groups(verbose=True))["user_groups"] == [raw]
 
     @pytest.mark.asyncio
     async def test_get_user_group_members(self, mock_deps):

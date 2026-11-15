@@ -279,8 +279,10 @@ async def get_presence() -> dict[str, Any]:
         return {"status": "error", "error": str(e)}
 
 
-async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str, Any]:
-    """Get all user groups in organization (READ-ONLY)."""
+async def get_user_groups(
+    include_deactivated_groups: bool = False, verbose: bool = False
+) -> dict[str, Any]:
+    """User groups with member counts; verbose returns Zulip's full records."""
     client = get_client()
 
     try:
@@ -290,17 +292,28 @@ async def get_user_groups(include_deactivated_groups: bool = False) -> dict[str,
                 "user_groups", method="GET", request=request_data
             )
         )
-
-        if result.get("result") == "success":
-            return {
-                "status": "success",
-                "user_groups": result.get("user_groups", []),
-                "count": len(result.get("user_groups", [])),
-                "include_deactivated": include_deactivated_groups,
-            }
-        else:
+        if result.get("result") != "success":
             return api_error(result, "Failed to get user groups")
-
+        groups = result.get("user_groups", [])
+        if not verbose:
+            # Permission-group settings and member lists dwarf what an agent
+            # needs to pick a group; get_user_group_members lists members.
+            groups = [
+                {
+                    "id": group.get("id"),
+                    "name": group.get("name"),
+                    "description": group.get("description") or None,
+                    "member_count": len(group.get("members") or []),
+                    **(
+                        {"is_system_group": True}
+                        if group.get("is_system_group")
+                        else {}
+                    ),
+                    **({"deactivated": True} if group.get("deactivated") else {}),
+                }
+                for group in groups
+            ]
+        return {"status": "success", "user_groups": groups, "count": len(groups)}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
