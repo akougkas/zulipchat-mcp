@@ -48,7 +48,6 @@ servers:
     poll_agent_events: execute
     register_agent: execute
     register_events: execute
-    reply: execute
     request_user_input: execute
     resolve_topic: destructive
     resolve_user: read
@@ -62,6 +61,5 @@ servers:
     update_message_flags_for_narrow: execute
     update_status: execute
     upload_file: execute
-    wait_for_mentions: execute
     wait_for_response: execute
 

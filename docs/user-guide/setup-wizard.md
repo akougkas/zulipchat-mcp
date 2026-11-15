@@ -13,7 +13,7 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 1. Scans for candidate `zuliprc` files.
 2. Validates credentials by calling Zulip profile API.
 3. Lets you configure optional bot identity.
-4. Lets you choose tool mode: core (19) or extended (55).
+4. Lets you choose tool mode: core (19) or extended (53).
 5. Generates config snippets for:
    - Claude Code
    - Claude Desktop

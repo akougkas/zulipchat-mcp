@@ -1,7 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
   "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
-  "registered_tools": 55,
+  "registered_tools": 53,
   "operations": [
     {
       "method": "POST",
@@ -63,10 +63,7 @@
         "get_events",
         "listen_events",
         "poll_agent_events",
-        "reply",
         "request_user_input",
-        "teleport_chat",
-        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -86,10 +83,7 @@
       "tools": [
         "deregister_events",
         "listen_events",
-        "poll_agent_events",
-        "reply",
-        "teleport_chat",
-        "wait_for_mentions"
+        "poll_agent_events"
       ],
       "wrappers": [
         "deregister"
@@ -110,8 +104,7 @@
         "edit_draft",
         "get_stream_info",
         "resolve_topic",
-        "set_topic_visibility",
-        "teleport_chat"
+        "set_topic_visibility"
       ],
       "wrappers": [
         "get_stream_id"
@@ -505,12 +498,9 @@
       "tools": [
         "get_daily_summary",
         "poll_agent_events",
-        "reply",
         "request_user_input",
         "resolve_topic",
         "search_messages",
-        "teleport_chat",
-        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -533,10 +523,10 @@
       ],
       "tools": [
         "agent_message",
+        "ask_owner",
         "close_agent_session",
         "cross_post_message",
         "manage_files",
-        "reply",
         "request_user_input",
         "send_message",
         "teleport_chat",
@@ -613,9 +603,7 @@
         "messages"
       ],
       "tools": [
-        "add_reaction",
-        "teleport_chat",
-        "wait_for_mentions"
+        "add_reaction"
       ],
       "wrappers": [
         "add_reaction"
@@ -863,9 +851,7 @@
       "tools": [
         "get_own_user",
         "poll_agent_events",
-        "reply",
-        "teleport_chat",
-        "wait_for_mentions"
+        "teleport_chat"
       ],
       "wrappers": [],
       "status": "registered_tool",
@@ -1022,13 +1008,11 @@
       "tags": [
         "channels"
       ],
-      "tools": [
-        "teleport_chat"
-      ],
+      "tools": [],
       "wrappers": [
         "add_subscriptions"
       ],
-      "status": "registered_tool"
+      "status": "wrapper_only"
     },
     {
       "method": "DELETE",
@@ -1519,7 +1503,8 @@
         "users"
       ],
       "tools": [
-        "get_user"
+        "get_user",
+        "teleport_chat"
       ],
       "wrappers": [
         "get_user_by_email",
@@ -1781,10 +1766,7 @@
         "listen_events",
         "poll_agent_events",
         "register_events",
-        "reply",
         "request_user_input",
-        "teleport_chat",
-        "wait_for_mentions",
         "wait_for_response"
       ],
       "wrappers": [
@@ -2236,11 +2218,11 @@
   "counts": {
     "documentation_reference": 3,
     "not_exposed": 103,
-    "registered_tool": 48,
+    "registered_tool": 47,
     "sdk_bootstrap": 1,
-    "wrapper_only": 11
+    "wrapper_only": 12
   },
-  "method": "Static registered-tool/client/SDK call reachability, with manually reviewed coordinator, listener, analytics and command-engine paths. A mapped endpoint is not certification of all parameters or live permissions.",
+  "method": "Static registered-tool/client/SDK call reachability, with manually reviewed coordinator, listener, analytics and command-engine paths. A mapped endpoint is not certification of all parameters or live permissions. registered_tools counts the extended surface; ask_owner, registered only inside agents launched by zulipchat-mcp-agents, is listed but not counted.",
   "reviewed_at_utc": "2026-10-09T16:28:29.246349+00:00",
   "source_retrieved_date": "2026-10-09",
   "rest_operation_count": 163

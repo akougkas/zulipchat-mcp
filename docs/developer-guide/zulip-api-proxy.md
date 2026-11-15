@@ -8,10 +8,10 @@ installed Zulip SDK 0.9.1. The reviewed OpenAPI bytes have SHA-256
 `d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28`.
 Upstream documentation on `main` changes independently of this release.
 
-ZulipChat MCP is a curated agent interface to Zulip. Its 21 core or 55 extended
+ZulipChat MCP is a curated agent interface to Zulip. Its 19 core or 53 extended
 tools cover messaging, search, channels/topics, people, drafts, scheduled
-messages, reminders, attachments, reactions, flags, events, the bot inbox, and
-durable agent sessions. It does not expose unrestricted REST forwarding. Authentication-key
+messages, reminders, attachments, reactions, flags, events, bot mention polling,
+agent-bot handoff, and durable agent sessions. It does not expose unrestricted REST forwarding. Authentication-key
 creation, organization administration, invitations, mobile push, and many
 browser-specific operations remain outside the registered surface. Some
 additional operations exist only as internal client wrappers.
@@ -68,9 +68,9 @@ minimum delay, and failures use bounded exponential backoff and the server's
 retry delay.
 
 One producer per local inbox is enforced with an OS advisory lock held by its
-worker for its lifetime. Another process cannot start a competing producer;
-it reports `INBOX_ALREADY_OWNED` in listener health. Connect multiple hosts to
-the existing server. A server can lazily watch at most four channels. These
+worker for its lifetime. Another process for the same account does not start a
+competing producer: it follows the owner's snapshot and takes over if that
+process exits. A server can lazily watch at most four channels. These
 local locks and caches do not provide distributed ownership across machines.
 
 On queue expiration, the producer registers a replacement before recovering
@@ -165,7 +165,9 @@ Reply in the original topic using the configured bot and `agent_message`.
 The MCP server owns Zulip credentials, API translation, local persistence,
 message transport and correlated question/approval state. Clio, Codex or another
 host owns model selection, process launch, workspace admission, native tool
-permissions, cancellation and completed-task receipts. Receiving `/cancel`
+permissions, cancellation and completed-task receipts. The separate
+`zulipchat-mcp-agents` bridge is the one component that launches agents; see
+[Agent bots](../integrations/agent-bots.md). Receiving `/cancel`
 does not prove an OS process stopped. Installing an MCP declaration or skill
 does not start an unattended runner. Ordinary mentions require no `/reply`;
 explicit questions and approvals retain request IDs to disambiguate them.

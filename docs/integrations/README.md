@@ -15,6 +15,7 @@ Each page below includes copy-paste setup for one client.
 - [Antigravity CLI](antigravity-cli.md)
 - [Agent Skills and Plugins](agent-skills.md)
 - [Topic-bound agent workflow](agent-workflow.md)
+- [Agent bots](agent-bots.md): talk to local ACP agents from Zulip through `zulipchat-mcp-agents`
 - [Generic MCP Client](generic.md)
 
 ## Shared baseline command

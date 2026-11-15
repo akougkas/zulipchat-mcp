@@ -33,9 +33,9 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 55 tools instead of the 21-tool core set
+- `--extended-tools`: Register all 53 tools instead of the 19-tool core set
 - `--tool-profile {full,read-only}`: Enforce the selected Zulip tool surface (`full` by default)
-- `--ephemeral-state`: Requires `--tool-profile read-only`. Keeps local state in a private temporary database removed at exit, instead of the account database. Use it where the state directory is not writable, such as a Clio read-only worker sandbox. Sessions, approvals and the mention inbox do not persist.
+- `--ephemeral-state`: Requires `--tool-profile read-only`. Keeps local state in a private temporary database removed at exit, instead of the account database. Use it where the state directory is not writable, such as a Clio read-only worker sandbox. Sessions and approvals do not persist.
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
 - `--host HOST`: Bind host for `--transport http` (default: `127.0.0.1`)
 - `--port PORT`: Bind port for `--transport http` (default: `8000`)
@@ -58,7 +58,7 @@ For bounded discovery and Zulip reads, use:
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --tool-profile read-only
 ```
 
-The profile exposes nine core reads, or 23 with `--extended-tools`. Discovery
+The profile exposes seven core reads, or 22 with `--extended-tools`. Discovery
 omits writes and mixed-operation tools. A direct call to an excluded tool is
 also rejected with `isError=true`, `error_code="POLICY_DENIED"`, and
 `retryable=false`, before the operation executes. `resolve_user` is a read and
@@ -71,7 +71,7 @@ transport, and availability of identity switching. Use this information and
 the current tool schemas to plan calls. The profile covers the configured
 account; it does not confine reads to one channel, sandbox the coding host, or
 make the server's local database and caches immutable. The `full` profile
-retains the 21/55-tool surface and existing safety checks.
+retains the 19/53-tool surface and existing safety checks.
 
 Application failures now set MCP `isError=true` while preserving structured
 error details. Partial delivery retains its message IDs and is not converted

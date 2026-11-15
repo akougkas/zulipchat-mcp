@@ -8,7 +8,8 @@
 - `add_reaction(message_id, emoji_name, emoji_code=None, reaction_type="unicode_emoji", remove=False)`
 - `manage_message_flags(flag, action, scope="narrow", stream_id=None, topic_name=None, sender_email=None, narrow=None)`
 
-Bot-inbox replies use `reply`; see the [Agents API](agents.md).
+To post one message as the bot, pass `as_bot=True`. Handing a conversation to
+an agent bot uses `teleport_chat`; see the [Agents API](agents.md).
 
 ## Extended tools
 

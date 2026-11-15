@@ -211,10 +211,7 @@ def register_core_tools(mcp: FastMCP) -> None:
         mcp,
         poll_agent_events,
         name="poll_agent_events",
-        description=(
-            "Read owner steering events for a bound agent session. For bot "
-            "mentions and DMs use wait_for_mentions."
-        ),
+        description=("Read owner steering events for a bound agent session."),
         title="Poll agent events",
     )
 

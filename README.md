@@ -46,7 +46,7 @@ ZulipChat MCP bridges any MCP-compatible AI assistant (Claude Code, Gemini CLI, 
 - **Switch identities** — post as yourself or as a bot, in the same session
 - **Monitor activity** — search recent messages, get stream info, check who's online
 - **Bind sessions to Zulip topics** — give long-running agent sessions a stable control topic
-- **Receive ordinary bot mentions** — an event-fed local inbox that your own host adapter polls to wake an agent and reply in the source topic, without `/reply` for conversation. The server is the transport; it does not launch or supervise coding agents
+- **Talk to local coding agents from Zulip** through the `zulipchat-mcp-agents` bridge, which pairs one Zulip bot per agent with an ACP agent on your machine ([Agent bots](docs/integrations/agent-bots.md))
 - **Reuse dated snapshots** — short-lived message caches and rate-aware request admission reduce repeated API reads
 - **Request approvals in-topic** — owner replies with `/approve REQUEST_ID` or `/deny REQUEST_ID` in the session topic; each decision names the request it answers
 - **Load Agent Skills** — four packaged instructions for messaging, session control, notifications, and bounded work loops, available as local files and MCP Resources
@@ -73,17 +73,14 @@ Clio configures MCP execution separately from plugin content. See the
 
 For read-only access, add `--tool-profile read-only`: discovery and execution
 both expose seven core reads or 22 extended reads. The default full profile
-has 21 core tools and 55 extended. `--tool-profile bot` exposes only the bot
-inbox, reads with the bot's visibility, and `reply`. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
+has 19 core tools and 53 extended. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
 for cache freshness, rate limits and the boundary between message transport and
-host execution. The [live Luna experiment](docs/testing/clio-bot-mentions.md)
-records normal mention-to-bot replies from a real Clio TUI driven by a private,
-unshipped host adapter. Other hosts were tested through exported configuration
-and fake-credential checks, not live sessions.
+host execution. Hosts were tested through exported configuration and
+fake-credential checks, not live sessions.
 
 ## Tool Set
 
-**21 core tools** by default, **55** with `--extended-tools`. Hosts that search
+**19 core tools** by default, **53** with `--extended-tools`. Hosts that search
 tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
 
 | Category | Core tools |
@@ -91,19 +88,28 @@ tools lazily (Clio Coder, Claude Code) pay almost nothing for the larger set.
 | **Messaging** | `send_message` (names, emails or IDs), `edit_message`, `get_message`, `add_reaction` |
 | **Reading** | `search_messages`, `get_streams`, `get_stream_topics`, `manage_message_flags` |
 | **Users** | `resolve_user`, `get_users` |
-| **Bot inbox** | `wait_for_mentions`, `reply`, `teleport_chat` |
+| **Agent bots** | `teleport_chat` (plus `ask_owner` inside agents the bridge launches) |
 | **Agent sessions** | `register_agent`, `ensure_agent_session`, `agent_message`, `request_user_input`, `wait_for_response`, `poll_agent_events` |
 | **System** | `server_info`, `switch_identity` |
 
 ### Talk to your agent from Zulip
 
-Mention your bot in any channel it is subscribed to, or DM it.
-`wait_for_mentions` hands your request to the coding agent and `reply` answers
-in the same conversation as the bot. Only the configured owner is heard,
-matched by Zulip user ID; anyone else is ignored without a reply, so the bot
-reveals nothing about your machine. `teleport_chat(to="me")` moves an ongoing
-conversation into your DMs with the bot. See the
-[Clio guide](docs/integrations/clio-coder.md#invoke-clio-from-zulip).
+`zulipchat-mcp-agents` runs on your machine and serves agent bots: one Zulip
+Generic bot per coding agent that speaks the Agent Client Protocol (Clio Coder,
+OpenCode, Goose, Gemini CLI, and Claude Code or Codex through their ACP
+adapters).
+
+```bash
+uvx --from zulipchat-mcp zulipchat-mcp-agents add clio --owner-zuliprc ~/.zuliprc --cwd ~/projects
+uvx --from zulipchat-mcp zulipchat-mcp-agents run
+```
+
+DM the bot, or mention it in a channel topic, and the bridge runs the agent in
+a session for that conversation. Only the bot's owner, and user IDs you list,
+are heard; anyone else gets no reply. The bridge connects out to Zulip and
+opens no ports. From a running agent, `teleport_chat(agent, message,
+session_id)` hands the conversation to that bot. The bridge has not yet been
+tested live against Zulip. See [Agent bots](docs/integrations/agent-bots.md).
 
 ### Extended Mode
 
@@ -118,7 +124,7 @@ Or via environment variable:
 ZULIPCHAT_EXTENDED_TOOLS=1 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-Extended mode adds: `toggle_reaction`, `cross_post_message`, `advanced_search`, `construct_narrow`, `get_scheduled_messages`, `manage_scheduled_message`, `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
+Extended mode adds: `cross_post_message`, `get_scheduled_messages`, `manage_scheduled_message`, `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
 
 ## Installation
 
@@ -188,7 +194,7 @@ Add to your MCP configuration:
 |--------|-------------|
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
-| `--extended-tools` | Register all 55 tools instead of the 21-tool core set |
+| `--extended-tools` | Register all 53 tools instead of the 19-tool core set |
 | `--tool-profile {full,read-only}` | Filter discovery and enforce read-only Zulip calls; default: `full` |
 | `--ephemeral-state` | With `--tool-profile read-only`, keep local state in a temporary database removed at exit (for sandboxes with no writable state directory) |
 | `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
@@ -251,7 +257,7 @@ uvx zulipchat-mcp \
   --zulip-bot-config-file ~/.zuliprc-bot
 ```
 
-The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` to post one message as the bot, or call `switch_identity` to change the default. The bot is also the identity that listens for your mentions and replies to them.
+The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` to post one message as the bot, or call `switch_identity` to change the default. Agent bots for the [bridge](docs/integrations/agent-bots.md) are separate Generic bots with their own zuliprc files.
 
 ## Real-World Examples
 
@@ -270,8 +276,8 @@ The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` 
 **"DM Jaime that the PR is ready"**
 → Assistant calls `send_message(type="direct", to="Jaime", ...)`. One call; an ambiguous name returns candidates and sends nothing.
 
-**"Ping me on Zulip when the build finishes, I'm heading out"**
-→ Assistant calls `teleport_chat(to="me", ...)` and keeps answering your DMs through `wait_for_mentions`.
+**"Continue this on Zulip, I'm heading out"**
+→ Assistant calls `teleport_chat(agent="clio", message=..., session_id=...)`; the Clio bot DMs you and the bridge resumes the session when you reply.
 
 ## Development
 
@@ -305,6 +311,7 @@ src/zulipchat_mcp/
 ├── core/           # Client wrapper, identity, caching, security
 ├── tools/          # MCP tool implementations (two-tier registration)
 ├── services/       # Background listener and session event routing
+├── agents/         # zulipchat-mcp-agents bridge (agent bots over ACP)
 ├── utils/          # Logging, DuckDB persistence, metrics
 └── config.py       # config loading (zuliprc + environment fallback)
 ```

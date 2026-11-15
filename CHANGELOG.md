@@ -4,40 +4,40 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
-## [0.8.0] - 2026-11-15
+## [0.8.0] - Unreleased
 
-Built for Clio Coder 0.8 and checked through Clio's own MCP client on MCP 2026-07-28 against a mock Zulip. The owner can now drive a coding agent from Zulip by mentioning the bot, everyone else is ignored, and ordinary Zulip work takes fewer calls and far fewer tokens.
+Built for Clio Coder 0.8 and checked through Clio's own MCP client on MCP 2026-07-28 against a mock Zulip. A new local bridge lets the owner talk to coding agents on their machine through one Zulip bot per agent, and ordinary Zulip work takes fewer calls and far fewer tokens.
 
 ### Added
-- **Owner-only bot inbox.** `wait_for_mentions` returns the owner's @-mentions of the bot in every channel the bot receives, plus direct messages to the bot, as requests with `request_id`, `from`, `where` and `text`. The server keeps the delivery cursor, starts from now on first use, and reacts with :eyes: when a request is taken. Messages from anyone the mention policy does not admit are counted in `ignored_unauthorized` and never shown. It runs as an MCP task for hosts that support them.
-- `reply(request_id, content)` answers as the bot in the exact conversation that asked and refuses any request `wait_for_mentions` did not deliver.
-- `teleport_chat` hands the current conversation to Zulip: `to="me"` opens a DM from the bot to the owner, and `to="#channel"` with a topic opens a topic where every owner message reaches the inbox without a mention. It no longer messages other people; use `send_message`.
-- `--tool-profile bot` for sessions invoked from Zulip exposes only listening, reading and `reply`, and pins every call to the bot identity, so an answer posted in a channel can only contain what the bot could already see.
+- **Agent bridge `zulipchat-mcp-agents`** (`add`, `list`, `run`, `service`). Each agent bot is a Zulip Generic bot declared in `~/.config/zulipchat-mcp/agents/<name>.toml` and paired with a local agent that speaks the Agent Client Protocol (ACP). The bridge holds the bot's event queue over outbound HTTPS and opens no ports. Each conversation with the bot, a DM or one channel topic where it is mentioned, is one ACP session; agents start on demand, stop after `idle_minutes`, and resume through `session/resume` or `session/load`. Only the bot's owner in Zulip and the file's `allow` user IDs are heard; anyone else gets no reply. ACP permission requests are asked in the conversation and expire as a denial. `add --owner-zuliprc` creates the bot through `POST /bots`. See [Agent bots](docs/integrations/agent-bots.md).
+- `teleport_chat(agent, message, session_id=None, cwd=None)` hands the current conversation to the owner's agent bot named `agent`: the bot DMs the owner, and the bridge resumes `session_id` when given or starts a fresh session in `cwd`. Stdio only.
+- `ask_owner(question, question_id=None, wait_seconds=300)` asks the owner in the agent's own Zulip conversation and waits; a timeout returns `pending` with the `question_id` to keep waiting. It is registered only inside agents the bridge launched.
 - `send_message` sends direct messages to people by name, email or user ID in one call. A name must match exactly one active person by full name, first name or unique prefix; otherwise nothing is sent and `candidates` are returned. Results include Zulip's `message_link`.
 - Extended tools `resolve_topic`, `set_topic_visibility`, `manage_reminders`, `set_typing`, `get_read_receipts` and `get_message_history`.
 - `search_messages(is_unread=True)`.
-- Clio Coder exports declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit, move, resolve or delete, and `execute` otherwise. `--tool-profile read-only` and `--tool-profile bot` export restricted declarations; read-only adds `--ephemeral-state` for sandboxed workers.
+- Clio Coder exports declare `toolActionClasses` for every tool: `read` for the read-only set, `destructive` for tools that edit, move, resolve or delete, and `execute` otherwise. `--tool-profile read-only` exports a restricted declaration and adds `--ephemeral-state` for sandboxed workers.
 - `search_messages` returns `sample.next_cursor` and `sample.completeness` for cursor paging, bound to the account, filters, window and order.
 - `get_stream_topics` accepts `stream_name`.
 
 ### Changed
 - **Reads are compact by default.** `search_messages` returns Markdown and 20 rows. Each row is `id`, `from`, minute-precision `time` and `text`; `channel` and `topic` appear only when the query did not fix them, reactions collapse to emoji counts, and nulls are dropped. `content_format="rendered_html"` restores HTML.
 - `get_streams` and `get_users` return compact summaries by default; `verbose=True` returns the raw objects.
-- The core profile has 21 tools: it gains `wait_for_mentions`, `reply` and `poll_agent_events` and moves `get_stream_info` and `get_own_user` to extended. Extended has 55. Every description leads with one self-contained sentence for hosts that search tools lazily.
+- The core profile has 19 tools: it gains `poll_agent_events` and moves `get_stream_info` and `get_own_user` to extended. Extended has 53. The read-only profile exposes 7 core or 22 extended reads. Every description leads with one self-contained sentence for hosts that search tools lazily.
+- `teleport_chat` now targets an agent bot by name. Its former `to`, `wait_for_reply`, `reply_timeout`, `channel` and `topic` arguments are gone; message people and channels with `send_message`.
 - `add_reaction(remove=True)` replaces `toggle_reaction`. `get_daily_summary` is a data-only read.
 - Zulip calls use current API forms by feature level: `direct`/`channel` message types, `channel`, `is:dm` and `dm-including` narrow operators, `POST /user_topics` for topic visibility, `GET /streams/{id}` for one channel, `GET /users?user_ids=` for several users, one date-anchored fetch for the daily summary, and repeated `delete_topic` calls until the server reports completion.
 - Tool listings are cacheable for an hour on MCP 2026-07-28.
-- Dependencies: FastMCP 4.1.4 (GHSA-7xgj-8392-5q4r, GHSA-vqqp-x5qm-5qp4), authlib 1.9.1, joserfc 1.7.7 and certifi 2026.10.23 floors.
+- Dependencies: FastMCP floor 4.1.4 (GHSA-7xgj-8392-5q4r, GHSA-vqqp-x5qm-5qp4); new direct floors authlib 1.9.1, joserfc 1.7.6 and certifi 2026.10.18.
 
 ### Removed
 - `execute_chain`, `list_command_types` and the command engine; `construct_narrow` and `advanced_search`, which duplicated `search_messages`; `list_instances`, `manage_task`, `send_agent_status`, `is_user_group_member`, `toggle_reaction` and `agents_channel_topic_ops`.
-- `analyze_stream_with_llm`, `analyze_team_activity_with_llm` and `intelligent_report_generator`, along with the server-side Anthropic provider and the `anthropic` dependency. The calling agent summarizes `search_messages` and `get_daily_summary` output itself.
+- `analyze_stream_with_llm`, `analyze_team_activity_with_llm` and `intelligent_report_generator`, along with the server-side Anthropic provider and the `anthropic` and `prometheus-client` dependencies. The calling agent summarizes `search_messages` and `get_daily_summary` output itself.
 
 ### Fixed
 - The mention policy matches the owner by numeric user ID. Realms that hide email addresses report the owner's messages under a `userNNN@` placeholder, which the email comparison silently dropped.
-- Several hosts for one account share the bot inbox: one process holds the Zulip event queue and the others follow its snapshot, taking over if it exits, instead of failing with `INBOX_ALREADY_OWNED`. Delivery is compare-and-set, so each request reaches exactly one host.
+- Several processes for one account share the bot mention inbox: one holds the Zulip event queue and the others follow its snapshot, taking over if it exits, instead of failing with `INBOX_ALREADY_OWNED`.
 - The listener and `listen_events` honor Zulip's `retry-after` on rate limits.
-- `wait_for_response`, `listen_events` and `teleport_chat` no longer fail with `-32603` when an MCP 2026-07-28 client declares the Tasks extension.
+- `wait_for_response` and `listen_events` no longer fail with `-32603` when an MCP 2026-07-28 client declares the Tasks extension.
 - Invalid `after_time`/`before_time` errors name the parameter and the ISO 8601 form. An account database that cannot be opened for a reason other than a lock is no longer reported as locked.
 
 ## [0.7.6] - 2026-10-09

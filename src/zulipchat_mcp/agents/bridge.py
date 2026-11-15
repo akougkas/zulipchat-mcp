@@ -221,6 +221,7 @@ class AgentBridge:
             await self._command(key, text, message)
             return
         conversation = self._conversation(key, message)
+        await self._reconcile(conversation)
         conversation.pending.append({**message, "text": text})
         conversation.wake.set()
 
@@ -323,6 +324,18 @@ class AgentBridge:
                     conversation.destination["to"], conversation.destination["topic"]
                 )
         return conversation
+
+    async def _reconcile(self, conversation: Conversation) -> None:
+        """Adopt a binding changed outside this conversation (/new, teleport)."""
+        if conversation.busy:
+            return
+        bound = self.store.conversation(conversation.key)
+        if not bound:
+            return
+        session_id, cwd = bound.get("session_id"), Path(bound["cwd"])
+        if session_id != conversation.session_id or cwd != conversation.cwd:
+            await self._close(conversation)
+            conversation.session_id, conversation.cwd = session_id, cwd
 
     async def _worker(self, conversation: Conversation) -> None:
         while True:

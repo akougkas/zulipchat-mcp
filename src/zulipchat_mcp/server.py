@@ -97,7 +97,7 @@ def main() -> None:
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all 55 tools instead of the 21-tool core set.",
+        help="Register all 53 tools instead of the 19-tool core set.",
     )
     parser.add_argument(
         "--tool-profile",
@@ -190,8 +190,8 @@ def main() -> None:
             parser.error(
                 "Non-loopback HTTP requires --auth-token or ZULIPCHAT_HTTP_AUTH_TOKEN"
             )
-        if not 1 <= args.port <= 65535:
-            parser.error("HTTP port must be between 1 and 65535")
+        if not 1 <= args.port <= 65335:
+            parser.error("HTTP port must be between 1 and 65335")
 
     # Setup logging
     setup_structured_logging("DEBUG" if args.debug else "INFO")
@@ -313,9 +313,9 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (55 tools)")
+        logger.info("Registered extended tool set (53 tools)")
     else:
-        logger.info("Registered core tool set (21 tools)")
+        logger.info("Registered core tool set (19 tools)")
 
     logger.info("Starting ZulipChat MCP server (transport=%s)...", args.transport)
     if args.transport == "http":

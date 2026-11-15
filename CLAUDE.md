@@ -2,13 +2,22 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.8.0)
+## Current Status (v0.8.0, unreleased)
 
-**Current release**: v0.8.0. Confirm what is actually live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json` before claiming a version is published.
+**PyPI has 0.7.6.** v0.8.0 lives on branch `release/v0.8.0` and is NOT released. The owner decides when to release; never tag, push, or publish without an explicit instruction. Check what is live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json`.
 
-Install: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`
+Install from PyPI: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`. Install this branch locally for dogfooding: `uv tool install --force --from . zulipchat-mcp` (provides `zulipchat-mcp`, `zulipchat-mcp-agents`, `zulipchat-mcp-integrate`).
 
 Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help`. Always use `--from zulipchat-mcp` for the setup wizard, integration exporter, and hook bridge.
+
+### Production safety: grc-iit (grc.zulipchat.com)
+The owner's real organization is production. Only the owner (Anthony Kougkas, user ID 502495, `~/.zuliprc-grc`) and his bot Clio-Coder (user ID 1213477, `~/.zuliprc-grc-bot`, owner 502495) may be involved in any live test. Never message, mention, DM, react to, or create topics involving any other person; never post in shared channels for testing (prefer DMs between the owner and the bot). Never create or delete bots, change subscriptions, or edit other people's messages there without an explicit instruction. Read-only calls are fine. Use a mock Zulip (see `scripts/clio_mcp_smoke.mjs`) for anything else.
+
+### Where the work stands
+- Done on the branch: dependency security bumps (FastMCP 4.1.4, authlib 1.9.1), Zulip API corrections by feature level, compact Markdown reads, `send_message` by name, owner matched by user ID, removal of 13 redundant or LLM-calling tools and about 7,000 lines of dead code, and the agent bridge below.
+- The agent bridge has unit and fake-agent tests and real `start`/`open_session`/resume probes of clio-coder, opencode and goose. It has NOT been run live against Zulip with a real prompt yet.
+- Declared on the owner's machine: `~/.config/zulipchat-mcp/agents/clio.toml` (Clio-Coder bot, `clio-coder acp`, cwd `~/projects`, allowed `~/projects` and `~/iowarp`). The owner's Clio config `~/.config/clio-coder/mcp.yaml` runs this branch's MCP server as `zulipchat-grc` with per-tool action classes (backup `mcp.yaml.bak-2026-11-15-zulipchat`).
+- Next: dogfood the bridge with Clio Coder and Claude Code locally (owner DMs the bot), then iterate. Open questions: streaming progress while a long turn runs, reactions as answers to permission requests, a Claude Code agent bot via `@agentclientprotocol/claude-agent-acp`, teleport from a live Clio or Claude session, and whether channels should require a mention on every message.
 
 ## Project Overview
 
@@ -68,6 +77,7 @@ src/zulipchat_mcp/
 ├── tools/          # MCP tool implementations (messaging, streams, search, events, users, files)
 ├── utils/          # Shared utilities (logging, database, health, metrics)
 ├── services/       # Background services (scheduler, message listener)
+├── agents/         # Local bridge: Zulip agent bots <-> ACP coding agents
 ├── integrations/   # AI client integrations
 └── config.py       # Configuration management
 ```
@@ -122,13 +132,13 @@ register_tool(
     task=optional_background_task(),  # only for long-running tools
 )
 ```
-Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `wait_for_mentions`, `teleport_chat`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
+Server-wide task advertisement is intentionally disabled in `server.py` (commit `70d3779`). Pass `task=optional_background_task()` only for genuinely long-running tools (e.g. `ask_owner`, `wait_for_response`, `listen_events`). Normal fast tools omit `task=`.
 
 ## Tool Modes
 
-- **Default**: 21 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`.
-- **Extended (55 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
-- **Profiles** (`core/tool_contract.py`): `full`, `read-only` (`READ_ONLY_TOOLS`), and `bot` (`BOT_TOOLS`: inbox, reads and `reply`, every call pinned to the bot identity).
+- **Default**: 19 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`. `ask_owner` is added only inside agents the bridge launches (`ZULIPCHAT_AGENT_STATE` set).
+- **Extended (53 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Profiles** (`core/tool_contract.py`): `full` and `read-only` (`READ_ONLY_TOOLS`).
 
 `tools/__init__.py` is the only place tools are registered. Each description leads with one self-contained sentence: Clio's `gateway(op="find")` shows only that sentence.
 
@@ -201,11 +211,14 @@ claude mcp add zulipchat -e ZULIP_EMAIL=bot@your-org.zulipchat.com -e ZULIP_API_
 
 ## Agent-Facing Behavior
 
-### Owner-only bot inbox (`tools/inbox.py`, `services/bot_mentions.py`)
-- `wait_for_mentions` returns the owner's @-mentions of the bot in any channel the bot receives plus DMs to the bot. One shared SQLite snapshot per account; one process holds the Zulip event queue lease and other processes follow it. The delivery cursor advances by compare-and-set (`BotMentionInbox.claim`), so each request reaches one host.
-- The sender gate is `MentionAllow.allows(..., owner_id=...)`: the owner is matched by numeric user ID because realms that hide emails report `userNNN@` placeholders.
-- `reply(request_id, content)` posts as the bot into the conversation that produced the request and refuses anything not delivered.
-- `teleport_chat` hands a conversation to the owner (`to="me"` DM, or `#channel` + topic, which is added to the inbox's watched topics).
+### Agent bridge (`agents/`, command `zulipchat-mcp-agents`)
+The MCP server is a tool surface; it cannot wake an agent. Inbound Zulip-to-agent traffic belongs to the bridge, a local process the owner runs (`zulipchat-mcp-agents run`, or a systemd user unit from `zulipchat-mcp-agents service`).
+- One Zulip Generic bot per agent, declared in `~/.config/zulipchat-mcp/agents/<name>.toml` (`agents/config.py`). `zulipchat-mcp-agents add` writes it and can create the bot with the owner's key (`agents/provision.py`, `POST /bots`).
+- The bridge holds the bot's event queue (`services/bot_mentions.py`, `ALL_SCOPE`, lease plus compare-and-set cursor) over outbound HTTPS only. Owner = the bot's `bot_owner_id` in Zulip plus `allow` user IDs; everyone else is dropped without a reply.
+- Each conversation (a DM with the bot, or a channel topic where the bot is mentioned) is one ACP session (`agents/bridge.py`), driven by the hand-rolled ACP client `agents/acp.py`. Agents start on the first message, stop after `idle_minutes`, and resume with `session/resume` or `session/load`. State lives in `~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`).
+- Agents boot under their own permission policy. ACP `session/request_permission` is asked in the conversation; `yes`/`no` answers it and silence means no. `ask_owner` (in `tools/handoff.py`) uses the same questions table. `teleport_chat` binds a conversation to an agent bot so the owner continues in a DM.
+- Bridge commands: `/status`, `/cancel`, `/new`, `/cwd PATH`, `/approve ID`, `/deny ID`. The agent environment never carries `ZULIP*` variables; it gets this MCP server injected with the bot's zuliprc.
+- Tests: `tests/agents/` (fake ACP agent `tests/agents/fake_acp_agent.py`).
 
 ### Token discipline
 - Message rows come from `search.compact_message`: `id`, `from`, `time`, `text`, plus channel/topic only when not fixed by the query. Default `content_format` is Markdown and default `limit` is 20.

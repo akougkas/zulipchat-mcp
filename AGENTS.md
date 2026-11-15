@@ -2,13 +2,13 @@
 
 ## Current Status (v0.8.0)
 
-**Current release**: v0.8.0 on [PyPI](https://pypi.org/project/zulipchat-mcp/). Install: `uvx zulipchat-mcp`.
+**v0.8.0 is not yet released.** The latest version on [PyPI](https://pypi.org/project/zulipchat-mcp/) is v0.7.6. Install: `uvx zulipchat-mcp`.
 
 ## Project Structure & Module Organization
 - Source code lives in `src/zulipchat_mcp/`:
-  - `tools/` (tool groups), `core/` (client, cache, commands), `services/` (listener, scheduler), `integrations/` (client installers), `utils/` (logging, metrics, db).
+  - `tools/` (tool groups), `core/` (client, cache, commands), `services/` (listener, scheduler), `integrations/` (client installers), `agents/` (agent-bot bridge: config, store, ACP client, provisioning, CLI), `utils/` (logging, metrics, db).
 - Tests are in `tests/` (pytest with `slow` and `integration` markers).
-- Config via CLI flags or environment; copy `.env.example` to `.env` for local dev. Entry points: `zulipchat-mcp`, `zulipchat-mcp-integrate`, `zulipchat-mcp-setup`, `zulipchat-mcp-hook`.
+- Config via CLI flags or environment; copy `.env.example` to `.env` for local dev. Entry points: `zulipchat-mcp`, `zulipchat-mcp-integrate`, `zulipchat-mcp-setup`, `zulipchat-mcp-hook`, `zulipchat-mcp-agents`.
 
 ## Build, Test, and Development Commands
 - `uv sync` — install dependencies.
@@ -57,13 +57,16 @@ retain the same request ID. For reliable steering delivery, poll with
 `auto_ack=False`, then acknowledge handled IDs within the same session/agent
 scope. Default polling excludes outbound and unauthorized audit records.
 
-For conversational bot entry, the owner mentions the bot in any channel it
-receives or DMs it. `wait_for_mentions` returns those requests from one shared,
-event-fed inbox per account and `reply(request_id, content)` answers as the bot
-in the originating conversation. Only senders admitted by `--mention-allow`
-(default: the owner, matched by user ID) are returned; others are counted in
-`ignored_unauthorized` without content and never answered. MCP never launches a
-coding process or treats mention text as executable code.
+For conversational entry from Zulip, run the agent bridge
+`zulipchat-mcp-agents` (`src/zulipchat_mcp/agents/`). Each agent bot is a Zulip
+Generic bot declared in `~/.config/zulipchat-mcp/agents/<name>.toml`; the bridge
+holds the bot's event queue over outbound HTTPS and maps each conversation (a DM
+with the bot, or one channel topic where it is mentioned) to one ACP session of
+a local agent. Only the bot's owner and the file's `allow` user IDs are heard.
+`teleport_chat(agent, message, session_id=None, cwd=None)` hands a running
+conversation to that bot; `ask_owner` exists only inside bridged agents. The MCP
+server itself never launches a coding process. See
+[Agent bots](docs/integrations/agent-bots.md).
 
 ### Zulip API efficiency (v0.7.4)
 - SDK queries share a per-process budget by normalized realm/principal, with
@@ -73,7 +76,8 @@ coding process or treats mention text as executable code.
   Identical concurrent requests share a fetch. `fresh=True` on search/detail
   tools bypasses the snapshot. Return source hashes, age, UTC dates, fetched and
   returned counts, and excerpt truncation; a sample is never a complete archive.
-- The bot inbox uses one lazy long-poll queue per account, a bounded initial
+- The bot mention inbox (`poll_agent_events` mention mode and the agent
+  bridge) uses one lazy long-poll queue per account, a bounded initial
   snapshot, message-ID recovery after queue expiration, and atomic persistence
   before event acknowledgement. Other processes for the account follow the
   lease holder's snapshot; delivery is compare-and-set.

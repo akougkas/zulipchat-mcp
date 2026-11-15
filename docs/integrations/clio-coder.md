@@ -1,12 +1,11 @@
 # Clio Coder
 
-v0.8.0 was checked through Clio Coder 0.8's own stdio MCP client on MCP
-2026-07-28 against a mock Zulip: export parsing, per-tool action classes,
-discovery of all 55 extended tools, an owner direct message delivered through
-`wait_for_mentions` while a stranger's mention was dropped, `reply` landing in
-the originating conversation as the bot, a forged reply refused, and a direct
-message sent by first name. Earlier live experiments against a real
-organization are described in [live read-only use](../testing/clio-live-readonly.md)
+The [fake-only integration check](#repeat-the-fake-only-integration-check)
+drives this server through Clio Coder's own stdio MCP client against a mock
+Zulip: export parsing, per-tool action classes, discovery of every exported
+tool, profile and session binding, and a direct message sent by first name.
+Earlier live experiments against a real organization, with tools since
+removed, are described in [live read-only use](../testing/clio-live-readonly.md)
 and [live bot mentions](../testing/clio-bot-mentions.md).
 
 Clio loads MCP tools lazily through its `gateway` tool, so the number of tools
@@ -96,8 +95,8 @@ clio-coder mcp trust zulipchat-chronolog --action-class execute --network
 For every project, copy the same `servers` entries into Clio's user-level
 `~/.config/clio-coder/mcp.yaml`, which Clio trusts by authorship, and the skills
 into `~/.config/clio-coder/skills`. Each account's state lives under
-`~/.local/state/zulipchat-mcp/accounts/`, so all projects share one database and
-one mention inbox per account.
+`~/.local/state/zulipchat-mcp/accounts/`, so all projects share one database per
+account.
 
 ## Drive the server
 
@@ -117,32 +116,23 @@ for decisions. Use the [workflow example](agent-workflow.md) and bundled skills.
 
 ## Invoke Clio from Zulip
 
-With a bot configured (`--zulip-bot-config-file`), the owner can mention the bot
-in any channel it is subscribed to, or DM it, and a Clio session answers:
+Clio speaks ACP (`clio-coder acp`), so the [agent bridge](agent-bots.md) can
+serve it behind its own Zulip bot:
 
-1. Clio calls `wait_for_mentions(wait_seconds=600)`. The server returns the
-   owner's requests with `request_id`, `from`, `where` and `text`, reacts with
-   :eyes:, and keeps the cursor. On MCP 2026-07-28 the call runs as a task that
-   Clio polls; keep it under Clio's 900 s `timeoutMs`.
-2. Clio does the work under its normal autonomy and approvals.
-3. Clio calls `reply(request_id, content)`, which posts as the bot in the
-   conversation that asked. Then it waits again.
+```bash
+uvx --from zulipchat-mcp zulipchat-mcp-agents add clio \
+  --owner-zuliprc ~/.zuliprc --cwd ~/projects
+uvx --from zulipchat-mcp zulipchat-mcp-agents run
+```
 
-Only the configured owner is heard (`--mention-allow` adds people by email or
-user ID). Anyone else is counted in `ignored_unauthorized` with no content, and
-the bot never answers them, so a stranger learns nothing about the owner's
-machine or projects. The owner is matched by Zulip user ID.
+DM the bot, or mention it in a channel topic, and the bridge starts a Clio
+session for that conversation. Clio runs under its own permission policy; an
+ACP permission request appears in the conversation as a yes/no question. Only
+the bot's owner and listed user IDs are heard.
 
-A Clio loop session in a spare pane is enough to start: ask it to keep calling
-`wait_for_mentions` and answering with `reply`. For a session that should only
-talk to Zulip, declare a second server with `--tool-profile bot`; it can listen,
-read with the bot's visibility and reply, and nothing else. Several Clio
-sessions may run servers for the same account: one holds the Zulip event queue,
-the others follow it, and each request is delivered to exactly one session.
-
-`teleport_chat(message, to="me")` moves an ongoing Clio conversation into the
-owner's DMs with the bot; `to="#channel"` with a `topic` opens a thread where
-every owner message reaches `wait_for_mentions` without a mention.
+From a running Clio session, `teleport_chat(agent="clio", message=...,
+session_id=...)` hands the conversation to that bot; the owner continues it in
+a DM with the bot.
 
 ## Plugin content
 
@@ -179,9 +169,9 @@ clio-coder mcp trust zulipchat-read --action-class read --network
 ```
 
 It runs the server with `--tool-profile read-only --ephemeral-state`, which
-registers and permits only the 23 read tools and keeps local state in a private
-temporary database removed at exit. Agent sessions, approvals and the mention
-inbox are unavailable in that mode. A worker recipe names the exact
+registers and permits only the 22 read tools and keeps local state in a private
+temporary database removed at exit. Agent sessions and approvals are
+unavailable in that mode. A worker recipe names the exact
 capabilities it may call, such as `mcp_zulipchat-read__search_messages`, and
 uses `capabilityClass: read-only`.
 
@@ -204,7 +194,7 @@ The check creates and removes its own temporary project and fake credentials.
 It validates both export formats and their per-tool action classes,
 negotiates MCP 2026-07-28 (or 2025-06-18 with older Clio builds), checks that
 tool annotations agree with the read classes, reads server information,
-exercises local profile/session binding, and drives the owner inbox, `reply`
-and a send by name against a mock Zulip it starts on a loopback port.
+exercises local profile/session binding, and sends a direct message by name
+(and refuses an unknown name) against a mock Zulip it starts on a loopback port.
 It does not connect to a real Zulip or change Clio's configuration or trust
 records.

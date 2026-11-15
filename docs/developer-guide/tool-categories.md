@@ -5,7 +5,7 @@ The registry lives in `src/zulipchat_mcp/tools/__init__.py`: `CORE_TOOLS` and
 the rest. Profiles in `src/zulipchat_mcp/core/tool_contract.py` narrow either
 surface.
 
-## Core mode (21 tools)
+## Core mode (19 tools)
 
 ### Messaging and reactions (5)
 
@@ -15,11 +15,11 @@ surface.
 - `add_reaction`
 - `manage_message_flags`
 
-### Bot inbox (3)
+### Agent bots (1, plus 1 in bridged agents)
 
-- `wait_for_mentions`
-- `reply`
 - `teleport_chat`
+- `ask_owner`, registered only when `ZULIPCHAT_AGENT_STATE` is set, that is,
+  inside an agent launched by `zulipchat-mcp-agents`. It is not in `CORE_TOOLS`.
 
 ### Search and discovery (5)
 
@@ -43,7 +43,7 @@ surface.
 - `server_info`
 - `switch_identity`
 
-## Extended additions (34 tools, 55 total)
+## Extended additions (34 tools, 53 total)
 
 ### Users and presence (10)
 
@@ -83,9 +83,8 @@ surface.
 
 | Profile | Core | Extended |
 | --- | --- | --- |
-| `full` | 21 | 55 |
+| `full` | 19 | 53 |
 | `read-only` | 7 | 22 |
-| `bot` | 9 | 9 |
 
 `read-only` keeps `READ_ONLY_TOOLS`: `server_info`, `get_message`,
 `search_messages`, `get_streams`, `get_stream_topics`, `resolve_user` and
@@ -97,13 +96,9 @@ surface.
 Mixed-operation tools stay out because their names alone cannot establish that
 a call is read-only.
 
-`bot` keeps `BOT_TOOLS`: `wait_for_mentions`, `reply`, `server_info`,
-`get_message`, `search_messages`, `get_streams`, `get_stream_topics`,
-`resolve_user` and `get_users`. Every call uses the bot identity.
-
 ## Design intent
 
 - Keep common workflows on a compact default registry.
 - Move specialized operations to explicit extended mode.
-- Keep the bot inbox and session binding in core mode so an agent can talk with
+- Keep `teleport_chat` and session binding in core mode so an agent can reach
   its owner in Zulip without enabling the extended set.

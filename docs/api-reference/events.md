@@ -36,6 +36,7 @@ await listen_events(
   `partial` when events were collected; recovered failures appear in
   `polling_errors`.
 - Queue lifespan and timeout values are capped by tool logic.
-- To wait for the owner's mentions and direct messages to the bot, use
-  `wait_for_mentions` instead of a raw queue; see the [Agents API](agents.md).
+- To read the owner's mentions of and direct messages to the bot, use
+  `poll_agent_events(mentions_stream=...)` or `direct_messages=True` instead of
+  a raw queue; see the [Agents API](agents.md).
 - Optional webhook callback is best-effort.

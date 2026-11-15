@@ -11,7 +11,8 @@ src/zulipchat_mcp/
 ├── setup_wizard.py    # interactive setup helper
 ├── core/              # client wrapper, caching, security, command engine
 ├── tools/             # MCP tool implementations
-├── services/          # listener/service manager
+├── services/          # listener/service manager, bot mention inbox
+├── agents/            # zulipchat-mcp-agents: agent-bot bridge to ACP agents
 └── utils/             # logging, metrics, duckdb managers
 ```
 
@@ -24,8 +25,10 @@ src/zulipchat_mcp/
 
 This produces:
 
-- Core mode: 21 tools
-- Extended mode: 55 tools
+- Core mode: 19 tools
+- Extended mode: 53 tools
+- `ask_owner` is added to either mode only when `ZULIPCHAT_AGENT_STATE` is set,
+  that is, in the server the agent bridge injects into each agent it launches.
 
 ## Identity model
 
@@ -36,7 +39,7 @@ This produces:
 
 ## Startup flow
 
-1. Load compatible FastMCP 4 (`>=4.0.4,<5`, locked at 4.1.0) and MCP types 2
+1. Load compatible FastMCP 4 (`>=4.1.4,<5`, locked at 4.1.4) and MCP types 2
    (locked at 2.3.0), without protocol monkey patches.
 2. Parse CLI flags (`--transport stdio|http`, `--host`, `--port`, `--auth-token`).
 3. Initialize config manager.
@@ -44,7 +47,7 @@ This produces:
 5. Set unsafe-mode context.
 6. Resolve the effective account and associate its persistent state; initialize services.
 7. Register FastMCP with SEP-2663 `TasksExtension`, SEP-2640 skills, and legacy skill Resources.
-8. Register tools (core 21 or extended 55).
+8. Register tools (core 19 or extended 53).
 9. Leave user/stream caches lazy so startup does not contact Zulip.
 10. Run FastMCP server (`stdio` or streamable `http`).
 
@@ -81,6 +84,20 @@ MCP sampling is deprecated in the 2026-07-28 specification. This server has no L
 - Databases are associated with the normalized realm and user/bot principals.
   Unbound legacy history requires explicit association; mismatches are rejected.
 - `zulipchat-mcp-hook` bridges Claude Code lifecycle hooks into the same session model.
+
+## Agent bridge
+
+`zulipchat-mcp-agents` is a separate process, not part of the MCP server. It
+serves agent bots: one Zulip Generic bot per local ACP agent, declared in
+`~/.config/zulipchat-mcp/agents/<name>.toml` (`agents/config.py`). Per bot,
+`agents/bridge.py` holds the bot's event queue through `BotMentionInbox` over
+outbound HTTPS, maps each conversation to one ACP session, and launches the
+agent on demand through `agents/acp.py`. Durable state lives in
+`~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`):
+conversation to session bindings, a turn journal for restart reporting, and
+open permission requests and owner questions. The injected MCP server reads
+the same file to implement `ask_owner`. See
+[Agent bots](../integrations/agent-bots.md).
 
 ## Security-related boundaries
 

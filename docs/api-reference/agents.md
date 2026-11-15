@@ -1,57 +1,53 @@
 # Agents API
 
-Two families of tools connect an agent to its owner in Zulip. The bot inbox
-(`wait_for_mentions`, `reply`, `teleport_chat`) lets the owner talk to the
-agent by mentioning or messaging the configured bot. Agent sessions bind an
-agent profile to a Zulip topic, post lifecycle updates there, and read owner
-commands back out; hook-driven hosts such as Claude Code use them.
+Two families of tools connect an agent to its owner in Zulip. The agent-bot
+tools (`teleport_chat`, `ask_owner`) work with the local bridge described in
+[Agent bots](../integrations/agent-bots.md): the owner talks to a coding agent
+by messaging that agent's own Zulip bot. Agent sessions bind an agent profile to
+a Zulip topic, post lifecycle updates there, and read owner commands back out;
+hook-driven hosts such as Claude Code use them.
 
-## Bot inbox (core)
+## Agent bots
 
-- `wait_for_mentions(wait_seconds=60, limit=5, context_messages=0, acknowledge=True)`
-- `reply(request_id, content)`
-- `teleport_chat(message, to="me", topic=None, wait_seconds=0)`
+- `teleport_chat(agent, message, session_id=None, cwd=None)` (core)
+- `ask_owner(question="", question_id=None, wait_seconds=300)` (core, bridged
+  agents only)
 
-All three need a Generic bot (`--zulip-bot-config-file`); without one they return
-`BOT_NOT_CONFIGURED`.
+`teleport_chat` hands the current conversation to the owner's agent bot named
+`agent`, declared in `~/.config/zulipchat-mcp/agents/<agent>.toml`. The bot
+sends `message` to its owner as a direct message; summarize where things stand.
+The owner's replies in that DM reach the agent through the bridge
+(`zulipchat-mcp-agents run`), which must be running to answer. With
+`session_id`, the bridge resumes that ACP session when the agent supports
+resuming or loading sessions; otherwise it starts a fresh session in `cwd`
+(default: the agent file's `cwd`). `cwd` must lie inside the file's
+`allowed_dirs`. The tool works over stdio only.
 
-`wait_for_mentions` returns the owner's requests: @-mentions of the bot in every
-channel the bot is subscribed to, direct messages to the bot, and topics handed
-off with `teleport_chat`. Each request carries `request_id`, `from`, `where`
-(`dm` or `#channel > topic`), `sent` (UTC) and `text` with the bot mention
-stripped. The server keeps the cursor, so each request is delivered once, also
-across several hosts connected to the same account. On first use the cursor
-starts at the newest message, so old mentions are not replayed as work.
-
-- `wait_seconds` is 0 to 840; `limit` and `context_messages` are at most 20.
-- `acknowledge=True` reacts with `:eyes:` so the owner sees the request was taken.
-- `context_messages>0` adds earlier messages from the same conversation, read
-  with the bot identity. Lines from senders outside the allow policy are marked
-  `untrusted`.
-- Senders not admitted by `--mention-allow` (default: the configured owner) are
-  only counted in `ignored_unauthorized`; their text never reaches the host.
-- A listener failure returns `status="partial"` with `listener_error` and
-  `retry_after_seconds`. No requests returns a `hint` to call again.
-
-`reply` posts as the bot into the conversation the request came from: the same
-channel topic, or the same direct-message group. Only `zulip:<message_id>`
-request IDs already delivered to an admitted sender are accepted; anything else
-returns `REQUEST_NOT_FOUND`. The result has `message_id`, `where` and
-`message_link`.
-
-`teleport_chat` hands the current conversation to the owner. `to="me"` (or
-`"owner"`) sends a direct message from the bot to the owner. `to="#channel"`
-with a `topic` subscribes the bot to that channel, posts there, and routes every
-owner message in that topic to the inbox, mention or not. Any other `to` is
-refused: use `send_message` to message other people. `wait_seconds>0` also waits
-for the owner's first answer and returns it as `requests`.
+Errors: `POLICY_DENIED` (HTTP transport, or `cwd` outside `allowed_dirs`),
+`BAD_REQUEST` (empty message), `UNKNOWN_AGENT` (lists the configured names),
+`BAD_AGENT_CONFIG`, `BOT_UNREADABLE`, `OWNER_UNKNOWN` (the bot has no owner in
+Zulip). Success returns `agent`, `message_id`, `resumes_session` and
+`message_link` when Zulip provides one.
 
 ```python
-teleport_chat(message="Build is green; continue the review here?", to="me")
-batch = wait_for_mentions(wait_seconds=120)
-for request in batch["requests"]:
-    reply(request_id=request["request_id"], content="On it.")
+teleport_chat(
+    agent="clio",
+    message="Tests pass; the migration still needs review. Continue here?",
+    session_id="sess-1234",
+)
 ```
+
+`ask_owner` is registered only when `ZULIPCHAT_AGENT_STATE` is set, which the
+bridge does for the Zulip server it injects into each agent. It posts
+`**Question `ID`**: ...` in that agent's Zulip conversation and waits up to
+`wait_seconds` (0 to 840) for the owner's next message there, which becomes the
+answer. Results:
+
+- `status="success"` with `question_id` and `answer`.
+- `status="pending"` with `question_id` when `wait_seconds` elapses. Call again
+  with that `question_id` to keep waiting instead of asking twice.
+- `status="expired"` once the agent file's `question_minutes` pass unanswered.
+- `NOT_BRIDGED` outside a bridged agent, `NOT_FOUND` for an unknown ID.
 
 ## Agent sessions
 
@@ -71,9 +67,8 @@ Extended tools:
 
 ## Bot mentions through poll_agent_events
 
-`wait_for_mentions` is the simpler path for most hosts. A host that keeps its
-own cursor and durable work queue can instead read explicit mentions in one
-channel without an existing session:
+A host that keeps its own cursor and durable work queue can read explicit
+mentions of the configured bot in one channel without an existing session:
 
 ```python
 batch = poll_agent_events(

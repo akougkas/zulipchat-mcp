@@ -28,14 +28,11 @@ returns `POLICY_DENIED`.
 
 | Profile | Tools |
 | --- | --- |
-| `full` (default) | 21 core tools, or 55 with `--extended-tools` |
+| `full` (default) | 19 core tools, or 53 with `--extended-tools` |
 | `read-only` | 7 core reads, or 22 with `--extended-tools` |
-| `bot` | `wait_for_mentions`, `reply`, `server_info`, `get_message`, `search_messages`, `get_streams`, `get_stream_topics`, `resolve_user`, `get_users` |
 
-The `bot` profile serves a session the owner starts from Zulip. It requires bot
-credentials, cannot run with `--unsafe`, and makes every call with the bot
-identity, so an answer posted in a channel can only contain what the bot could
-already see.
+Inside an agent launched by the [agent bridge](../integrations/agent-bots.md),
+the full profile adds `ask_owner`, so `server_info` lists 20 core tools there.
 
 ## Behavior notes
 

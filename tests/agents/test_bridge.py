@@ -216,3 +216,40 @@ def test_long_answers_split_on_line_boundaries():
     parts = bridge_module.split_message("line\n" * 4000, limit=1000)
     assert all(len(part) <= 1000 for part in parts)
     assert "".join(part + "\n" for part in parts).count("line") == 4000
+
+
+@pytest.mark.asyncio
+async def test_new_and_teleported_bindings_replace_the_live_session(
+    make_bridge, monkeypatch
+):
+    build, client = make_bridge
+    requested = []
+
+    class Recording(bridge_module.AcpAgent):
+        async def open_session(self, cwd, mcp_servers, session_id=None):
+            requested.append(session_id)
+            return await super().open_session(cwd, mcp_servers, session_id)
+
+    monkeypatch.setattr(bridge_module, "AcpAgent", Recording)
+    bridge = build()
+    key = f"dm:{OWNER}"
+    await bridge.route(dm(170, "first"))
+    await posted(client, 1)
+    first = bridge.store.conversation(key)["session_id"]
+
+    await bridge.route(dm(171, "/new"))
+    await bridge.route(dm(172, "second"))
+    await posted(client, 3)
+    assert requested == [None, None]  # /new opened a fresh session
+
+    # teleport_chat writes a binding while the bridge holds the conversation.
+    bridge.store.bind(
+        key,
+        "teleported",
+        bridge.config.cwd.as_posix(),
+        {"type": "private", "to": [OWNER]},
+    )
+    await bridge.route(dm(173, "continue the teleported one"))
+    await posted(client, 4)
+    assert requested[-1] == "teleported"
+    assert first
