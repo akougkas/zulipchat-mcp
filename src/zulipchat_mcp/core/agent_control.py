@@ -111,29 +111,42 @@ class AgentCoordinator:
         raise ValueError("Unable to resolve the owning Zulip account")
 
     def discover_agent_stream(self) -> str:
-        """Resolve the primary control stream."""
+        """Resolve the control channel: configured, or a private preferred one.
+
+        Sessions post permission requests there with commands and file
+        contents, so a channel that was not chosen explicitly must be private.
+        There is no fallback to an arbitrary channel.
+        """
         configured = os.getenv("ZULIPCHAT_AGENT_STREAM")
         if configured:
             return configured
 
-        preferred_streams = ["Agents-Channel", "AI Bots", "sandbox", "general"]
         result = self.bot_client.get_streams(
             include_public=True,
             include_subscribed=True,
         )
         if result.get("result") != "success":
-            return "general"
-
+            raise ValueError(
+                "Could not list channels to find the agent control channel; "
+                "set ZULIPCHAT_AGENT_STREAM"
+            )
         available = {stream["name"]: stream for stream in result.get("streams", [])}
-        for stream_name in preferred_streams:
-            if stream_name in available:
+        for stream_name in ("Agents-Channel", "AI Bots", "sandbox", "general"):
+            stream = available.get(stream_name)
+            if stream is None:
+                continue
+            if stream.get("invite_only") is True:
                 return stream_name
-
-        for stream in result.get("streams", []):
-            if not stream.get("invite_only", True):
-                return str(stream["name"])
-
-        return "general"
+            raise ValueError(
+                f"Channel '{stream_name}' is public, and agent sessions post "
+                "commands and file contents to their control channel. Make it "
+                f"private, or set ZULIPCHAT_AGENT_STREAM={stream_name} to use it "
+                "anyway"
+            )
+        raise ValueError(
+            "No agent control channel found. Create a private channel named "
+            "Agents-Channel with the bot subscribed, or set ZULIPCHAT_AGENT_STREAM"
+        )
 
     @staticmethod
     def _json_blob(value: Any) -> str:

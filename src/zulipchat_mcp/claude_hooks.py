@@ -340,12 +340,16 @@ def main() -> None:
     init_database(account_fingerprint=config_manager.resolved_account().fingerprint)
     coordinator = AgentCoordinator()
 
-    agent_result = coordinator.register_agent(
-        agent_name=args.agent_name,
-        agent_type=args.agent_type,
-        stream_name=args.stream_name,
-        metadata={"source": "claude-hook"},
-    )
+    try:
+        agent_result = coordinator.register_agent(
+            agent_name=args.agent_name,
+            agent_type=args.agent_type,
+            stream_name=args.stream_name,
+            metadata={"source": "claude-hook"},
+        )
+    except ValueError as error:  # no private control channel, no owner
+        logger.error("Claude hook bridge is not configured: %s", error)
+        sys.exit(1)
     if agent_result.get("status") != "success":
         logger.error("Failed to register agent profile: %s", agent_result)
         sys.exit(1)

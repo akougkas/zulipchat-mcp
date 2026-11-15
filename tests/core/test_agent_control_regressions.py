@@ -258,3 +258,38 @@ def test_database_file_is_private_and_bad_zuliprc_errors_quote_no_key(
         load_zuliprc_credentials(str(broken))
     assert "SuperSecretKey" not in str(error.value)
     assert "not a valid zuliprc" in str(error.value)
+
+
+def test_control_channel_is_explicit_or_private_never_an_arbitrary_one(
+    coordinator, monkeypatch
+):
+    monkeypatch.delenv("ZULIPCHAT_AGENT_STREAM", raising=False)
+    bot = coordinator.bot_client
+
+    def channels(*found):
+        bot.get_streams.return_value = {
+            "result": "success",
+            "streams": [
+                {"name": name, "invite_only": private} for name, private in found
+            ],
+        }
+
+    channels(("lab-wide", False), ("general", True), ("Agents-Channel", True))
+    assert coordinator.discover_agent_stream() == "Agents-Channel"
+
+    channels(("lab-wide", False), ("Agents-Channel", False), ("sandbox", True))
+    with pytest.raises(ValueError, match="'Agents-Channel' is public"):
+        coordinator.discover_agent_stream()
+    with pytest.raises(ValueError, match="is public"):
+        coordinator.register_agent(agent_name="a", owner_email="owner@example.com")
+
+    channels(("lab-wide", False), ("random", False))  # used to pick lab-wide
+    with pytest.raises(ValueError, match="No agent control channel found"):
+        coordinator.discover_agent_stream()
+
+    bot.get_streams.return_value = {"result": "error", "msg": "down"}  # was general
+    with pytest.raises(ValueError, match="ZULIPCHAT_AGENT_STREAM"):
+        coordinator.discover_agent_stream()
+
+    monkeypatch.setenv("ZULIPCHAT_AGENT_STREAM", "lab-wide")
+    assert coordinator.discover_agent_stream() == "lab-wide"

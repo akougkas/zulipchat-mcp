@@ -119,7 +119,7 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 - `ZULIPCHAT_MENTION_ALLOW` / `--mention-allow`: senders whose bot mentions and direct messages `poll_agent_events` returns. Default: only the configured owner. A comma-separated list of emails and numeric user IDs adds senders; `everyone` admits all. Other senders are reported without content. In realms that hide email addresses, list the owner's numeric user ID.
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
-- `ZULIPCHAT_AGENT_STREAM=<stream>`: override the default control stream used for agent session topics
+- `ZULIPCHAT_AGENT_STREAM=<stream>`: the control channel for agent session topics. Without it (and without an explicit `stream_name`), the first existing channel among `Agents-Channel`, `AI Bots`, `sandbox` and `general` is used, and only if it is private: sessions post permission requests there with commands and file contents. A public match, or no match, is an error that names this variable; nothing is posted to an arbitrary channel.
 - `ZULIPCHAT_APPROVAL_TIMEOUT=<seconds>`: timeout for Claude hook approval waits
 
 ## Persistent state and account migration
