@@ -7,9 +7,11 @@ local bridge relays the conversation to the agent over the
 [Agent Client Protocol](https://agentclientprotocol.com) (ACP).
 
 Status: new in v0.8.0, which is not yet released. The bridge is tested with a
-fake ACP agent, and real Clio Coder, OpenCode and Goose processes were probed
-for start, session creation and resume (no prompts). It has not yet been
-exercised live against a Zulip server.
+fake ACP agent and a mocked Zulip client. Real Clio Coder and Claude Code
+(`claude-agent-acp`) turns were run through the bridge with a mocked Zulip:
+prompts, resume, Clio interviews and the progress message. OpenCode and Goose
+were probed for start, session creation and resume. Live use against a Zulip
+server has begun with Clio Coder.
 
 ## How it works
 
@@ -34,11 +36,27 @@ exercised live against a Zulip server.
   agent works, and posts the agent's final answer as Markdown, split into
   several messages when long. Messages that arrive during a turn are sent
   together as the next prompt.
+- **Progress.** A turn still running after 20 seconds gets one status message,
+  edited in place every 10 seconds: elapsed time, tool call count, the current
+  tool call and the agent's plan. It ends as `Finished in …`. The final answer
+  is a new message, so it is the one that notifies. If the realm refuses the
+  bot's edits, the status stays as first posted; past an edit time limit, a
+  new status message continues.
 - **Permissions.** The agent runs under its own native permission policy. The
   bridge does not offer it ACP file system or terminal capabilities. When the
   agent sends an ACP permission request, the bridge posts it in the
-  conversation as `Permission request ID`. Answer `yes` or `no` (or
-  `/approve ID`, `/deny ID`). No answer within `question_minutes` means no.
+  conversation as `Permission request ID`, with the command or paths involved
+  and, from Clio, its consequence lines. Answer `yes` or `no` (or
+  `/approve ID`, `/deny ID`), or react 👍 or 👎 (✅ and ❌ also work) on the
+  request. No answer within `question_minutes` means no. A request the agent
+  withdraws, or that a `/cancel` ends, is closed in the conversation, so the
+  next message starts a turn again.
+- **Clio Coder interviews.** The bridge tells Clio a person is attending
+  (`clio-coder/interviews` and `clio-coder/workerPermissions` in
+  `clientCapabilities._meta`). Clio's `ask_user` questions then arrive as
+  `Question ID`, one at a time; reply with an option's number or label (several,
+  comma-separated, when it allows more than one) or in your own words. Workers'
+  permission requests arrive like any other permission request.
 - **Restarts.** A journal records turns in flight. After a crash or restart the
   bridge tells each affected conversation that the earlier message may be only
   partly done; it never replays it.
@@ -71,8 +89,17 @@ Known names fill in the launch command; any other name needs `--command`:
 | `opencode` | `opencode acp` |
 | `goose` | `goose acp` |
 | `gemini` | `gemini --acp` |
-| `claude` | `npx -y @agentclientprotocol/claude-agent-acp` |
+| `claude` | `claude-agent-acp` |
 | `codex` | `npx -y @agentclientprotocol/codex-acp` |
+
+`claude` needs `npm i -g @agentclientprotocol/claude-agent-acp`. The adapter
+bundles its own Claude Code, and the API refuses models to an outdated one, so
+upgrade the package when Claude Code moves. An unpinned `npx` would resolve to
+whatever old copy is installed globally.
+
+The bridge passes `--permission-timeout` to `clio-coder acp` so Clio waits for
+a permission answer or an interview as long as the question stays open in Zulip
+(`question_minutes`). Clio's own default is two minutes.
 
 ```bash
 uvx --from zulipchat-mcp zulipchat-mcp-agents add reviewer \
@@ -169,6 +196,20 @@ Send these in the conversation (in a topic, mention the bot):
 Any other command shows this list.
 
 ## Hand a session to Zulip
+
+From a terminal session of an agent that has a bot, run in the session's
+workspace (in Claude Code or Clio, prefix it with `!`):
+
+```bash
+zulipchat-mcp-agents teleport clio            # or: teleport claude
+zulipchat-mcp-agents teleport clio --session ID --cwd DIR --message TEXT
+```
+
+Without `--session`, the agent lists its sessions for `--cwd` (default: the
+current directory) over ACP `session/list`, and the newest one is used: the
+session you are in. The bot DMs you, and your reply resumes that session with
+the bridge, which first tells the agent it is now reached through Zulip. Close
+the terminal session first so two processes do not write the same session.
 
 From an agent running elsewhere with this MCP server configured over stdio:
 

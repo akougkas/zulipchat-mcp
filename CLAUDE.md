@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **PyPI has 0.7.6.** v0.8.0 lives on branch `release/v0.8.0` and is NOT released. The owner decides when to release; never tag, push, or publish without an explicit instruction. Check what is live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json`.
 
-Install from PyPI: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`. Install this branch locally for dogfooding: `uv tool install --force --from . zulipchat-mcp` (provides `zulipchat-mcp`, `zulipchat-mcp-agents`, `zulipchat-mcp-integrate`).
+Install from PyPI: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`. Install this branch locally for dogfooding: `uv tool install --force --reinstall --from . zulipchat-mcp` (provides `zulipchat-mcp`, `zulipchat-mcp-agents`, `zulipchat-mcp-integrate`).
 
 Companion commands use the same distribution: `uvx --from zulipchat-mcp zulipchat-mcp-integrate --help`. Always use `--from zulipchat-mcp` for the setup wizard, integration exporter, and hook bridge.
 
@@ -15,9 +15,11 @@ The owner's real organization is production. Only the owner (Anthony Kougkas, us
 
 ### Where the work stands
 - Done on the branch: dependency security bumps (FastMCP 4.1.4, authlib 1.9.1), Zulip API corrections by feature level, compact Markdown reads, `send_message` by name, owner matched by user ID, removal of 13 redundant or LLM-calling tools and about 7,000 lines of dead code, and the agent bridge below.
-- The agent bridge has unit and fake-agent tests and real `start`/`open_session`/resume probes of clio-coder, opencode and goose. It has NOT been run live against Zulip with a real prompt yet.
-- Declared on the owner's machine: `~/.config/zulipchat-mcp/agents/clio.toml` (Clio-Coder bot, `clio-coder acp`, cwd `~/projects`, allowed `~/projects` and `~/iowarp`). The owner's Clio config `~/.config/clio-coder/mcp.yaml` runs this branch's MCP server as `zulipchat-grc` with per-tool action classes (backup `mcp.yaml.bak-2026-11-15-zulipchat`).
-- Next: dogfood the bridge with Clio Coder and Claude Code locally (owner DMs the bot), then iterate. Open questions: streaming progress while a long turn runs, reactions as answers to permission requests, a Claude Code agent bot via `@agentclientprotocol/claude-agent-acp`, teleport from a live Clio or Claude session, and whether channels should require a mention on every message.
+- The agent bridge has unit and fake-agent tests, and real Clio and Claude (`claude-agent-acp` 0.107.0) turns were driven through `AgentBridge` with a mocked Zulip client (prompt, resume, Clio interview, progress). Live dogfooding on grc with the Clio-Coder bot is under way.
+- Bridge features: Clio HITL opt-in (`clio-coder/interviews`, `clio-coder/workerPermissions`, withdraw/cancel notifications), `--permission-timeout` derived from `question_minutes`, one edited-in-place progress message per long turn, 👍/👎 reactions answer permission requests, `zulipchat-mcp-agents teleport NAME` resumes the newest local session for a cwd. Channels keep the mention-every-message rule (owner's decision).
+- Declared on the owner's machine: `~/.config/zulipchat-mcp/agents/clio.toml` (Clio-Coder bot, `clio-coder acp`, cwd `~/projects`, allowed `~/projects` and `~/iowarp`). The owner's Clio config `~/.config/clio-coder/mcp.yaml` runs this branch's MCP server as `zulipchat-grc` with per-tool action classes (backup `mcp.yaml.bak-2026-11-15-zulipchat`). Clio runs at the owner's `yolo` autonomy and Claude at `defaultMode: auto`, so bridged agents rarely ask permission.
+- Open security finding, unresolved: a bridged agent gets this MCP server as the bot (`zulip_tools = true`), and the Clio-Coder bot is subscribed to shared grc channels (Clio, DTIO, core team, Gnosis Github Metrics). Text from any member there can reach a yolo, unsandboxed Clio that runs shell as the owner, and the agent can post as the bot. Next: a holistic security and safety audit before more live use.
+- No Claude Code agent bot exists on grc yet; the owner declined creating one for now. `claude-agent-acp` must be the global npm package (0.79.0 is too old for current models); `~/.local/bin/claude-agent-acp` points at the nvm v24.22.2 install.
 
 ## Project Overview
 
@@ -216,8 +218,8 @@ The MCP server is a tool surface; it cannot wake an agent. Inbound Zulip-to-agen
 - One Zulip Generic bot per agent, declared in `~/.config/zulipchat-mcp/agents/<name>.toml` (`agents/config.py`). `zulipchat-mcp-agents add` writes it and can create the bot with the owner's key (`agents/provision.py`, `POST /bots`).
 - The bridge holds the bot's event queue (`services/bot_mentions.py`, `ALL_SCOPE`, lease plus compare-and-set cursor) over outbound HTTPS only. Owner = the bot's `bot_owner_id` in Zulip plus `allow` user IDs; everyone else is dropped without a reply.
 - Each conversation (a DM with the bot, or a channel topic where the bot is mentioned) is one ACP session (`agents/bridge.py`), driven by the hand-rolled ACP client `agents/acp.py`. Agents start on the first message, stop after `idle_minutes`, and resume with `session/resume` or `session/load`. State lives in `~/.local/state/zulipchat-mcp/agents/<name>.sqlite3` (`agents/store.py`).
-- Agents boot under their own permission policy. ACP `session/request_permission` is asked in the conversation; `yes`/`no` answers it and silence means no. `ask_owner` (in `tools/handoff.py`) uses the same questions table. `teleport_chat` binds a conversation to an agent bot so the owner continues in a DM.
-- Bridge commands: `/status`, `/cancel`, `/new`, `/cwd PATH`, `/approve ID`, `/deny ID`. The agent environment never carries `ZULIP*` variables; it gets this MCP server injected with the bot's zuliprc.
+- Agents boot under their own permission policy. ACP `session/request_permission` is asked in the conversation; `yes`/`no` or a 👍/👎 reaction answers it, and silence means no. Clio interviews (`_clio-coder/interview/request`) are asked one question at a time. Long turns get one status message edited in place (`Progress` in `bridge.py`). `ask_owner` (in `tools/handoff.py`) uses the same questions table. `teleport_chat` binds a conversation to an agent bot so the owner continues in a DM.
+- Bridge commands: `/status`, `/cancel`, `/new`, `/cwd PATH`, `/approve ID`, `/deny ID`. CLI `zulipchat-mcp-agents teleport NAME` (`agents/teleport.py`) shares its binding code with `teleport_chat`. The agent environment never carries `ZULIP*` variables; it gets this MCP server injected with the bot's zuliprc.
 - Tests: `tests/agents/` (fake ACP agent `tests/agents/fake_acp_agent.py`).
 
 ### Token discipline

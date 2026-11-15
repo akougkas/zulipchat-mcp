@@ -61,7 +61,7 @@ async def make_bridge(tmp_path, monkeypatch):
         config = AgentConfig(
             name="clio",
             zuliprc=tmp_path / "bot.zuliprc",
-            command=FAKE_AGENT,
+            command=overrides.pop("command", FAKE_AGENT),
             cwd=work,
             allowed_dirs=[work],
             question_minutes=overrides.pop("question_minutes", 1),
@@ -149,8 +149,10 @@ async def test_unanswered_permission_request_is_denied(make_bridge):
     build, client = make_bridge
     bridge = build(question_minutes=0.02)
     await bridge.route(dm(130, "needs-permission please"))
-    posts = await posted(client, 2, timeout=15)
+    posts = await posted(client, 3, timeout=15)
+    assert "expired unanswered" in posts[1][2]
     assert "chose reject_once" in posts[-1][2]
+    assert bridge.store.open_question(f"dm:{OWNER}") is None
 
 
 @pytest.mark.asyncio
@@ -207,7 +209,7 @@ async def test_agent_environment_never_carries_zulip_credentials(
     monkeypatch.setenv("ZULIP_API_KEY", "owner-secret")
     monkeypatch.setenv("ZULIP_EMAIL", "owner@example.com")
     bridge = build(env={"EXTRA": "1"})
-    env = bridge._agent_env()
+    env = bridge.config.agent_env()
     assert not any(key.startswith("ZULIP") for key in env)
     assert env["EXTRA"] == "1"
 
@@ -250,6 +252,177 @@ async def test_new_and_teleported_bindings_replace_the_live_session(
         {"type": "private", "to": [OWNER]},
     )
     await bridge.route(dm(173, "continue the teleported one"))
-    await posted(client, 4)
+    posts = await posted(client, 4)
     assert requested[-1] == "teleported"
+    assert "Zulip bot Clio" in posts[3][2]  # an adopted session is told where it is
     assert first
+    await bridge.route(dm(174, "and again"))
+    posts = await posted(client, 5)
+    assert "Zulip bot Clio" not in posts[4][2]
+
+
+@pytest.mark.asyncio
+async def test_bridge_opts_into_clio_interviews_and_worker_permissions(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(180, "show-meta"))
+    (_, _, body, _), *_ = await posted(client, 1)
+    assert (
+        '"clio-coder/interviews": {"request": "_clio-coder/interview/request"' in body
+    )
+    assert '"clio-coder/workerPermissions": {"version": 1, "withdraw": ' in body
+
+
+@pytest.mark.asyncio
+async def test_interview_questions_are_asked_one_at_a_time_and_mapped(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(190, "needs-interview"))
+    (_, _, first, _), *_ = await posted(client, 1)
+    assert "Question (Storage)" in first and "Which database?" in first
+    assert "1. **DuckDB**: embedded" in first and "2. **Postgres**" in first
+    await bridge.route(dm(191, "2"))
+    posts = await posted(client, 2)
+    assert "Anything else?" in posts[1][2]
+    await bridge.route(dm(192, "keep it small"))
+    posts = await posted(client, 3)
+    assert (
+        '{"answers": [{"answer": "Postgres", "options": ["Postgres"], '
+        '"question": "Which database?"}, {"answer": "keep it small", '
+        '"question": "Anything else?"}]}' in posts[2][2]
+    )
+
+
+@pytest.mark.asyncio
+async def test_worker_permission_shows_clio_decision_facts(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(200, "worker-ask"))
+    (_, _, ask, _), *_ = await posted(client, 1)
+    assert "Delete the build tree" in ask and "rm -rf build" in ask
+    assert "Removes build/ recursively." in ask and "worker `scout`" in ask
+    await bridge.route(dm(201, "no"))
+    posts = await posted(client, 2)
+    assert "chose reject-once" in posts[-1][2]
+
+
+@pytest.mark.asyncio
+async def test_withdrawn_request_closes_and_frees_the_next_message(make_bridge):
+    build, client = make_bridge
+    bridge = build()
+    await bridge.route(dm(210, "worker-ask withdraw"))
+    posts = await posted(client, 3)
+    assert "withdrawn" in posts[1][2]
+    assert "chose" not in posts[2][2]  # answered cancelled, so the turn stopped
+    await bridge.route(dm(211, "hello again"))
+    posts = await posted(client, 4)
+    assert "hello again" in posts[3][2]
+
+
+def test_interview_answers_accept_numbers_labels_and_free_text():
+    question = {
+        "question": "Pick",
+        "multi_select": True,
+        "options": [{"label": "Alpha"}, {"label": "Beta"}],
+    }
+    assert bridge_module.interview_answer(question, "2, alpha") == {
+        "question": "Pick",
+        "answer": "Beta; Alpha",
+        "options": ["Beta", "Alpha"],
+    }
+    assert bridge_module.interview_answer(question, "neither, really") == {
+        "question": "Pick",
+        "answer": "neither, really",
+    }
+
+
+def test_clio_waits_as_long_as_zulip_questions_stay_open(make_bridge, tmp_path):
+    build, _ = make_bridge
+    assert build(command=["clio-coder", "acp"])._agent_command() == [
+        "clio-coder",
+        "acp",
+        "--permission-timeout",
+        "60000",
+    ]
+    custom = ["clio-coder", "acp", "--permission-timeout", "5"]
+    assert build(command=custom)._agent_command() == custom
+    assert build()._agent_command() == FAKE_AGENT
+
+
+@pytest.mark.asyncio
+async def test_long_turn_shows_one_status_message_edited_in_place(
+    make_bridge, monkeypatch
+):
+    monkeypatch.setattr(bridge_module, "PROGRESS_DELAY_SECONDS", 0.2)
+    monkeypatch.setattr(bridge_module, "PROGRESS_EVERY_SECONDS", 0.2)
+    build, client = make_bridge
+    client.send_message.side_effect = [
+        {"result": "success", "id": 500},
+        {"result": "success", "id": 501},
+    ]
+    client.client.update_message.return_value = {"result": "success"}
+    bridge = build()
+    await bridge.route(dm(220, "sleepy job"))
+    posts = await posted(client, 2)
+    status, answer = posts[0][2], posts[1][2]
+    assert status.startswith("⏳ Working") and "2 tool calls" in status
+    assert "▸ Run `pytest -q`" in status
+    assert "✔ read the code" in status and "▸ run the tests" in status
+    assert "☐ commit" in status
+    assert "sleepy job" in answer
+    edits = [call.args[0] for call in client.client.update_message.call_args_list]
+    assert all(edit["message_id"] == 500 for edit in edits)
+    assert edits[-1]["content"].startswith("Finished in")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("editable_once", [False, True])
+async def test_refused_edits_never_spam_status_messages(
+    make_bridge, monkeypatch, editable_once
+):
+    monkeypatch.setattr(bridge_module, "PROGRESS_DELAY_SECONDS", 0.1)
+    monkeypatch.setattr(bridge_module, "PROGRESS_EVERY_SECONDS", 0.15)
+    build, client = make_bridge
+    ids = iter(range(600, 700))
+    client.send_message.side_effect = lambda *a: {"result": "success", "id": next(ids)}
+    edits = []
+
+    def edit(request):
+        edits.append(request["message_id"])
+        # Message 600 takes one edit and then hits the edit time limit; nothing
+        # is editable when editable_once is False.
+        ok = editable_once and request["message_id"] == 600 and len(edits) == 1
+        return {"result": "success" if ok else "error", "msg": "time limit"}
+
+    client.client.update_message.side_effect = edit
+    bridge = build()
+    await bridge.route(dm(225, "sleepy job"))
+    for _ in range(100):
+        if any("sleepy job" in c.args[2] for c in client.send_message.call_args_list):
+            break
+        await asyncio.sleep(0.05)
+    bodies = [call.args[2] for call in client.send_message.call_args_list]
+    statuses = sum(body.startswith("⏳ Working") for body in bodies)
+    assert statuses == (2 if editable_once else 1)
+
+
+@pytest.mark.asyncio
+async def test_owner_reaction_answers_a_permission_request(make_bridge, monkeypatch):
+    monkeypatch.setattr(bridge_module, "REACTION_POLL_SECONDS", 1)
+    build, client = make_bridge
+    client.client.get_raw_message.return_value = {
+        "message": {
+            "reactions": [
+                {"user_id": BOT, "emoji_code": "1f44d"},  # the bot's own seed
+                {"user_id": STRANGER, "emoji_code": "1f44d"},
+                {"user_id": OWNER, "emoji_code": "1f44e"},
+            ]
+        }
+    }
+    bridge = build()
+    await bridge.route(dm(230, "needs-permission please"))
+    posts = await posted(client, 2)
+    assert "react 👍 or 👎" in posts[0][2]
+    assert "chose reject_once" in posts[-1][2]
+    client.add_reaction.assert_any_call(1, "thumbs_up")
+    client.add_reaction.assert_any_call(1, "thumbs_down")

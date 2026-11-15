@@ -17,7 +17,7 @@ KNOWN_AGENTS = {
     "opencode": ["opencode", "acp"],
     "goose": ["goose", "acp"],
     "gemini": ["gemini", "--acp"],
-    "claude": ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+    "claude": ["claude-agent-acp"],  # npm i -g @agentclientprotocol/claude-agent-acp
     "codex": ["npx", "-y", "@agentclientprotocol/codex-acp"],
 }
 
@@ -138,6 +138,39 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_teleport(args: argparse.Namespace) -> int:
+    from .teleport import TeleportError, latest_session, teleport
+
+    path = config_dir() / f"{args.name}.toml"
+    if not path.is_file():
+        print(f"No agent bot '{args.name}' in {config_dir()}", file=sys.stderr)
+        return 1
+    config = load_agent(path)
+    workspace = Path(args.cwd).expanduser().resolve()
+    try:
+        session = (
+            {"sessionId": args.session}
+            if args.session
+            else asyncio.run(latest_session(config, workspace))
+        )
+        session_id = str(session["sessionId"])
+        title = f" ({session['title']})" if session.get("title") else ""
+        message = args.message or (
+            f"Continuing session `{session_id}`{title} in `{workspace}`. "
+            "Reply here to carry on. Close the terminal session first, so two "
+            "processes do not write the same session."
+        )
+        response = teleport(config, workspace, session_id, message)
+    except TeleportError as error:
+        print(error, file=sys.stderr)
+        return 1
+    if response.get("result") != "success":
+        print(f"Zulip refused the message: {response.get('msg')}", file=sys.stderr)
+        return 1
+    print(f"{args.name} will resume {session_id}{title} in your DM with the bot.")
+    return 0
+
+
 def cmd_service(_: argparse.Namespace) -> int:
     executable = shutil.which("zulipchat-mcp-agents") or sys.argv[0]
     print(
@@ -177,6 +210,16 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--agent", action="append", help="serve only these names")
     run.add_argument("--debug", action="store_true")
     run.set_defaults(func=cmd_run)
+    teleport = sub.add_parser(
+        "teleport", help="Continue a local agent session in a DM with its bot"
+    )
+    teleport.add_argument("name", help="agent bot name, e.g. clio")
+    teleport.add_argument(
+        "--session", help="session ID (default: the newest session in --cwd)"
+    )
+    teleport.add_argument("--cwd", default=".", help="the session's workspace")
+    teleport.add_argument("--message", help="what the bot says in the DM")
+    teleport.set_defaults(func=cmd_teleport)
     sub.add_parser("service", help="Print a systemd user unit").set_defaults(
         func=cmd_service
     )

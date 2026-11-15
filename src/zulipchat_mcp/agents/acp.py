@@ -28,7 +28,17 @@ TERMINATE_GRACE_SECONDS = 5.0
 _DEFAULT_TIMEOUT = -1.0
 
 PermissionHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
+InterviewHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 UpdateHandler = Callable[[dict[str, Any]], None]
+
+# Clio Coder's attended-surface extensions. Advertising them tells the agent a
+# person answers: its ask_user interviews and its workers' permission asks are
+# sent here instead of being cancelled or denied at once. Other agents ignore
+# unknown _meta keys.
+INTERVIEW_REQUEST = "_clio-coder/interview/request"
+INTERVIEW_CANCEL = "_clio-coder/interview/cancel"
+PERMISSION_WITHDRAW = "_clio-coder/permission/withdraw"
+WORKER_ASK_META = "clio-coder/workerAsk"
 
 _RPC_CODES = {
     -32000: "auth_required",
@@ -37,6 +47,7 @@ _RPC_CODES = {
     -32602: "invalid_params",
 }
 _CANCELLED: dict[str, Any] = {"outcome": {"outcome": "cancelled"}}
+_INTERVIEW_CANCELLED: dict[str, Any] = {"cancelled": True}
 
 
 class AcpError(Exception):
@@ -60,6 +71,7 @@ class PromptResult:
 class _Turn:
     on_update: UpdateHandler | None
     chunks: list[str] = field(default_factory=list)
+    after_tool: bool = False
     tool_calls: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def apply(self, update: dict[str, Any]) -> None:
@@ -67,8 +79,14 @@ class _Turn:
         if kind == "agent_message_chunk":
             content = update.get("content") or {}
             if content.get("type") == "text":
+                if self.after_tool and self.chunks:
+                    # Narration before a tool call and the text after it are
+                    # separate thoughts; never run them together.
+                    self.chunks.append("\n\n")
+                self.after_tool = False
                 self.chunks.append(str(content.get("text", "")))
         elif kind in ("tool_call", "tool_call_update"):
+            self.after_tool = True
             call_id = str(update.get("toolCallId", ""))
             call = self.tool_calls.setdefault(
                 call_id, {"id": call_id, "title": None, "kind": None, "status": None}
@@ -100,12 +118,14 @@ class AcpAgent:
         env: dict[str, str] | None = None,
         cwd: str | None = None,
         on_permission: PermissionHandler | None = None,
+        on_interview: InterviewHandler | None = None,
         request_timeout: float = 120.0,
     ) -> None:
         self.command = list(command)
         self.env = env
         self.cwd = cwd
         self.on_permission = on_permission
+        self.on_interview = on_interview
         self.request_timeout = request_timeout
         self._proc: asyncio.subprocess.Process | None = None
         self._capabilities: dict[str, Any] = {}
@@ -114,7 +134,10 @@ class AcpAgent:
         self._turns: dict[str, _Turn] = {}
         self._loading: set[str] = set()
         self._sessions: set[str] = set()
+        # In-flight handlers for agent-to-client requests, per session and by the
+        # key a later cancel or withdraw notification names.
         self._permission_tasks: dict[str, set[asyncio.Future[dict[str, Any]]]] = {}
+        self._handlers_by_key: dict[str, asyncio.Future[dict[str, Any]]] = {}
         self._background: set[asyncio.Task[None]] = set()
         self._write_lock = asyncio.Lock()
         self._stderr_tail: deque[str] = deque(maxlen=20)
@@ -149,6 +172,17 @@ class AcpAgent:
             raise AcpError("spawn_failed", f"{self.command[0]}: {exc}") from exc
         self._spawn(self._read_stdout())
         self._spawn(self._read_stderr())
+        extensions: dict[str, Any] = {}
+        if self.on_interview is not None:
+            extensions["clio-coder/interviews"] = {
+                "version": 1,
+                "request": INTERVIEW_REQUEST,
+            }
+        if self.on_permission is not None:
+            extensions["clio-coder/workerPermissions"] = {
+                "version": 1,
+                "withdraw": PERMISSION_WITHDRAW,
+            }
         result = await self._request(
             "initialize",
             {
@@ -156,6 +190,7 @@ class AcpAgent:
                 "clientCapabilities": {
                     "fs": {"readTextFile": False, "writeTextFile": False},
                     "terminal": False,
+                    **({"_meta": extensions} if extensions else {}),
                 },
                 "clientInfo": {"name": "zulipchat-mcp", "version": __version__},
             },
@@ -206,6 +241,15 @@ class AcpAgent:
         new_id = str(result["sessionId"])
         self._sessions.add(new_id)
         return new_id
+
+    async def list_sessions(self, cwd: str) -> list[dict[str, Any]]:
+        """``session/list`` for ``cwd``; empty when the agent cannot list."""
+        session_caps = self._capabilities.get("sessionCapabilities") or {}
+        if session_caps.get("list") in (None, False):
+            return []
+        result = await self._request("session/list", {"cwd": cwd})
+        sessions = result.get("sessions")
+        return [s for s in sessions if isinstance(s, dict)] if sessions else []
 
     async def prompt(
         self,
@@ -417,40 +461,77 @@ class AcpAgent:
                 turn = self._turns.get(session_id)
                 if turn is not None and session_id not in self._loading:
                     turn.apply(params.get("update") or {})
+            elif method == INTERVIEW_CANCEL:
+                self._withdraw(f"interview:{params.get('interviewId')}")
+            elif method == PERMISSION_WITHDRAW:
+                self._withdraw(f"worker:{params.get('requestId')}")
             return
         if method == "session/request_permission":
-            self._answer_permission(message["id"], params)
+            if self.on_permission is None:
+                self._spawn(self._reply(message["id"], result=_reject_option(params)))
+                return
+            meta = params.get("_meta")
+            worker = meta.get(WORKER_ASK_META) if isinstance(meta, dict) else None
+            key = (
+                f"worker:{worker.get('requestId')}"
+                if isinstance(worker, dict)
+                else None
+            )
+            self._serve(message["id"], params, self.on_permission, _CANCELLED, key)
+            return
+        if method == INTERVIEW_REQUEST and self.on_interview is not None:
+            self._serve(
+                message["id"],
+                params,
+                self.on_interview,
+                _INTERVIEW_CANCELLED,
+                f"interview:{params.get('interviewId')}",
+            )
             return
         await self._reply(
             message["id"],
             error={"code": -32601, "message": f"Method not found: {method}"},
         )
 
-    def _answer_permission(self, request_id: Any, params: dict[str, Any]) -> None:
+    def _serve(
+        self,
+        request_id: Any,
+        params: dict[str, Any],
+        handler_fn: PermissionHandler,
+        cancelled: dict[str, Any],
+        key: str | None,
+    ) -> None:
+        """Answer an agent request from ``handler_fn``; cancelling it sends ``cancelled``."""
         session_id = str(params.get("sessionId", ""))
-        if self.on_permission is None:
-            self._spawn(self._reply(request_id, result=_reject_option(params)))
-            return
-        handler = asyncio.ensure_future(self.on_permission(session_id, params))
+        handler = asyncio.ensure_future(handler_fn(session_id, params))
         tasks = self._permission_tasks.setdefault(session_id, set())
         tasks.add(handler)
+        if key is not None:
+            self._handlers_by_key[key] = handler
 
         async def answer() -> None:
             # Cancelling the handler, never this task, yields the cancelled outcome.
             try:
                 result = await handler
             except asyncio.CancelledError:
-                result = _CANCELLED
+                result = cancelled
             except Exception:
-                logger.exception("ACP permission handler failed")
-                result = _CANCELLED
+                logger.exception("ACP request handler failed")
+                result = cancelled
             finally:
                 tasks.discard(handler)
                 if not tasks:
                     self._permission_tasks.pop(session_id, None)
+                if key is not None and self._handlers_by_key.get(key) is handler:
+                    del self._handlers_by_key[key]
             await self._reply(request_id, result=result)
 
         self._spawn(answer())
+
+    def _withdraw(self, key: str) -> None:
+        handler = self._handlers_by_key.get(key)
+        if handler is not None:
+            handler.cancel()
 
     def _spawn(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coro)

@@ -135,6 +135,15 @@ class BridgeStore:
             ).rowcount
         return changed == 1
 
+    def close(self, question_id: str) -> bool:
+        """Expire an unanswered question so the next message starts a turn."""
+        with self._db() as db:
+            changed = db.execute(
+                "UPDATE questions SET deadline=? WHERE id=? AND answer IS NULL",
+                (time.time(), question_id),
+            ).rowcount
+        return changed == 1
+
     def question(self, question_id: str) -> dict[str, Any] | None:
         with self._db() as db:
             row = db.execute(

@@ -62,6 +62,11 @@ class AgentConfig:
     def permits_dir(self, path: Path) -> bool:
         return any(path == root or root in path.parents for root in self.allowed_dirs)
 
+    def agent_env(self) -> dict[str, str]:
+        """The agent's environment: never the owner's Zulip credentials."""
+        env = {k: v for k, v in os.environ.items() if not k.startswith("ZULIP")}
+        return {**env, **self.env}
+
     @property
     def state_path(self) -> Path:
         return state_dir() / f"{self.name}.sqlite3"

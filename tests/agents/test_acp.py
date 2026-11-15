@@ -133,7 +133,8 @@ async def test_permission_round_trip(make_agent, tmp_path):
     await agent.start()
     session_id = await agent.open_session(str(tmp_path), [])
     result = await agent.prompt(session_id, "needs-permission")
-    assert result.text.endswith(" chose allow_once")
+    # Text resumed after a tool call starts a new paragraph.
+    assert result.text == "echo: needs-permission\n\n chose allow_once"
     assert seen == [(session_id, ["allow_once", "reject_once"])]
 
 

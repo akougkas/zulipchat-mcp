@@ -16,9 +16,9 @@ from typing import Any
 
 from ..agents.config import config_dir, load_agent
 from ..agents.store import BridgeStore
-from ..config import ConfigManager, get_client
+from ..agents.teleport import TeleportError, teleport
+from ..config import get_client
 from ..core.api_errors import api_error
-from ..core.client import ZulipClientWrapper
 from ..core.security import local_access_allowed
 
 
@@ -52,23 +52,12 @@ async def teleport_chat(
     except ValueError as error:
         return _refuse(str(error), "BAD_AGENT_CONFIG")
     workspace = Path(cwd).expanduser().resolve() if cwd else config.cwd
-    if not config.permits_dir(workspace):
-        return _refuse(f"{workspace} is not in {agent}'s allowed_dirs", "POLICY_DENIED")
-
-    from ..agents.provision import ProvisionError, bot_owner_id
-
-    bot = ZulipClientWrapper(ConfigManager(config_file=str(config.zuliprc)))
     try:
-        owner = await asyncio.to_thread(bot_owner_id, bot)
-    except ProvisionError as error:
-        return _refuse(f"Cannot read agent bot '{agent}': {error}", "BOT_UNREADABLE")
-    if owner is None:
-        return _refuse(f"Agent bot '{agent}' has no owner in Zulip", "OWNER_UNKNOWN")
-    destination = {"type": "private", "to": [owner]}
-    BridgeStore(config.state_path).bind(
-        f"dm:{owner}", session_id, str(workspace), destination
-    )
-    response = await asyncio.to_thread(bot.send_message, "private", [owner], message)
+        response = await asyncio.to_thread(
+            teleport, config, workspace, session_id, message
+        )
+    except TeleportError as error:
+        return _refuse(str(error), error.code)
     if response.get("result") != "success":
         return api_error(response, "Handoff failed")
     result: dict[str, Any] = {

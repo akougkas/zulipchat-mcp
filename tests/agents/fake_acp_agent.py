@@ -1,7 +1,7 @@
 """Minimal stdlib ACP agent used by the ACP client tests.
 
 Environment knobs:
-  FAKE_ACP_CAPS   comma list of "resume", "load", "close" (default all three)
+  FAKE_ACP_CAPS   comma list of "resume", "load", "close", "list" (default all)
   FAKE_ACP_LOG    file that receives one line per received method
   FAKE_ACP_AUTH   when set, session/new fails with -32000
   FAKE_ACP_NOISE  when set, initialize is preceded by an oversize stdout line
@@ -10,18 +10,24 @@ Environment knobs:
 import json
 import os
 import sys
+import threading
 
-CAPS = set(os.environ.get("FAKE_ACP_CAPS", "resume,load,close").split(","))
+CAPS = set(os.environ.get("FAKE_ACP_CAPS", "resume,load,close,list").split(","))
 LOG = os.environ.get("FAKE_ACP_LOG")
 
 sessions = {}
+client_meta = {}  # clientCapabilities._meta from initialize
 waiting = {}  # outgoing request id or session id -> pending prompt
 next_id = 0
 
 
+write_lock = threading.Lock()
+
+
 def send(message):
-    sys.stdout.write(json.dumps({"jsonrpc": "2.0", **message}) + "\n")
-    sys.stdout.flush()
+    with write_lock:
+        sys.stdout.write(json.dumps({"jsonrpc": "2.0", **message}) + "\n")
+        sys.stdout.flush()
 
 
 def update(session_id, body):
@@ -104,6 +110,87 @@ def handle_prompt(message):
                 },
             )
         ] = prompt
+    elif "needs-interview" in text:
+        waiting[
+            request(
+                "_clio-coder/interview/request",
+                {
+                    "sessionId": session_id,
+                    "interviewId": "interview-1",
+                    "questions": [
+                        {
+                            "question": "Which database?",
+                            "header": "Storage",
+                            "options": [
+                                {"label": "DuckDB", "description": "embedded"},
+                                {"label": "Postgres"},
+                            ],
+                        },
+                        {"question": "Anything else?"},
+                    ],
+                },
+            )
+        ] = prompt
+    elif "worker-ask" in text:
+        ask_id = request(
+            "session/request_permission",
+            {
+                "sessionId": session_id,
+                "toolCall": {
+                    "toolCallId": "call-3",
+                    "title": "Run command",
+                    "rawInput": {"command": "rm -rf build"},
+                },
+                "options": [
+                    {"optionId": "allow-once", "name": "Approve", "kind": "allow_once"},
+                    {"optionId": "reject-once", "name": "Deny", "kind": "reject_once"},
+                ],
+                "_meta": {
+                    "clio-coder/workerAsk": {"requestId": "w-1", "agentId": "scout"},
+                    "clio-coder/decision": {
+                        "title": "Delete the build tree",
+                        "consequenceLines": ["Removes build/ recursively."],
+                    },
+                },
+            },
+        )
+        waiting[ask_id] = prompt
+        if "withdraw" in text:
+            threading.Timer(
+                0.5,
+                send,
+                [
+                    {
+                        "method": "_clio-coder/permission/withdraw",
+                        "params": {"sessionId": session_id, "requestId": "w-1"},
+                    }
+                ],
+            ).start()
+    elif "sleepy" in text:
+        update(
+            session_id,
+            {
+                "sessionUpdate": "plan",
+                "entries": [
+                    {"content": "read the code", "status": "completed"},
+                    {"content": "run the tests", "status": "in_progress"},
+                    {"content": "commit", "status": "pending"},
+                ],
+            },
+        )
+        update(
+            session_id,
+            {
+                "sessionUpdate": "tool_call",
+                "toolCallId": "call-9",
+                "title": "Run `pytest -q`",
+                "status": "in_progress",
+            },
+        )
+        threading.Timer(1.2, finish, [prompt]).start()
+    elif "show-meta" in text:
+        chunk(session_id, " meta " + json.dumps(client_meta, sort_keys=True))
+        finish(prompt)
     elif "fs-read" in text:
         waiting[
             request("fs/read_text_file", {"sessionId": session_id, "path": "/x"})
@@ -122,7 +209,12 @@ def handle_response(message):
         chunk(prompt["session"], f" error {message['error']['code']}")
         finish(prompt)
         return
-    outcome = message["result"]["outcome"]
+    result = message["result"]
+    if "outcome" not in result:  # an interview reply
+        chunk(prompt["session"], " interview " + json.dumps(result, sort_keys=True))
+        finish(prompt)
+        return
+    outcome = result["outcome"]
     if outcome["outcome"] == "cancelled":
         finish(prompt, "cancelled")
         return
@@ -140,10 +232,13 @@ def handle(message):
         return
     params = message.get("params") or {}
     if method == "initialize":
+        client_meta.update(params.get("clientCapabilities", {}).get("_meta") or {})
         if os.environ.get("FAKE_ACP_NOISE"):
             sys.stdout.write("{" + "x" * 200_000 + "}\n")
         send({"method": "_vendor/ping", "params": {}})
         session_caps = {"close": {}} if "close" in CAPS else {}
+        if "list" in CAPS:
+            session_caps["list"] = {}
         if "resume" in CAPS:
             session_caps["resume"] = {}
         send(
@@ -185,6 +280,32 @@ def handle(message):
             for text in sessions[session_id]:
                 chunk(session_id, f"replayed {text}")
         send({"id": message["id"], "result": {}})
+    elif method == "session/list":
+        send(
+            {
+                "id": message["id"],
+                "result": {
+                    "sessions": [
+                        {
+                            "sessionId": "old",
+                            "cwd": params["cwd"],
+                            "updatedAt": "2026-11-01T00:00:00Z",
+                        },
+                        {
+                            "sessionId": "live",
+                            "cwd": params["cwd"],
+                            "updatedAt": "2026-11-15T09:00:00Z",
+                            "title": "Refactor",
+                        },
+                        {
+                            "sessionId": "elsewhere",
+                            "cwd": "/other",
+                            "updatedAt": "2026-11-16T00:00:00Z",
+                        },
+                    ]
+                },
+            }
+        )
     elif method == "session/close":
         sessions.pop(params.get("sessionId"), None)
         send({"id": message["id"], "result": {}})
