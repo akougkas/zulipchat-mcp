@@ -335,6 +335,8 @@ MIT — See [LICENSE](LICENSE)
 
 ---
 
+Part of Anthony Kougkas's agentic engineering work: [akougkas.io/work/agentic-engineering](https://akougkas.io/work/agentic-engineering/)
+
 <div align="center">
   <sub>Built for the Zulip community</sub>
 </div>
