@@ -228,7 +228,11 @@ def _check_git_clean() -> CheckResult:
 
 def _check_integration_versions(version: str) -> CheckResult:
     failures = []
-    for path in (ROOT / "integrations").rglob("*.json"):
+    paths = [
+        *(ROOT / "integrations").rglob("*.json"),
+        *(ROOT / "pancode").rglob("*.json"),
+    ]
+    for path in paths:
         if path.name not in {"catalog.json", "package-metadata.json", "plugin.json"}:
             continue
         payload = json.loads(_read_text(path))

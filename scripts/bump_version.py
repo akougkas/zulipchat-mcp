@@ -127,13 +127,20 @@ def main() -> int:
         return 1
 
     root = Path(__file__).parent.parent
+    # integrations/ holds the host templates; pancode/ is the PanHub pack.
+    template_files = sorted(
+        path
+        for directory in ("integrations", "pancode")
+        for path in (root / directory).rglob("*")
+        if path.is_file()
+    )
     integration_updates = [
         VersionUpdate(
             str(path.relative_to(root)),
             r'"version": "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
             '"version": "{version}"',
         )
-        for path in sorted((root / "integrations").rglob("*.json"))
+        for path in template_files
         if path.name in {"catalog.json", "package-metadata.json", "plugin.json"}
         and '"version":' in path.read_text()
     ]
@@ -141,8 +148,8 @@ def main() -> int:
     pin = r"zulipchat-mcp(@|==)[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"
     pin_updates = [
         VersionUpdate(str(path.relative_to(root)), pin, r"zulipchat-mcp\g<1>{version}")
-        for path in sorted((root / "integrations").rglob("*"))
-        if path.is_file() and re.search(pin, path.read_text(errors="ignore"))
+        for path in template_files
+        if re.search(pin, path.read_text(errors="ignore"))
     ]
     updates = [*VERSION_UPDATES, *integration_updates, *pin_updates]
     version = args.version

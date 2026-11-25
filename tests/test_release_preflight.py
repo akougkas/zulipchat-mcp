@@ -51,3 +51,13 @@ def test_json_command_arrays_require_source_before_companion(
         json.dumps({"mcpServers": {"zulipchat": {"command": "uvx", "args": args}}})
     )
     assert release_preflight._check_uvx_package_sources().passed is passes
+
+
+def test_integration_versions_cover_the_pancode_pack(tmp_path, monkeypatch):
+    monkeypatch.setattr(release_preflight, "ROOT", tmp_path)
+    (tmp_path / "integrations").mkdir()
+    (tmp_path / "pancode").mkdir()
+    (tmp_path / "pancode" / "plugin.json").write_text('{"version": "0.8.0"}')
+    result = release_preflight._check_integration_versions("0.8.1")
+    assert not result.passed
+    assert result.detail == "pancode/plugin.json"
