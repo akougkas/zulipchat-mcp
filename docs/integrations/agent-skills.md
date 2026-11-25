@@ -20,7 +20,7 @@ start autonomous work, install lifecycle hooks, or authorize external writes.
 ## Native exports
 
 ```bash
-uv run zulipchat-mcp-integrate export --client clio-coder \
+uv run zulipchat-mcp-integrate export --client pancode \
   --output-dir /absolute/path/to/project \
   --zulip-config-file /absolute/path/to/.zuliprc --extended-tools
 ```
@@ -36,7 +36,7 @@ Use absolute credential paths because client process arguments do not expand
 | `copilot` | `.mcp.json` | `.github/skills` | Copilot CLI repository trust and MCP policy |
 | `vscode` | `.vscode/mcp.json` | `.github/skills` | VS Code workspace MCP trust |
 | `antigravity-cli` | `mcp_config.json` staging fragment | `.agents/skills` | Merge the fragment into the CLI's user MCP file |
-| `clio-coder` | `.clio-coder/mcp.yaml` | `.clio-coder/skills` | Separate project MCP trust; see the Clio guide |
+| `pancode` | `.pancode/mcp.yaml` | `.pancode/skills` | Separate project MCP launch and surface trust; see the PanCode guide |
 | `generic` | `.mcp.json` fragment | `.agents/skills` | Adapt configuration to the host's documented paths |
 
 Exports merge unrelated JSON/TOML/YAML settings and server entries, but refuse
@@ -62,8 +62,9 @@ For every target except Claude Code, plugin mode produces the same
 [Agent Plugins 1.0.0](https://agent-plugins.org/) layout: root `plugin.json`,
 root `mcp.json`, and four `skills/<name>/SKILL.md` files. The manifest and MCP
 declarations are validated against the published schemas. Codex recognizes
-this portable format. Clio validates the content but does not execute plugin
-MCP declarations; configure its native YAML separately. OpenCode and
+this portable format. PanCode installs the `--client pancode` package as a
+PanHub pack and runs its MCP declaration only after operator trust; see the
+[PanCode guide](pancode.md). OpenCode and
 Antigravity use the native configuration/skill exports; a portable package
 does not establish that they have a plugin installer for this specification.
 

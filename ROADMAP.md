@@ -2,14 +2,14 @@
 
 ## v0.8.0 (unreleased)
 
-- Talk to local ACP coding agents (Clio, Claude and others) from Zulip through
+- Talk to local ACP coding agents (PanCode, Claude and others) from Zulip through
   the agent bridge `zulipchat-mcp-agents`, one Zulip bot per agent, with
   `service install` to run it at login.
 - Remove the MCP-side agent control plane: the session tools, their listener,
   the Claude hook bridge, three skills and the DuckDB database. Core tools go
   from 19 to 13 and extended from 53 to 45.
-- Export per-tool Clio action classes so trusted servers work in Clio 0.7 read-only runs.
-- Export a read-only Clio declaration for sandboxed read-only workers.
+- Export per-tool PanCode action classes so trusted servers work in PanCode read-only runs.
+- Export a read-only PanCode declaration for sandboxed read-only workers.
 - Keep read caches in memory with `--ephemeral-state` where state is not writable.
 - Keep message reads within client result budgets: compact stream and user listings, Markdown message content and cursor paging for search.
 - Complete task-augmented calls such as `ask_owner` for clients that declare the MCP Tasks extension.
@@ -35,7 +35,7 @@
   refresh the full lockfile, and test the minimum and latest allowed versions.
 - Package four Agent Skills, serve them through MCP Resources and SEP-2640,
   and export native configuration for Claude Code, Codex, OpenCode, Copilot CLI,
-  VS Code, Antigravity CLI, and Clio Coder.
+  VS Code, Antigravity CLI, and PanCode.
 - Provide an Agent Plugins 1.0.0 package alongside Claude's native plugin format.
   Keep host-specific execution and permission checks explicit.
 - Address confirmed findings from the independent Astra architecture review.
@@ -64,6 +64,6 @@ cached reads, tasks, and HTTP caller isolation before it can be offered.
   directories that accept this format. Local schema validation does not imply
   directory acceptance or listing.
 - Use [Agent bots](docs/integrations/agent-bots.md) as a small reproducible
-  demo: a Clio bot answering its owner from Zulip.
+  demo: a PanCode bot answering its owner from Zulip.
 - Collect real integration feedback before adding executable host plugins or
   another compatibility layer.

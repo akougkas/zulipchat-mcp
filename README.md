@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Codex, Clio Coder, OpenCode, Copilot, Antigravity CLI, Gemini CLI, and other MCP clients to Zulip.</h3>
+  <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Codex, PanCode, OpenCode, Copilot, Antigravity CLI, Gemini CLI, and other MCP clients to Zulip.</h3>
 
   [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
   [![CI](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
@@ -60,7 +60,7 @@ uvx --from zulipchat-mcp zulipchat-mcp-integrate export --client claude-code \
 ```
 
 Exports support `claude-code`, `codex`, `opencode`, `copilot`, `vscode`,
-`antigravity-cli`, `clio-coder`, and `generic`. Add `--mode plugin` for a package.
+`antigravity-cli`, `pancode`, and `generic`. Add `--mode plugin` for a package.
 For several Zulip organizations, export once per organization with
 `--server-id zulipchat-<org>`; exports merge into one host configuration.
 Account state lives under `~/.local/state/zulipchat-mcp/`. Host trust remains
@@ -95,7 +95,7 @@ the agent runs on your machine, in your repositories, under its own permission
 rules, and asks you in the chat (answer `yes` or `no`) before risky steps. The
 `zulipchat-mcp-agents` bridge serves one Zulip Generic bot per agent that
 speaks the Agent Client Protocol: Claude Code and Codex through their ACP
-adapters, OpenCode, Goose, Gemini CLI, Clio Coder, or any other ACP agent.
+adapters, OpenCode, Goose, Gemini CLI, PanCode, or any other ACP agent.
 
 ```bash
 uv tool install zulipchat-mcp

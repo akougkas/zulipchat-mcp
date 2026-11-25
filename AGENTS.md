@@ -75,7 +75,7 @@ tools, their listener and the Claude hook bridge were removed in 0.8.0. See
   Resources and SEP-2640 on MCP 2026-07-28. Resource manifests use exact UTF-8
   byte hashes; preserve full frontmatter and cache metadata.
 - Exporters support Claude Code, Codex, OpenCode, Copilot, Antigravity CLI,
-  Clio Coder, and generic clients. Native host configuration and portable plugin
+  PanCode, and generic clients. Native host configuration and portable plugin
   content have separate activation/trust requirements; see
   [Agent Skills](docs/integrations/agent-skills.md).
 - Resolve realms and principals through `ConfigManager.resolved_account()`.

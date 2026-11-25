@@ -18,8 +18,8 @@ bridge.
 
 Any agent that speaks ACP works; the bridge needs only its launch command.
 Status: new in v0.8.0. The bridge is tested with a fake ACP agent and a mocked
-Zulip client, and in live use against a real Zulip organization with Clio
-Coder as the agent. Real Claude Code (`claude-agent-acp`) turns were run
+Zulip client, and in live use against a real Zulip organization with PanCode
+as the agent. Real Claude Code (`claude-agent-acp`) turns were run
 through it with a mocked Zulip. OpenCode and Goose were probed for start,
 session creation and resume.
 
@@ -86,7 +86,7 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   bridge does not offer it ACP file system or terminal capabilities. When the
   agent sends an ACP permission request, the bridge posts it in the
   conversation as `Permission request ID`, with the command or paths involved
-  and, from Clio, its consequence lines. Up to 6000 characters of a command
+  and, from PanCode, its consequence lines. Up to 6000 characters of a command
   are shown, and the request says so when there is more. Answer with a
   message that is only `yes`, `ok`, `okay` or `approve`, or only `no` or
   `deny`, in any case and with or without a final period (or `/approve ID`,
@@ -94,7 +94,7 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   agent acting as you could approve itself with one. Any other message leaves
   it open. No answer within `question_minutes` means no. A request the agent
   withdraws, or that a `/cancel` ends, is closed in the conversation, so the
-  next message starts a turn again. Clio withdraws main-session and worker
+  next message starts a turn again. PanCode withdraws main-session and worker
   requests alike when it gives one up.
 - **Answers in a topic.** In a channel topic every message for the bot
   mentions it. The exception is an exact choice for the open request: `yes` or
@@ -102,12 +102,12 @@ zuliprc (Zulip: Settings > Account & privacy > API key > Download zuliprc).
   free-text answer needs the mention, and anything else you write there is
   ignored, so a remark to a colleague is never taken as your answer. A direct
   message needs no mention.
-- **Clio Coder interviews.** The bridge tells Clio a person is attending
-  (`clio-coder/interviews` and `clio-coder/workerPermissions` in
-  `clientCapabilities._meta`). Clio's `ask_user` questions then arrive as
+- **PanCode interviews.** The bridge tells PanCode a person is attending
+  (`pancode/interviews` and `pancode/workerPermissions` in
+  `clientCapabilities._meta`). PanCode's `ask_user` questions then arrive as
   `Question ID`, one at a time; reply with an option's number or label (several,
   comma-separated, when it allows more than one) or in your own words. The
-  option Clio would take if nobody answered is marked `(recommended)`. Workers'
+  option PanCode would take if nobody answered is marked `(recommended)`. Workers'
   permission requests arrive like any other permission request.
 - **Restarts.** After a crash or restart the bridge tells each conversation
   whose turn was cut off that the earlier message may be only partly done; it
@@ -167,7 +167,7 @@ Known names fill in the launch command; any other name needs `--command`:
 
 | Name | Command |
 | --- | --- |
-| `clio` | `clio-coder acp` |
+| `pancode` | `pancode acp` |
 | `opencode` | `opencode acp` |
 | `goose` | `goose acp` |
 | `gemini` | `gemini --acp` |
@@ -184,16 +184,16 @@ bridge switches each Claude session to `default` mode (ask before edits and
 commands), so you approve from Zulip. Name another ACP mode in the file, for
 example `mode = "acceptEdits"`, or `mode = ""` to keep Claude's own setting.
 
-Clio Coder needs 0.8.2 or later. The bridge starts it as
-`clio-coder acp --autonomy default`: a person in Zulip is not at the keyboard,
-so Clio asks before it acts and refuses `yolo` for every session the bridge
+PanCode needs 0.9.0 or later. The bridge starts it as
+`pancode acp --autonomy default`: a person in Zulip is not at the keyboard,
+so PanCode asks before it acts and refuses `yolo` for every session the bridge
 hosts. To run it at your configured level, name the level in the file:
-`command = ["clio-coder", "acp", "--autonomy", "yolo"]`. Read
+`command = ["pancode", "acp", "--autonomy", "yolo"]`. Read
 [what you are trusting](#what-you-are-trusting) first.
 
-The bridge tells Clio how long to wait for an answer (`timeoutMs` in both
+The bridge tells PanCode how long to wait for an answer (`timeoutMs` in both
 opt-ins, equal to `question_minutes`), so a permission request or an interview
-stays open in Clio as long as it stays open in Zulip. Do not add
+stays open in PanCode as long as it stays open in Zulip. Do not add
 `--permission-timeout` to the command: it overrides that window.
 
 ```bash
@@ -223,7 +223,7 @@ enabled in `/etc/wsl.conf`) or a launchd agent on macOS
 in `~/Library/Logs/zulipchat-mcp-agents.log`). Native Windows has no service;
 keep `run` open. The service runs the interpreter that installed it, so install
 with `uv tool install`; it refuses a temporary `uvx` environment. It records
-your shell's `PATH`, which agents such as `clio-coder` and `claude-agent-acp`
+your shell's `PATH`, which agents such as `pancode` and `claude-agent-acp`
 (Node scripts) need. Other variables an agent needs, such as API keys set in a
 shell profile, go in the agent file's `env`. Run `service install` again after
 changing `PATH`.
@@ -343,8 +343,8 @@ machine. Decide with these facts:
 - **The agent runs as you.** It has your files, your shell, your environment
   and your network, limited only by the agent's own permission policy.
   `allowed_dirs` chooses where it starts; it is not a sandbox. The bridge holds
-  Clio to `--autonomy default` and Claude to `default` mode. An agent file that
-  lifts that (Clio `yolo`, Claude `bypassPermissions` or `auto`) means the
+  PanCode to `--autonomy default` and Claude to `default` mode. An agent file that
+  lifts that (PanCode `yolo`, Claude `bypassPermissions` or `auto`) means the
   agent never sends the permission requests described above.
 - **The agent also loads its own configuration.** `zulip_tools` governs only the
   MCP server the bridge passes in. MCP servers in the agent's own user or

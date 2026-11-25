@@ -104,7 +104,7 @@ See [Agent bots](../integrations/agent-bots.md).
 
 - `--unsafe` is off by default.
 - Bearer token authentication required on non-loopback HTTP binds (`--auth-token` / `ZULIPCHAT_HTTP_AUTH_TOKEN`).
-- Topic resolution goes through `resolve_topic`, which Clio exports classify as destructive.
+- Topic resolution goes through `resolve_topic`, which PanCode exports classify as destructive.
 - Agent emoji usage is validated against a fixed approved list.
 - The bridge hears only the bot's owner (by user ID) and listed user IDs, and
   answers permission requests only from what it read in Zulip itself.

@@ -15,7 +15,7 @@ Merge the resulting `mcp_config.json` into the CLI's user configuration
 (`~/.gemini/config/mcp_config.json`, or the configuration directory selected by
 `ANTIGRAVITY_HOME`). Copy the generated `.agents/skills` into the project.
 Check the paths against the CLI version installed on your machine; this target
-was verified against Clio's Antigravity CLI interoperability contract, without
+was verified against PanCode's Antigravity CLI interoperability contract, without
 running an installed Antigravity CLI.
 
 The generated JSON uses `mcpServers.zulipchat` with `command="uvx"` and explicit

@@ -61,7 +61,7 @@ Target response times:
 - The bridge redacts credential values and silences mentions in what it
   posts. By default it gives each agent only `ask_owner`
   (`zulip_tools = "ask"`). Bridged agents run with the local user's authority
-  under their own permission policy. The bridge starts Clio at autonomy
+  under their own permission policy. The bridge starts PanCode at autonomy
   `default` and Claude in ACP mode `default` unless the agent file says
   otherwise, so both ask before acting; a permission request the owner leaves
   unanswered is denied.

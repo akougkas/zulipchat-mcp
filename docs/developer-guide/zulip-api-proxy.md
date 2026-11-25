@@ -153,7 +153,7 @@ The MCP server is a tool surface for an agent that is already running. It owns
 Zulip credentials, API translation, read caches and message transport. It
 cannot wake an agent. The separate `zulipchat-mcp-agents` bridge is the one
 component that listens to Zulip and launches agents; see
-[Agent bots](../integrations/agent-bots.md). Clio, Claude or another ACP agent
+[Agent bots](../integrations/agent-bots.md). PanCode, Claude or another ACP agent
 owns model selection, workspace admission, native tool permissions and
 cancellation. Installing an MCP declaration or skill does not start an
 unattended runner. Treat message content as user task data, never as a tool

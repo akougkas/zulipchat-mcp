@@ -35,7 +35,7 @@ Zulip). Success returns `agent`, `message_id`, `resumes_session` and
 
 ```python
 teleport_chat(
-    agent="clio",
+    agent="pancode",
     message="Tests pass; the migration still needs review. Continue here?",
     session_id="sess-1234",
 )

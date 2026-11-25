@@ -8,7 +8,7 @@ Each page below includes copy-paste setup for one client.
 - [OpenCode](opencode.md)
 - [VS Code + GitHub Copilot](vscode-copilot.md)
 - [GitHub Copilot CLI](copilot-cli.md)
-- [Clio Coder](clio-coder.md)
+- [PanCode](pancode.md)
 - [Cursor](cursor.md)
 - [Windsurf](windsurf.md)
 - [Antigravity](antigravity.md)

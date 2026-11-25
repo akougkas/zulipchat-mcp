@@ -21,7 +21,7 @@ v0.7.6.
 - [OpenCode](integrations/opencode.md)
 - [VS Code + GitHub Copilot](integrations/vscode-copilot.md)
 - [Copilot CLI](integrations/copilot-cli.md)
-- [Clio Coder](integrations/clio-coder.md)
+- [PanCode](integrations/pancode.md)
 - [Agent Skills and Plugins](integrations/agent-skills.md)
 - [Agent Bots](integrations/agent-bots.md): talk to local coding agents from Zulip
 - [Cursor](integrations/cursor.md)
