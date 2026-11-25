@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "zulipchat",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Zulip messaging, search, and topic-bound agent collaboration.",
   "author": {
     "name": "Anthony Kougkas"

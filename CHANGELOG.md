@@ -4,6 +4,8 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-25
+
 ### Changed
 - **Breaking: the `clio-coder` export client is removed; use `pancode`.** `zulipchat-mcp-integrate print|export --client pancode` writes PanCode's version 1 `mcp.yaml` with the same `timeoutMs` and per-tool `toolActionClasses`. A project export writes `.pancode/mcp.yaml` and `.pancode/skills`; `print` is the user-scope form and adds `network: true`, which PanCode honors only in the user's own declaration. Plugin mode for `pancode` adds the `dev.pancode` manifest extension. `--client clio-coder` now exits with a usage error; nothing reads or converts an old `.clio-coder/` directory.
 - **Breaking: the agent bridge speaks PanCode's ACP names.** It opts into `pancode/interviews` and `pancode/workerPermissions`, answers `_pancode/interview/request`, closes requests on `_pancode/interview/cancel` and `_pancode/permission/withdraw`, and reads `pancode/workerAsk`, `pancode/permissionAsk`, `pancode/decision` and `pancode/interview` metadata. The known agent `pancode` runs `pancode acp`, and the bridge holds an agent binary named `pancode` to `--autonomy default`. An agent file that still runs the old command must be updated by hand.

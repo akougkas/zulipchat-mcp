@@ -11,5 +11,5 @@
   "description": "Adds ZulipChat MCP to Codex via CLI or config.toml.",
   "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/codex.md",
   "repository": "https://github.com/akougkas/zulipchat-mcp",
-  "version": "0.8.0"
+  "version": "0.8.1"
 }

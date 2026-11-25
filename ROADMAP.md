@@ -1,6 +1,13 @@
 # Roadmap
 
-## v0.8.0 (unreleased)
+## v0.8.1 (Current)
+
+- Export for PanCode (`--client pancode`) and ship the PanHub pack `pancode/`;
+  the `clio-coder` export client is removed.
+- Speak PanCode's ACP names in the agent bridge; the known agent `pancode` runs
+  `pancode acp`.
+
+## v0.8.0
 
 - Talk to local ACP coding agents (PanCode, Claude and others) from Zulip through
   the agent bridge `zulipchat-mcp-agents`, one Zulip bot per agent, with
