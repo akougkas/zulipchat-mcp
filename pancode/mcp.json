@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "zulipchat": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "zulipchat-mcp@0.8.0",
+        "--zulip-config-file",
+        "~/.zuliprc"
+      ],
+      "timeoutMs": 900000,
+      "toolActionClasses": {
+        "add_reaction": "execute",
+        "edit_message": "destructive",
+        "get_message": "read",
+        "get_stream_topics": "read",
+        "get_streams": "read",
+        "get_users": "read",
+        "manage_message_flags": "execute",
+        "resolve_user": "read",
+        "search_messages": "read",
+        "send_message": "execute",
+        "server_info": "read",
+        "switch_identity": "execute",
+        "teleport_chat": "execute"
+      }
+    }
+  }
+}

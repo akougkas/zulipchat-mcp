@@ -30,7 +30,7 @@ CLIENTS = [
     "antigravity",
     "antigravity-cli",
     "copilot",
-    "clio-coder",
+    "pancode",
     "generic",
 ]
 
@@ -58,16 +58,16 @@ def _build_base_config(
     }
 
 
-CLIO_TIMEOUT_MS = 900000
+PANCODE_TIMEOUT_MS = 900000
 
 
-def clio_tool_action_classes(
+def pancode_tool_action_classes(
     extended_tools: bool, profile: str = "full"
 ) -> dict[str, str]:
-    """Map each registered tool to a Clio action class from its MCP annotations.
+    """Map each registered tool to a PanCode action class from its MCP annotations.
 
-    Clio applies these per-tool classes only after the operator trusts the
-    exact declaration, so read tools need no approval while writes still do.
+    PanCode shows these per-tool classes when the operator trusts the exact
+    declaration, so read tools need no approval while writes still do.
     """
     import asyncio
 
@@ -96,10 +96,10 @@ def clio_tool_action_classes(
     return dict(sorted(classes.items()))
 
 
-def clio_server_fields(base: dict[str, Any]) -> dict[str, Any]:
-    """Clio declaration fields shared by its YAML and plugin exports.
+def pancode_server_fields(base: dict[str, Any]) -> dict[str, Any]:
+    """PanCode declaration fields shared by its YAML and plugin exports.
 
-    Clio runs a worker's MCP server where the state directory is read-only,
+    PanCode runs a worker's MCP server where the state directory is read-only,
     so a read-only profile keeps its read caches in memory.
     """
     args = base["args"]
@@ -109,8 +109,8 @@ def clio_server_fields(base: dict[str, Any]) -> dict[str, Any]:
     read_only = profile == "read-only"
     return {
         "args": [*args, "--ephemeral-state"] if read_only else args,
-        "timeoutMs": CLIO_TIMEOUT_MS,
-        "toolActionClasses": clio_tool_action_classes(
+        "timeoutMs": PANCODE_TIMEOUT_MS,
+        "toolActionClasses": pancode_tool_action_classes(
             "--extended-tools" in args, profile
         ),
     }
@@ -158,7 +158,11 @@ def validate_server_id(server_id: str) -> str:
 
 
 def _render_for_client(
-    client: str, base: dict[str, Any], server_id: str = "zulipchat"
+    client: str,
+    base: dict[str, Any],
+    server_id: str = "zulipchat",
+    *,
+    user_scope: bool = False,
 ) -> str:
     if client == "claude-code":
         return shlex.join(
@@ -190,14 +194,13 @@ def _render_for_client(
             indent=2,
         )
 
-    if client == "clio-coder":
-        return yaml.safe_dump(
-            {
-                "version": 1,
-                "servers": [{"id": server_id, **base, **clio_server_fields(base)}],
-            },
-            sort_keys=False,
-        )
+    if client == "pancode":
+        server = {"id": server_id, **base, **pancode_server_fields(base)}
+        if user_scope:
+            # Only the user's own <config>/mcp.yaml may grant a server egress;
+            # PanCode ignores the field in project and plugin declarations.
+            server["network"] = True
+        return yaml.safe_dump({"version": 1, "servers": [server]}, sort_keys=False)
 
     if client == "vscode":
         payload = {
@@ -297,7 +300,7 @@ def main() -> None:
             "copilot",
             "vscode",
             "antigravity-cli",
-            "clio-coder",
+            "pancode",
             "generic",
         ],
         required=True,
@@ -357,7 +360,7 @@ def main() -> None:
             server_id = validate_server_id(args.server_id)
         except ValueError as e:
             print_parser.error(str(e))
-        print(_render_for_client(args.client, base, server_id))
+        print(_render_for_client(args.client, base, server_id, user_scope=True))
         return
 
     if args.command == "export":

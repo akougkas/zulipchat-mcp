@@ -1,7 +1,7 @@
 {
-  "id": "zulipchat-mcp-clio-coder",
-  "name": "ZulipChat MCP for clio-coder",
-  "platform": "clio-coder",
+  "id": "zulipchat-mcp-pancode",
+  "name": "ZulipChat MCP for PanCode",
+  "platform": "pancode",
   "category": [
     "communication",
     "mcp",

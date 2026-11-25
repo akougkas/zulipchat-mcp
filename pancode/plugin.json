@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "zulipchat",
+  "version": "0.8.0",
+  "description": "Zulip messaging and search, and hand-off to Zulip agent bots.",
+  "author": {
+    "name": "Anthony Kougkas"
+  },
+  "homepage": "https://github.com/akougkas/zulipchat-mcp",
+  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "license": "MIT",
+  "keywords": [
+    "zulip",
+    "mcp",
+    "chatops",
+    "agent-skills"
+  ],
+  "extensions": {
+    "dev.pancode": {
+      "manifestVersion": 1,
+      "compatibility": {
+        "pancode": ">=0.9.0"
+      }
+    }
+  }
+}

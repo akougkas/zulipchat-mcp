@@ -20,6 +20,11 @@ from ..skill_content import skill_files
 from .package_writer import write_package
 
 PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+# PanCode reads its own manifest namespace; the range keeps older PanCode
+# releases from installing a pack whose declarations they cannot read.
+PANCODE_PLUGIN_EXTENSION = {
+    "dev.pancode": {"manifestVersion": 1, "compatibility": {"pancode": ">=0.9.0"}}
+}
 MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
 
 # Antigravity CLI uses a user-scoped MCP file; its export is a staging fragment.
@@ -31,7 +36,7 @@ LAYOUTS = {
     "copilot": (".mcp.json", ".github/skills", "mcpServers"),
     "vscode": (".vscode/mcp.json", ".github/skills", "servers"),
     "antigravity-cli": ("mcp_config.json", ".agents/skills", "mcpServers"),
-    "clio-coder": (".clio-coder/mcp.yaml", ".clio-coder/skills", "servers"),
+    "pancode": (".pancode/mcp.yaml", ".pancode/skills", "servers"),
     "generic": (".mcp.json", ".agents/skills", "mcpServers"),
 }
 
@@ -40,11 +45,13 @@ def portable_plugin_files(
     base: dict[str, Any],
     server_id: str = "zulipchat",
     host_fields: dict[str, Any] | None = None,
+    extensions: dict[str, Any] | None = None,
 ) -> dict[str, str]:
     """Render Agent Plugins 1.0.0 without imposing host-specific permissions.
 
     host_fields extends the server entry for a host that reads more than the
-    portable schema, such as Clio's per-tool action classes.
+    portable schema, such as PanCode's per-tool action classes; extensions adds
+    namespaced manifest objects, such as PanCode's compatibility range.
     """
     manifest = {
         "$schema": PLUGIN_SCHEMA,
@@ -56,6 +63,7 @@ def portable_plugin_files(
         "repository": "https://github.com/akougkas/zulipchat-mcp",
         "license": "MIT",
         "keywords": ["zulip", "mcp", "chatops", "agent-skills"],
+        **({"extensions": extensions} if extensions else {}),
     }
     mcp = {
         "$schema": MCP_SCHEMA,
@@ -68,6 +76,17 @@ def portable_plugin_files(
             f"skills/{relative}": content for relative, content in skill_files().items()
         },
     }
+
+
+def pancode_plugin_files(
+    base: dict[str, Any], server_id: str = "zulipchat"
+) -> dict[str, str]:
+    """The PanCode plugin: portable files plus PanCode's server and manifest fields."""
+    from .registry import pancode_server_fields
+
+    return portable_plugin_files(
+        base, server_id, pancode_server_fields(base), PANCODE_PLUGIN_EXTENSION
+    )
 
 
 def _parse(content: str, suffix: str) -> dict[str, Any]:
@@ -104,12 +123,14 @@ def _merge_config(
     new = _parse(incoming, suffix)
     if suffix == ".yaml":
         if existing.get("version") != 1 or set(existing) - {"version", "servers"}:
-            raise ValueError("Clio MCP configuration must use the version 1 schema")
+            raise ValueError("PanCode MCP configuration must use the version 1 schema")
         servers = existing.setdefault("servers", [])
         if not isinstance(servers, list) or any(
             not isinstance(server, dict) for server in servers
         ):
-            raise ValueError("Clio MCP servers must be an array of objects")
+            raise ValueError(
+                "PanCode MCP configuration servers must be an array of objects"
+            )
         matches = [
             index
             for index, server in enumerate(servers)
@@ -155,7 +176,6 @@ def export_agent_package(
     from .registry import (
         _build_base_config,
         _render_for_client,
-        clio_server_fields,
         validate_server_id,
     )
 
@@ -165,8 +185,11 @@ def export_agent_package(
         zulip_config_file, zulip_bot_config_file, extended_tools, tool_profile
     )
     if mode == "plugin":
-        host_fields = clio_server_fields(base) if client == "clio-coder" else None
-        files = portable_plugin_files(base, server_id, host_fields)
+        files = (
+            pancode_plugin_files(base, server_id)
+            if client == "pancode"
+            else portable_plugin_files(base, server_id)
+        )
         if client == "claude-code":
             # Claude Code reads its manifest and servers from these two paths
             # and knows nothing of the Agent Plugins schemas.

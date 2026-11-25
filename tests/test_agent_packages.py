@@ -26,7 +26,7 @@ def test_host_exports_are_parseable_and_have_portable_skills(tmp_path, client):
     )
     config_path, skill_root, key = LAYOUTS[client]
     config = _parse((tmp_path / config_path).read_text(), Path(config_path).suffix)
-    if client == "clio-coder":
+    if client == "pancode":
         assert config["version"] == 1
         server = config["servers"][0]
         assert server["id"] == "zulipchat"
@@ -76,14 +76,14 @@ def test_exports_preserve_other_servers_and_refuse_identity_replacement(
     assert "two" in destination.read_text()
 
 
-def test_clio_export_preserves_other_servers_and_detects_duplicate_ids(tmp_path):
-    destination = tmp_path / ".clio-coder/mcp.yaml"
+def test_pancode_export_preserves_other_servers_and_detects_duplicate_ids(tmp_path):
+    destination = tmp_path / ".pancode/mcp.yaml"
     destination.parent.mkdir()
     destination.write_text(
         "version: 1\nservers:\n  - id: other\n    command: keep-me\n"
     )
     export_agent_package(
-        tmp_path, client="clio-coder", zulip_config_file="/home/test/.zuliprc"
+        tmp_path, client="pancode", zulip_config_file="/home/test/.zuliprc"
     )
     payload = yaml.safe_load(destination.read_text())
     assert payload["servers"][0] == {"id": "other", "command": "keep-me"}
@@ -92,13 +92,13 @@ def test_clio_export_preserves_other_servers_and_detects_duplicate_ids(tmp_path)
     with pytest.raises(ValueError, match="Duplicate"):
         export_agent_package(
             tmp_path,
-            client="clio-coder",
+            client="pancode",
             zulip_config_file="/home/test/.zuliprc",
             force=True,
         )
 
 
-@pytest.mark.parametrize("client", ["codex", "clio-coder", "opencode"])
+@pytest.mark.parametrize("client", ["codex", "pancode", "opencode"])
 def test_export_refuses_symlinks_even_with_force(tmp_path, client):
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -150,23 +150,21 @@ def test_portable_plugin_matches_published_schemas(tmp_path):
 
 
 @pytest.mark.parametrize("extended", [False, True])
-def test_clio_exports_classify_every_tool_from_its_annotations(tmp_path, extended):
+def test_pancode_exports_classify_every_tool_from_its_annotations(tmp_path, extended):
     export_agent_package(
         tmp_path,
-        client="clio-coder",
+        client="pancode",
         zulip_config_file="/home/test/.zuliprc",
         extended_tools=extended,
     )
     export_agent_package(
         tmp_path / "plugin",
-        client="clio-coder",
+        client="pancode",
         mode="plugin",
         zulip_config_file="/home/test/.zuliprc",
         extended_tools=extended,
     )
-    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
-        0
-    ]
+    server = yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text())["servers"][0]
     plugin = json.loads((tmp_path / "plugin/mcp.json").read_text())["mcpServers"][
         "zulipchat"
     ]
@@ -190,11 +188,11 @@ def test_server_ids_let_one_host_config_declare_several_organizations(tmp_path):
     for org in ("grc", "chronolog"):
         export_agent_package(
             tmp_path,
-            client="clio-coder",
+            client="pancode",
             zulip_config_file=f"/home/test/.zuliprc-{org}",
             server_id=f"zulipchat-{org}",
         )
-    servers = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"]
+    servers = yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text())["servers"]
     assert [server["id"] for server in servers] == [
         "zulipchat-grc",
         "zulipchat-chronolog",
@@ -216,7 +214,7 @@ def test_invalid_server_ids_are_rejected_before_writing(tmp_path, server_id):
     with pytest.raises(ValueError, match="Server id"):
         export_agent_package(
             tmp_path,
-            client="clio-coder",
+            client="pancode",
             zulip_config_file="/home/test/.zuliprc",
             server_id=server_id,
         )
@@ -236,17 +234,15 @@ def test_checked_in_integration_skills_match_packaged_skills():
     ), "Run scripts/sync_integration_templates.py to refresh: " + ", ".join(stale)
 
 
-def test_read_only_clio_export_runs_in_a_read_only_sandbox(tmp_path):
+def test_read_only_pancode_export_runs_in_a_read_only_sandbox(tmp_path):
     export_agent_package(
         tmp_path,
-        client="clio-coder",
+        client="pancode",
         zulip_config_file="/home/test/.zuliprc",
         extended_tools=True,
         tool_profile="read-only",
     )
-    server = yaml.safe_load((tmp_path / ".clio-coder/mcp.yaml").read_text())["servers"][
-        0
-    ]
+    server = yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text())["servers"][0]
     assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
     assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
     assert set(server["toolActionClasses"].values()) == {"read"}
@@ -332,3 +328,122 @@ def test_checked_in_templates_pin_the_current_version():
         pins.update(re.findall(r"zulipchat-mcp(?:@|==)([0-9][\w.]*)", text))
     # A version bump that misses the templates fails here.
     assert pins == {__version__}
+
+
+def _integrate(monkeypatch, *args):
+    import sys
+
+    from zulipchat_mcp.integrations import registry
+
+    monkeypatch.setattr(sys, "argv", ["zulipchat-mcp-integrate", *args])
+    registry.main()
+
+
+def test_pancode_print_is_a_user_scope_config_with_network(monkeypatch, capsys):
+    from zulipchat_mcp import __version__
+    from zulipchat_mcp.tools import CORE_TOOLS
+
+    _integrate(
+        monkeypatch,
+        "print",
+        "--client",
+        "pancode",
+        "--zulip-config-file",
+        "/home/test/.zuliprc",
+    )
+    config = yaml.safe_load(capsys.readouterr().out)
+    assert config["version"] == 1
+    [server] = config["servers"]
+    assert server["id"] == "zulipchat"
+    assert server["command"] == "uvx"
+    assert server["args"][0] == f"zulipchat-mcp@{__version__}"
+    assert server["timeoutMs"] == 900000
+    assert server["network"] is True
+    assert set(server["toolActionClasses"]) == set(CORE_TOOLS)
+    assert server["toolActionClasses"]["edit_message"] == "destructive"
+
+
+def test_pancode_project_export_merges_and_refuses_another_entry(
+    monkeypatch, capsys, tmp_path
+):
+    args = ["export", "--client", "pancode", "--output-dir", str(tmp_path)]
+    _integrate(monkeypatch, *args, "--zulip-config-file", "/home/test/.zuliprc")
+    config = yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text())
+    assert "network" not in config["servers"][0]
+    assert (tmp_path / ".pancode/skills/zulipchat/SKILL.md").is_file()
+    capsys.readouterr()
+
+    _integrate(monkeypatch, *args, "--zulip-config-file", "/home/test/.zuliprc")
+    again = {
+        Path(item["path"]).name: item["action"]
+        for item in json.loads(capsys.readouterr().out)["files"]
+    }
+    assert again == {"mcp.yaml": "merged", "SKILL.md": "unchanged"}
+    assert yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text()) == config
+    with pytest.raises(SystemExit) as refused:
+        _integrate(monkeypatch, *args, "--zulip-config-file", "/home/test/.other")
+    assert refused.value.code != 0
+    assert yaml.safe_load((tmp_path / ".pancode/mcp.yaml").read_text()) == config
+
+
+def test_retired_client_name_is_rejected(monkeypatch, tmp_path):
+    with pytest.raises(SystemExit) as rejected:
+        _integrate(
+            monkeypatch,
+            "export",
+            "--client",
+            "c" + "lio-coder",  # the removed client
+            "--zulip-config-file",
+            "/home/test/.zuliprc",
+            "--output-dir",
+            str(tmp_path),
+        )
+    assert rejected.value.code != 0
+    assert not any(tmp_path.iterdir())
+
+
+def test_pancode_pack_matches_the_exporter_and_validates(tmp_path):
+    import runpy
+    import shutil
+    import subprocess
+    import sys
+
+    root = Path(__file__).parents[1]
+    export_agent_package(
+        tmp_path / "fresh",
+        client="pancode",
+        mode="plugin",
+        tool_profile="full",
+        zulip_config_file="~/.zuliprc",
+    )
+    fresh = {
+        path.relative_to(tmp_path / "fresh").as_posix(): path.read_bytes()
+        for path in (tmp_path / "fresh").rglob("*")
+        if path.is_file()
+    }
+    pack = {
+        path.relative_to(root / "pancode").as_posix(): path.read_bytes()
+        for path in (root / "pancode").rglob("*")
+        if path.is_file()
+    }
+    assert pack == fresh
+    manifest = json.loads(pack["plugin.json"])
+    assert manifest["extensions"]["dev.pancode"] == {
+        "manifestVersion": 1,
+        "compatibility": {"pancode": ">=0.9.0"},
+    }
+    schema = Path(__file__).parent / "fixtures/agent-plugins-1.0.0/plugin.schema.json"
+    jsonschema.Draft202012Validator(json.loads(schema.read_text())).validate(manifest)
+
+    script = root / "scripts/sync_integration_templates.py"
+    assert runpy.run_path(str(script))["pack_problems"](root / "pancode") == []
+    stale = tmp_path / "stale"
+    shutil.copytree(root / "pancode", stale)
+    (stale / "mcp.json").write_text("{}\n")
+    checked = subprocess.run(
+        [sys.executable, str(script), "--check", "--pack-dir", str(stale)],
+        capture_output=True,
+        text=True,
+    )
+    assert checked.returncode == 1
+    assert f"stale: {stale / 'mcp.json'}" in checked.stdout

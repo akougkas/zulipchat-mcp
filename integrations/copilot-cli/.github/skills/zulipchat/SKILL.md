@@ -55,5 +55,5 @@ local machine details into Zulip unless the owner asked for them.
 
 Each server process serves one Zulip organization; hosts may declare several
 under ids such as `zulipchat-grc`. Use the one the user names and confirm with
-`server_info`. In Clio Coder, find tools with `gateway(op="find",
+`server_info`. In PanCode, find tools with `gateway(op="find",
 server=SERVER_ID)`, inspect with `describe`, then `call`.

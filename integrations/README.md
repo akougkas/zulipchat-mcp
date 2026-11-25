@@ -16,7 +16,7 @@ Some packages also include richer scaffolds. Claude Code now ships:
   for local export
 
 Native configuration plus four Agent Skills can also be exported for Codex,
-OpenCode, Copilot CLI, VS Code, Antigravity CLI, and Clio Coder. `portable/`
+OpenCode, Copilot CLI, VS Code, Antigravity CLI, and PanCode. `portable/`
 contains a schema-validated Agent Plugins 1.0.0 package. See the
 [support matrix](../docs/integrations/agent-skills.md) for host-specific activation
 and the distinction between plugin content and MCP execution trust.
@@ -34,7 +34,8 @@ and the distinction between plugin content and MCP execution trust.
 - `generic/`
 - `copilot-cli/`
 - `antigravity-cli/`
-- `clio-coder/`
+- `pancode/` (the PanCode host template; the PanHub pack is `pancode/` at the
+  repository root)
 - `portable/`
 
 ## Common runtime command
