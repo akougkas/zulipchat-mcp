@@ -8,7 +8,7 @@ from zulipchat_mcp.agents.config import load_agent
 from zulipchat_mcp.agents.store import BridgeStore
 
 
-def write(tmp_path, body, name="clio"):
+def write(tmp_path, body, name="agent"):
     path = tmp_path / f"{name}.toml"
     path.write_text(body)
     return path
@@ -20,11 +20,11 @@ def test_agent_file_resolves_paths_and_defaults(tmp_path):
     agent = load_agent(
         write(
             tmp_path,
-            f'zuliprc = "{tmp_path}/bot.zuliprc"\ncommand = ["clio-coder", "acp"]\n'
+            f'zuliprc = "{tmp_path}/bot.zuliprc"\ncommand = ["pancode", "acp"]\n'
             f'cwd = "{work}"\nallow = [42]\n',
         )
     )
-    assert agent.name == "clio" and agent.allow == {42}
+    assert agent.name == "agent" and agent.allow == {42}
     assert agent.allowed_dirs == [work]
     assert agent.permits_dir(work / "repo")
     assert not agent.permits_dir(tmp_path)

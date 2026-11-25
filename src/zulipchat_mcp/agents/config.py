@@ -1,11 +1,11 @@
 """Agent bot declarations: one TOML file per Zulip bot that fronts a local agent.
 
-    ~/.config/zulipchat-mcp/agents/clio.toml
+    ~/.config/zulipchat-mcp/agents/pancode.toml
 
-    zuliprc = "~/.config/zulipchat-mcp/agents/clio.zuliprc"   # the bot's own key
-    command = ["clio-coder", "acp"]                            # any ACP agent
-    cwd = "~/projects"                                         # default workspace
-    allowed_dirs = ["~/projects"]                              # /cwd may only pick these
+    zuliprc = "~/.config/zulipchat-mcp/agents/pancode.zuliprc"  # the bot's own key
+    command = ["pancode", "acp"]                                 # any ACP agent
+    cwd = "~/projects"                                           # default workspace
+    allowed_dirs = ["~/projects"]                                # /cwd may only pick these
     allow = []            # Zulip user IDs admitted besides the bot's owner
     idle_minutes = 30     # stop an idle agent process; its session resumes later
     question_minutes = 30 # unanswered permission requests and questions expire
@@ -80,7 +80,7 @@ def load_agent(path: Path) -> AgentConfig:
     """Parse and validate one agent file; raise ValueError with the reason."""
     name = path.stem
     if not _NAME.fullmatch(name):
-        raise ValueError(f"{path.name}: agent names are lowercase, e.g. clio.toml")
+        raise ValueError(f"{path.name}: agent names are lowercase, e.g. pancode.toml")
     with path.open("rb") as handle:
         raw: dict[str, Any] = tomllib.load(handle)
     unknown = set(raw) - {

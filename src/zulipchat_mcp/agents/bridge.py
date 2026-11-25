@@ -50,8 +50,8 @@ HELP = (
 # client name, so an agent acting as the owner could approve itself with one.
 _YES = {"yes", "y", "ok", "okay", "approve", "allow"}
 _NO = {"no", "n", "deny", "reject"}
-DECISION_META = "clio-coder/decision"
-INTERVIEW_META = "clio-coder/interview"
+DECISION_META = "pancode/decision"
+INTERVIEW_META = "pancode/interview"
 MAX_ANSWER_CHARS = 16 * 1024
 
 
@@ -142,7 +142,7 @@ def known_secrets(config: AgentConfig) -> list[str]:
 
 
 def describe_permission(params: dict[str, Any]) -> str:
-    """Markdown for an ACP permission request, using Clio's decision facts if sent."""
+    """Markdown for an ACP permission request, using PanCode's decision facts if sent."""
     tool, meta = _dict(params.get("toolCall")), _dict(params.get("_meta"))
     decision, worker = _dict(meta.get(DECISION_META)), meta.get(WORKER_ASK_META)
     title = str(
@@ -200,7 +200,7 @@ def exact_choice(question: dict[str, Any], text: str) -> bool:
 
 
 def interview_answer(question: dict[str, Any], text: str) -> dict[str, Any]:
-    """Map a reply onto Clio's answer contract: numbers or labels pick options."""
+    """Map a reply onto PanCode's answer contract: numbers or labels pick options."""
     labels = [str(o.get("label")) for o in question.get("options") or []]
     multi = question.get("multi_select") is True
     chosen: list[str] = []
@@ -666,7 +666,7 @@ class AgentBridge:
                 conversation, params
             ),
             # The agent waits for an answer as long as the question stays open
-            # in Zulip; Clio's own default is two minutes.
+            # in Zulip, not the agent's own shorter default.
             ask_timeout_ms=int(self.config.question_minutes * 60_000),
         )
         await agent.start()
@@ -854,9 +854,9 @@ class AgentBridge:
     async def _interview(
         self, conversation: Conversation, params: dict[str, Any]
     ) -> dict[str, Any]:
-        """Ask a Clio interview round in Zulip, one question at a time."""
+        """Ask a PanCode interview round in Zulip, one question at a time."""
         answers = []
-        # Clio names, per question, the option index it would take for an
+        # PanCode names, per question, the option index it would take for an
         # absent operator.
         recommended = _dict(_dict(params.get("_meta")).get(INTERVIEW_META)).get(
             "recommended"
@@ -897,11 +897,11 @@ class AgentBridge:
 
     def _agent_command(self) -> list[str]:
         command = list(self.config.command)
-        # A person in Zulip is not at the keyboard. Clio is held to its default
-        # autonomy, so it asks before acting, unless the file names a level
-        # itself. The flag can lower Clio's configured level, never raise it.
+        # A person in Zulip is not at the keyboard. PanCode is held to its
+        # default autonomy, so it asks before acting, unless the file names a
+        # level itself. The flag is a ceiling: it never raises the level.
         if (
-            Path(command[0]).name == "clio-coder"
+            Path(command[0]).name == "pancode"
             and "acp" in command
             and "--autonomy" not in command
         ):

@@ -11,7 +11,7 @@ from zulipchat_mcp.tools import handoff
 
 @pytest.fixture
 def bridged(tmp_path, monkeypatch):
-    store = BridgeStore(tmp_path / "clio.sqlite3")
+    store = BridgeStore(tmp_path / "agent.sqlite3")
     store.bind(
         "ch:5:release", "s1", "/w", {"type": "stream", "to": 5, "topic": "Release"}
     )
@@ -85,7 +85,7 @@ def test_ask_owner_is_registered_only_inside_the_bridge(monkeypatch):
 
 @pytest.fixture
 def agent_bot(tmp_path, monkeypatch):
-    """An agent bot named clio backed by the fake ACP agent and a mocked Zulip."""
+    """An agent bot named agent backed by the fake ACP agent and a mocked Zulip."""
     import sys
     from pathlib import Path
     from types import SimpleNamespace
@@ -99,7 +99,7 @@ def agent_bot(tmp_path, monkeypatch):
     agents = tmp_path / "config" / "zulipchat-mcp" / "agents"
     agents.mkdir(parents=True)
     fake = [sys.executable, str(Path(__file__).with_name("fake_acp_agent.py"))]
-    (agents / "clio.toml").write_text(
+    (agents / "agent.toml").write_text(
         f'zuliprc = "{tmp_path / "bot.zuliprc"}"\n'
         f"command = {fake!r}\n".replace("'", '"') + f'cwd = "{work}"\n'
     )
@@ -115,7 +115,7 @@ def test_cli_teleport_resumes_the_newest_session_in_the_workspace(agent_bot, cap
     from zulipchat_mcp.agents.cli import main
     from zulipchat_mcp.agents.config import load_agents
 
-    assert main(["teleport", "clio", "--cwd", str(agent_bot.work)]) == 0
+    assert main(["teleport", "agent", "--cwd", str(agent_bot.work)]) == 0
     (config,) = load_agents()
     bound = BridgeStore(config.state_path).conversation("dm:7")
     assert bound["session_id"] == "live" and bound["cwd"] == str(agent_bot.work)
@@ -131,8 +131,8 @@ def test_cli_teleport_refuses_a_workspace_outside_allowed_dirs(
 ):
     from zulipchat_mcp.agents.cli import main
 
-    assert main(["teleport", "clio", "--session", "s9", "--cwd", str(tmp_path)]) == 1
-    assert "not in clio's allowed_dirs" in capsys.readouterr().err
+    assert main(["teleport", "agent", "--session", "s9", "--cwd", str(tmp_path)]) == 1
+    assert "not in agent's allowed_dirs" in capsys.readouterr().err
     agent_bot.bot.send_message.assert_not_called()
 
 
@@ -141,7 +141,7 @@ async def test_teleport_chat_binds_the_given_session(agent_bot, monkeypatch):
     from zulipchat_mcp.agents.config import load_agents
 
     monkeypatch.setattr(handoff, "local_access_allowed", lambda: True)
-    result = await handoff.teleport_chat("clio", "Over to you", session_id="s42")
+    result = await handoff.teleport_chat("agent", "Over to you", session_id="s42")
     assert result["status"] == "success" and result["resumes_session"] == "s42"
     (config,) = load_agents()
     assert BridgeStore(config.state_path).conversation("dm:7")["session_id"] == "s42"

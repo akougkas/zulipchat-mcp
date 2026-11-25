@@ -113,7 +113,7 @@ def handle_prompt(message):
     elif "needs-interview" in text:
         waiting[
             request(
-                "_clio-coder/interview/request",
+                "_pancode/interview/request",
                 {
                     "sessionId": session_id,
                     "interviewId": "interview-1",
@@ -129,7 +129,7 @@ def handle_prompt(message):
                         {"question": "Anything else?"},
                     ],
                     "_meta": {
-                        "clio-coder/interview": {
+                        "pancode/interview": {
                             "version": 1,
                             "operatorOnly": False,
                             "recommended": [0, None],
@@ -158,7 +158,7 @@ def handle_prompt(message):
                         },
                     ],
                     "_meta": {
-                        "clio-coder/permissionAsk": {"version": 1, "requestId": "m-1"}
+                        "pancode/permissionAsk": {"version": 1, "requestId": "m-1"}
                     },
                 },
             )
@@ -169,7 +169,7 @@ def handle_prompt(message):
                 send,
                 [
                     {
-                        "method": "_clio-coder/permission/withdraw",
+                        "method": "_pancode/permission/withdraw",
                         "params": {"sessionId": session_id, "requestId": "m-1"},
                     }
                 ],
@@ -189,8 +189,8 @@ def handle_prompt(message):
                     {"optionId": "reject-once", "name": "Deny", "kind": "reject_once"},
                 ],
                 "_meta": {
-                    "clio-coder/workerAsk": {"requestId": "w-1", "agentId": "scout"},
-                    "clio-coder/decision": {
+                    "pancode/workerAsk": {"requestId": "w-1", "agentId": "scout"},
+                    "pancode/decision": {
                         "title": "Delete the build tree",
                         "consequenceLines": ["Removes build/ recursively."],
                     },
@@ -204,7 +204,7 @@ def handle_prompt(message):
                 send,
                 [
                     {
-                        "method": "_clio-coder/permission/withdraw",
+                        "method": "_pancode/permission/withdraw",
                         "params": {"sessionId": session_id, "requestId": "w-1"},
                     }
                 ],

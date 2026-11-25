@@ -2,7 +2,7 @@
 
 The service starts at login, restarts after a crash, and runs the bridge with
 the interpreter of the installation that installed it. It records the
-installing shell's PATH: agents such as clio-coder and claude-agent-acp are
+installing shell's PATH: agents such as pancode and claude-agent-acp are
 Node scripts found through PATH, which a service manager does not inherit.
 """
 

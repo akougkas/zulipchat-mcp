@@ -40,7 +40,7 @@ class TestTopicManagementTools:
         client.get_stream_id.return_value = {"result": "success", "stream_id": 9}
         client.get_stream_topics.return_value = {"result": "success", "topics": []}
 
-        result = await get_stream_topics(stream_name="Clio")
+        result = await get_stream_topics(stream_name="Agent")
 
         assert result["stream_id"] == 9
         client.get_stream_topics.assert_called_once_with(9)

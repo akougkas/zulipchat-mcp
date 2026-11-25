@@ -31,18 +31,18 @@ PermissionHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 InterviewHandler = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 UpdateHandler = Callable[[dict[str, Any]], None]
 
-# Clio Coder's attended-surface extensions. Advertising them tells the agent a
+# PanCode's attended-surface extensions. Advertising them tells the agent a
 # person answers: its ask_user interviews and its workers' permission asks are
 # sent here instead of being cancelled or denied at once. Each opt-in may name
-# timeoutMs, how long the agent waits for that person (Clio Coder 0.8.2).
+# timeoutMs, how long the agent waits for that person.
 # Other agents ignore unknown _meta keys.
-INTERVIEW_REQUEST = "_clio-coder/interview/request"
-INTERVIEW_CANCEL = "_clio-coder/interview/cancel"
-PERMISSION_WITHDRAW = "_clio-coder/permission/withdraw"
-WORKER_ASK_META = "clio-coder/workerAsk"
+INTERVIEW_REQUEST = "_pancode/interview/request"
+INTERVIEW_CANCEL = "_pancode/interview/cancel"
+PERMISSION_WITHDRAW = "_pancode/permission/withdraw"
+WORKER_ASK_META = "pancode/workerAsk"
 # {version, requestId} on a main-session permission request: the ID a later
 # withdraw notification names when the agent gives the request up.
-PERMISSION_ASK_META = "clio-coder/permissionAsk"
+PERMISSION_ASK_META = "pancode/permissionAsk"
 MAX_ASK_TIMEOUT_MS = 2_147_483_647
 
 _RPC_CODES = {
@@ -188,13 +188,13 @@ class AcpAgent:
             {} if self.ask_timeout_ms is None else {"timeoutMs": self.ask_timeout_ms}
         )
         if self.on_interview is not None:
-            extensions["clio-coder/interviews"] = {
+            extensions["pancode/interviews"] = {
                 "version": 1,
                 "request": INTERVIEW_REQUEST,
                 **window,
             }
         if self.on_permission is not None:
-            extensions["clio-coder/workerPermissions"] = {
+            extensions["pancode/workerPermissions"] = {
                 "version": 1,
                 "withdraw": PERMISSION_WITHDRAW,
                 **window,

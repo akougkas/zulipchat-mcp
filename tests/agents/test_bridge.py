@@ -63,7 +63,7 @@ async def make_bridge(tmp_path, monkeypatch):
     def build(**overrides):
         accept_owner = overrides.pop("accept_owner", False)
         config = AgentConfig(
-            name="clio",
+            name="agent",
             zuliprc=tmp_path / "bot.zuliprc",
             command=overrides.pop("command", FAKE_AGENT),
             cwd=work,
@@ -73,7 +73,7 @@ async def make_bridge(tmp_path, monkeypatch):
             **overrides,
         )
         bridge = bridge_module.AgentBridge(config, accept_owner)
-        bridge.owner_id, bridge.bot_id, bridge.bot_name = OWNER, BOT, "Clio"
+        bridge.owner_id, bridge.bot_id, bridge.bot_name = OWNER, BOT, "Agent"
         route = bridge.route
 
         async def deliver(message):
@@ -132,7 +132,7 @@ async def test_owner_dm_runs_one_turn_and_replies_in_place(make_bridge):
     (kind, to, body, topic_name), *_ = await posted(client, 1)
     assert (kind, to, topic_name) == ("private", [OWNER], None)
     assert "echo:" in body and "hello there" in body
-    assert "Zulip bot Clio" in body  # first turn carries the preface
+    assert "Zulip bot Agent" in body  # first turn carries the preface
     client.add_reaction.assert_any_call(100, "eyes")
     bound = bridge.store.conversation(f"dm:{OWNER}")
     assert bound["session_id"]
@@ -146,7 +146,7 @@ async def test_strangers_and_unmentioned_topic_chatter_never_reach_the_agent(
     build, client = make_bridge
     bridge = build()
     await bridge.route(dm(101, "cat ~/.ssh/id_rsa", sender=STRANGER))
-    await bridge.route(topic(102, "@**Clio** run rm", sender=STRANGER))
+    await bridge.route(topic(102, "@**Agent** run rm", sender=STRANGER))
     await bridge.route(topic(103, "just talking to the team", mentioned=False))
     await asyncio.sleep(0.3)
     assert client.send_message.call_count == 0
@@ -157,10 +157,10 @@ async def test_strangers_and_unmentioned_topic_chatter_never_reach_the_agent(
 async def test_topic_mention_replies_in_the_topic_without_the_mention(make_bridge):
     build, client = make_bridge
     bridge = build()
-    await bridge.route(topic(110, "@**Clio** status of the build?"))
+    await bridge.route(topic(110, "@**Agent** status of the build?"))
     (kind, to, body, topic_name), *_ = await posted(client, 1)
     assert (kind, to, topic_name) == ("stream", 5, "Release")
-    assert "status of the build?" in body and "@**Clio**" not in body
+    assert "status of the build?" in body and "@**Agent**" not in body
 
 
 @pytest.mark.asyncio
@@ -335,27 +335,27 @@ async def test_new_and_teleported_bindings_replace_the_live_session(
     await bridge.route(dm(173, "continue the teleported one"))
     posts = await posted(client, 4)
     assert requested[-1] == "teleported"
-    assert "Zulip bot Clio" in posts[3][2]  # an adopted session is told where it is
+    assert "Zulip bot Agent" in posts[3][2]  # an adopted session is told where it is
     assert first
     await bridge.route(dm(174, "and again"))
     posts = await posted(client, 5)
-    assert "Zulip bot Clio" not in posts[4][2]
+    assert "Zulip bot Agent" not in posts[4][2]
 
 
 @pytest.mark.asyncio
-async def test_bridge_opts_into_clio_interviews_and_worker_permissions(make_bridge):
+async def test_bridge_opts_into_pancode_interviews_and_worker_permissions(make_bridge):
     build, client = make_bridge
     bridge = build()
     await bridge.route(dm(180, "show-meta"))
     (_, _, body, _), *_ = await posted(client, 1)
     # Both opt-ins name the window: question_minutes, here one minute.
     assert (
-        '"clio-coder/interviews": {"request": "_clio-coder/interview/request", '
+        '"pancode/interviews": {"request": "_pancode/interview/request", '
         '"timeoutMs": 60000, "version": 1}' in body
     )
     assert (
-        '"clio-coder/workerPermissions": {"timeoutMs": 60000, "version": 1, '
-        '"withdraw": "_clio-coder/permission/withdraw"}' in body
+        '"pancode/workerPermissions": {"timeoutMs": 60000, "version": 1, '
+        '"withdraw": "_pancode/permission/withdraw"}' in body
     )
 
 
@@ -381,7 +381,7 @@ async def test_interview_questions_are_asked_one_at_a_time_and_mapped(make_bridg
 
 
 @pytest.mark.asyncio
-async def test_worker_permission_shows_clio_decision_facts(make_bridge):
+async def test_worker_permission_shows_pancode_decision_facts(make_bridge):
     build, client = make_bridge
     bridge = build()
     await bridge.route(dm(200, "worker-ask"))
@@ -423,15 +423,15 @@ def test_interview_answers_accept_numbers_labels_and_free_text():
     }
 
 
-def test_clio_is_held_to_default_autonomy_unless_the_file_names_a_level(make_bridge):
+def test_pancode_is_held_to_default_autonomy_unless_the_file_names_a_level(make_bridge):
     build, _ = make_bridge
-    assert build(command=["clio-coder", "acp"])._agent_command() == [
-        "clio-coder",
+    assert build(command=["pancode", "acp"])._agent_command() == [
+        "pancode",
         "acp",
         "--autonomy",
         "default",
     ]
-    chosen = ["clio-coder", "acp", "--autonomy", "yolo"]
+    chosen = ["pancode", "acp", "--autonomy", "yolo"]
     assert build(command=chosen)._agent_command() == chosen
     assert build()._agent_command() == FAKE_AGENT  # other agents are untouched
 
@@ -588,14 +588,14 @@ def test_permission_prompt_never_hides_part_of_a_long_command():
 async def test_only_a_bare_verdict_answers_a_permission_request(make_bridge):
     build, client = make_bridge
     bridge = build()
-    await bridge.route(topic(300, "@**Clio** needs-permission please"))
+    await bridge.route(topic(300, "@**Agent** needs-permission please"))
     await posted(client, 1)
     # Said to a colleague in the same topic while the request is open: ignored.
     await bridge.route(topic(301, "ok sounds good, see you at 3", mentioned=False))
     await asyncio.sleep(0.2)
     assert client.send_message.call_count == 1
     # Addressed to the bot but not a verdict: the request stays open.
-    await bridge.route(topic(302, "@**Clio** ok sounds good"))
+    await bridge.route(topic(302, "@**Agent** ok sounds good"))
     posts = await posted(client, 2)
     assert "is waiting: answer `yes` or `no`" in posts[1][2]
     assert bridge.store.open_question("ch:5:release") is not None
@@ -608,7 +608,7 @@ async def test_only_a_bare_verdict_answers_a_permission_request(make_bridge):
 async def test_in_a_topic_free_text_answers_need_a_mention(make_bridge):
     build, client = make_bridge
     bridge = build()
-    await bridge.route(topic(350, "@**Clio** needs-interview"))
+    await bridge.route(topic(350, "@**Agent** needs-interview"))
     await posted(client, 1)
     await bridge.route(topic(351, "postgres is what Bob prefers", mentioned=False))
     await asyncio.sleep(0.2)
@@ -619,7 +619,7 @@ async def test_in_a_topic_free_text_answers_need_a_mention(make_bridge):
     await bridge.route(topic(353, "nothing, thanks", mentioned=False))
     await asyncio.sleep(0.2)
     assert client.send_message.call_count == 2  # free text without a mention
-    await bridge.route(topic(354, "@**Clio** keep it small"))
+    await bridge.route(topic(354, "@**Agent** keep it small"))
     posts = await posted(client, 3)
     assert '"answer": "Postgres"' in posts[2][2]
     assert '"answer": "keep it small"' in posts[2][2]
@@ -682,7 +682,7 @@ async def test_agent_text_is_posted_without_live_mentions_or_secrets(
 ):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-value-0123456789")
     (tmp_path / "bot.zuliprc").write_text(
-        "[api]\nemail=clio-bot@example.com\nkey=BotKey0123456789BotKey0123456789\n"
+        "[api]\nemail=agent-bot@example.com\nkey=BotKey0123456789BotKey0123456789\n"
         "site=https://example.zulipchat.com\n"
     )
     build, client = make_bridge
@@ -754,7 +754,7 @@ async def test_a_reassigned_bot_owner_is_never_adopted(make_bridge, monkeypatch)
         "result": "success",
         "is_bot": True,
         "user_id": BOT,
-        "full_name": "Clio",
+        "full_name": "Agent",
     }
     owners = iter([OWNER, STRANGER, STRANGER])
     monkeypatch.setattr(bridge_module, "bot_owner_id", lambda client: next(owners))
@@ -783,7 +783,7 @@ async def test_an_owner_change_while_running_stops_the_bridge(make_bridge, monke
         "result": "success",
         "is_bot": True,
         "user_id": BOT,
-        "full_name": "Clio",
+        "full_name": "Agent",
     }
     owners = iter([OWNER, OWNER, STRANGER])
     monkeypatch.setattr(bridge_module, "bot_owner_id", lambda client: next(owners))

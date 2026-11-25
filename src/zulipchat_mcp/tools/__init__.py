@@ -1,7 +1,7 @@
 """MCP tool registry for ZulipChat MCP.
 
 Descriptions lead with one self-contained sentence: hosts that search tools
-lazily (Clio's gateway, Claude Code's tool search) show only that sentence.
+lazily (PanCode's gateway, Claude Code's tool search) show only that sentence.
 """
 
 import os

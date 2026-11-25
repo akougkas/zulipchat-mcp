@@ -19,7 +19,7 @@ def message(message_id=11, **changes):
         "sender_id": 7,
         "sender_email": "owner@example.com",
         "timestamp": 1700000000,
-        "content": "@**Clio** summarize this",
+        "content": "@**Agent** summarize this",
         "flags": ["mentioned"],
         **changes,
     }
@@ -33,7 +33,7 @@ def direct(message_id=21, **changes):
         "sender_email": "owner@example.com",
         "display_recipient": [
             {"id": 7, "email": "owner@example.com", "full_name": "Owner"},
-            {"id": 9, "email": "bot@example.com", "full_name": "Clio"},
+            {"id": 9, "email": "bot@example.com", "full_name": "Agent"},
         ],
         "timestamp": 1700000100,
         "content": "please look at this",

@@ -71,7 +71,7 @@ def test_add_restarts_an_installed_bridge(systemd, monkeypatch, tmp_path, capsys
     bot = tmp_path / "bot.zuliprc"
     bot.write_text("[api]\nemail=b@x\nkey=k\nsite=https://x\n")
     status = cli.main(
-        ["add", "clio", "--bot-zuliprc", str(bot), "--cwd", str(tmp_path)]
+        ["add", "pancode", "--bot-zuliprc", str(bot), "--cwd", str(tmp_path)]
     )
     assert status == 0
     assert ("systemctl", "--user", "restart", "zulipchat-mcp-agents") in systemd

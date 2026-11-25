@@ -14,7 +14,7 @@ from .config import AgentConfig, config_dir, load_agent, load_agents
 
 DEFAULT_ZULIPRC = Path.home() / ".zuliprc"
 KNOWN_AGENTS = {
-    "clio": ["clio-coder", "acp"],
+    "pancode": ["pancode", "acp"],
     "opencode": ["opencode", "acp"],
     "goose": ["goose", "acp"],
     "gemini": ["gemini", "--acp"],
@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     teleport = sub.add_parser(
         "teleport", help="Continue a local agent session in a DM with its bot"
     )
-    teleport.add_argument("name", help="agent bot name, e.g. clio")
+    teleport.add_argument("name", help="agent bot name, e.g. pancode")
     teleport.add_argument(
         "--session", help="session ID (default: the newest session in --cwd)"
     )
