@@ -4,6 +4,11 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-25
+
+### Changed
+- The README links the agentic engineering page. The package is otherwise unchanged from 0.8.1.
+
 ## [0.8.1] - 2026-11-25
 
 ### Changed

@@ -1,6 +1,10 @@
 # Roadmap
 
-## v0.8.1 (Current)
+## v0.8.2 (Current)
+
+- Publish through the `Publish to PyPI` workflow with PyPI Trusted Publishing.
+
+## v0.8.1
 
 - Export for PanCode (`--client pancode`) and ship the PanHub pack `pancode/`;
   the `clio-coder` export client is removed.
