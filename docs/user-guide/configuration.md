@@ -1,6 +1,6 @@
 # Configuration
 
-This page documents runtime configuration for ZulipChat MCP v0.8.2.
+This page documents runtime configuration for ZulipChat MCP v0.8.3.
 
 ## Recommended setup
 

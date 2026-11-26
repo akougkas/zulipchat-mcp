@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.8.2 (Current)
+## v0.8.3 (Current)
 
 - Publish through the `Publish to PyPI` workflow with PyPI Trusted Publishing.
 

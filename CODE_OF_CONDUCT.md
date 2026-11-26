@@ -43,7 +43,7 @@ is officially representing the project in public spaces.
 
 ## Enforcement
 
-Report incidents to `a.kougkas@gmail.com`.
+Report incidents by opening an issue at https://github.com/PanStudio/zulipchat-mcp/issues. Report security problems privately at https://github.com/PanStudio/zulipchat-mcp/security/advisories/new.
 
 All reports will be reviewed and investigated promptly and fairly.
 

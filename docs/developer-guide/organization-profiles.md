@@ -1,6 +1,6 @@
 # Named organization profiles: proposed next feature
 
-This design is not implemented in v0.8.2. It starts with selecting one named
+This design is not implemented in v0.8.3. It starts with selecting one named
 organization at process startup and preserves current credentials when no profile
 is selected. Runtime switching requires another design.
 

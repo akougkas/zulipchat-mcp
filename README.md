@@ -5,13 +5,13 @@
   <h3>Model Context Protocol server for Zulip Chat. Connect Claude Code, Codex, PanCode, OpenCode, Copilot, Antigravity CLI, Gemini CLI, and other MCP clients to Zulip.</h3>
 
   [![PyPI](https://img.shields.io/pypi/v/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
-  [![CI](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
-  [![Publish](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/publish.yml)
-  [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-60%25-blue)](https://github.com/akougkas/zulipchat-mcp/actions/workflows/ci.yml)
+  [![CI](https://github.com/PanStudio/zulipchat-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/PanStudio/zulipchat-mcp/actions/workflows/ci.yml)
+  [![Publish](https://github.com/PanStudio/zulipchat-mcp/actions/workflows/publish.yml/badge.svg)](https://github.com/PanStudio/zulipchat-mcp/actions/workflows/publish.yml)
+  [![Coverage Gate](https://img.shields.io/badge/coverage%20gate-60%25-blue)](https://github.com/PanStudio/zulipchat-mcp/actions/workflows/ci.yml)
   [![Downloads](https://img.shields.io/pypi/dm/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
-  [![GitHub stars](https://img.shields.io/github/stars/akougkas/zulipchat-mcp)](https://github.com/akougkas/zulipchat-mcp/stargazers)
+  [![GitHub stars](https://img.shields.io/github/stars/PanStudio/zulipchat-mcp)](https://github.com/PanStudio/zulipchat-mcp/stargazers)
   [![Python](https://img.shields.io/pypi/pyversions/zulipchat-mcp)](https://pypi.org/project/zulipchat-mcp/)
-  [![License](https://img.shields.io/github/license/akougkas/zulipchat-mcp)](LICENSE)
+  [![License](https://img.shields.io/github/license/PanStudio/zulipchat-mcp)](LICENSE)
   [![MCP](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 
   [Quick Start](#quick-start) · [Setup Wizard](docs/user-guide/setup-wizard.md) · [Integrations](docs/integrations/README.md) · [Two-Tier Tools](#two-tier-tool-architecture) · [Contributing](CONTRIBUTING.md)
@@ -274,7 +274,7 @@ The assistant posts as **you** by default. Pass `as_bot=True` to `send_message` 
 ## Development
 
 ```bash
-git clone https://github.com/akougkas/zulipchat-mcp.git
+git clone https://github.com/PanStudio/zulipchat-mcp.git
 cd zulipchat-mcp
 uv sync
 uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
@@ -330,8 +330,8 @@ MIT — See [LICENSE](LICENSE)
 - [Security Policy](SECURITY.md)
 - [Zulip API Documentation](https://zulip.com/api/)
 - [Model Context Protocol](https://modelcontextprotocol.io)
-- [Report Issues](https://github.com/akougkas/zulipchat-mcp/issues)
-- [Discussions](https://github.com/akougkas/zulipchat-mcp/discussions)
+- [Report Issues](https://github.com/PanStudio/zulipchat-mcp/issues)
+- [Discussions](https://github.com/PanStudio/zulipchat-mcp/discussions)
 
 ---
 
@@ -341,4 +341,4 @@ Part of Anthony Kougkas's agentic engineering work: [akougkas.io/work/agentic-en
   <sub>Built for the Zulip community</sub>
 </div>
 
-<!-- mcp-name: io.github.akougkas/zulipchat -->
+<!-- mcp-name: io.github.PanStudio/zulipchat-mcp -->

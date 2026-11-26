@@ -55,7 +55,7 @@ async def server_info() -> dict[str, Any]:
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.8.2",
+        "version": "0.8.3",
         "available_identities": {
             "user": {
                 "available": True,

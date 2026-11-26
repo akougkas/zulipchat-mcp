@@ -48,7 +48,7 @@ The Server does not integrate with any third-party analytics, advertising, or da
 ## Open Source
 
 This Server is fully open source under the MIT License. You can audit the complete source code at:
-https://github.com/akougkas/zulipchat-mcp
+https://github.com/PanStudio/zulipchat-mcp
 
 ## Children's Privacy
 
@@ -61,5 +61,5 @@ We may update this policy as the Server evolves. Changes will be documented in t
 ## Contact
 
 For privacy concerns or questions:
-- GitHub Issues: https://github.com/akougkas/zulipchat-mcp/issues
-- Email: a.kougkas@gmail.com
+- GitHub Issues: https://github.com/PanStudio/zulipchat-mcp/issues
+- Private security reports: https://github.com/PanStudio/zulipchat-mcp/security/advisories/new

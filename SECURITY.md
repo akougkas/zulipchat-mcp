@@ -4,14 +4,14 @@
 
 | Version | Status |
 | --- | --- |
-| Latest published stable release (currently 0.8.2) | Supported |
+| Latest published stable release (currently 0.8.3) | Supported |
 | Older releases | Upgrade to the latest stable release; fixes are not backported automatically |
 
 ## Responsible disclosure
 
 Do not post vulnerabilities in public issues.
 
-Report privately to: `a.kougkas@gmail.com`
+Report privately through GitHub private vulnerability reporting: https://github.com/PanStudio/zulipchat-mcp/security/advisories/new
 
 Include:
 

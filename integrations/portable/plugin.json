@@ -1,13 +1,13 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "zulipchat",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Zulip messaging, search, and topic-bound agent collaboration.",
   "author": {
     "name": "Anthony Kougkas"
   },
-  "homepage": "https://github.com/akougkas/zulipchat-mcp",
-  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "homepage": "https://github.com/PanStudio/zulipchat-mcp",
+  "repository": "https://github.com/PanStudio/zulipchat-mcp",
   "license": "MIT",
   "keywords": [
     "zulip",

@@ -33,7 +33,7 @@ ZulipChat MCP v0.4.0 delivers a complete, production-ready Model Context Protoco
 
 ### Quick Start
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp \
+uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp \
   --zulip-email user@org.com \
   --zulip-api-key YOUR_KEY \
   --zulip-site https://org.zulipchat.com
@@ -45,7 +45,7 @@ claude mcp add zulipchat \
   -e ZULIP_EMAIL=user@org.com \
   -e ZULIP_API_KEY=YOUR_KEY \
   -e ZULIP_SITE=https://org.zulipchat.com \
-  -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+  -- uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp
 ```
 
 ## Technical Improvements
@@ -78,11 +78,11 @@ claude mcp add zulipchat \
 
 ## Links
 
-- [Documentation](https://github.com/akougkas/zulipchat-mcp/tree/main/docs)
-- [API Reference](https://github.com/akougkas/zulipchat-mcp/tree/main/docs/api-reference)
-- [Contributing](https://github.com/akougkas/zulipchat-mcp/blob/main/CONTRIBUTING.md)
-- [Issues](https://github.com/akougkas/zulipchat-mcp/issues)
+- [Documentation](https://github.com/PanStudio/zulipchat-mcp/tree/main/docs)
+- [API Reference](https://github.com/PanStudio/zulipchat-mcp/tree/main/docs/api-reference)
+- [Contributing](https://github.com/PanStudio/zulipchat-mcp/blob/main/CONTRIBUTING.md)
+- [Issues](https://github.com/PanStudio/zulipchat-mcp/issues)
 
 ---
 
-For complete documentation, see the [README](https://github.com/akougkas/zulipchat-mcp#readme).
+For complete documentation, see the [README](https://github.com/PanStudio/zulipchat-mcp#readme).

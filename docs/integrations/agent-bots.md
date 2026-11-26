@@ -219,7 +219,7 @@ after editing an agent file, run `service install` again to restart it.
 `service install` writes a systemd user unit on Linux and WSL
 (`~/.config/systemd/user/zulipchat-mcp-agents.service`; WSL needs systemd
 enabled in `/etc/wsl.conf`) or a launchd agent on macOS
-(`~/Library/LaunchAgents/io.github.akougkas.zulipchat-mcp-agents.plist`, logs
+(`~/Library/LaunchAgents/io.github.panstudio.zulipchat-mcp-agents.plist`, logs
 in `~/Library/Logs/zulipchat-mcp-agents.log`). Native Windows has no service;
 keep `run` open. The service runs the interpreter that installed it, so install
 with `uv tool install`; it refuses a temporary `uvx` environment. It records

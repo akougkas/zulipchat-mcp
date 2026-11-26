@@ -21,7 +21,7 @@ gate that contains it.
 ## One-Time Prerequisites
 
 - [ ] PyPI trusted publisher configured for this repo
-  - Owner: `akougkas`
+  - Owner: `PanStudio`
   - Repository: `zulipchat-mcp`
   - Workflow: `publish.yml`
   - Environment: `pypi`
