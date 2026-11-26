@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Current Status (v0.8.2)
+## Current Status (v0.8.3)
 
-**PyPI has 0.8.2.** The owner decides when to release; never tag, push, or publish without an explicit instruction. Check what is live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json`.
+**PyPI has 0.8.3.** The owner decides when to release; never tag, push, or publish without an explicit instruction. Check what is live with `curl -s https://pypi.org/pypi/zulipchat-mcp/json`.
 
 Install from PyPI: `uvx zulipchat-mcp --zulip-config-file ~/.zuliprc`. Install this branch locally for dogfooding: `uv tool install --force --reinstall --from . zulipchat-mcp` (provides `zulipchat-mcp`, `zulipchat-mcp-agents`, `zulipchat-mcp-integrate`).
 
@@ -26,7 +26,7 @@ The owner's real organization is production. Only the owner (Anthony Kougkas, us
 
 ## Project Overview
 
-ZulipChat MCP Server v0.8.2 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses the FastMCP framework and an async-first architecture. The server keeps no conversation state; the agent bridge keeps its state in SQLite.
+ZulipChat MCP Server v0.8.3 is a Model Context Protocol (MCP) server that enables AI assistants to interact with Zulip Chat workspaces. The project uses the FastMCP framework and an async-first architecture. The server keeps no conversation state; the agent bridge keeps its state in SQLite.
 
 ## Essential Development Commands
 

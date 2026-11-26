@@ -4,7 +4,7 @@
 
 | Version | Status |
 | --- | --- |
-| Latest published stable release (currently 0.8.2) | Supported |
+| Latest published stable release (currently 0.8.3) | Supported |
 | Older releases | Upgrade to the latest stable release; fixes are not backported automatically |
 
 ## Responsible disclosure

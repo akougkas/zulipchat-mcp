@@ -11,5 +11,5 @@
   "description": "Adds ZulipChat MCP and its zulipchat skill to a Claude Code project or plugin.",
   "documentation": "https://github.com/PanStudio/zulipchat-mcp/blob/main/docs/integrations/claude-code.md",
   "repository": "https://github.com/PanStudio/zulipchat-mcp",
-  "version": "0.8.2"
+  "version": "0.8.3"
 }

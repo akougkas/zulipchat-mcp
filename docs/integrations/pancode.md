@@ -32,7 +32,7 @@ servers:
   - id: zulipchat
     command: uvx
     args:
-      - zulipchat-mcp@0.8.2
+      - zulipchat-mcp@0.8.3
       - --zulip-config-file
       - /absolute/path/to/.zuliprc
       - --extended-tools

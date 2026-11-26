@@ -11,5 +11,5 @@
   "description": "Workspace MCP server configuration for VS Code and GitHub Copilot.",
   "documentation": "https://github.com/PanStudio/zulipchat-mcp/blob/main/docs/integrations/vscode-copilot.md",
   "repository": "https://github.com/PanStudio/zulipchat-mcp",
-  "version": "0.8.2"
+  "version": "0.8.3"
 }
