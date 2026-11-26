@@ -52,6 +52,7 @@ def test_a_uvx_environment_is_refused(systemd, monkeypatch):
 
 def test_launchd_plist_keeps_the_bridge_alive_with_the_shell_path():
     plist = plistlib.loads(service.render_launchd(["/py", "-m", "x", "run"], "/a:/b"))
+    assert plist["Label"] == "io.github.panstudio.zulipchat-mcp-agents"
     assert plist["ProgramArguments"] == ["/py", "-m", "x", "run"]
     assert plist["EnvironmentVariables"] == {"PATH": "/a:/b"}
     assert plist["RunAtLoad"] is True

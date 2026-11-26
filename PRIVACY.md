@@ -62,4 +62,4 @@ We may update this policy as the Server evolves. Changes will be documented in t
 
 For privacy concerns or questions:
 - GitHub Issues: https://github.com/PanStudio/zulipchat-mcp/issues
-- Email: a.kougkas@gmail.com
+- Private security reports: https://github.com/PanStudio/zulipchat-mcp/security/advisories/new

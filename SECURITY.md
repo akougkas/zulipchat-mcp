@@ -11,7 +11,7 @@
 
 Do not post vulnerabilities in public issues.
 
-Report privately to: `a.kougkas@gmail.com`
+Report privately through GitHub private vulnerability reporting: https://github.com/PanStudio/zulipchat-mcp/security/advisories/new
 
 Include:
 

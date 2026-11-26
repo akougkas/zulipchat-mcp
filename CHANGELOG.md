@@ -4,6 +4,10 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking on macOS: the bridge's launchd label is now `io.github.panstudio.zulipchat-mcp-agents`** (was `io.github.akougkas.zulipchat-mcp-agents`). Before upgrading, run `zulipchat-mcp-agents service uninstall` with the old version, then `service install` with the new one. The new version does not find or remove the old plist. Linux systemd units are unaffected.
+- The repository moved to https://github.com/PanStudio/zulipchat-mcp and the MCP registry name is now `io.github.PanStudio/zulipchat-mcp`. Security reports go through GitHub private vulnerability reporting.
+
 ## [0.8.2] - 2026-11-25
 
 ### Changed

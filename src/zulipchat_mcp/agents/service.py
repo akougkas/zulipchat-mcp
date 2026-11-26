@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 NAME = "zulipchat-mcp-agents"
-LABEL = "io.github.akougkas.zulipchat-mcp-agents"
+LABEL = "io.github.panstudio.zulipchat-mcp-agents"
 # `run` exits with this status when restarting cannot help (EX_CONFIG).
 CONFIG_ERROR = 78
 
