@@ -17,7 +17,7 @@ uvx --from zulipchat-mcp zulipchat-mcp-setup
 ## Install from GitHub
 
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp --zulip-config-file ~/.zuliprc
+uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
 ## Install from TestPyPI
@@ -29,7 +29,7 @@ uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org
 ## Local development install
 
 ```bash
-git clone https://github.com/akougkas/zulipchat-mcp.git
+git clone https://github.com/PanStudio/zulipchat-mcp.git
 cd zulipchat-mcp
 uv sync
 uv run zulipchat-mcp --zulip-config-file ~/.zuliprc
@@ -68,5 +68,5 @@ uvx --refresh zulipchat-mcp --help
 GitHub source:
 
 ```bash
-uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp --help
+uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp --help
 ```

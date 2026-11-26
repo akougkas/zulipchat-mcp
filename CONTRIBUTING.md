@@ -5,7 +5,7 @@ Thanks for contributing. This guide is optimized for fast, low-friction contribu
 ## Development setup
 
 ```bash
-git clone https://github.com/akougkas/zulipchat-mcp.git
+git clone https://github.com/PanStudio/zulipchat-mcp.git
 cd zulipchat-mcp
 uv sync
 ```

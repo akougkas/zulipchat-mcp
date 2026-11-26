@@ -6,8 +6,8 @@
   "author": {
     "name": "Anthony Kougkas"
   },
-  "homepage": "https://github.com/akougkas/zulipchat-mcp",
-  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "homepage": "https://github.com/PanStudio/zulipchat-mcp",
+  "repository": "https://github.com/PanStudio/zulipchat-mcp",
   "license": "MIT",
   "keywords": [
     "zulip",

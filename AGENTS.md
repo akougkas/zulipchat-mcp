@@ -102,13 +102,13 @@ New `src/zulipchat_mcp/core/emoji_registry.py` enforces approved emoji for agent
 ## Distribution & Installation Testing
 - **Installation Methods**: Three primary distribution channels:
   - `uvx zulipchat-mcp` (PyPI - fastest, pre-built wheels)
-  - `uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
+  - `uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp` (GitHub - builds from source)
   - `uvx --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ zulipchat-mcp` (TestPyPI - for pre-release testing)
 - **Credential Loading**: Supports both zuliprc files and env vars. For config-file paths, environment variables (`ZULIP_CONFIG_FILE`, `ZULIP_BOT_CONFIG_FILE`) are checked before CLI flags. A selected file supplies its email, key, and site together, overriding ambient credential variables. Clients/caches are isolated by configuration and identity; restart after credential-file changes.
 - **Claude Code Integration**: Use `--` separator for proper argument passing:
   ```bash
   # Correct syntax (tested)
-  claude mcp add zulipchat -e ZULIP_EMAIL=bot@org.com -e ZULIP_API_KEY=key -e ZULIP_SITE=https://org.zulipchat.com -- uvx --from git+https://github.com/akougkas/zulipchat-mcp.git zulipchat-mcp
+  claude mcp add zulipchat -e ZULIP_EMAIL=bot@org.com -e ZULIP_API_KEY=key -e ZULIP_SITE=https://org.zulipchat.com -- uvx --from git+https://github.com/PanStudio/zulipchat-mcp.git zulipchat-mcp
   ```
 - **Testing Before Release**: Always run the fake-credential MCP stdio smoke from both the project environment and the built wheel. Use real Zulip credentials only for targeted manual checks of behavior that actually requires Zulip API access.
 

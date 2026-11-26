@@ -46,6 +46,6 @@ This release prepares zulipchat-mcp for listing in:
 ## Links
 
 - [PyPI Package](https://pypi.org/project/zulipchat-mcp/0.4.2/)
-- [Documentation](https://github.com/akougkas/zulipchat-mcp#readme)
-- [Privacy Policy](https://github.com/akougkas/zulipchat-mcp/blob/main/PRIVACY.md)
-- [Issues](https://github.com/akougkas/zulipchat-mcp/issues)
+- [Documentation](https://github.com/PanStudio/zulipchat-mcp#readme)
+- [Privacy Policy](https://github.com/PanStudio/zulipchat-mcp/blob/main/PRIVACY.md)
+- [Issues](https://github.com/PanStudio/zulipchat-mcp/issues)

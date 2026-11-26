@@ -203,7 +203,7 @@ def main() -> None:
     mcp = FastMCP(
         "ZulipChat MCP",
         version=__version__,
-        website_url="https://github.com/akougkas/zulipchat-mcp",
+        website_url="https://github.com/PanStudio/zulipchat-mcp",
         instructions=(
             "ask_owner asks the owner of this Zulip conversation a question."
             if args.tool_profile == "ask-owner"

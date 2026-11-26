@@ -7,6 +7,6 @@
     "mcp",
     "zulip"
   ],
-  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "repository": "https://github.com/PanStudio/zulipchat-mcp",
   "version": "0.8.2"
 }

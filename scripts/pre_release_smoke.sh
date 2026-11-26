@@ -151,10 +151,10 @@ done
 
 if [[ "$WITH_GIT" -eq 1 ]]; then
   echo "==> GitHub install smoke (ref: $GIT_REF)"
-  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp --version
-  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-setup --version
-  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-integrate --version
-  smoke_command uvx --from "git+https://github.com/akougkas/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-agents --help > /dev/null
+  smoke_command uvx --from "git+https://github.com/PanStudio/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp --version
+  smoke_command uvx --from "git+https://github.com/PanStudio/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-setup --version
+  smoke_command uvx --from "git+https://github.com/PanStudio/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-integrate --version
+  smoke_command uvx --from "git+https://github.com/PanStudio/zulipchat-mcp.git@${GIT_REF}" zulipchat-mcp-agents --help > /dev/null
 fi
 
 if [[ "$WITH_TESTPYPI" -eq 1 ]]; then

@@ -1,10 +1,10 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.akougkas/zulipchat",
+  "name": "io.github.PanStudio/zulipchat-mcp",
   "title": "ZulipChat MCP Server",
   "description": "ZulipChat MCP: connect AI assistants to Zulip with a 19-tool core mode and 53-tool extended mode",
   "repository": {
-    "url": "https://github.com/akougkas/zulipchat-mcp",
+    "url": "https://github.com/PanStudio/zulipchat-mcp",
     "source": "github"
   },
   "version": "0.8.2",

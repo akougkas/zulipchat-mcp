@@ -7,9 +7,9 @@
     "mcp",
     "zulip"
   ],
-  "icon": "https://raw.githubusercontent.com/akougkas/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
+  "icon": "https://raw.githubusercontent.com/PanStudio/zulipchat-mcp/main/docs/assets/zulipchat-mcp-icon.svg",
   "description": "Adds ZulipChat MCP in OpenCode local MCP configuration.",
-  "documentation": "https://github.com/akougkas/zulipchat-mcp/blob/main/docs/integrations/opencode.md",
-  "repository": "https://github.com/akougkas/zulipchat-mcp",
+  "documentation": "https://github.com/PanStudio/zulipchat-mcp/blob/main/docs/integrations/opencode.md",
+  "repository": "https://github.com/PanStudio/zulipchat-mcp",
   "version": "0.8.2"
 }
