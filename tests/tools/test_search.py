@@ -265,3 +265,13 @@ class TestSearchTools:
         assert result["total_checked"] == 2
         assert result["matching_count"] == 1  # Based on mock return {"1": {}}
         assert result["non_matching_count"] == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("kwargs", [{"last_hours": "abc"}, {"last_days": "xyz"}])
+    async def test_search_messages_rejects_non_numeric_time_window(
+        self, mock_deps, kwargs
+    ):
+        result = await search_messages(**kwargs)
+        assert result["status"] == "error"
+        assert result["error"]["code"] == "INVALID_ARGUMENT"
+        mock_deps.get_messages_raw.assert_not_called()

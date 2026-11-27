@@ -366,12 +366,22 @@ async def search_messages(
 
         cutoff: datetime | None = None
         if last_hours is not None:
-            hours = int(last_hours)
+            if isinstance(last_hours, bool):
+                return tool_error("last_hours must be a positive integer")
+            try:
+                hours = int(last_hours)
+            except (TypeError, ValueError):
+                return tool_error("last_hours must be a positive integer")
             if hours <= 0:
                 return tool_error("last_hours must be positive")
             cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         elif last_days is not None:
-            days = int(last_days)
+            if isinstance(last_days, bool):
+                return tool_error("last_days must be a positive integer")
+            try:
+                days = int(last_days)
+            except (TypeError, ValueError):
+                return tool_error("last_days must be a positive integer")
             if days <= 0:
                 return tool_error("last_days must be positive")
             cutoff = datetime.now(timezone.utc) - timedelta(days=days)

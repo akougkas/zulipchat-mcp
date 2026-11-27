@@ -292,3 +292,13 @@ class TestBoundedRosters:
         rest = await get_presence(limit=3, cursor=first["next_cursor"])
         assert list(rest["presences"]) == ["u3@x", "u4@x"]
         assert "next_cursor" not in rest
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "bad", ["../me/status", "1/../../realm", 0, -5, "not-an-email"]
+    )
+    async def test_get_user_presence_rejects_invalid_identifier(self, client, bad):
+        result = await get_user_presence(bad)
+        assert result["status"] == "error"
+        assert result["error"]["code"] == "INVALID_ARGUMENT"
+        client.client.call_endpoint.assert_not_called()

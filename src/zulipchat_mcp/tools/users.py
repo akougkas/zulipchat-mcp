@@ -7,6 +7,7 @@ No user creation/editing - just reading, searching, and matching users.
 import asyncio
 import re
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from pydantic import Field
 
@@ -295,12 +296,25 @@ async def get_user_presence(
     ],
 ) -> dict[str, Any]:
     """Get presence information for a specific user (READ-ONLY)."""
+    if isinstance(user_id_or_email, bool):
+        return tool_error("user_id_or_email must be a positive user ID or email")
+    if isinstance(user_id_or_email, int):
+        if user_id_or_email <= 0:
+            return tool_error("user_id_or_email must be a positive user ID or email")
+        segment = str(user_id_or_email)
+    elif user_id_or_email.isdigit() and int(user_id_or_email) > 0:
+        segment = user_id_or_email
+    elif validate_email(user_id_or_email):
+        segment = quote(user_id_or_email, safe="@")
+    else:
+        return tool_error("user_id_or_email must be a positive user ID or email")
+
     client = get_client()
 
     try:
         result = await asyncio.to_thread(
             lambda: client.client.call_endpoint(
-                f"users/{user_id_or_email}/presence", method="GET", request={}
+                f"users/{segment}/presence", method="GET", request={}
             )
         )
 
