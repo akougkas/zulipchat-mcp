@@ -69,16 +69,22 @@ per-host [integration guides](docs/integrations/README.md), and
 [agent bots](docs/integrations/agent-bots.md).
 
 For read-only access, add `--tool-profile read-only`: discovery and execution
-both expose seven core reads or 21 extended reads. The default full profile
-has 13 core tools and 45 extended. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
+both expose seven core reads or 23 extended reads. The default full profile
+has 13 core tools and 53 extended. See [API coverage and efficiency](docs/developer-guide/zulip-api-proxy.md)
 for cache freshness, rate limits and the boundary between message transport and
 host execution. Hosts were tested through exported configuration and
 fake-credential checks, not live sessions.
 
 ## Tool Set
 
-**13 core tools** by default, **45** with `--extended-tools`. Hosts that search
+**13 core tools** by default, **53** with `--extended-tools`. Hosts that search
 tools lazily, such as Claude Code, pay almost nothing for the larger set.
+
+Every argument is described and bounded in the tool schema, each tool either
+reads, writes or destroys (and says so in its annotations), list results are
+paged, and every failure has one shape: `{"status": "error", "error": {"code",
+"message", "retryable", "recovery"}}`. Message text from other people is fenced
+as external content in the text a host shows the model.
 
 | Category | Core tools |
 |----------|-------|
@@ -125,7 +131,7 @@ Or via environment variable:
 ZULIPCHAT_EXTENDED_TOOLS=1 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc
 ```
 
-Extended mode adds: `cross_post_message`, `get_scheduled_messages`, `manage_scheduled_message`, `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`, `register_events`, `get_events`, `listen_events`, `upload_file`, `manage_files`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
+Extended mode adds: `cross_post_message`, `get_scheduled_messages`, `create_scheduled_message`, `get_reminders`, `create_reminder`, `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`, `register_events`, `get_events`, `listen_events`, `upload_file`, `get_files`, `download_file`, `share_file`, `get_daily_summary`, `manage_user_mute`, `get_user`, `get_presence`, `get_user_groups`, and more.
 
 ## Installation
 
@@ -188,7 +194,7 @@ Add to your MCP configuration:
 |--------|-------------|
 | `--zulip-config-file PATH` | Path to your zuliprc file |
 | `--zulip-bot-config-file PATH` | Bot zuliprc for dual identity |
-| `--extended-tools` | Register all 45 tools instead of the 13-tool core set |
+| `--extended-tools` | Register all 53 tools instead of the 13-tool core set |
 | `--tool-profile {full,read-only}` | Filter discovery and enforce read-only Zulip calls; default: `full` |
 | `--ephemeral-state` | Write no files: keep read caches in memory (for sandboxes with no writable state directory) |
 | `--transport {stdio,http}` | Transport to serve on (default: `stdio`) |
@@ -197,6 +203,7 @@ Add to your MCP configuration:
 | `--auth-token TOKEN` | Bearer auth token for HTTP transport (or `ZULIPCHAT_HTTP_AUTH_TOKEN`) |
 | `--allowed-host HOST` | Additional trusted HTTP hostname; repeat for multiple names |
 | `--allowed-origin URL` | Additional trusted browser origin; repeat for multiple origins |
+| `--file-root DIR` | Only directory local file tools may read or write (default: `ZULIPCHAT_FILE_ROOT`, else the working directory) |
 | `--unsafe` | Enable administrative tools (use with caution) |
 | `--debug` | Enable debug logging |
 

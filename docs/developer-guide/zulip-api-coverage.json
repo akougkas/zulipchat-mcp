@@ -1,7 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/zulip/zulip/main/zerver/openapi/zulip.yaml",
   "source_sha256": "d179f23dba27fb1f0f571998fea18ad1bc774c01dcf421a6dc1df7313ff10f28",
-  "registered_tools": 45,
+  "registered_tools": 53,
   "operations": [
     {
       "method": "POST",
@@ -152,7 +152,7 @@
         "users"
       ],
       "tools": [
-        "manage_files"
+        "get_files"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -166,7 +166,7 @@
         "users"
       ],
       "tools": [
-        "manage_files"
+        "delete_file"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -368,7 +368,7 @@
         "reminders"
       ],
       "tools": [
-        "manage_reminders"
+        "get_reminders"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -382,7 +382,7 @@
         "reminders"
       ],
       "tools": [
-        "manage_reminders"
+        "create_reminder"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -396,7 +396,7 @@
         "reminders"
       ],
       "tools": [
-        "manage_reminders"
+        "delete_reminder"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -424,7 +424,7 @@
         "scheduled_messages"
       ],
       "tools": [
-        "manage_scheduled_message"
+        "create_scheduled_message"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -438,7 +438,7 @@
         "scheduled_messages"
       ],
       "tools": [
-        "manage_scheduled_message"
+        "update_scheduled_message"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -452,7 +452,7 @@
         "scheduled_messages"
       ],
       "tools": [
-        "manage_scheduled_message"
+        "delete_scheduled_message"
       ],
       "wrappers": [],
       "status": "registered_tool"
@@ -514,8 +514,8 @@
       "tools": [
         "ask_owner",
         "cross_post_message",
-        "manage_files",
         "send_message",
+        "share_file",
         "teleport_chat",
         "upload_file"
       ],
@@ -563,6 +563,7 @@
       ],
       "tools": [
         "manage_message_flags",
+        "mark_all_messages",
         "update_message_flags_for_narrow"
       ],
       "wrappers": [],

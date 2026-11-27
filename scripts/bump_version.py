@@ -34,16 +34,6 @@ VERSION_UPDATES: list[VersionUpdate] = [
         '__version__ = "{version}"',
     ),
     VersionUpdate(
-        "src/zulipchat_mcp/tools/system.py",
-        r'"version": "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
-        '"version": "{version}"',
-    ),
-    VersionUpdate(
-        "tests/tools/test_system.py",
-        r'result\["version"\] == "[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?"',
-        'result["version"] == "{version}"',
-    ),
-    VersionUpdate(
         "CLAUDE.md",
         r"## Current Status \(v[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?",
         "## Current Status (v{version}",

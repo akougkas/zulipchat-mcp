@@ -114,7 +114,7 @@ class TestGetStreams:
         result = await get_streams()
 
         assert result["status"] == "error"
-        assert result["error"] == "Permission denied"
+        assert result["error"]["message"] == "Permission denied"
 
     @pytest.mark.asyncio
     async def test_get_streams_api_error_no_message(self, mock_deps):
@@ -124,7 +124,7 @@ class TestGetStreams:
         result = await get_streams()
 
         assert result["status"] == "error"
-        assert result["error"] == "Failed to list streams"
+        assert result["error"]["message"] == "Failed to list streams"
 
     @pytest.mark.asyncio
     async def test_get_streams_exception(self, mock_deps):
@@ -134,7 +134,7 @@ class TestGetStreams:
         result = await get_streams()
 
         assert result["status"] == "error"
-        assert "Network error" in result["error"]
+        assert "Network error" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_get_streams_empty(self, mock_deps):
@@ -170,7 +170,9 @@ class TestGetStreamInfo:
         result = await get_stream_info()
 
         assert result["status"] == "error"
-        assert "Either stream_name or stream_id is required" in result["error"]
+        assert (
+            "Either stream_name or stream_id is required" in result["error"]["message"]
+        )
 
     @pytest.mark.asyncio
     async def test_get_stream_info_by_id(self, mock_deps):
@@ -231,7 +233,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_name="nonexistent")
 
         assert result["status"] == "error"
-        assert result["error"] == "Invalid stream name"
+        assert result["error"]["message"] == "Invalid stream name"
 
     @pytest.mark.asyncio
     async def test_get_stream_info_fetches_one_channel_by_id(self, mock_deps):
@@ -245,7 +247,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_id=1)
 
         assert result["status"] == "error"
-        assert result["error"] == "Invalid channel ID"
+        assert result["error"]["message"] == "Invalid channel ID"
         mock_deps.get_stream.assert_called_once_with(1)
         mock_deps.get_streams.assert_not_called()
 
@@ -260,7 +262,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_id=1)
 
         assert result["status"] == "error"
-        assert result["error"] == "Permission denied"
+        assert result["error"]["message"] == "Permission denied"
 
     @pytest.mark.asyncio
     async def test_get_stream_info_with_subscribers(self, mock_deps):
@@ -311,7 +313,12 @@ class TestGetStreamInfo:
         assert result["stream_id"] == 1
         assert "subscribers" not in result
         assert result["errors"] == [
-            {"component": "subscribers", "status": "error", "error": "Not authorized"}
+            {
+                "component": "subscribers",
+                "code": "ZULIP_ERROR",
+                "message": "Not authorized",
+                "retryable": False,
+            }
         ]
 
     @pytest.mark.asyncio
@@ -366,7 +373,12 @@ class TestGetStreamInfo:
         assert result["stream_id"] == 1
         assert "topics" not in result
         assert result["errors"] == [
-            {"component": "topics", "status": "error", "error": "Not authorized"}
+            {
+                "component": "topics",
+                "code": "ZULIP_ERROR",
+                "message": "Not authorized",
+                "retryable": False,
+            }
         ]
 
     @pytest.mark.asyncio
@@ -407,7 +419,7 @@ class TestGetStreamInfo:
         result = await get_stream_info(stream_id=1)
 
         assert result["status"] == "error"
-        assert "Connection failed" in result["error"]
+        assert "Connection failed" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_get_stream_info_by_name_with_id_provided(self, mock_deps):

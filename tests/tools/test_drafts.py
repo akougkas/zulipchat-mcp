@@ -66,7 +66,14 @@ class TestDrafts:
 
         result = await get_drafts()
 
-        assert result == {"status": "error", "error": "Drafts are unavailable"}
+        assert result == {
+            "status": "error",
+            "error": {
+                "code": "ZULIP_ERROR",
+                "message": "Drafts are unavailable",
+                "retryable": False,
+            },
+        }
 
     @pytest.mark.asyncio
     async def test_create_stream_draft(self, mock_deps):
@@ -150,7 +157,14 @@ class TestDrafts:
 
         result = await create_draft(type="private", to=[7], topic="", content="Hello")
 
-        assert result == {"status": "error", "error": "Invalid draft"}
+        assert result == {
+            "status": "error",
+            "error": {
+                "code": "ZULIP_ERROR",
+                "message": "Invalid draft",
+                "retryable": False,
+            },
+        }
 
     @pytest.mark.asyncio
     async def test_create_stream_draft_requires_topic(self, mock_deps):
@@ -159,7 +173,11 @@ class TestDrafts:
 
         assert result == {
             "status": "error",
-            "error": "Topic required for stream drafts",
+            "error": {
+                "code": "INVALID_ARGUMENT",
+                "message": "Topic required for stream drafts",
+                "retryable": False,
+            },
         }
         mock_deps.client.call_endpoint.assert_not_called()
 
@@ -172,7 +190,11 @@ class TestDrafts:
 
         assert result == {
             "status": "error",
-            "error": "Stream drafts must specify exactly one channel",
+            "error": {
+                "code": "INVALID_ARGUMENT",
+                "message": "Stream drafts must specify exactly one channel",
+                "retryable": False,
+            },
         }
         mock_deps.client.call_endpoint.assert_not_called()
 
@@ -230,7 +252,15 @@ class TestDrafts:
             content="Hello",
         )
 
-        assert result == {"status": "error", "error": "Unknown stream"}
+        assert result == {
+            "status": "error",
+            "error": {
+                "code": "NOT_FOUND",
+                "message": "Unknown stream",
+                "retryable": False,
+                "recovery": {"hint": "Call get_streams.", "tool": "get_streams"},
+            },
+        }
         mock_deps.client.call_endpoint.assert_not_called()
 
     @pytest.mark.asyncio
@@ -249,7 +279,14 @@ class TestDrafts:
             content="Updated content",
         )
 
-        assert result == {"status": "error", "error": "Draft does not exist"}
+        assert result == {
+            "status": "error",
+            "error": {
+                "code": "ZULIP_ERROR",
+                "message": "Draft does not exist",
+                "retryable": False,
+            },
+        }
 
     @pytest.mark.asyncio
     async def test_edit_stream_draft_requires_topic(self, mock_deps):
@@ -262,7 +299,7 @@ class TestDrafts:
         )
 
         assert result["status"] == "error"
-        assert "Topic required" in result["error"]
+        assert "Topic required" in result["error"]["message"]
         mock_deps.client.call_endpoint.assert_not_called()
 
     @pytest.mark.asyncio
@@ -285,4 +322,11 @@ class TestDrafts:
 
         result = await delete_draft(99)
 
-        assert result == {"status": "error", "error": "Draft does not exist"}
+        assert result == {
+            "status": "error",
+            "error": {
+                "code": "ZULIP_ERROR",
+                "message": "Draft does not exist",
+                "retryable": False,
+            },
+        }

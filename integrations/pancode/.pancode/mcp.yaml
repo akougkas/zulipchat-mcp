@@ -12,19 +12,27 @@ servers:
     add_reaction: execute
     check_messages_match_narrow: read
     create_draft: execute
+    create_reminder: execute
+    create_scheduled_message: execute
     cross_post_message: execute
     delete_draft: destructive
+    delete_file: destructive
+    delete_reminder: destructive
+    delete_scheduled_message: destructive
     deregister_events: execute
+    download_file: execute
     edit_draft: destructive
     edit_message: destructive
     get_daily_summary: read
     get_drafts: read
     get_events: execute
+    get_files: read
     get_message: read
     get_message_history: read
     get_own_user: read
     get_presence: read
     get_read_receipts: read
+    get_reminders: read
     get_scheduled_messages: read
     get_stream_info: read
     get_stream_topics: read
@@ -36,11 +44,9 @@ servers:
     get_user_status: read
     get_users: read
     listen_events: execute
-    manage_files: destructive
     manage_message_flags: execute
-    manage_reminders: destructive
-    manage_scheduled_message: destructive
     manage_user_mute: execute
+    mark_all_messages: destructive
     register_events: execute
     resolve_topic: destructive
     resolve_user: read
@@ -49,9 +55,16 @@ servers:
     server_info: read
     set_topic_visibility: execute
     set_typing: execute
+    share_file: execute
     switch_identity: execute
     teleport_chat: execute
     update_message_flags_for_narrow: execute
+    update_scheduled_message: destructive
     update_status: execute
     upload_file: execute
+  toolPathArguments:
+    download_file:
+      download_path: write
+    upload_file:
+      file_path: read
 

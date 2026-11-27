@@ -7,7 +7,7 @@
 ## Extended tools
 
 - `check_messages_match_narrow(msg_ids, narrow)`
-- `get_daily_summary(streams=None, hours_back=24)`
+- `get_daily_summary(streams=None, hours_back=24)`: at most 50 channels
 
 ## Examples
 

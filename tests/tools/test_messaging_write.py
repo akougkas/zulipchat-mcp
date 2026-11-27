@@ -144,7 +144,7 @@ class TestSendMessage:
         }
         result = await send_message("stream", "nonexistent", "content", "topic")
         assert result["status"] == "error"
-        assert result["error"] == "Stream does not exist"
+        assert result["error"]["message"] == "Stream does not exist"
 
     @pytest.mark.asyncio
     async def test_nonexistent_user(self, mock_deps):
@@ -155,7 +155,7 @@ class TestSendMessage:
         }
         result = await send_message("private", "nobody@example.com", "content")
         assert result["status"] == "error"
-        assert result["error"] == "User not found"
+        assert result["error"]["message"] == "User not found"
 
     @pytest.mark.asyncio
     async def test_no_permission_to_stream(self, mock_deps):
@@ -166,7 +166,7 @@ class TestSendMessage:
         }
         result = await send_message("stream", "private_stream", "content", "topic")
         assert result["status"] == "error"
-        assert result["error"] == "Not authorized"
+        assert result["error"]["message"] == "Not authorized"
 
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self, mock_deps):
@@ -177,7 +177,7 @@ class TestSendMessage:
         }
         result = await send_message("stream", "general", "content", "topic")
         assert result["status"] == "error"
-        assert result["error"] == "Rate limit exceeded"
+        assert result["error"]["message"] == "Rate limit exceeded"
 
     @pytest.mark.asyncio
     async def test_network_timeout(self, mock_deps):
@@ -243,7 +243,7 @@ class TestEditMessage:
         }
         result = await edit_message(101, content="Hacked")
         assert result["status"] == "error"
-        assert "permission" in result["error"]
+        assert "permission" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_edit_nonexistent_message(self, mock_deps):
@@ -254,14 +254,14 @@ class TestEditMessage:
         }
         result = await edit_message(999, content="Ghost")
         assert result["status"] == "error"
-        assert "Message not found" in result["error"]
+        assert "Message not found" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_edit_with_empty_content(self, mock_deps):
         """Zulip requires nonempty message content."""
         result = await edit_message(100, content="")
         assert result["status"] == "error"
-        assert "Message content cannot be empty" in result["error"]
+        assert "Message content cannot be empty" in result["error"]["message"]
         mock_deps.edit_message.assert_not_called()
 
     @pytest.mark.asyncio

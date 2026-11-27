@@ -133,10 +133,12 @@ Server-wide task advertisement is intentionally disabled in `server.py` (commit 
 ## Tool Modes
 
 - **Default**: 13 core tools (`CORE_TOOLS` in `tools/__init__.py`), registered via `register_core_tools(mcp)`. `ask_owner` is added only inside agents the bridge launches (`ZULIPCHAT_AGENT_STATE` set).
-- **Extended (45 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
+- **Extended (53 tools)**: enable with `--extended-tools` flag or `ZULIPCHAT_EXTENDED_TOOLS=1` env var. Calls `register_extended_tools(mcp)`.
 - **Profiles** (`core/tool_contract.py`): `full`, `read-only` (`READ_ONLY_TOOLS`) and `ask-owner` (only `ask_owner`; what the bridge gives agents by default).
 
 `tools/__init__.py` is the only place tools are registered. Each description leads with one self-contained sentence: PanCode's `gateway(op="find")` shows only that sentence.
+
+Each tool does one kind of operation, so `readOnlyHint`/`destructiveHint` are exact; split a tool rather than add an `action` parameter. Every argument is described and bounded (shared types in `tools/params.py`), every tool declares an output schema, and lists page with `limit`/`cursor`. Errors come from `core/errors.py` as `{"status": "error", "error": {"code", "message", "retryable", "recovery"?}}`; the tool-contract middleware normalizes anything else and fences chat text in the text block. Local paths go through `core/security.contained_path` (file root: `--file-root`, `ZULIPCHAT_FILE_ROOT`, else the working directory). `tests/tools/test_tool_annotations.py` enforces the schema rules.
 
 ## Development Guidelines
 
@@ -249,7 +251,7 @@ are no hooks: to reach a Claude session from Zulip, run it under an agent bot.
 Full checklist and rationale in [RELEASING.md](RELEASING.md). Key invariants:
 
 - Tag must match `pyproject.toml` version exactly (`v0.7.1` ↔ `version = "0.7.1"`).
-- Version must be in sync across `pyproject.toml`, `src/zulipchat_mcp/__init__.py`, `src/zulipchat_mcp/tools/system.py`, `server.json`, and release docs. Run `uv run python scripts/release_preflight.py --version X.Y.Z` to verify.
+- Version must be in sync across `pyproject.toml`, `src/zulipchat_mcp/__init__.py` (which `server_info` reports), `server.json`, and release docs. Run `uv run python scripts/release_preflight.py --version X.Y.Z` to verify.
 - `scripts/pre_release_smoke.sh` is a blocking gate. It installs the built wheel and starts the MCP stdio server with fake credentials, catching startup-only failures that `--version` cannot.
 - FastMCP feature changes require real-registration tests and the MCP stdio smoke. Pay special attention to optional extras, `task` support and async task functions.
 - GitHub release must be published, not draft. `publish.yml` only triggers on `published`.

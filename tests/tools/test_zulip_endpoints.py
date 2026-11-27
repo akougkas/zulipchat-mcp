@@ -77,8 +77,8 @@ async def test_resolve_topic_reports_missing_topic_and_api_errors(client):
         "msg": "no permission",
     }
     result = await topic_management.resolve_topic(9, "bug")
-    assert result["error"] == "no permission"
-    assert result["error_code"] == "BAD_REQUEST"
+    assert result["error"]["message"] == "no permission"
+    assert result["error"]["code"] == "BAD_REQUEST"
 
 
 @pytest.mark.parametrize(
@@ -94,7 +94,9 @@ async def test_set_topic_visibility_maps_policy(client, policy, value):
 async def test_set_topic_visibility_unknown_stream(client):
     client.get_stream_id.return_value = {"result": "error", "msg": "Invalid stream"}
     result = await topic_management.set_topic_visibility("x", "t", "muted")
-    assert result == {"status": "error", "error": "Invalid stream"}
+    assert result["error"]["code"] == "NOT_FOUND"
+    assert result["error"]["message"] == "Invalid stream"
+    assert result["error"]["recovery"]["tool"] == "get_streams"
 
 
 async def test_message_history_is_compact(client):
@@ -145,7 +147,7 @@ async def test_reminders_list_create_delete(client):
             }
         ],
     }
-    listed = await schedule_messaging.manage_reminders("list")
+    listed = await schedule_messaging.get_reminders()
     assert listed["reminders"] == [
         {
             "reminder_id": 4,
@@ -157,8 +159,8 @@ async def test_reminders_list_create_delete(client):
     call.assert_called_with("reminders", method="GET", request={})
 
     call.return_value = {**OK, "reminder_id": 5}
-    created = await schedule_messaging.manage_reminders(
-        "create", message_id=42, deliver_at="2030-01-01T00:00:00Z", note="ship"
+    created = await schedule_messaging.create_reminder(
+        message_id=42, deliver_at="2030-01-01T00:00:00Z", note="ship"
     )
     expected_ts = int(datetime(2030, 1, 1, tzinfo=timezone.utc).timestamp())
     call.assert_called_with(
@@ -173,22 +175,24 @@ async def test_reminders_list_create_delete(client):
     assert created["reminder_id"] == 5
 
     call.return_value = OK
-    deleted = await schedule_messaging.manage_reminders("delete", reminder_id=5)
+    deleted = await schedule_messaging.delete_reminder(reminder_id=5)
     call.assert_called_with("reminders/5", method="DELETE", request={})
     assert deleted["deleted"] is True
 
 
 async def test_reminders_validate_and_surface_errors(client):
-    assert (await schedule_messaging.manage_reminders("create"))["status"] == "error"
-    assert (await schedule_messaging.manage_reminders("delete"))["status"] == "error"
+    bad = await schedule_messaging.create_reminder(message_id=42, deliver_at="soon")
+    assert bad["error"]["code"] == "INVALID_ARGUMENT"
+    client.client.call_endpoint.assert_not_called()
     client.client.call_endpoint.return_value = {
         "result": "error",
         "code": "RATE_LIMIT_HIT",
         "msg": "slow",
         "retry-after": 3,
     }
-    result = await schedule_messaging.manage_reminders("list")
-    assert result["retry_after_seconds"] == 3 and result["retryable"] is True
+    result = await schedule_messaging.get_reminders()
+    assert result["error"]["retry_after_seconds"] == 3
+    assert result["error"]["retryable"] is True
 
 
 @pytest.mark.parametrize("modern", [True, False])
@@ -247,4 +251,7 @@ async def test_read_receipts_error(client):
         "msg": "Invalid message(s)",
     }
     result = await mark_messaging.get_read_receipts(42)
-    assert result["status"] == "error" and result["error"] == "Invalid message(s)"
+    assert (
+        result["status"] == "error"
+        and result["error"]["message"] == "Invalid message(s)"
+    )

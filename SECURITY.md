@@ -32,7 +32,7 @@ Target response times:
 
 `zulipchat-mcp` starts in safe mode.
 
-`--unsafe` must be explicitly enabled for guarded destructive flows. In current code, this is attachment deletion through `manage_files`.
+`--unsafe` must be explicitly enabled for guarded destructive flows. In current code, this is attachment deletion through `delete_file`.
 
 ### Identity boundaries
 

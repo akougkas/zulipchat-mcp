@@ -26,13 +26,22 @@
 ## Security helpers (`core/security.py`)
 
 - Stores the unsafe-mode context flag.
+- Holds the local file root and `contained_path`, which resolves a path
+  (symlinks followed) and refuses one outside the root.
 - Provides emoji and email validation helpers.
 
-## Request shaping (`core/api_budget.py`, `core/api_errors.py`)
+## Errors (`core/errors.py`)
+
+- `tool_error`, `api_error` and `internal_error` build the one error shape:
+  `{"status": "error", "error": {"code", "message", "retryable", ...}}`.
+- `normalize_error` folds legacy keys into that shape; the tool-contract
+  middleware applies it to every result and turns schema validation failures
+  into `INVALID_ARGUMENT`.
+
+## Request shaping (`core/api_budget.py`)
 
 - `PoliteZulipClient` admits each request once per principal, spaces requests,
   honors Zulip rate-limit cooldowns, and never retries transparently.
-- `api_error` turns a failed Zulip response into a tool error result.
 
 ## Persistent state (`core/snapshots.py`)
 

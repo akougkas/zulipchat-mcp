@@ -77,7 +77,7 @@ async def test_event_queue_lifecycle_retains_client(identities, phase):
     finally:
         barrier.resume.set()
     result, next_client = await asyncio.wait_for(task, 10)
-    assert result["code"] == "BAD_EVENT_QUEUE_ID"
+    assert result["error"]["code"] == "BAD_EVENT_QUEUE_ID"
     assert next_client is bot
     user.get_events.assert_called_once()
     user.deregister.assert_called_once_with("user-queue")
@@ -116,7 +116,7 @@ async def test_cancelled_listener_cleans_original_queue_and_restores_binding(
 @pytest.mark.parametrize(
     "name,arguments",
     [
-        ("manage_message_flags", {"scope": "all"}),
+        ("mark_all_messages", {}),
         ("manage_message_flags", {"scope": "stream", "stream_id": 7}),
         ("manage_message_flags", {"scope": "topic", "stream_id": 7, "topic_name": "t"}),
         ("manage_message_flags", {"scope": "narrow", "stream_id": 7}),
@@ -142,8 +142,7 @@ async def test_flag_resolution_and_all_pages_retain_client(identities, name, arg
 
     user.client.call_endpoint.side_effect = update
     bot.client.call_endpoint.return_value = {"result": "success", "found_newest": True}
-    if name == "manage_message_flags":
-        arguments = {**arguments, "flag": "starred", "action": "remove"}
+    arguments = {**arguments, "flag": "starred", "action": "remove"}
     task = asyncio.create_task(
         result_and_next_client(getattr(mark_messaging, name)(**arguments))
     )

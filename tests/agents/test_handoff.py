@@ -60,14 +60,14 @@ async def test_questions_cannot_cross_conversations(bridged, monkeypatch):
     store, _ = bridged
     other = store.ask("dm:7", "question", "secret?", [], 30)
     result = await handoff.ask_owner(question_id=other, wait_seconds=0)
-    assert result["error_code"] == "NOT_FOUND"
+    assert result["error"]["code"] == "NOT_FOUND"
 
 
 @pytest.mark.asyncio
 async def test_ask_owner_outside_the_bridge_is_refused(monkeypatch):
     monkeypatch.delenv("ZULIPCHAT_AGENT_STATE", raising=False)
     result = await handoff.ask_owner("hi")
-    assert result["error_code"] == "NOT_BRIDGED"
+    assert result["error"]["code"] == "NOT_BRIDGED"
 
 
 def test_ask_owner_is_registered_only_inside_the_bridge(monkeypatch):

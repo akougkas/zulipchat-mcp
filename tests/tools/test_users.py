@@ -254,3 +254,51 @@ class TestUsersTools:
         mock_deps.client.call_endpoint.assert_called_with(
             "users/me/muted_users/1", method="DELETE", request={}
         )
+
+
+class TestBoundedRosters:
+    @pytest.fixture
+    def client(self):
+        client = MagicMock()
+        client.get_users.return_value = {
+            "result": "success",
+            "members": [
+                {"user_id": i, "full_name": f"U{i}", "email": f"u{i}@x", "role": 400}
+                for i in (12, 3, 100, 7, 25)
+            ],
+        }
+        client.client.call_endpoint.return_value = {
+            "result": "success",
+            "presences": {f"u{i}@x": {"aggregated": {}} for i in range(5)},
+        }
+        with patch("src.zulipchat_mcp.tools.users.get_client", return_value=client):
+            yield client
+
+    @pytest.mark.asyncio
+    async def test_get_users_pages_by_user_id(self, client):
+        first = await get_users(limit=2)
+        assert [u["user_id"] for u in first["users"]] == [3, 7]
+        assert first["total"] == 5 and first["next_cursor"] == "7"
+        second = await get_users(limit=2, cursor=first["next_cursor"])
+        assert [u["user_id"] for u in second["users"]] == [12, 25]
+        last = await get_users(limit=2, cursor=second["next_cursor"])
+        assert [u["user_id"] for u in last["users"]] == [100]
+        assert "next_cursor" not in last
+
+    @pytest.mark.asyncio
+    async def test_get_presence_pages_by_key(self, client):
+        first = await get_presence(limit=3)
+        assert list(first["presences"]) == ["u0@x", "u1@x", "u2@x"]
+        rest = await get_presence(limit=3, cursor=first["next_cursor"])
+        assert list(rest["presences"]) == ["u3@x", "u4@x"]
+        assert "next_cursor" not in rest
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "bad", ["../me/status", "1/../../realm", 0, -5, "not-an-email"]
+    )
+    async def test_get_user_presence_rejects_invalid_identifier(self, client, bad):
+        result = await get_user_presence(bad)
+        assert result["status"] == "error"
+        assert result["error"]["code"] == "INVALID_ARGUMENT"
+        client.client.call_endpoint.assert_not_called()

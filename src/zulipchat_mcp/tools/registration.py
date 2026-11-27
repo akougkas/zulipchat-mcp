@@ -10,7 +10,31 @@ from fastmcp import FastMCP
 from fastmcp.utilities.tasks import TaskConfig
 from mcp.types import ToolAnnotations
 
+from ..core.errors import ERROR_SCHEMA
 from ..core.tool_contract import READ_ONLY_TOOLS
+
+STATUS_SCHEMA: dict[str, Any] = {
+    "type": "string",
+    "enum": ["success", "partial", "error", "pending", "expired"],
+    "description": "success; partial when some data came back beside an error; "
+    "error; pending or expired only from ask_owner.",
+}
+
+
+def result_schema(properties: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The outputSchema every tool shares, plus its own main result fields."""
+    return {
+        "type": "object",
+        "properties": {
+            "status": STATUS_SCHEMA,
+            "error": ERROR_SCHEMA,
+            **(properties or {}),
+        },
+        "required": ["status"],
+        # Results carry more fields than the main ones named here; clients that
+        # build types from this schema must keep them.
+        "additionalProperties": True,
+    }
 
 
 def optional_background_task(poll_seconds: int = 5) -> TaskConfig:
@@ -57,6 +81,7 @@ def register_tool(
     idempotent: bool = False,
     open_world: bool = True,
     task: TaskConfig | None = None,
+    output: dict[str, Any] | None = None,
 ) -> None:
     """Register a tool with explicit annotations and task semantics.
 
@@ -67,11 +92,15 @@ def register_tool(
     FastMCP server-wide task defaults are intentionally disabled in server.py.
     Long-running tools opt in here so sync and fast tools are not accidentally
     advertised as background-task capable.
+
+    output names the tool's main result fields as JSON Schema properties; every
+    tool's outputSchema also types status and the shared error object.
     """
     kwargs: dict[str, Any] = {
         "name": name,
         "description": description,
         "title": title,
+        "output_schema": result_schema(output),
         "annotations": tool_annotations(
             name,
             title,

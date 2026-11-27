@@ -4,6 +4,23 @@ All notable changes to ZulipChat MCP are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Breaking: one error shape.** Every failed tool result is `{"status": "error", "error": {"code", "message", "retryable", "retry_after_seconds"?, "recovery"?: {"hint", "tool"?}}}`; a `partial` result carries the same `error` object. The old top-level `error` string, `error_code`, `suggestion(s)` and `retryable` keys are gone. Arguments that break a tool's schema return `INVALID_ARGUMENT` with a hint instead of a framework error, missing channels and users are `NOT_FOUND`/`USER_NOT_FOUND` with the lookup tool to call, and `resolve_user` with no match is now an error.
+- **Breaking: mixed tools are split so each one only reads, writes or destroys**, and its MCP annotations say which:
+  - `manage_files` becomes `get_files` (read), `download_file`, `share_file` and `delete_file` (destructive, still `--unsafe`). The unimplemented `get`, `get_permissions` and `generate_thumbnail` operations are gone.
+  - `manage_scheduled_message` becomes `create_scheduled_message`, `update_scheduled_message` and `delete_scheduled_message`.
+  - `manage_reminders` becomes `get_reminders` (read), `create_reminder` and `delete_reminder`.
+  - `manage_message_flags(scope="all")` becomes `mark_all_messages(flag, action)`; `manage_message_flags` keeps `narrow`, `stream` and `topic`.
+  - Destructive: `edit_message`, `edit_draft`, `delete_draft`, `update_scheduled_message`, `delete_scheduled_message`, `delete_reminder`, `delete_file`, `resolve_topic`, `mark_all_messages`. Extended mode now has 53 tools; the read-only profile has 23.
+- **Breaking: local file paths are contained.** `upload_file(file_path)` and `download_file(download_path)` must resolve, symlinks followed, inside the file root: `--file-root DIR`, else `ZULIPCHAT_FILE_ROOT`, else the server's working directory. Anything else is `PATH_OUTSIDE_ROOT` before a file is opened or a request made. `download_file` never overwrites (`ALREADY_EXISTS`).
+- **Bounded results.** `get_users` and `get_presence` return pages of `limit` (default 200, at most 1000) with `next_cursor`; `get_files` pages at 50 (at most 500). `get_message` cuts content at `max_chars` (20000) and reports `content_truncated`. `get_events` returns at most `max_events` (100) with `more_events`; `listen_events` stops at `max_events` (500). `register_events` returns Zulip's initial state only with `include_realm_state=True` (it was always empty before) and truncates oversized state. Event queues live at most 600 seconds, `cross_post_message` takes at most 20 channels, `get_daily_summary` at most 50, and narrows at most 20 terms. Content over 50,000 characters is refused instead of silently cut.
+- Every argument of every tool has a description and a bound (string length, list size or numeric range), and every tool declares an output schema; a contract test enforces both.
+- Message text written by other people is fenced as external content in each result's text block; structured content is unchanged.
+- `server_info` reports the package version. The server advertises its icon. `server.json` no longer lists a localhost `remotes` entry, and core mode is described as 13 tools.
+
+### Added
+- PanCode exports declare `toolPathArguments` (`upload_file.file_path` read, `download_file.download_path` write), so PanCode checks those paths against its own read scope and write roots before a call reaches the server.
+
 ## [0.8.3] - 2026-11-26
 
 ### Changed

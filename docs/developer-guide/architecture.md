@@ -31,7 +31,7 @@ src/zulipchat_mcp/
 This produces:
 
 - Core mode: 13 tools
-- Extended mode: 45 tools
+- Extended mode: 53 tools
 - `ask_owner` is added to either mode only when `ZULIPCHAT_AGENT_STATE` is set,
   that is, in the server the agent bridge injects into each agent it launches.
 
@@ -56,7 +56,7 @@ This produces:
    `$XDG_STATE_HOME/zulipchat-mcp/accounts/<fingerprint>/cache`, unless
    `--ephemeral-state` keeps it in memory.
 6. Register FastMCP with SEP-2663 `TasksExtension`, SEP-2640 skills, and legacy skill Resources.
-7. Register tools (core 13 or extended 45).
+7. Register tools (core 13 or extended 53).
 8. Leave user/stream caches lazy so startup does not contact Zulip.
 9. Run FastMCP server (`stdio` or streamable `http`).
 

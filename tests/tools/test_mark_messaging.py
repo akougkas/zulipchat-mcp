@@ -105,7 +105,7 @@ class TestUpdateMessageFlagsForNarrow:
         )
 
         assert result["status"] == "error"
-        assert "Invalid narrow operator" in result["error"]
+        assert "Invalid narrow operator" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_update_flags_exception_handling(self, mock_deps):
@@ -115,7 +115,7 @@ class TestUpdateMessageFlagsForNarrow:
         result = await update_message_flags_for_narrow(narrow=[], op="add", flag="read")
 
         assert result["status"] == "error"
-        assert "Network error" in result["error"]
+        assert "Network error" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_update_flags_minimal_response(self, mock_deps):

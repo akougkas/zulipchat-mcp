@@ -40,7 +40,7 @@ The wizard scans for `zuliprc` files, validates credentials against Zulip, and p
 
 Default mode uses 13 core tools.
 
-Enable the full 45-tool surface when needed:
+Enable the full 53-tool surface when needed:
 
 ```bash
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --extended-tools

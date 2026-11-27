@@ -6,10 +6,14 @@ No user creation/editing - just reading, searching, and matching users.
 
 import asyncio
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+from urllib.parse import quote
+
+from pydantic import Field
 
 from ..config import get_client
-from ..core.api_errors import api_error
+from ..core.errors import api_error, internal_error, tool_error
+from .params import Cursor, Name, UserId, page_size
 
 
 def validate_email(email: str) -> bool:
@@ -45,14 +49,55 @@ def _user_row(user: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _page(
+    rows: list[Any], key: Any, limit: int, cursor: str | None
+) -> tuple[list[Any], dict[str, Any]]:
+    """Rows sorted by key, the page after cursor, and the paging state.
+
+    The cursor is the key of the last row returned, so a page boundary stays
+    put when members join or leave between calls.
+    """
+    rows = sorted(rows, key=lambda row: str(key(row)).zfill(20))
+    start = 0
+    if cursor is not None:
+        keys = [str(key(row)) for row in rows]
+        mark = cursor.zfill(20)
+        start = next((i for i, k in enumerate(keys) if k.zfill(20) > mark), len(rows))
+    page = rows[start : start + limit]
+    state: dict[str, Any] = {"total": len(rows), "returned": len(page)}
+    if start + limit < len(rows) and page:
+        state["next_cursor"] = str(key(page[-1]))
+    return page, state
+
+
 async def get_users(
-    client_gravatar: bool = True,
-    include_custom_profile_fields: bool = False,
-    user_ids: list[int] | None = None,
-    verbose: bool = False,
-    role: Literal["owner", "admin", "moderator", "member", "guest"] | None = None,
+    client_gravatar: Annotated[
+        bool, Field(description="Omit Gravatar avatar URLs (verbose only).")
+    ] = True,
+    include_custom_profile_fields: Annotated[
+        bool, Field(description="Add each member's custom profile fields.")
+    ] = False,
+    user_ids: Annotated[
+        list[int] | None,
+        Field(max_length=1000, description="Only these user IDs."),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        Field(
+            description="Return Zulip's full user objects instead of ID, name, "
+            "email and role."
+        ),
+    ] = False,
+    role: Annotated[
+        Literal["owner", "admin", "moderator", "member", "guest"] | None,
+        Field(description="Only members with this role."),
+    ] = None,
+    limit: Annotated[int, page_size(1000, "members, ordered by user ID")] = 200,
+    cursor: Cursor = None,
 ) -> dict[str, Any]:
     """Organization members; role narrows to one role. Set verbose for raw objects."""
+    if not 1 <= limit <= 1000:
+        return tool_error("limit must be between 1 and 1000")
     client = get_client()
 
     try:
@@ -67,14 +112,15 @@ async def get_users(
             users = result.get("members", [])
             if role is not None:
                 users = [u for u in users if ROLES.get(u.get("role")) == role]
+            users, state = _page(users, lambda u: u.get("user_id", 0), limit, cursor)
             if not verbose:
                 users = [_user_row(user) for user in users]
-            return {"status": "success", "users": users, "count": len(users)}
+            return {"status": "success", "count": len(users), **state, "users": users}
         else:
             return api_error(result, "Failed to get users")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_user_by_id(
@@ -99,7 +145,7 @@ async def get_user_by_id(
             return api_error(result, "User not found")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_user_by_email(
@@ -109,7 +155,7 @@ async def get_user_by_email(
 ) -> dict[str, Any]:
     """Get specific user by email (READ-ONLY)."""
     if not validate_email(email):
-        return {"status": "error", "error": f"Invalid email format: {email}"}
+        return tool_error(f"Invalid email format: {email}")
 
     client = get_client()
 
@@ -127,7 +173,7 @@ async def get_user_by_email(
             return api_error(result, "User not found")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_own_user() -> dict[str, Any]:
@@ -159,10 +205,10 @@ async def get_own_user() -> dict[str, Any]:
             return api_error(result, "Failed to get own user")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
-async def get_user_status(user_id: int) -> dict[str, Any]:
+async def get_user_status(user_id: UserId) -> dict[str, Any]:
     """Get user's status (away, status text, emoji) (READ-ONLY)."""
     client = get_client()
 
@@ -183,15 +229,27 @@ async def get_user_status(user_id: int) -> dict[str, Any]:
             return api_error(result, "Failed to get user status")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def update_status(
-    status_text: str | None = None,
-    emoji_name: str | None = None,
-    emoji_code: str | None = None,
-    reaction_type: Literal[
-        "unicode_emoji", "realm_emoji", "zulip_extra_emoji"
+    status_text: Annotated[
+        str | None,
+        Field(max_length=60, description='Status text; "" clears it.'),
+    ] = None,
+    emoji_name: Annotated[
+        str | None,
+        Field(
+            max_length=50, description='Status emoji name, e.g. "coffee"; "" clears it.'
+        ),
+    ] = None,
+    emoji_code: Annotated[
+        str | None,
+        Field(max_length=50, description="Emoji code; needed for realm emoji."),
+    ] = None,
+    reaction_type: Annotated[
+        Literal["unicode_emoji", "realm_emoji", "zulip_extra_emoji"],
+        Field(description="Kind of emoji named by emoji_name."),
     ] = "unicode_emoji",
 ) -> dict[str, Any]:
     """Update your own status text and emoji."""
@@ -201,10 +259,7 @@ async def update_status(
         request_data = {}
         if status_text is not None:
             if len(status_text) > 60:
-                return {
-                    "status": "error",
-                    "error": "Status text must be 60 characters or less",
-                }
+                return tool_error("Status text must be 60 characters or less")
             request_data["status_text"] = status_text
 
         if emoji_name is not None:
@@ -215,10 +270,7 @@ async def update_status(
             request_data["reaction_type"] = reaction_type
 
         if not request_data:
-            return {
-                "status": "error",
-                "error": "Must provide status_text, emoji_name, or emoji_code",
-            }
+            return tool_error("Must provide status_text, emoji_name, or emoji_code")
 
         result = await asyncio.to_thread(
             lambda: client.client.call_endpoint(
@@ -235,17 +287,34 @@ async def update_status(
             return api_error(result, "Failed to update status")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
-async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
+async def get_user_presence(
+    user_id_or_email: Annotated[
+        Name | int, Field(description="The user's ID or email.")
+    ],
+) -> dict[str, Any]:
     """Get presence information for a specific user (READ-ONLY)."""
+    if isinstance(user_id_or_email, bool):
+        return tool_error("user_id_or_email must be a positive user ID or email")
+    if isinstance(user_id_or_email, int):
+        if user_id_or_email <= 0:
+            return tool_error("user_id_or_email must be a positive user ID or email")
+        segment = str(user_id_or_email)
+    elif user_id_or_email.isdigit() and int(user_id_or_email) > 0:
+        segment = user_id_or_email
+    elif validate_email(user_id_or_email):
+        segment = quote(user_id_or_email, safe="@")
+    else:
+        return tool_error("user_id_or_email must be a positive user ID or email")
+
     client = get_client()
 
     try:
         result = await asyncio.to_thread(
             lambda: client.client.call_endpoint(
-                f"users/{user_id_or_email}/presence", method="GET", request={}
+                f"users/{segment}/presence", method="GET", request={}
             )
         )
 
@@ -259,11 +328,16 @@ async def get_user_presence(user_id_or_email: str | int) -> dict[str, Any]:
             return api_error(result, "Failed to get user presence")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
-async def get_presence() -> dict[str, Any]:
+async def get_presence(
+    limit: Annotated[int, page_size(1000, "users' presence, ordered by key")] = 200,
+    cursor: Cursor = None,
+) -> dict[str, Any]:
     """Get presence information for all users in organization (READ-ONLY)."""
+    if not 1 <= limit <= 1000:
+        return tool_error("limit must be between 1 and 1000")
     client = get_client()
 
     try:
@@ -274,21 +348,33 @@ async def get_presence() -> dict[str, Any]:
         )
 
         if result.get("result") == "success":
+            presences = result.get("presences") or {}
+            keys, state = _page(list(presences), str, limit, cursor)
             return {
                 "status": "success",
                 "server_timestamp": result.get("server_timestamp"),
-                "presences": result.get("presences", {}),
-                "users_count": len(result.get("presences", {})),
+                "users_count": len(keys),
+                **state,
+                "presences": {key: presences[key] for key in keys},
             }
         else:
             return api_error(result, "Failed to get presence")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_user_groups(
-    include_deactivated_groups: bool = False, verbose: bool = False
+    include_deactivated_groups: Annotated[
+        bool, Field(description="Include deactivated groups.")
+    ] = False,
+    verbose: Annotated[
+        bool,
+        Field(
+            description="Return Zulip's full group records, member lists and "
+            "permission settings included."
+        ),
+    ] = False,
 ) -> dict[str, Any]:
     """User groups with member counts; verbose returns Zulip's full records."""
     client = get_client()
@@ -323,12 +409,14 @@ async def get_user_groups(
             ]
         return {"status": "success", "user_groups": groups, "count": len(groups)}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_user_group_members(
-    user_group_id: int,
-    direct_member_only: bool = False,
+    user_group_id: Annotated[int, Field(gt=0, description="User group ID.")],
+    direct_member_only: Annotated[
+        bool, Field(description="Exclude members who belong only via a subgroup.")
+    ] = False,
 ) -> dict[str, Any]:
     """Get members of a specific user group (READ-ONLY)."""
     client = get_client()
@@ -355,7 +443,7 @@ async def get_user_group_members(
             return api_error(result, "Failed to get group members")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def mute_user(muted_user_id: int) -> dict[str, Any]:
@@ -379,7 +467,7 @@ async def mute_user(muted_user_id: int) -> dict[str, Any]:
             return api_error(result, "Failed to mute user")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def unmute_user(muted_user_id: int) -> dict[str, Any]:
@@ -403,10 +491,19 @@ async def unmute_user(muted_user_id: int) -> dict[str, Any]:
             return api_error(result, "Failed to unmute user")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
-async def resolve_user(name: str) -> dict[str, Any]:
+async def resolve_user(
+    name: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=200,
+            description="Full or partial display name to look up.",
+        ),
+    ],
+) -> dict[str, Any]:
     """Resolve a display name to Zulip email. Fuzzy: 'Jaime' -> jaime@org.zulipchat.com"""
     client = get_client()
     user_cache = client.user_cache
@@ -419,17 +516,25 @@ async def resolve_user(name: str) -> dict[str, Any]:
     resolution = user_cache.resolve_user(name)
     if resolution.get("email"):
         return {"status": "success", **resolution}
-    return {
-        "status": "not_found",
-        "query": name,
-        "suggestion": "Try full name or email",
-    }
+    return tool_error(
+        f"No single user matches '{name}'",
+        "NOT_FOUND",
+        recovery_tool="get_users",
+        hint="Try the full name, or list members with get_users.",
+        query=name,
+    )
 
 
 async def get_user(
-    user_id: int | None = None,
-    email: str | None = None,
-    include_custom_profile_fields: bool = False,
+    user_id: Annotated[
+        int | None, Field(gt=0, description="User ID; used before email.")
+    ] = None,
+    email: Annotated[
+        str | None, Field(max_length=254, description="User email.")
+    ] = None,
+    include_custom_profile_fields: Annotated[
+        bool, Field(description="Add the user's custom profile fields.")
+    ] = False,
 ) -> dict[str, Any]:
     """Look up a user by ID or email."""
     if user_id is not None:
@@ -441,12 +546,15 @@ async def get_user(
             email, include_custom_profile_fields=include_custom_profile_fields
         )
     else:
-        return {"status": "error", "error": "Provide user_id or email"}
+        return tool_error("Provide user_id or email")
 
 
 async def manage_user_mute(
-    muted_user_id: int,
-    action: Literal["mute", "unmute"] = "mute",
+    muted_user_id: UserId,
+    action: Annotated[
+        Literal["mute", "unmute"],
+        Field(description="mute hides the user's messages from you; unmute undoes it."),
+    ] = "mute",
 ) -> dict[str, Any]:
     """Mute or unmute a user."""
     if action == "mute":
@@ -456,16 +564,30 @@ async def manage_user_mute(
 
 
 async def set_typing(
-    op: Literal["start", "stop"],
-    to: list[int] | None = None,
-    stream_id: int | None = None,
-    topic: str | None = None,
+    op: Annotated[
+        Literal["start", "stop"],
+        Field(description="start shows the indicator; stop clears it."),
+    ],
+    to: Annotated[
+        list[int] | None,
+        Field(
+            min_length=1,
+            max_length=100,
+            description="User IDs of a direct-message conversation.",
+        ),
+    ] = None,
+    stream_id: Annotated[
+        int | None, Field(gt=0, description="Channel ID; use with topic.")
+    ] = None,
+    topic: Annotated[
+        str | None, Field(max_length=60, description="Topic within stream_id.")
+    ] = None,
 ) -> dict[str, Any]:
     """Send a typing start/stop notification to users or a channel topic."""
     if (to is None) == (stream_id is None):
-        return {"status": "error", "error": "Provide exactly one of to or stream_id"}
+        return tool_error("Provide exactly one of to or stream_id")
     if stream_id is not None and not topic:
-        return {"status": "error", "error": "topic is required with stream_id"}
+        return tool_error("topic is required with stream_id")
     client = get_client()
     try:
         request: dict[str, Any] = {"op": op}
@@ -483,4 +605,4 @@ async def set_typing(
             return api_error(result, "Failed to send typing notification")
         return {"status": "success", "op": op}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
