@@ -96,6 +96,26 @@ def pancode_tool_action_classes(
     return dict(sorted(classes.items()))
 
 
+PANCODE_TOOL_PATH_ARGUMENTS = {
+    "download_file": {"download_path": "write"},
+    "upload_file": {"file_path": "read"},
+}
+
+
+def pancode_tool_path_arguments(classes: dict[str, str]) -> dict[str, dict[str, str]]:
+    """The local path arguments of the exported tools, for PanCode's path checks.
+
+    PanCode judges each named path against the run's read scope and write roots
+    before the call reaches the server, resolving it against the launch cwd the
+    server also uses as its default file root.
+    """
+    return {
+        tool: arguments
+        for tool, arguments in PANCODE_TOOL_PATH_ARGUMENTS.items()
+        if tool in classes
+    }
+
+
 def pancode_server_fields(base: dict[str, Any]) -> dict[str, Any]:
     """PanCode declaration fields shared by its YAML and plugin exports.
 
@@ -107,13 +127,16 @@ def pancode_server_fields(base: dict[str, Any]) -> dict[str, Any]:
         args[args.index("--tool-profile") + 1] if "--tool-profile" in args else "full"
     )
     read_only = profile == "read-only"
-    return {
+    classes = pancode_tool_action_classes("--extended-tools" in args, profile)
+    fields: dict[str, Any] = {
         "args": [*args, "--ephemeral-state"] if read_only else args,
         "timeoutMs": PANCODE_TIMEOUT_MS,
-        "toolActionClasses": pancode_tool_action_classes(
-            "--extended-tools" in args, profile
-        ),
+        "toolActionClasses": classes,
     }
+    path_arguments = pancode_tool_path_arguments(classes)
+    if path_arguments:
+        fields["toolPathArguments"] = path_arguments
+    return fields
 
 
 def _render_remote_for_client(client: str, url: str, token: str | None) -> str:

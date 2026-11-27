@@ -182,6 +182,18 @@ def test_pancode_exports_classify_every_tool_from_its_annotations(tmp_path, exte
     assert classes["edit_message"] == "destructive"
     if extended:
         assert classes["delete_draft"] == "destructive"
+        # PanCode refuses a write path argument on a tool classed read.
+        assert classes["download_file"] != "read"
+        assert (
+            server["toolPathArguments"]
+            == plugin["toolPathArguments"]
+            == {
+                "download_file": {"download_path": "write"},
+                "upload_file": {"file_path": "read"},
+            }
+        )
+    else:
+        assert "toolPathArguments" not in server
 
 
 def test_server_ids_let_one_host_config_declare_several_organizations(tmp_path):
@@ -246,6 +258,7 @@ def test_read_only_pancode_export_runs_in_a_read_only_sandbox(tmp_path):
     assert server["args"][-3:] == ["--tool-profile", "read-only", "--ephemeral-state"]
     assert set(server["toolActionClasses"]) == READ_ONLY_TOOLS
     assert set(server["toolActionClasses"].values()) == {"read"}
+    assert "toolPathArguments" not in server
 
 
 def test_exports_pin_the_exporting_version_and_upgrade_only_with_force(tmp_path):
