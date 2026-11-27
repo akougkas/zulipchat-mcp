@@ -4,9 +4,9 @@
 
 - `send_message(type, to, content, topic=None, allow_duplicate=False, as_bot=False)`
 - `edit_message(message_id, content=None, topic=None, stream_id=None, propagate_mode="change_one", send_notification_to_old_thread=False, send_notification_to_new_thread=True)`
-- `get_message(message_id, fresh=False, content_format="rendered_html")`: `content_format="markdown"` returns the source text
+- `get_message(message_id, fresh=False, content_format="rendered_html", max_chars=20000)`: `content_format="markdown"` returns the source text; content beyond `max_chars` is cut and marked `content_truncated`
 - `add_reaction(message_id, emoji_name, emoji_code=None, reaction_type="unicode_emoji", remove=False)`
-- `manage_message_flags(flag, action, scope="narrow", stream_id=None, topic_name=None, sender_email=None, narrow=None)`
+- `manage_message_flags(flag, action, scope="narrow", stream_id=None, topic_name=None, sender_email=None, narrow=None)`: `scope` is `narrow`, `stream` or `topic`
 
 To post one message as the bot, pass `as_bot=True`. Handing a conversation to
 an agent bot uses `teleport_chat`; see the [Agents API](agents.md).
@@ -17,9 +17,14 @@ an agent bot uses `teleport_chat`; see the [Agents API](agents.md).
 - `update_message_flags_for_narrow(narrow, op, flag, anchor="newest", include_anchor=True, num_before=50, num_after=50)`
 - `get_read_receipts(message_id)`
 - `get_message_history(message_id)`
+- `mark_all_messages(flag, action)`: destructive; changes a flag on every message you can access
 - `get_scheduled_messages()`
-- `manage_scheduled_message(action, type=None, to=None, content=None, topic=None, scheduled_delivery_timestamp=None, read_by_sender=True, scheduled_message_id=None)`
-- `manage_reminders(action, message_id=None, deliver_at=None, note=None, reminder_id=None)`
+- `create_scheduled_message(type, to, content, scheduled_delivery_timestamp, topic=None, read_by_sender=True)`
+- `update_scheduled_message(scheduled_message_id, type=None, to=None, content=None, topic=None, scheduled_delivery_timestamp=None)`: destructive
+- `delete_scheduled_message(scheduled_message_id)`: destructive
+- `get_reminders()`
+- `create_reminder(message_id, deliver_at, note=None)`
+- `delete_reminder(reminder_id)`: destructive
 - `get_drafts()`
 - `create_draft(type, to, content, topic="", timestamp=None)`
 - `edit_draft(draft_id, type, to, content, topic="", timestamp=None)`
@@ -70,8 +75,7 @@ await manage_message_flags(
 Remind yourself about a message tomorrow morning:
 
 ```python
-await manage_reminders(
-    action="create",
+await create_reminder(
     message_id=12345,
     deliver_at="2026-11-16T09:00:00",
     note="Follow up on the deploy",
@@ -96,17 +100,21 @@ await manage_reminders(
   stdio only and fails when no bot is configured.
 - `add_reaction` validates against the approved agent emoji list;
   `remove=True` takes the reaction back.
-- `send_message` and `edit_message` truncate content above 50,000 characters.
+- `send_message` and `edit_message` reject content above 50,000 characters
+  with `INVALID_ARGUMENT`.
+- `cross_post_message` takes at most 20 `target_streams`.
 - `get_read_receipts` returns `readers` as `{user_id, name}` and a `count`.
   Organizations can disable read receipts.
 - `get_message_history` lists edits oldest first. The first entry holds the
   original content and topic; later entries carry a content `diff` and
   `[old, new]` pairs for `topic` and `stream`. `edit_count` excludes the original.
-- `manage_reminders` uses Zulip's reminder endpoints (feature levels 381, 399
+- The reminder tools use Zulip's reminder endpoints (feature levels 381, 399
   and 415); older servers return an error. A naive `deliver_at` is read as UTC.
-  `list` returns `reminder_id`, `message_id`, `deliver_at` and `failed`.
-- `manage_scheduled_message` accepts the same `type` aliases as `send_message`;
+  `get_reminders` returns `reminder_id`, `message_id`, `deliver_at` and `failed`.
+- The scheduled-message tools accept the same `type` aliases as `send_message`;
   `to` is a channel ID or a list of user IDs.
+- `manage_message_flags` changes only the messages its scope names; use
+  `mark_all_messages` to change a flag everywhere.
 - Draft tools take `type="stream"` or `type="private"` only.
 - Individual reads reuse identity-scoped snapshots for up to 15 seconds;
   inspect `cache`, or set `fresh=True` when a new observation is needed.

@@ -23,6 +23,8 @@ The latest version on [PyPI](https://pypi.org/project/zulipchat-mcp/) is v0.8.3.
 - Python 3.10+, 4‑space indent, Black line length 88, Ruff configured (pycodestyle, pyflakes, isort, bugbear, pyupgrade). Keep imports sorted.
 - Names: functions/variables `snake_case`, classes `CamelCase`, constants `UPPER_SNAKE_CASE`, modules `lower_snake_case.py`.
 - Register every tool in `src/zulipchat_mcp/tools/__init__.py` through `register_tool`; lead each description with one self-contained sentence.
+- Each tool does one kind of operation (read, write or destroy) so its annotations are exact. Describe and bound every argument (shared types in `tools/params.py`), declare an output schema, page list results with `limit`/`cursor`, and return failures through `core/errors.py` (`tool_error`, `api_error`, `internal_error`). `tests/tools/test_tool_annotations.py` enforces the schema rules.
+- Local file paths go through `core/security.contained_path`: they must stay inside the file root (`--file-root`, `ZULIPCHAT_FILE_ROOT`, else the working directory).
 
 ## Testing Guidelines
 - Place tests under `tests/` as `test_*.py`; classes `Test*`, functions `test_*`.

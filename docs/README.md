@@ -51,7 +51,7 @@ describe v0.8.3, the latest published release.
 ## Tool Modes
 
 - Default mode: 13 core tools.
-- Extended mode: 45 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
+- Extended mode: 53 total tools (`--extended-tools` or `ZULIPCHAT_EXTENDED_TOOLS=1`).
 - Agents launched by `zulipchat-mcp-agents` also get `ask_owner`.
 - `--tool-profile read-only`: seven core reads or 21 extended reads, with matching
   discovery and enforced call policy.

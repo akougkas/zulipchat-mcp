@@ -34,7 +34,7 @@ surface.
 - `server_info`
 - `switch_identity`
 
-## Extended additions (32 tools, 45 total)
+## Extended additions (40 tools, 53 total)
 
 ### Users and presence (10)
 
@@ -47,31 +47,33 @@ surface.
 
 - `get_stream_info`, `resolve_topic`, `set_topic_visibility`
 
-### Messages (6)
+### Messages (7)
 
 - `cross_post_message`, `get_read_receipts`, `get_message_history`
 - `check_messages_match_narrow`, `update_message_flags_for_narrow`
-- `get_daily_summary`
+- `mark_all_messages`, `get_daily_summary`
 
-### Scheduled messages, reminders and drafts (7)
+### Scheduled messages, reminders and drafts (11)
 
-- `get_scheduled_messages`, `manage_scheduled_message`, `manage_reminders`
+- `get_scheduled_messages`, `create_scheduled_message`,
+  `update_scheduled_message`, `delete_scheduled_message`
+- `get_reminders`, `create_reminder`, `delete_reminder`
 - `get_drafts`, `create_draft`, `edit_draft`, `delete_draft`
 
 ### Events (4)
 
 - `register_events`, `get_events`, `listen_events`, `deregister_events`
 
-### Files (2)
+### Files (5)
 
-- `upload_file`, `manage_files`
+- `upload_file`, `get_files`, `download_file`, `share_file`, `delete_file`
 
 ## Tool profiles
 
 | Profile | Core | Extended |
 | --- | --- | --- |
-| `full` | 13 | 45 |
-| `read-only` | 7 | 21 |
+| `full` | 13 | 53 |
+| `read-only` | 7 | 23 |
 | `ask-owner` | `ask_owner` only | `ask_owner` only |
 
 `read-only` keeps `READ_ONLY_TOOLS`: `server_info`, `get_message`,
@@ -79,10 +81,11 @@ surface.
 `get_users` in core, plus `get_stream_info`, `get_own_user`, `get_user`,
 `get_user_status`, `get_user_presence`, `get_presence`, `get_user_groups`,
 `get_user_group_members`, `check_messages_match_narrow`,
-`get_scheduled_messages`, `get_drafts`, `get_read_receipts`,
+`get_scheduled_messages`, `get_reminders`, `get_drafts`, `get_files`,
+`get_read_receipts`,
 `get_message_history` and `get_daily_summary` in extended mode.
-Mixed-operation tools stay out because their names alone cannot establish that
-a call is read-only. `ask-owner` is the profile the agent bridge gives the
+Each tool does one kind of operation, so its annotations say whether it reads,
+writes or destroys; the remaining tools that write stay out. `ask-owner` is the profile the agent bridge gives the
 agents it launches when their agent file keeps the default `zulip_tools = "ask"`.
 
 ## Design intent

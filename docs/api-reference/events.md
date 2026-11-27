@@ -4,9 +4,9 @@ Event tools are extended mode only.
 
 ## Tools
 
-- `register_events(event_types, narrow=None, queue_lifespan_secs=300, ...)`
-- `get_events(queue_id, last_event_id, dont_block=False, timeout=10, ...)`
-- `listen_events(event_types, duration=300, narrow=None, filters=None, poll_interval=1, ...)`
+- `register_events(event_types, narrow=None, queue_lifespan_secs=300, ..., include_realm_state=False)`
+- `get_events(queue_id, last_event_id, dont_block=False, timeout=10, ..., max_events=100)`
+- `listen_events(event_types, duration=300, narrow=None, filters=None, poll_interval=1, ..., max_events=500)`
 - `deregister_events(queue_id)`
 
 ## Examples
@@ -35,7 +35,14 @@ await listen_events(
   three consecutive failed polls. Unrecovered failures return `error`, or
   `partial` when events were collected; recovered failures appear in
   `polling_errors`.
-- Queue lifespan and timeout values are capped by tool logic.
+- Queue lifespan is capped at 600 seconds.
+- `get_events` returns at most `max_events` (1-100) events, oldest first, with
+  `more_events=True` when it cut some off; poll again from the last returned
+  event ID. `listen_events` stops at `max_events` (1-500) and reports
+  `reached_max_events`.
+- `register_events` returns only the queue by default. Pass
+  `include_realm_state=True` for Zulip's initial state; oversized state is
+  replaced by its keys and `realm_state_truncated=True`.
 - These tools return events to the calling agent only; they do not wake an
   agent. To act on messages sent to a bot, run the
   [agent bridge](../integrations/agent-bots.md).

@@ -35,7 +35,7 @@ zulipchat-mcp [options]
 
 - `--zulip-config-file PATH`: User `zuliprc`
 - `--zulip-bot-config-file PATH`: Bot `zuliprc` for dual identity
-- `--extended-tools`: Register all 45 tools instead of the 13-tool core set
+- `--extended-tools`: Register all 53 tools instead of the 13-tool core set
 - `--tool-profile {full,read-only,ask-owner}`: Enforce the selected Zulip tool surface (`full` by default). `ask-owner` exposes only `ask_owner`, for agents launched by `zulipchat-mcp-agents`.
 - `--ephemeral-state`: Write no files. Read caches stay in memory instead of the account cache directory. Use it where the state directory is not writable, such as a sandboxed worker.
 - `--transport {stdio,http}`: Transport protocol (`stdio` default, `http` for streamable-HTTP)
@@ -44,6 +44,7 @@ zulipchat-mcp [options]
 - `--auth-token TOKEN`: Bearer authentication token for HTTP transport
 - `--allowed-host HOST`: Additional trusted HTTP hostname (repeatable)
 - `--allowed-origin URL`: Additional trusted browser origin (repeatable)
+- `--file-root DIR`: The only directory `upload_file` may read and `download_file` may write over stdio (default: `ZULIPCHAT_FILE_ROOT`, else the server's working directory)
 - `--unsafe`: Enable destructive operations that are otherwise blocked
 - `--debug`: Enable debug logging
 
@@ -60,10 +61,10 @@ For bounded discovery and Zulip reads, use:
 uvx zulipchat-mcp --zulip-config-file ~/.zuliprc --tool-profile read-only
 ```
 
-The profile exposes seven core reads, or 21 with `--extended-tools`. Discovery
+The profile exposes seven core reads, or 23 with `--extended-tools`. Discovery
 omits writes and mixed-operation tools. A direct call to an excluded tool is
-also rejected with `isError=true`, `error_code="POLICY_DENIED"`, and
-`retryable=false`, before the operation executes. `resolve_user` is a read and
+also rejected with `isError=true`, `error.code="POLICY_DENIED"`, and
+`error.retryable=false`, before the operation executes. `resolve_user` is a read and
 remains available. Event tools are excluded because they register remote
 event queues. The profile rejects `--unsafe` at startup.
 
@@ -72,7 +73,7 @@ transport, and availability of identity switching. Use this information and
 the current tool schemas to plan calls. The profile covers the configured
 account; it does not confine reads to one channel, sandbox the coding host, or
 make the server's local caches immutable. The `full` profile retains the
-13/45-tool surface and existing safety checks.
+13/53-tool surface and existing safety checks.
 
 Application failures now set MCP `isError=true` while preserving structured
 error details. Partial delivery retains its message IDs and is not converted
@@ -106,6 +107,7 @@ callers to separate Zulip users. See the [HTTP deployment notes](../../README.md
 ### Runtime
 
 - `ZULIPCHAT_EXTENDED_TOOLS=1`: enable extended tool registration
+- `ZULIPCHAT_FILE_ROOT=DIR`: local file root when `--file-root` is not given
 - `MCP_DEBUG=true`: debug logging
 - `MCP_PORT=3000`: internal port metadata value
 
@@ -148,8 +150,13 @@ sent again. After a failed send, check Zulip before retrying it manually.
 ## Safety model
 
 - Default mode is safe.
-- `--unsafe` enables attachment deletion in `manage_files`.
+- `--unsafe` enables attachment deletion in `delete_file`.
 - HTTP disables local file paths. Use inline uploads or returned download URLs; use stdio for local file operations.
+- Over stdio, `upload_file` reads and `download_file` writes only inside the
+  file root: `--file-root DIR`, else `ZULIPCHAT_FILE_ROOT`, else the directory
+  the server was started in. Paths that resolve outside it, including through
+  symlinks, are refused with `PATH_OUTSIDE_ROOT`. Downloads never overwrite an
+  existing file.
 
 ## Dual identity
 
