@@ -101,14 +101,19 @@ class ToolContractMiddleware(Middleware):
     ) -> Any:
         name = context.message.name
         if self.allowed is not None and name not in self.allowed:
+            hint = (
+                "Only ask_owner is permitted in this session."
+                if self.profile == "ask-owner"
+                else "Call server_info for the tools this session may use."
+            )
             denied = tool_error(
                 f"The {self.profile} tool profile does not permit this tool",
                 "POLICY_DENIED",
-                hint="Call server_info for the tools this session may use.",
+                hint=hint,
                 tool=name,
                 profile=self.profile,
             )
-            return ToolResult(structured_content=denied, is_error=True)
+            return _error_result(denied)
 
         try:
             result = await call_next(context)
@@ -145,7 +150,10 @@ class ToolContractMiddleware(Middleware):
                 },
             }
             return ToolResult(
-                structured_content=data, meta=result.meta, is_error=result.is_error
+                content=render_text(data),
+                structured_content=data,
+                meta=result.meta,
+                is_error=result.is_error,
             )
 
         # Preserve structured details, backend codes and partial delivery data.
@@ -185,6 +193,13 @@ def render_text(data: dict[str, Any]) -> list[TextContent]:
     rest = {key: value for key, value in data.items() if key not in chat}
     text = json.dumps(rest, ensure_ascii=False, default=str)
     if chat:
-        body = json.dumps(chat, ensure_ascii=False, default=str)
+        # Escape delimiter prefixes and Unicode line separators so untrusted
+        # chat text stays single-line and cannot forge CHAT_OPEN / CHAT_CLOSE.
+        body = (
+            json.dumps(chat, ensure_ascii=False, default=str)
+            .replace("<<<", r"\u003c<<")
+            .replace("\u2028", r"\u2028")
+            .replace("\u2029", r"\u2029")
+        )
         text = f"{text}\n{CHAT_OPEN}\n{body}\n{CHAT_CLOSE}"
     return [TextContent(type="text", text=text)]
