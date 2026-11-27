@@ -5,6 +5,7 @@ the server's working directory) and to stdio; every transfer is capped at 25 MiB
 """
 
 import asyncio
+import errno
 import hashlib
 import mimetypes
 import os
@@ -12,6 +13,7 @@ import stat
 from base64 import b64decode, b64encode
 from binascii import Error as Base64Error
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import unquote, urlparse, urlunparse
 
@@ -26,6 +28,7 @@ from ..core.security import (
     is_unsafe_mode,
     local_access_allowed,
 )
+from ..utils.redaction import redact, secret_values
 from .params import Cursor, Topic, page_size
 
 MAX_FILE_SIZE = 25 * 1024 * 1024
@@ -57,7 +60,8 @@ def _path_refused(error: PathOutsideRoot) -> dict[str, Any]:
 def _read_local_file(path: str) -> bytes:
     """Read a regular file inside the file root, refusing more than 25 MiB."""
     resolved = contained_path(path)
-    fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(resolved, flags)
     with os.fdopen(fd, "rb") as handle:
         info = os.fstat(handle.fileno())
         if not stat.S_ISREG(info.st_mode):
@@ -69,12 +73,27 @@ def _read_local_file(path: str) -> bytes:
 
 def _write_new_local_file(path: str, content: bytes) -> str:
     """Create path inside the file root; never replaces an existing entry."""
-    resolved = contained_path(path)
+    contained_path(path)
+    expanded = Path(os.path.expanduser(path))
+    if not expanded.name or expanded.name in (".", ".."):
+        raise FileExistsError(path)
+    root = file_root()
+    parent = Path(os.path.realpath(expanded.parent))
+    try:
+        parent.relative_to(root)
+    except ValueError:
+        raise PathOutsideRoot(f"Path must stay inside {root}") from None
+    target = parent / expanded.name
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(resolved, flags, 0o600)
+    try:
+        fd = os.open(target, flags, 0o600)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise FileExistsError(path) from None
+        raise
     with os.fdopen(fd, "wb") as handle:
         handle.write(content)
-    return str(resolved)
+    return str(target)
 
 
 def _validate_download_url(client: Any, url: str) -> None:
@@ -268,8 +287,9 @@ async def upload_file(
     file_content: Annotated[
         bytes | None,
         Field(
+            max_length=MAX_FILE_SIZE,
             description="File content as UTF-8 text. Use file_content_base64 for "
-            "binary data."
+            "binary data.",
         ),
     ] = None,
     file_path: Annotated[
@@ -516,21 +536,26 @@ async def download_file(
             "NOT_AVAILABLE",
         )
     try:
-        contained_path(download_path)
+        resolved = contained_path(download_path)
     except PathOutsideRoot as error:
         return _path_refused(error)
-    if os.path.lexists(download_path):
+    except ValueError as error:
+        return tool_error(f"Invalid download_path: {error}")
+    expanded_path = os.path.expanduser(download_path)
+    if os.path.lexists(expanded_path) or os.path.lexists(resolved):
         return tool_error(
             f"{download_path} already exists; download_file never overwrites",
             "ALREADY_EXISTS",
             hint="Choose a new file name.",
         )
+    download_secrets: list[str] = []
     try:
         import httpx
 
         _validate_download_url(client, download_url)
         email, api_key = await asyncio.to_thread(_resolve_download_credentials, client)
         auth_bytes = b64encode(f"{email}:{api_key}".encode()).decode()
+        download_secrets = [api_key, auth_bytes]
         headers = {"Authorization": f"Basic {auth_bytes}"}
 
         async with httpx.AsyncClient(follow_redirects=False, timeout=30) as http:
@@ -554,7 +579,8 @@ async def download_file(
             hint="Choose a new file name.",
         )
     except Exception as e:
-        return tool_error(f"Download failed: {e}", "DOWNLOAD_FAILED")
+        safe = redact(str(e), secret_values(os.environ, extra=download_secrets))
+        return tool_error(f"Download failed: {safe}", "DOWNLOAD_FAILED")
     return {
         "status": "success",
         "file_id": file_id,

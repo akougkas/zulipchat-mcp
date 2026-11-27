@@ -198,3 +198,34 @@ def test_file_root_defaults_to_env_then_cwd(tmp_path, monkeypatch):
     assert file_root() == tmp_path.resolve()
     monkeypatch.setenv("ZULIPCHAT_FILE_ROOT", str(tmp_path / "env"))
     assert file_root() == (tmp_path / "env").resolve()
+
+
+async def test_download_rejects_nul_byte_and_tilde_dangling_symlink(root, monkeypatch):
+    from zulipchat_mcp.tools.files import _write_new_local_file
+
+    monkeypatch.setenv("HOME", str(root))
+    dangling_target = root / "must-not-be-created"
+    os.symlink(dangling_target, root / "dangling")
+    client = MagicMock(base_url="https://zulip.example")
+    with (
+        patch("zulipchat_mcp.tools.files.get_client", return_value=client),
+        patch("httpx.AsyncClient") as http,
+    ):
+        nul = await download_file(file_id="1/file", download_path=f"{root}/bad\x00name")
+        tilde = await download_file(file_id="1/file", download_path="~/dangling")
+    assert nul["error"]["code"] == "INVALID_ARGUMENT"
+    assert tilde["error"]["code"] == "ALREADY_EXISTS"
+    http.assert_not_called()
+    with pytest.raises(FileExistsError):
+        _write_new_local_file("~/dangling", b"data")
+    assert not dangling_target.exists()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX FIFOs only")
+async def test_upload_refuses_fifo_without_blocking(root):
+    fifo = root / "pipe"
+    os.mkfifo(fifo)
+    with patch("zulipchat_mcp.tools.files.get_client") as client:
+        result = await upload_file(file_path=str(fifo))
+    assert result["error"]["code"] == "FILE_UNREADABLE"
+    client.return_value.upload_file.assert_not_called()
