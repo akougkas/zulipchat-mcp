@@ -7,8 +7,10 @@ Includes:
 - Validation helpers
 """
 
+import os
 import re
 from contextvars import ContextVar
+from pathlib import Path
 
 from fastmcp.server.dependencies import get_http_headers, get_http_request
 
@@ -44,6 +46,39 @@ def is_unsafe_mode() -> bool:
         True if unsafe operations are allowed, False otherwise.
     """
     return _unsafe_mode.get()
+
+
+_file_root: Path | None = None
+
+
+class PathOutsideRoot(ValueError):
+    """A local path that resolves outside the configured file root."""
+
+
+def set_file_root(path: str | os.PathLike[str] | None) -> None:
+    """Fix the directory local file paths must stay inside (None: env or cwd)."""
+    global _file_root
+    _file_root = Path(os.path.realpath(os.path.expanduser(path))) if path else None
+
+
+def file_root() -> Path:
+    """The directory upload_file and download_file may touch."""
+    if _file_root is not None:
+        return _file_root
+    configured = os.getenv("ZULIPCHAT_FILE_ROOT")
+    return Path(os.path.realpath(os.path.expanduser(configured or os.getcwd())))
+
+
+def contained_path(path: str) -> Path:
+    """Resolve path (relative to the working directory, symlinks followed).
+
+    Raises PathOutsideRoot unless the result is the file root or inside it.
+    """
+    root = file_root()
+    resolved = Path(os.path.realpath(os.path.expanduser(path)))
+    if resolved != root and root not in resolved.parents:
+        raise PathOutsideRoot(f"{path} resolves outside the file root {root}")
+    return resolved
 
 
 def validate_emoji(emoji_name: str) -> bool:

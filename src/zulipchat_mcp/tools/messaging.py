@@ -11,13 +11,16 @@ import json
 import os
 import threading
 import time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Field
 
 from ..config import get_bot_client, get_client, get_config_manager
-from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
+from ..core.errors import api_error, error_object, internal_error, tool_error
 from ..core.security import local_access_allowed
 from ..utils.redaction import redact, secret_values
+from .params import MAX_CONTENT_CHARS, Content, Fresh, MessageId, Name
 
 _agent_secrets: list[str] | None = None
 
@@ -129,27 +132,58 @@ def _resolve_recipients(
             candidates = matches[:5] or [
                 u for u in people if str(u.get("full_name", "")).casefold() in close
             ]
-            return {
-                "status": "error",
-                "error": f"'{item}' matches {len(matches) or 'no'} users; nothing was sent",
-                "error_code": "AMBIGUOUS_RECIPIENT" if matches else "UNKNOWN_RECIPIENT",
-                "candidates": [
+            return tool_error(
+                f"'{item}' matches {len(matches) or 'no'} users; nothing was sent",
+                "AMBIGUOUS_RECIPIENT" if matches else "UNKNOWN_RECIPIENT",
+                recovery_tool="resolve_user",
+                hint="Pick one candidate and send again with its user_id.",
+                candidates=[
                     {"name": u.get("full_name"), "user_id": u.get("user_id")}
                     for u in candidates
                 ],
-                "retryable": False,
-            }
+            )
         resolved.append(int(matches[0]["user_id"]))
     return resolved
 
 
 async def send_message(
-    type: Literal["stream", "private", "channel", "direct"],
-    to: str | int | list[str | int],
-    content: str,
-    topic: str | None = None,
-    allow_duplicate: bool = False,
-    as_bot: bool = False,
+    type: Annotated[
+        Literal["stream", "private", "channel", "direct"],
+        Field(
+            description="channel (alias stream) posts to a channel topic; direct "
+            "(alias private) sends a DM."
+        ),
+    ],
+    to: Annotated[
+        Name | int | Annotated[list[Name | int], Field(min_length=1, max_length=100)],
+        Field(
+            description="For channel: the channel name (a leading # is ignored) or "
+            "ID. For direct: one or more recipients, each a full name, first "
+            "name, email or user ID."
+        ),
+    ],
+    content: Content,
+    topic: Annotated[
+        str | None,
+        Field(
+            max_length=60,
+            description="Topic name; required for channel messages, ignored for DMs.",
+        ),
+    ] = None,
+    allow_duplicate: Annotated[
+        bool,
+        Field(
+            description="Post even when an identical message from the same sender "
+            "succeeded in the last two minutes."
+        ),
+    ] = False,
+    as_bot: Annotated[
+        bool,
+        Field(
+            description="Send this one message with the configured bot credentials "
+            "(stdio only)."
+        ),
+    ] = False,
 ) -> dict[str, Any]:
     """Send a channel or direct message; direct recipients may be names.
 
@@ -166,18 +200,17 @@ async def send_message(
     """
     if as_bot:
         if not local_access_allowed():
-            return {
-                "status": "error",
-                "error": "as_bot is only available over stdio; HTTP uses the configured user identity",
-                "retryable": False,
-            }
+            return tool_error(
+                "as_bot is only available over stdio; HTTP uses the configured "
+                "user identity",
+                "NOT_AVAILABLE",
+            )
         if not get_config_manager().has_bot_credentials():
-            return {
-                "status": "error",
-                "error": "Bot credentials not configured; nothing was sent",
-                "suggestion": "Start the server with --zulip-bot-config-file",
-                "retryable": False,
-            }
+            return tool_error(
+                "Bot credentials not configured; nothing was sent",
+                "NOT_CONFIGURED",
+                hint="Start the server with --zulip-bot-config-file",
+            )
         client = get_bot_client()
     else:
         client = get_client()
@@ -229,11 +262,11 @@ async def _send_message(
 
     # Validate stream messages have topic
     if type == "stream" and not topic:
-        return {"status": "error", "error": "Topic required for stream messages"}
+        return tool_error("Topic required for stream messages")
 
     # Validate recipient is not empty
     if not to or (isinstance(to, list) and len(to) == 0):
-        return {"status": "error", "error": "Recipient list cannot be empty"}
+        return tool_error("Recipient list cannot be empty")
 
     # Content sanitization
     safe_content = sanitize_content(content)
@@ -255,46 +288,53 @@ async def _send_message(
 
 
 async def edit_message(
-    message_id: int,
-    content: str | None = None,
-    topic: str | None = None,
-    stream_id: int | None = None,
-    propagate_mode: Literal["change_one", "change_later", "change_all"] = "change_one",
-    send_notification_to_old_thread: bool = False,
-    send_notification_to_new_thread: bool = True,
+    message_id: MessageId,
+    content: Annotated[
+        str | None,
+        Field(
+            max_length=MAX_CONTENT_CHARS,
+            description="New message text; replaces the old text entirely.",
+        ),
+    ] = None,
+    topic: Annotated[
+        str | None,
+        Field(max_length=60, description="New topic name (renames or moves)."),
+    ] = None,
+    stream_id: Annotated[
+        int | None, Field(gt=0, description="Move to this channel ID.")
+    ] = None,
+    propagate_mode: Annotated[
+        Literal["change_one", "change_later", "change_all"],
+        Field(
+            description="Which messages a topic or channel change applies to: this "
+            "one, this and later ones in the topic, or the whole topic."
+        ),
+    ] = "change_one",
+    send_notification_to_old_thread: Annotated[
+        bool, Field(description="Leave a notice in the old topic after a move.")
+    ] = False,
+    send_notification_to_new_thread: Annotated[
+        bool, Field(description="Post a notice in the new topic after a move.")
+    ] = True,
 ) -> dict[str, Any]:
     """Edit message content, topic, or move between streams."""
     if not isinstance(message_id, int) or message_id <= 0:
-        return {
-            "status": "error",
-            "error": {
-                "code": "INVALID_MESSAGE_ID",
-                "message": f"Invalid message ID: {message_id}",
-                "suggestions": ["Use search_messages to find valid message IDs"],
-            },
-        }
+        return tool_error(
+            f"Invalid message ID: {message_id}",
+            recovery_tool="search_messages",
+            hint="Find a valid message ID with search_messages.",
+        )
 
     if content is not None and not content.strip():
-        return {"status": "error", "error": "Message content cannot be empty"}
+        return tool_error("Message content cannot be empty")
     if content is None and topic is None and stream_id is None:
-        return {
-            "status": "error",
-            "error": "Must provide content, topic, or stream_id to edit",
-        }
+        return tool_error("Must provide content, topic, or stream_id to edit")
 
     if propagate_mode not in ["change_one", "change_later", "change_all"]:
-        return {
-            "status": "error",
-            "error": {
-                "code": "INVALID_PROPAGATE_MODE",
-                "message": f"Invalid propagate_mode: '{propagate_mode}'",
-                "suggestions": [
-                    "Use 'change_one' to edit only this message",
-                    "Use 'change_later' to edit this and newer messages",
-                    "Use 'change_all' to edit all messages in topic",
-                ],
-            },
-        }
+        return tool_error(
+            f"Invalid propagate_mode: '{propagate_mode}'",
+            hint="Use change_one, change_later or change_all.",
+        )
 
     client = get_client()
 
@@ -330,14 +370,29 @@ async def edit_message(
         return api_error(result, "Failed to edit message")
 
 
+MAX_MESSAGE_CHARS = 20000
+
+
 async def get_message(
-    message_id: int,
-    fresh: bool = False,
-    content_format: Literal["rendered_html", "markdown"] = "rendered_html",
+    message_id: MessageId,
+    fresh: Fresh = False,
+    content_format: Annotated[
+        Literal["rendered_html", "markdown"],
+        Field(description="markdown returns the source text the sender typed."),
+    ] = "rendered_html",
+    max_chars: Annotated[
+        int,
+        Field(
+            ge=1,
+            le=MAX_MESSAGE_CHARS,
+            description="Longest content returned; longer content is cut and "
+            "marked content_truncated.",
+        ),
+    ] = MAX_MESSAGE_CHARS,
 ) -> dict[str, Any]:
     """Get a single message by ID; content_format="markdown" returns source text."""
     if not isinstance(message_id, int) or message_id <= 0:
-        return {"status": "error", "error": "Invalid message ID"}
+        return tool_error("Invalid message ID")
 
     client = get_client()
 
@@ -348,11 +403,17 @@ async def get_message(
         result = await asyncio.to_thread(client.get_message, message_id, **options)
 
         if result.get("result") == "success":
-            response = {
+            message = dict(result.get("message") or {})
+            text = str(message.get("content", ""))
+            response: dict[str, Any] = {
                 "status": "success",
-                "message": result.get("message", {}),
                 "content_format": content_format,
             }
+            if len(text) > max_chars:
+                message["content"] = text[:max_chars]
+                response["content_truncated"] = True
+                response["content_chars"] = len(text)
+            response["message"] = message
             if "_cache" in result:
                 response["cache"] = result["_cache"]
             return response
@@ -360,22 +421,41 @@ async def get_message(
             return api_error(result, "Message not found")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def cross_post_message(
-    source_message_id: int,
-    target_streams: list[str],
-    target_topic: str | None = None,
-    add_reference: bool = True,
-    custom_prefix: str | None = None,
+    source_message_id: MessageId,
+    target_streams: Annotated[
+        list[str],
+        Field(
+            min_length=1,
+            max_length=20,
+            description="Channel names to post the copy into.",
+        ),
+    ],
+    target_topic: Annotated[
+        str | None,
+        Field(
+            max_length=60,
+            description="Topic for the copies; defaults to the source topic.",
+        ),
+    ] = None,
+    add_reference: Annotated[
+        bool,
+        Field(description="Prefix the copy with a line naming the source."),
+    ] = True,
+    custom_prefix: Annotated[
+        str | None,
+        Field(max_length=1000, description="Replaces the default source line."),
+    ] = None,
 ) -> dict[str, Any]:
     """Share/duplicate a message across multiple streams."""
     if not isinstance(source_message_id, int) or source_message_id <= 0:
-        return {"status": "error", "error": "Invalid source message ID"}
+        return tool_error("Invalid source message ID")
 
     if not target_streams:
-        return {"status": "error", "error": "Must specify target streams"}
+        return tool_error("Must specify target streams")
 
     client = get_client()
 
@@ -415,7 +495,7 @@ async def cross_post_message(
                 )
             except Exception as e:
                 # Retain confirmed earlier sends; never retry ambiguous writes.
-                send_result = {"status": "error", "error": str(e)}
+                send_result = internal_error(e)
 
             if send_result.get("status") == "success":
                 results.append(
@@ -432,14 +512,15 @@ async def cross_post_message(
                         "stream": stream,
                         "topic": post_topic,
                         "status": "error",
-                        "error": send_result.get("error", "Failed to post"),
+                        "error": send_result.get("error")
+                        or error_object("Failed to post", "ZULIP_ERROR"),
                     }
                 )
 
         successful = [r for r in results if r["status"] == "success"]
         failed = [r for r in results if r["status"] == "error"]
 
-        return {
+        response: dict[str, Any] = {
             "status": "success" if not failed else "partial" if successful else "error",
             "source_message_id": source_message_id,
             "target_streams": target_streams,
@@ -447,6 +528,9 @@ async def cross_post_message(
             "failed": len(failed),
             "results": results,
         }
+        if failed:
+            response["error"] = failed[0]["error"]
+        return response
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)

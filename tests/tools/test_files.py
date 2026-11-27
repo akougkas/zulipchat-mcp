@@ -1,16 +1,19 @@
 """Tests for tools/files.py."""
 
 import base64
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.zulipchat_mcp.core.security import set_file_root
 from src.zulipchat_mcp.tools.files import (
     _normalize_site_url,
     _normalize_upload_path,
     _resolve_download_credentials,
     _resolve_file_url,
-    manage_files,
+    download_file,
+    get_files,
+    share_file,
     upload_file,
     validate_file_security,
 )
@@ -218,13 +221,14 @@ class TestFilesTools:
         client.upload_file.assert_called()
 
     @pytest.mark.asyncio
-    async def test_upload_file_path(self, mock_deps):
-        """Test upload_file with path."""
+    async def test_upload_file_path(self, mock_deps, tmp_path, monkeypatch):
+        """Test upload_file with a relative path inside the file root."""
         client = mock_deps
         client.upload_file.return_value = {"result": "success", "uri": "/uri"}
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "test.txt").write_bytes(b"data")
 
-        with patch("builtins.open", mock_open(read_data=b"data")):
-            result = await upload_file(file_path="test.txt")
+        result = await upload_file(file_path="test.txt")
 
         assert result["status"] == "success"
         client.upload_file.assert_called_with(b"data", "test.txt")
@@ -245,42 +249,63 @@ class TestFilesTools:
         client.send_message.assert_called()
 
     @pytest.mark.asyncio
-    async def test_manage_files_list(self, mock_deps):
-        """Test manage_files list."""
+    async def test_get_files_empty(self, mock_deps):
+        """get_files with no uploads."""
         client = mock_deps
         client.client.call_endpoint.return_value = {
             "result": "success",
             "attachments": [],
         }
 
-        result = await manage_files("list")
+        result = await get_files()
         assert result["status"] == "success"
-        assert result["operation"] == "list"
+        assert result["files"] == []
+        assert "next_cursor" not in result
 
     @pytest.mark.asyncio
-    async def test_manage_files_share(self, mock_deps):
-        """Test manage_files share."""
+    async def test_get_files_pages_newest_first(self, mock_deps):
+        """get_files returns one bounded page and a cursor to the next."""
+        client = mock_deps
+        client.client.call_endpoint.return_value = {
+            "result": "success",
+            "attachments": [{"id": i, "name": f"f{i}"} for i in range(1, 8)],
+            "upload_space_used": 70,
+        }
+
+        first = await get_files(limit=3)
+        assert [f["id"] for f in first["files"]] == [7, 6, 5]
+        assert first["total"] == 7
+        assert first["next_cursor"] == "5"
+        second = await get_files(limit=3, cursor=first["next_cursor"])
+        assert [f["id"] for f in second["files"]] == [4, 3, 2]
+        last = await get_files(limit=3, cursor=second["next_cursor"])
+        assert [f["id"] for f in last["files"]] == [1]
+        assert "next_cursor" not in last
+        bad = await get_files(cursor="x")
+        assert bad["error"]["code"] == "INVALID_CURSOR"
+
+    @pytest.mark.asyncio
+    async def test_files_share(self, mock_deps):
+        """Test share."""
         client = mock_deps
         client.base_url = "https://zulip"
         client.send_message.return_value = {"result": "success", "id": 1}
 
-        result = await manage_files("share", file_id="123", share_in_stream="general")
+        result = await share_file(file_id="123", stream="general")
 
         assert result["status"] == "success"
         assert result["message_id"] == 1
         client.send_message.assert_called()
 
     @pytest.mark.asyncio
-    async def test_manage_files_share_with_relative_upload_path(self, mock_deps):
-        """Test manage_files share with /user_uploads path input."""
+    async def test_files_share_with_relative_upload_path(self, mock_deps):
+        """Test share with /user_uploads path input."""
         client = mock_deps
         client.base_url = "https://zulip"
         client.send_message.return_value = {"result": "success", "id": 2}
 
-        result = await manage_files(
-            "share",
-            file_id="/user_uploads/43617/path/file.txt",
-            share_in_stream="general",
+        result = await share_file(
+            file_id="/user_uploads/43617/path/file.txt", stream="general"
         )
 
         assert result["status"] == "success"
@@ -292,16 +317,14 @@ class TestFilesTools:
         )
 
     @pytest.mark.asyncio
-    async def test_manage_files_share_strips_api_from_base_url(self, mock_deps):
-        """Test manage_files share strips API suffix from base_url."""
+    async def test_files_share_strips_api_from_base_url(self, mock_deps):
+        """Test share strips API suffix from base_url."""
         client = mock_deps
         client.base_url = "https://zulip.example.com/api/v1"
         client.send_message.return_value = {"result": "success", "id": 3}
 
-        result = await manage_files(
-            "share",
-            file_id="/user_uploads/43617/path/file.txt",
-            share_in_stream="general",
+        result = await share_file(
+            file_id="/user_uploads/43617/path/file.txt", stream="general"
         )
 
         assert result["status"] == "success"
@@ -313,8 +336,8 @@ class TestFilesTools:
         )
 
     @pytest.mark.asyncio
-    async def test_manage_files_download(self, mock_deps):
-        """Test manage_files download."""
+    async def test_files_download(self, mock_deps, tmp_path):
+        """Test download."""
         client = mock_deps
         client.base_url = "https://zulip"
         client.current_email = "me@e.com"
@@ -323,7 +346,7 @@ class TestFilesTools:
         client.client.api_key = None
 
         # Test getting URL only
-        result = await manage_files("download", file_id="123")
+        result = await download_file(file_id="123")
         assert result["status"] == "success"
         assert "download_url" in result
 
@@ -347,23 +370,25 @@ class TestFilesTools:
             mock_async_client.__aexit__ = AsyncMock(return_value=None)
             sys.modules["httpx"].AsyncClient = MagicMock(return_value=mock_async_client)
 
-            with patch("builtins.open", mock_open()) as m_open:
-                result = await manage_files(
-                    "download", file_id="123", download_path="out.bin"
+            set_file_root(tmp_path)
+            try:
+                result = await download_file(
+                    file_id="123", download_path=str(tmp_path / "out.bin")
                 )
+            finally:
+                set_file_root(None)
 
-                assert result["status"] == "success"
-                m_open().write.assert_called_with(b"filedata")
+            assert result["status"] == "success"
+            assert (tmp_path / "out.bin").read_bytes() == b"filedata"
 
     @pytest.mark.asyncio
-    async def test_manage_files_download_strips_api_upload_prefix(self, mock_deps):
-        """Test manage_files download normalizes /api/user_uploads file_id."""
+    async def test_files_download_strips_api_upload_prefix(self, mock_deps):
+        """Test download normalizes /api/user_uploads file_id."""
         client = mock_deps
         client.base_url = "https://zulip.example.com"
 
-        result = await manage_files(
-            "download",
-            file_id="/api/user_uploads/43617/path/file.txt?raw=1",
+        result = await download_file(
+            file_id="/api/user_uploads/43617/path/file.txt?raw=1"
         )
 
         assert result["status"] == "success"
@@ -373,19 +398,19 @@ class TestFilesTools:
         )
 
     @pytest.mark.asyncio
-    async def test_manage_files_download_accepts_absolute_url(self, mock_deps):
-        """Test manage_files download with an absolute URL."""
+    async def test_files_download_accepts_absolute_url(self, mock_deps):
+        """Test download with an absolute URL."""
         client = mock_deps
         client.base_url = "https://zulip"
         file_url = "https://grc.zulipchat.com/user_uploads/43617/path/file.txt"
 
-        result = await manage_files("download", file_id=file_url)
+        result = await download_file(file_id=file_url)
 
         assert result["status"] == "success"
         assert result["download_url"] == file_url
 
     @pytest.mark.asyncio
-    async def test_manage_files_download_uses_sdk_credentials(self, mock_deps):
+    async def test_files_download_uses_sdk_credentials(self, mock_deps, tmp_path):
         """Test download uses SDK credentials when config values are empty."""
         client = mock_deps
         client.base_url = "https://zulip"
@@ -412,12 +437,14 @@ class TestFilesTools:
             mock_async_client.__aexit__ = AsyncMock(return_value=None)
             sys.modules["httpx"].AsyncClient = MagicMock(return_value=mock_async_client)
 
-            with patch("builtins.open", mock_open()):
-                result = await manage_files(
-                    "download",
+            set_file_root(tmp_path)
+            try:
+                result = await download_file(
                     file_id="/user_uploads/1/file.txt",
-                    download_path="out.bin",
+                    download_path=str(tmp_path / "out.bin"),
                 )
+            finally:
+                set_file_root(None)
 
         assert result["status"] == "success"
         expected_auth = base64.b64encode(b"sdk@example.com:sdk-key").decode()
@@ -426,7 +453,9 @@ class TestFilesTools:
         )
 
     @pytest.mark.asyncio
-    async def test_manage_files_download_uses_bot_config_credentials(self, mock_deps):
+    async def test_files_download_uses_bot_config_credentials(
+        self, mock_deps, tmp_path
+    ):
         """Test download uses bot credentials when bot identity is active."""
         client = mock_deps
         client.identity = "bot"
@@ -457,22 +486,17 @@ class TestFilesTools:
             mock_async_client.__aexit__ = AsyncMock(return_value=None)
             sys.modules["httpx"].AsyncClient = MagicMock(return_value=mock_async_client)
 
-            with patch("builtins.open", mock_open()):
-                result = await manage_files(
-                    "download",
+            set_file_root(tmp_path)
+            try:
+                result = await download_file(
                     file_id="/user_uploads/1/file.txt",
-                    download_path="out.bin",
+                    download_path=str(tmp_path / "out.bin"),
                 )
+            finally:
+                set_file_root(None)
 
         assert result["status"] == "success"
         expected_auth = base64.b64encode(b"bot@example.com:bot-key").decode()
         assert mock_http.stream.call_args.kwargs["headers"]["Authorization"] == (
             f"Basic {expected_auth}"
         )
-
-    @pytest.mark.asyncio
-    async def test_manage_files_permissions(self, mock_deps):
-        """Test manage_files get_permissions."""
-        result = await manage_files("get_permissions")
-        assert result["status"] == "success"
-        assert "permissions" in result

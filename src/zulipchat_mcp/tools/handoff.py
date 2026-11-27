@@ -12,25 +12,57 @@ import asyncio
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import Field
 
 from ..agents.config import config_dir, load_agent
 from ..agents.store import BridgeStore
 from ..agents.teleport import TeleportError, teleport
 from ..config import get_client
-from ..core.api_errors import api_error
+from ..core.errors import api_error, tool_error
 from ..core.security import local_access_allowed
 
 
-def _refuse(error: str, code: str) -> dict[str, Any]:
-    return {"status": "error", "error": error, "error_code": code, "retryable": False}
+def _refuse(error: str, code: str, **recovery: Any) -> dict[str, Any]:
+    return tool_error(error, code, **recovery)
 
 
 async def teleport_chat(
-    agent: str,
-    message: str,
-    session_id: str | None = None,
-    cwd: str | None = None,
+    agent: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=100,
+            pattern=r"^[A-Za-z0-9_.-]+$",
+            description="Agent bot name: a file name under "
+            "~/.config/zulipchat-mcp/agents/ without .toml.",
+        ),
+    ],
+    message: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=10000,
+            description="What the bot DMs the owner: where the work stands.",
+        ),
+    ],
+    session_id: Annotated[
+        str | None,
+        Field(
+            max_length=200,
+            description="This agent's own session ID, so the bridge resumes this "
+            "exact session.",
+        ),
+    ] = None,
+    cwd: Annotated[
+        str | None,
+        Field(
+            max_length=4096,
+            description="Working directory for a fresh session; defaults to the "
+            "agent file's cwd.",
+        ),
+    ] = None,
 ) -> dict[str, Any]:
     """Hand this conversation to the owner's Zulip agent bot named `agent`.
 
@@ -46,7 +78,12 @@ async def teleport_chat(
     path = config_dir() / f"{agent}.toml"
     if not path.is_file():
         known = sorted(p.stem for p in config_dir().glob("*.toml"))
-        return _refuse(f"No agent bot '{agent}'; configured: {known}", "UNKNOWN_AGENT")
+        return _refuse(
+            f"No agent bot '{agent}'; configured: {known}",
+            "UNKNOWN_AGENT",
+            hint="Pass one of the configured names, or create one with "
+            "zulipchat-mcp-agents add.",
+        )
     try:
         config = load_agent(path)
     except ValueError as error:
@@ -74,7 +111,30 @@ async def teleport_chat(
 
 
 async def ask_owner(
-    question: str = "", question_id: str | None = None, wait_seconds: int = 300
+    question: Annotated[
+        str,
+        Field(
+            max_length=10000,
+            description="The question; required unless question_id is given.",
+        ),
+    ] = "",
+    question_id: Annotated[
+        str | None,
+        Field(
+            max_length=100,
+            description="ID of a question already asked, to keep waiting for its "
+            "answer instead of asking again.",
+        ),
+    ] = None,
+    wait_seconds: Annotated[
+        int,
+        Field(
+            ge=0,
+            le=840,
+            description="Seconds to wait for the answer before returning pending "
+            "(0-840).",
+        ),
+    ] = 300,
 ) -> dict[str, Any]:
     """Ask the owner a question in this Zulip conversation and wait for the answer.
 

@@ -87,13 +87,13 @@ async def _smoke_connection(
         if missing:
             raise AssertionError(f"Missing required tools: {missing}")
         expected_count = (
-            (21 if extended else 7) if read_only else (45 if extended else 13)
+            (23 if extended else 7) if read_only else (53 if extended else 13)
         )
         if len(tools) != expected_count:
             raise AssertionError(f"Expected {expected_count} tools, got {len(tools)}")
 
         result = await client.call_tool("server_info", {})
-        data = result.data
+        data = result.structured_content
         if data["status"] != "success":
             raise AssertionError(f"server_info returned {data['status']!r}")
         if data["version"] != expected_version:
@@ -108,12 +108,10 @@ async def _smoke_connection(
             raise AssertionError("server_info tool count disagrees with discovery")
         if read_only:
             denied = await client.call_tool("send_message", {}, raise_on_error=False)
-            if (
-                not denied.is_error
-                or denied.structured_content.get("error_code") != "POLICY_DENIED"
-            ):
+            error = (denied.structured_content or {}).get("error") or {}
+            if not denied.is_error or error.get("code") != "POLICY_DENIED":
                 raise AssertionError("Read-only direct execution was not denied")
-            if denied.structured_content.get("retryable") is not False:
+            if error.get("retryable") is not False:
                 raise AssertionError("Policy denial must prohibit unchanged retries")
 
         resources = await client.list_resources()

@@ -63,7 +63,7 @@ async def test_mark_all_read_processes_more_than_one_page(monkeypatch):
         ]
     )
     monkeypatch.setattr(mark_messaging, "update_message_flags_for_narrow", update)
-    result = await mark_messaging.manage_message_flags("read", "add", scope="all")
+    result = await mark_messaging.mark_all_messages("read", "add")
     assert result["updated_count"] == 1100
     assert result["processed_count"] == 1250
     assert update.call_args_list[1].kwargs["anchor"] == 2000

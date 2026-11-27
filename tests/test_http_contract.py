@@ -20,7 +20,7 @@ def http_server(monkeypatch):
         ),
     )
     mcp.tool(files.upload_file)
-    mcp.tool(files.manage_files)
+    mcp.tool(files.download_file)
     mcp.tool(system.switch_identity)
     monkeypatch.setattr(
         files, "get_client", lambda: MagicMock(base_url="https://zulip.example")
@@ -95,8 +95,8 @@ def test_modern_tool_list_has_cache_metadata(http_server):
     [
         ("upload_file", {"file_path": "/etc/passwd"}),
         (
-            "manage_files",
-            {"operation": "download", "file_id": "1/file", "download_path": "/tmp/out"},
+            "download_file",
+            {"file_id": "1/file", "download_path": "/tmp/out"},
         ),
     ],
 )
@@ -110,7 +110,7 @@ def test_http_tools_reject_server_local_file_paths(http_server, tool, arguments)
     assert response.status_code == 200
     result = response.json()["result"]["structuredContent"]
     assert result["status"] == "error"
-    assert "Local file paths are disabled over HTTP" in result["error"]
+    assert "Local file paths are disabled over HTTP" in result["error"]["message"]
 
 
 def test_http_cannot_change_identity_for_other_callers(http_server):
@@ -123,4 +123,4 @@ def test_http_cannot_change_identity_for_other_callers(http_server):
     assert response.status_code == 200
     result = response.json()["result"]["structuredContent"]
     assert result["status"] == "error"
-    assert "only available over stdio" in result["error"]
+    assert "only available over stdio" in result["error"]["message"]

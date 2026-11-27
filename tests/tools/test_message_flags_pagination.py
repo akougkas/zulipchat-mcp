@@ -6,7 +6,11 @@ import pytest
 from fastmcp import Client, FastMCP
 from fastmcp_tasks import TasksExtension
 
-from zulipchat_mcp.tools import mark_messaging, register_core_tools
+from zulipchat_mcp.tools import (
+    mark_messaging,
+    register_core_tools,
+    register_extended_tools,
+)
 
 
 @pytest.fixture
@@ -61,8 +65,14 @@ async def call_registered(arguments):
     server = FastMCP("flag-pagination", tasks=False)
     server.add_extension(TasksExtension())
     register_core_tools(server)
+    register_extended_tools(server)
+    name = "manage_message_flags"
+    if arguments.get("scope") == "all":
+        name = "mark_all_messages"
+        arguments = {k: v for k, v in arguments.items() if k != "scope"}
     async with Client(server, mode="legacy") as client:
-        return (await client.call_tool("manage_message_flags", arguments)).data
+        result = await client.call_tool(name, arguments, raise_on_error=False)
+        return result.structured_content
 
 
 @pytest.mark.asyncio
@@ -138,7 +148,7 @@ async def test_registered_tool_reports_confirmed_progress_on_failure(
     assert result["complete"] is False
     assert result["processed_count"] == result["updated_count"] == 2 * successful_pages
     assert result["pages_completed"] == successful_pages
-    assert result["error"] == "Rate limited"
+    assert result["error"]["message"] == "Rate limited"
 
 
 @pytest.mark.asyncio
@@ -155,5 +165,5 @@ async def test_registered_tool_stops_nonadvancing_cursor(flag_backend):
     result = await call_registered({"flag": "starred", "action": "add", "scope": "all"})
     assert result["status"] == "partial"
     assert result["complete"] is False
-    assert "no progress" in result["error"]
+    assert "no progress" in result["error"]["message"]
     assert backend.client.call_endpoint.call_count == 2

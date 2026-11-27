@@ -35,7 +35,7 @@ async def test_task_enabled_wait_tool_completes_with_real_protocol(
         else:
             task = await call_tool_task(client, "ask_owner", arguments)
             result = await task.result()
-        assert result.data["answer"] == "yes"
+        assert result.structured_content["answer"] == "yes"
 
 
 @pytest.mark.asyncio

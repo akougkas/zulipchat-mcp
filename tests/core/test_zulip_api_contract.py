@@ -135,9 +135,9 @@ async def test_registered_send_retains_rate_limit_code_and_never_retries(
             raise_on_error=False,
         )
         assert result.is_error
-        assert result.structured_content["error_code"] == "RATE_LIMIT_HIT"
-        assert result.structured_content["retry_after_seconds"] == 29
-        assert result.structured_content["retryable"] is True
+        assert result.structured_content["error"]["code"] == "RATE_LIMIT_HIT"
+        assert result.structured_content["error"]["retry_after_seconds"] == 29
+        assert result.structured_content["error"]["retryable"] is True
     assert upstream.send_message.call_count == 1
 
 
@@ -164,7 +164,7 @@ async def test_requested_details_are_partial_when_upstream_fails(mode, monkeypat
             await client.call_tool(
                 "get_stream_info", {"stream_id": 42, "include_topics": True}
             )
-        ).data
+        ).structured_content
         assert result["status"] == "partial"
         assert result["name"] == "Demo"
         assert result["errors"][0]["component"] == "topics"

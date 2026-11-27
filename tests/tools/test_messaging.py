@@ -115,7 +115,7 @@ class TestMessagingTools:
             "src.zulipchat_mcp.tools.messaging.get_config_manager", return_value=config
         ):
             missing = await send_message("private", "jaime@x.com", "hi", as_bot=True)
-        assert missing["status"] == "error" and missing["retryable"] is False
+        assert missing["status"] == "error" and missing["error"]["retryable"] is False
 
     @pytest.mark.asyncio
     async def test_send_message_invalid(self, mock_deps):
@@ -123,12 +123,12 @@ class TestMessagingTools:
         # Missing topic for stream
         result = await send_message("stream", "general", "hello")
         assert result["status"] == "error"
-        assert "Topic required" in result["error"]
+        assert "Topic required" in result["error"]["message"]
 
         # Empty recipient
         result = await send_message("private", [], "hello")
         assert result["status"] == "error"
-        assert "Recipient list cannot be empty" in result["error"]
+        assert "Recipient list cannot be empty" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_edit_message(self, mock_deps):
@@ -152,7 +152,7 @@ class TestMessagingTools:
         # Nothing to edit
         result = await edit_message(1)
         assert result["status"] == "error"
-        assert "Must provide content" in result["error"]
+        assert "Must provide content" in result["error"]["message"]
 
         # Invalid propagate mode
         result = await edit_message(1, content="new", propagate_mode="invalid")
@@ -218,7 +218,20 @@ class TestMessagingTools:
 
         result = await cross_post_message(1, ["stream2"])
         assert result["status"] == "error"
-        assert "Source message not found" in result["error"]
+        assert "Source message not found" in result["error"]["message"]
+
+    @pytest.mark.asyncio
+    async def test_get_message_truncates_long_content(self, mock_deps):
+        mock_deps.get_message.return_value = {
+            "result": "success",
+            "message": {"id": 1, "content": "x" * 50},
+        }
+        result = await get_message(1, max_chars=10)
+        assert result["message"]["content"] == "x" * 10
+        assert result["content_truncated"] is True
+        assert result["content_chars"] == 50
+        short = await get_message(1, max_chars=50)
+        assert "content_truncated" not in short
 
 
 class TestRecipientResolution:
@@ -257,14 +270,14 @@ class TestRecipientResolution:
     async def test_near_miss_name_sends_nothing(self, client):
         result = await send_message("direct", "Jaimie", "hi")
         client.send_message.assert_not_called()
-        assert result["error_code"] == "UNKNOWN_RECIPIENT"
-        assert result["retryable"] is False
+        assert result["error"]["code"] == "UNKNOWN_RECIPIENT"
+        assert result["error"]["retryable"] is False
 
     @pytest.mark.asyncio
     async def test_ambiguous_prefix_returns_candidates(self, client):
         result = await send_message("direct", "an", "hi")
         client.send_message.assert_not_called()
-        assert result["error_code"] == "AMBIGUOUS_RECIPIENT"
+        assert result["error"]["code"] == "AMBIGUOUS_RECIPIENT"
         assert {c["user_id"] for c in result["candidates"]} == {9, 10}
 
     @pytest.mark.asyncio
@@ -278,7 +291,7 @@ class TestRecipientResolution:
     @pytest.mark.asyncio
     async def test_inactive_users_never_match(self, client):
         result = await send_message("direct", "Old Hand", "hi")
-        assert result["error_code"] == "UNKNOWN_RECIPIENT"
+        assert result["error"]["code"] == "UNKNOWN_RECIPIENT"
 
     @pytest.mark.asyncio
     async def test_channel_shorthand_strips_hash(self, client):

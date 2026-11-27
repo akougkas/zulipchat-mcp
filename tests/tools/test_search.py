@@ -200,7 +200,7 @@ class TestSearchTools:
             stream="random", sort_by="oldest", limit=2, cursor=cursor
         )
         assert other["status"] == "error"
-        assert "cursor" in other["error"]
+        assert "cursor" in other["error"]["message"]
         assert mock_deps.get_messages_raw.call_count == calls
 
     @pytest.mark.asyncio
@@ -208,7 +208,7 @@ class TestSearchTools:
         result = await search_messages(after_time="2026-13-45")
 
         assert result["status"] == "error"
-        assert "after_time/before_time must be ISO 8601" in result["error"]
+        assert "after_time/before_time must be ISO 8601" in result["error"]["message"]
         mock_deps.get_messages_raw.assert_not_called()
 
     @pytest.mark.asyncio

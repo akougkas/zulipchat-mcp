@@ -72,4 +72,4 @@ class TestMessageFlags:
             narrow=[], op="add", flag="invalid_flag"
         )
         assert result["status"] == "error"
-        assert "Invalid flag" in result["error"]
+        assert "Invalid flag" in result["error"]["message"]

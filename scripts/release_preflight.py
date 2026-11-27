@@ -79,17 +79,6 @@ def _check_init_version(version: str) -> CheckResult:
     return CheckResult("__init__.py version matches", passed, detail)
 
 
-def _check_system_tool_version(version: str) -> CheckResult:
-    content = _read_text(ROOT / "src/zulipchat_mcp/tools/system.py")
-    found = bool(re.search(rf'"version"\s*:\s*"{re.escape(version)}"', content))
-    detail = (
-        "server_info payload contains expected version"
-        if found
-        else "server_info payload missing expected version"
-    )
-    return CheckResult("system.py version matches", found, detail)
-
-
 def _check_server_json(version: str) -> list[CheckResult]:
     payload = json.loads(_read_text(ROOT / "server.json"))
     top = payload.get("version")
@@ -284,7 +273,6 @@ def main() -> None:
     results.append(_check_semver(args.version))
     results.append(_check_pyproject_version(args.version))
     results.append(_check_init_version(args.version))
-    results.append(_check_system_tool_version(args.version))
     results.extend(_check_server_json(args.version))
     results.append(_check_changelog(args.version))
     results.append(_check_required_scripts())

@@ -41,7 +41,7 @@ class ToolCountingMCP:
 # --- Core vs Extended registration tests ---
 
 
-EXTENDED_TOOL_COUNT = 45
+EXTENDED_TOOL_COUNT = 53
 
 
 class TestToolRegistration:
@@ -97,11 +97,11 @@ class TestManageMessageFlags:
             yield
 
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
-    def test_scope_all(self, mock_update):
-        from zulipchat_mcp.tools.mark_messaging import manage_message_flags
+    def test_mark_all_messages(self, mock_update):
+        from zulipchat_mcp.tools.mark_messaging import mark_all_messages
 
         mock_update.return_value = {"status": "success", "found_newest": True}
-        result = _run(manage_message_flags(flag="read", action="add", scope="all"))
+        result = _run(mark_all_messages(flag="read", action="add"))
         assert result["status"] == "success"
         mock_update.assert_called_once()
         call_kwargs = mock_update.call_args
@@ -127,7 +127,7 @@ class TestManageMessageFlags:
 
         result = _run(manage_message_flags(flag="read", action="add", scope="stream"))
         assert result["status"] == "error"
-        assert "stream_id required" in result["error"]
+        assert "stream_id required" in result["error"]["message"]
 
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
     def test_scope_topic(self, mock_update):
@@ -155,7 +155,7 @@ class TestManageMessageFlags:
             manage_message_flags(flag="read", action="add", scope="topic", stream_id=1)
         )
         assert result["status"] == "error"
-        assert "topic_name required" in result["error"]
+        assert "topic_name required" in result["error"]["message"]
 
     @patch("zulipchat_mcp.tools.mark_messaging.update_message_flags_for_narrow")
     def test_scope_narrow_with_explicit_narrow(self, mock_update):
@@ -175,6 +175,29 @@ class TestManageMessageFlags:
 
         result = _run(manage_message_flags(flag="read", action="add", scope="narrow"))
         assert result["status"] == "error"
+        assert result["error"]["recovery"]["tool"] == "mark_all_messages"
+
+    def test_scope_all_is_not_accepted(self):
+        from fastmcp import Client, FastMCP
+
+        from zulipchat_mcp.core.tool_contract import ToolContractMiddleware
+        from zulipchat_mcp.tools import register_core_tools
+
+        mcp = FastMCP("flags", tasks=False)
+        mcp.add_middleware(ToolContractMiddleware())
+        register_core_tools(mcp)
+
+        async def call():
+            async with Client(mcp) as client:
+                return await client.call_tool(
+                    "manage_message_flags",
+                    {"flag": "read", "action": "add", "scope": "all"},
+                    raise_on_error=False,
+                )
+
+        result = _run(call())
+        assert result.is_error
+        assert result.structured_content["error"]["code"] == "INVALID_ARGUMENT"
 
 
 class TestGetUser:
@@ -203,7 +226,7 @@ class TestGetUser:
 
         result = _run(get_user())
         assert result["status"] == "error"
-        assert "Provide user_id or email" in result["error"]
+        assert "Provide user_id or email" in result["error"]["message"]
 
 
 class TestManageUserMute:
@@ -226,66 +249,25 @@ class TestManageUserMute:
         mock_unmute.assert_called_once_with(42)
 
 
-class TestManageScheduledMessage:
-    @patch("zulipchat_mcp.tools.schedule_messaging.create_scheduled_message")
-    def test_create(self, mock_create):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
+class TestScheduledMessageValidation:
+    def test_channel_message_needs_a_topic(self):
+        from zulipchat_mcp.tools.schedule_messaging import create_scheduled_message
 
-        mock_create.return_value = {"status": "success", "scheduled_message_id": 1}
-        result = _run(
-            manage_scheduled_message(
-                action="create",
-                type="stream",
-                to=1,
-                content="hi",
-                scheduled_delivery_timestamp=9999999999,
-                topic="test",
+        with patch("zulipchat_mcp.tools.schedule_messaging.get_client"):
+            result = _run(
+                create_scheduled_message(
+                    type="stream",
+                    to=1,
+                    content="hi",
+                    scheduled_delivery_timestamp=9999999999,
+                )
             )
-        )
-        assert result["status"] == "success"
-        mock_create.assert_called_once()
+        assert result["error"]["code"] == "INVALID_ARGUMENT"
 
-    def test_create_missing_params(self):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
+    def test_update_needs_a_field(self):
+        from zulipchat_mcp.tools.schedule_messaging import update_scheduled_message
 
-        result = _run(manage_scheduled_message(action="create"))
+        with patch("zulipchat_mcp.tools.schedule_messaging.get_client") as client:
+            result = _run(update_scheduled_message(scheduled_message_id=1))
         assert result["status"] == "error"
-        assert "required for create" in result["error"]
-
-    @patch("zulipchat_mcp.tools.schedule_messaging.update_scheduled_message")
-    def test_update(self, mock_update):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
-
-        mock_update.return_value = {"status": "success"}
-        result = _run(
-            manage_scheduled_message(
-                action="update", scheduled_message_id=1, content="updated"
-            )
-        )
-        assert result["status"] == "success"
-
-    def test_update_missing_id(self):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
-
-        result = _run(manage_scheduled_message(action="update"))
-        assert result["status"] == "error"
-
-    @patch("zulipchat_mcp.tools.schedule_messaging.delete_scheduled_message")
-    def test_delete(self, mock_delete):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
-
-        mock_delete.return_value = {"status": "success"}
-        result = _run(manage_scheduled_message(action="delete", scheduled_message_id=1))
-        assert result["status"] == "success"
-
-    def test_delete_missing_id(self):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
-
-        result = _run(manage_scheduled_message(action="delete"))
-        assert result["status"] == "error"
-
-    def test_unknown_action(self):
-        from zulipchat_mcp.tools.schedule_messaging import manage_scheduled_message
-
-        result = _run(manage_scheduled_message(action="bogus"))
-        assert result["status"] == "error"
+        client.return_value.client.call_endpoint.assert_not_called()

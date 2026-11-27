@@ -3,31 +3,44 @@
 System information and identity management tools.
 """
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
+from pydantic import Field
+
+from .. import __version__
 from ..config import get_client, get_config_manager, set_current_identity
+from ..core.errors import internal_error, tool_error
 from ..core.security import local_access_allowed
 
 
-async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
+async def switch_identity(
+    identity: Annotated[
+        Literal["user", "bot"],
+        Field(
+            description="user acts as the configured person; bot as the "
+            "configured bot."
+        ),
+    ],
+) -> dict[str, Any]:
     """Switch between user and bot identity contexts.
 
     This sets the global identity state that all tools will use.
     """
     if not local_access_allowed():
-        return {
-            "status": "error",
-            "error": "Identity switching is only available over stdio; HTTP uses the configured user identity",
-        }
+        return tool_error(
+            "Identity switching is only available over stdio; HTTP uses the "
+            "configured user identity",
+            "NOT_AVAILABLE",
+        )
     config = get_config_manager()
 
     try:
         if identity == "bot" and not config.has_bot_credentials():
-            return {
-                "status": "error",
-                "error": "Bot credentials not configured",
-                "suggestion": "Use --zulip-bot-config-file to specify bot zuliprc",
-            }
+            return tool_error(
+                "Bot credentials not configured",
+                "NOT_CONFIGURED",
+                hint="Start the server with --zulip-bot-config-file.",
+            )
 
         # Persist the identity choice globally
         set_current_identity(identity)
@@ -43,7 +56,7 @@ async def switch_identity(identity: Literal["user", "bot"]) -> dict[str, Any]:
         }
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def server_info() -> dict[str, Any]:
@@ -55,7 +68,7 @@ async def server_info() -> dict[str, Any]:
     return {
         "status": "success",
         "server_name": "ZulipChat MCP",
-        "version": "0.8.3",
+        "version": __version__,
         "available_identities": {
             "user": {
                 "available": True,

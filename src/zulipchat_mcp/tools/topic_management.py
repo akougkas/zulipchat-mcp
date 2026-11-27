@@ -8,27 +8,37 @@ Identity-protected topic operations:
 
 import asyncio
 import difflib
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Field
 
 from ..config import get_client
-from ..core.api_errors import api_error
 from ..core.client import ZulipClientWrapper
+from ..core.errors import api_error, internal_error, tool_error
+from .params import MessageId, Name, page_size
 
 RESOLVED_PREFIX = "✔ "
 VISIBILITY_POLICIES = {"inherit": 0, "muted": 1, "unmuted": 2, "followed": 3}
 
 
+ChannelRef = Annotated[Name | int, Field(description="Channel name or channel ID.")]
+TopicName = Annotated[
+    str, Field(min_length=1, max_length=60, description="Topic name.")
+]
+
+
 async def get_stream_topics(
-    stream_id: int | None = None,
-    max_results: int = 100,
-    stream_name: str | None = None,
+    stream_id: Annotated[
+        int | None, Field(gt=0, description="Channel ID; used before stream_name.")
+    ] = None,
+    max_results: Annotated[int, page_size(1000, "topics, most recent first")] = 100,
+    stream_name: Annotated[
+        str | None, Field(max_length=200, description="Channel name.")
+    ] = None,
 ) -> dict[str, Any]:
     """Get recent topics for a stream by ID or name (READ-ONLY)."""
     if stream_id is None and not stream_name:
-        return {
-            "status": "error",
-            "error": "Either stream_id or stream_name is required",
-        }
+        return tool_error("Either stream_id or stream_name is required")
     client = get_client()
 
     try:
@@ -45,13 +55,15 @@ async def get_stream_topics(
                 "status": "success",
                 "stream_id": stream_id,
                 "topics": topics[:max_results],
-                "count": len(topics),
+                "count": min(len(topics), max_results),
+                "total_topics": len(topics),
+                "truncated": len(topics) > max_results,
             }
         else:
             return api_error(result, "Failed to list topics")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def _stream_id(client: ZulipClientWrapper, stream: str | int) -> int:
@@ -83,7 +95,11 @@ async def _latest_message_id(
 
 
 async def resolve_topic(
-    stream: str | int, topic: str, resolved: bool = True
+    stream: ChannelRef,
+    topic: TopicName,
+    resolved: Annotated[
+        bool, Field(description="True adds the ✔ prefix; False removes it.")
+    ] = True,
 ) -> dict[str, Any]:
     """Mark a topic resolved ("✔ " prefix) or unresolved; idempotent."""
     client = get_client()
@@ -96,7 +112,12 @@ async def resolve_topic(
         if message_id is None:
             if await _latest_message_id(client, stream_id, target) is not None:
                 return {"status": "success", "topic": target, "changed": False}
-            return {"status": "error", "error": f"Topic '{base}' not found"}
+            return tool_error(
+                f"Topic '{base}' not found",
+                "NOT_FOUND",
+                recovery_tool="get_stream_topics",
+                hint="List the channel's topics to find the exact name.",
+            )
         result = await asyncio.to_thread(
             client.edit_message,
             message_id=message_id,
@@ -106,14 +127,23 @@ async def resolve_topic(
         if result.get("result") != "success":
             return api_error(result, "Failed to rename topic")
         return {"status": "success", "topic": target, "changed": True}
+    except LookupError as e:
+        return tool_error(str(e), "NOT_FOUND", recovery_tool="get_streams")
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def set_topic_visibility(
-    stream: str | int,
-    topic: str,
-    policy: Literal["inherit", "muted", "unmuted", "followed"],
+    stream: ChannelRef,
+    topic: TopicName,
+    policy: Annotated[
+        Literal["inherit", "muted", "unmuted", "followed"],
+        Field(
+            description="followed notifies you of every message; muted hides the "
+            "topic; unmuted shows it in a muted channel; inherit uses the "
+            "channel's setting."
+        ),
+    ],
 ) -> dict[str, Any]:
     """Set the current user's visibility policy for one topic."""
     client = get_client()
@@ -130,8 +160,10 @@ async def set_topic_visibility(
             "topic": topic,
             "policy": policy,
         }
+    except LookupError as e:
+        return tool_error(str(e), "NOT_FOUND", recovery_tool="get_streams")
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 def _content_diff(before: str, after: str) -> str:
@@ -143,7 +175,7 @@ def _content_diff(before: str, after: str) -> str:
     )
 
 
-async def get_message_history(message_id: int) -> dict[str, Any]:
+async def get_message_history(message_id: MessageId) -> dict[str, Any]:
     """Edit history of a message: who changed what, oldest first."""
     client = get_client()
     try:
@@ -183,4 +215,4 @@ async def get_message_history(message_id: int) -> dict[str, Any]:
             "edit_count": max(len(edits) - 1, 0),
         }
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)

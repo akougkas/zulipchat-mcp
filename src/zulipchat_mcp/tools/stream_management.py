@@ -5,10 +5,12 @@ Simple stream discovery and information retrieval only.
 """
 
 import asyncio
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import Field
 
 from ..config import get_client
-from ..core.api_errors import api_error
+from ..core.errors import api_error, internal_error, tool_error
 
 # Raw Zulip stream objects carry ~30 permission/group fields each; a realm with
 # a few dozen streams then exceeds typical MCP client result budgets.
@@ -23,9 +25,19 @@ STREAM_SUMMARY_FIELDS = (
 
 
 async def get_streams(
-    include_subscribed: bool = True,
-    include_public: bool = True,
-    verbose: bool = False,
+    include_subscribed: Annotated[
+        bool, Field(description="Include channels you are subscribed to.")
+    ] = True,
+    include_public: Annotated[
+        bool, Field(description="Include public channels you are not in.")
+    ] = True,
+    verbose: Annotated[
+        bool,
+        Field(
+            description="Return Zulip's full channel objects instead of ID, name, "
+            "description and visibility."
+        ),
+    ] = False,
 ) -> dict[str, Any]:
     """Get list of streams (READ-ONLY). Set verbose for raw Zulip objects."""
     client = get_client()
@@ -53,21 +65,26 @@ async def get_streams(
             return api_error(result, "Failed to list streams")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def get_stream_info(
-    stream_name: str | None = None,
-    stream_id: int | None = None,
-    include_subscribers: bool = False,
-    include_topics: bool = False,
+    stream_name: Annotated[
+        str | None, Field(max_length=200, description="Channel name.")
+    ] = None,
+    stream_id: Annotated[
+        int | None, Field(gt=0, description="Channel ID; used before stream_name.")
+    ] = None,
+    include_subscribers: Annotated[
+        bool, Field(description="Add the subscriber user IDs.")
+    ] = False,
+    include_topics: Annotated[
+        bool, Field(description="Add the channel's recent topics.")
+    ] = False,
 ) -> dict[str, Any]:
     """Get detailed information about a specific stream (READ-ONLY)."""
     if not stream_name and not stream_id:
-        return {
-            "status": "error",
-            "error": "Either stream_name or stream_id is required",
-        }
+        return tool_error("Either stream_name or stream_id is required")
 
     client = get_client()
 
@@ -100,11 +117,11 @@ async def get_stream_info(
                 info["subscriber_count"] = len(sub_result.get("subscribers", []))
             else:
                 info["status"] = "partial"
+                info["error"] = api_error(sub_result, "Subscribers unavailable")[
+                    "error"
+                ]
                 info.setdefault("errors", []).append(
-                    {
-                        "component": "subscribers",
-                        **api_error(sub_result, "Subscribers unavailable"),
-                    }
+                    {"component": "subscribers", **info["error"]}
                 )
 
         # Get topics if requested
@@ -115,14 +132,12 @@ async def get_stream_info(
                 info["topic_count"] = len(topics_result.get("topics", []))
             else:
                 info["status"] = "partial"
+                info["error"] = api_error(topics_result, "Topics unavailable")["error"]
                 info.setdefault("errors", []).append(
-                    {
-                        "component": "topics",
-                        **api_error(topics_result, "Topics unavailable"),
-                    }
+                    {"component": "topics", **info["error"]}
                 )
 
         return info
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)

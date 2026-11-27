@@ -1,11 +1,29 @@
-"""Prevent credential disclosure and remote access to server-local paths."""
+"""Prevent credential disclosure, path escapes and remote access to local paths."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 
-from zulipchat_mcp.tools.files import _validate_download_url, manage_files, upload_file
+from zulipchat_mcp.core.security import set_file_root
+from zulipchat_mcp.tools.files import (
+    _validate_download_url,
+    delete_file,
+    download_file,
+    upload_file,
+)
+
+
+@pytest.fixture
+def root(tmp_path):
+    """A file root with an outside directory beside it."""
+    inside = tmp_path / "root"
+    inside.mkdir()
+    (tmp_path / "outside").mkdir()
+    set_file_root(inside)
+    yield inside
+    set_file_root(None)
 
 
 @pytest.mark.parametrize(
@@ -22,18 +40,16 @@ from zulipchat_mcp.tools.files import _validate_download_url, manage_files, uplo
         "https://zulip.example/user_uploads/%252e%252e/api/v1/users/me",
     ],
 )
-async def test_untrusted_downloads_do_not_send_credentials_or_write(url, tmp_path):
+async def test_untrusted_downloads_do_not_send_credentials_or_write(url, root):
     client = MagicMock(base_url="https://zulip.example")
     with (
         patch("zulipchat_mcp.tools.files.get_client", return_value=client),
         patch("httpx.AsyncClient") as http,
     ):
-        result = await manage_files(
-            "download", file_id=url, download_path=str(tmp_path / "out")
-        )
+        result = await download_file(file_id=url, download_path=str(root / "out"))
     assert result["status"] == "error"
     http.assert_not_called()
-    assert not (tmp_path / "out").exists()
+    assert not (root / "out").exists()
 
 
 def test_configured_origin_accepts_equivalent_default_port():
@@ -47,27 +63,26 @@ async def test_delete_requires_unsafe_mode_before_api_call():
         patch("zulipchat_mcp.tools.files.get_client", return_value=client),
         patch("zulipchat_mcp.tools.files.is_unsafe_mode", return_value=False),
     ):
-        result = await manage_files("delete", file_id="123")
+        result = await delete_file(attachment_id=123)
     assert result["status"] == "error"
-    assert "--unsafe" in result["error"]
+    assert result["error"]["code"] == "POLICY_DENIED"
+    assert "--unsafe" in result["error"]["message"]
     client.client.call_endpoint.assert_not_called()
 
 
-async def test_local_upload_limit_is_enforced_before_reading_entire_file(tmp_path):
-    path = tmp_path / "oversize"
+async def test_local_upload_limit_is_enforced_before_reading_entire_file(root):
+    path = root / "oversize"
     with path.open("wb") as file:
         file.truncate(26 * 1024 * 1024)
     with patch("zulipchat_mcp.tools.files.get_client") as client:
         result = await upload_file(file_path=str(path))
     assert result["status"] == "error"
-    assert "too large" in result["error"]
+    assert "too large" in result["error"]["message"]
     client.return_value.upload_file.assert_not_called()
 
 
 @pytest.mark.parametrize("redirect", [False, True])
-async def test_download_limits_preserve_existing_destination(
-    monkeypatch, tmp_path, redirect
-):
+async def test_download_limits_write_nothing(monkeypatch, root, redirect):
     from zulipchat_mcp.tools import files
 
     requests = []
@@ -94,12 +109,92 @@ async def test_download_limits_preserve_existing_destination(
     client.client.email = "user@example.com"
     client.client.api_key = "test-key"
     monkeypatch.setattr(files, "get_client", lambda: client)
-    destination = tmp_path / "existing"
-    destination.write_bytes(b"keep me")
-    result = await manage_files(
-        "download", file_id="1/file", download_path=str(destination)
-    )
+    destination = root / "new"
+    result = await download_file(file_id="1/file", download_path=str(destination))
     assert result["status"] == "error"
     assert len(requests) == 1
     assert requests[0].url.host == "zulip.example"
+    assert not destination.exists()
+
+
+async def test_download_never_overwrites_and_makes_no_request(root):
+    destination = root / "existing"
+    destination.write_bytes(b"keep me")
+    client = MagicMock(base_url="https://zulip.example")
+    with (
+        patch("zulipchat_mcp.tools.files.get_client", return_value=client),
+        patch("httpx.AsyncClient") as http,
+    ):
+        result = await download_file(file_id="1/file", download_path=str(destination))
+    assert result["error"]["code"] == "ALREADY_EXISTS"
+    http.assert_not_called()
     assert destination.read_bytes() == b"keep me"
+
+
+def _escapes(root):
+    outside = root.parent / "outside"
+    (outside / "secret").write_bytes(b"secret")
+    os.symlink(outside, root / "link")
+    os.symlink(outside / "secret", root / "secret-link")
+    return [
+        str(outside / "secret"),
+        str(root / ".." / "outside" / "secret"),
+        str(root / "link" / "secret"),
+        str(root / "secret-link"),
+        "/etc/passwd",
+    ]
+
+
+async def test_upload_refuses_paths_outside_the_root(root):
+    with patch("zulipchat_mcp.tools.files.get_client") as client:
+        for path in _escapes(root):
+            result = await upload_file(file_path=path)
+            assert result["error"]["code"] == "PATH_OUTSIDE_ROOT", path
+            assert str(root) in result["error"]["recovery"]["hint"]
+    client.return_value.upload_file.assert_not_called()
+
+
+async def test_upload_refuses_a_directory_inside_the_root(root):
+    (root / "dir").mkdir()
+    with patch("zulipchat_mcp.tools.files.get_client") as client:
+        result = await upload_file(file_path=str(root / "dir"))
+    assert result["error"]["code"] == "FILE_UNREADABLE"
+    client.return_value.upload_file.assert_not_called()
+
+
+async def test_download_refuses_paths_outside_the_root(root):
+    _escapes(root)
+    client = MagicMock(base_url="https://zulip.example")
+    targets = [
+        str(root.parent / "outside" / "new"),
+        str(root / ".." / "outside" / "new"),
+        str(root / "link" / "new"),
+    ]
+    with (
+        patch("zulipchat_mcp.tools.files.get_client", return_value=client),
+        patch("httpx.AsyncClient") as http,
+    ):
+        for target in targets:
+            result = await download_file(file_id="1/file", download_path=target)
+            assert result["error"]["code"] == "PATH_OUTSIDE_ROOT", target
+    http.assert_not_called()
+    assert not (root.parent / "outside" / "new").exists()
+
+
+async def test_relative_paths_resolve_against_the_working_directory(root, monkeypatch):
+    monkeypatch.chdir(root.parent / "outside")
+    (root.parent / "outside" / "here").write_bytes(b"x")
+    with patch("zulipchat_mcp.tools.files.get_client"):
+        result = await upload_file(file_path="here")
+    assert result["error"]["code"] == "PATH_OUTSIDE_ROOT"
+
+
+def test_file_root_defaults_to_env_then_cwd(tmp_path, monkeypatch):
+    from zulipchat_mcp.core.security import file_root
+
+    set_file_root(None)
+    monkeypatch.delenv("ZULIPCHAT_FILE_ROOT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert file_root() == tmp_path.resolve()
+    monkeypatch.setenv("ZULIPCHAT_FILE_ROOT", str(tmp_path / "env"))
+    assert file_root() == (tmp_path / "env").resolve()

@@ -98,7 +98,7 @@ def test_invalid_base64_does_not_upload(upload_http, encoded):
     http, zulip = upload_http
     result = upload(http, file_content_base64=encoded)
     assert result["status"] == "error"
-    assert "base64" in result["error"]
+    assert "base64" in result["error"]["message"]
     zulip.upload_file.assert_not_called()
 
 
@@ -115,7 +115,7 @@ def test_upload_requires_one_unambiguous_source(upload_http, arguments):
     http, zulip = upload_http
     result = upload(http, **arguments)
     assert result["status"] == "error"
-    assert "Exactly one" in result["error"]
+    assert "Exactly one" in result["error"]["message"]
     zulip.upload_file.assert_not_called()
 
 
@@ -125,7 +125,7 @@ def test_encoded_size_is_bounded_before_decode(upload_http, monkeypatch):
     with patch.object(files, "b64decode") as decode:
         result = upload(http, file_content_base64="A" * 12)
     assert result["status"] == "error"
-    assert "too large" in result["error"]
+    assert "too large" in result["error"]["message"]
     decode.assert_not_called()
     zulip.upload_file.assert_not_called()
 
@@ -144,5 +144,5 @@ def test_decoded_size_bound_even_with_equal_encoded_length(
     if status == "success":
         zulip.upload_file.assert_called_once_with(content, "upload.bin")
     else:
-        assert "too large" in result["error"]
+        assert "too large" in result["error"]["message"]
         zulip.upload_file.assert_not_called()

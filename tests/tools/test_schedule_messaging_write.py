@@ -72,7 +72,7 @@ class TestScheduledMessages:
             topic="history",
         )
         assert result["status"] == "error"
-        assert "must be in the future" in result["error"]
+        assert "must be in the future" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_schedule_invalid_timestamp(self, mock_deps):
@@ -84,7 +84,7 @@ class TestScheduledMessages:
             scheduled_delivery_timestamp=int(time.time()) + 100,
         )
         assert result["status"] == "error"
-        assert "Topic required" in result["error"]
+        assert "Topic required" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_update_scheduled_time(self, mock_deps):
@@ -105,7 +105,7 @@ class TestScheduledMessages:
         }
         result = await update_scheduled_message(888, content="New content")
         assert result["status"] == "error"
-        assert "does not exist" in result["error"]
+        assert "does not exist" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_delete_scheduled_message(self, mock_deps):

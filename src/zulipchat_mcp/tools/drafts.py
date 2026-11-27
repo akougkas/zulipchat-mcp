@@ -6,16 +6,44 @@ Direct mapping to API without unnecessary complexity.
 
 import asyncio
 import json
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
+from pydantic import Field
 
 from ..config import get_client
-from ..core.api_errors import api_error
+from ..core.errors import api_error, internal_error, tool_error
+from .params import MAX_CONTENT_CHARS, Name
 from .registration import register_tool
-from .search import resolve_user_identifier
+from .search import (
+    AmbiguousUserError,
+    UserNotFoundError,
+    resolve_user_identifier,
+)
 
-DraftRecipient = str | int
+DraftRecipient = Name | int
+DraftType = Annotated[
+    Literal["stream", "private"],
+    Field(description="stream for a channel draft; private for a DM draft."),
+]
+DraftTo = Annotated[
+    DraftRecipient | Annotated[list[DraftRecipient], Field(max_length=100)],
+    Field(
+        description="For stream: one channel name or ID. For private: user names, "
+        "emails or IDs."
+    ),
+]
+DraftContent = Annotated[
+    str, Field(max_length=MAX_CONTENT_CHARS, description="Draft text in Markdown.")
+]
+DraftTopic = Annotated[
+    str, Field(max_length=60, description="Topic; required for stream drafts.")
+]
+DraftTime = Annotated[
+    int | None,
+    Field(gt=0, description="Last-edited time as a UNIX timestamp; defaults to now."),
+]
+DraftId = Annotated[int, Field(gt=0, description="Draft ID from get_drafts.")]
 
 
 def _build_draft(
@@ -64,16 +92,25 @@ async def _resolve_recipients(
             result = await asyncio.to_thread(client.get_stream_id, recipient)
             stream_id = result.get("stream_id")
             if result.get("result") != "success" or not isinstance(stream_id, int):
-                raise ValueError(result.get("msg", f"No stream matching '{recipient}'"))
+                raise LookupError(
+                    result.get("msg", f"No stream matching '{recipient}'")
+                )
             resolved.append(stream_id)
         else:
             user = await resolve_user_identifier(recipient, client)
             user_id = user.get("user_id")
             if not isinstance(user_id, int):
-                raise ValueError(f"No user ID available for '{recipient}'")
+                raise UserNotFoundError(recipient)
             resolved.append(user_id)
 
     return resolved
+
+
+def _recipient_error(e: Exception) -> dict[str, Any]:
+    if isinstance(e, LookupError):
+        return tool_error(str(e), "NOT_FOUND", recovery_tool="get_streams")
+    code = "AMBIGUOUS_USER" if isinstance(e, AmbiguousUserError) else "USER_NOT_FOUND"
+    return tool_error(str(e), code, recovery_tool="resolve_user")
 
 
 async def get_drafts() -> dict[str, Any]:
@@ -96,24 +133,27 @@ async def get_drafts() -> dict[str, Any]:
             return api_error(result, "Failed to get drafts")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def create_draft(
-    type: Literal["stream", "private"],
-    to: DraftRecipient | list[DraftRecipient],
-    content: str,
-    topic: str = "",
-    timestamp: int | None = None,
+    type: DraftType,
+    to: DraftTo,
+    content: DraftContent,
+    topic: DraftTopic = "",
+    timestamp: DraftTime = None,
 ) -> dict[str, Any]:
     """Create a draft using Zulip's native API."""
     client = get_client()
 
     try:
-        resolved_to = await _resolve_recipients(type, to, client)
+        try:
+            resolved_to = await _resolve_recipients(type, to, client)
+        except (LookupError, AmbiguousUserError, UserNotFoundError) as e:
+            return _recipient_error(e)
         validation_error = _validate_draft(type, resolved_to, topic)
         if validation_error:
-            return {"status": "error", "error": validation_error}
+            return tool_error(validation_error)
 
         draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"drafts": json.dumps([draft])}
@@ -134,25 +174,28 @@ async def create_draft(
             return api_error(result, "Failed to create draft")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def edit_draft(
-    draft_id: int,
-    type: Literal["stream", "private"],
-    to: DraftRecipient | list[DraftRecipient],
-    content: str,
-    topic: str = "",
-    timestamp: int | None = None,
+    draft_id: DraftId,
+    type: DraftType,
+    to: DraftTo,
+    content: DraftContent,
+    topic: DraftTopic = "",
+    timestamp: DraftTime = None,
 ) -> dict[str, Any]:
     """Edit a draft using Zulip's native API."""
     client = get_client()
 
     try:
-        resolved_to = await _resolve_recipients(type, to, client)
+        try:
+            resolved_to = await _resolve_recipients(type, to, client)
+        except (LookupError, AmbiguousUserError, UserNotFoundError) as e:
+            return _recipient_error(e)
         validation_error = _validate_draft(type, resolved_to, topic)
         if validation_error:
-            return {"status": "error", "error": validation_error}
+            return tool_error(validation_error)
 
         draft = _build_draft(type, resolved_to, topic, content, timestamp)
         request_data = {"draft": json.dumps(draft)}
@@ -173,10 +216,10 @@ async def edit_draft(
             return api_error(result, "Failed to edit draft")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
-async def delete_draft(draft_id: int) -> dict[str, Any]:
+async def delete_draft(draft_id: DraftId) -> dict[str, Any]:
     """Delete a draft."""
     client = get_client()
 
@@ -197,7 +240,7 @@ async def delete_draft(draft_id: int) -> dict[str, Any]:
             return api_error(result, "Failed to delete draft")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 def register_drafts_tools(mcp: FastMCP) -> None:
@@ -206,22 +249,32 @@ def register_drafts_tools(mcp: FastMCP) -> None:
         mcp,
         get_drafts,
         name="get_drafts",
-        description="Get all drafts for current user",
+        description=(
+            "List your saved Zulip drafts with their text, recipients and topic. "
+            "Drafts are private to you; nothing here is sent. To send, use "
+            "send_message."
+        ),
         title="Get drafts",
-        idempotent=True,
     )
     register_tool(
         mcp,
         create_draft,
         name="create_draft",
-        description="Create a draft using Zulip's native API",
+        description=(
+            "Save a new Zulip draft without sending it; returns draft_id. To "
+            "send now use send_message; to send later use "
+            "create_scheduled_message."
+        ),
         title="Create draft",
     )
     register_tool(
         mcp,
         edit_draft,
         name="edit_draft",
-        description="Edit a draft's attributes",
+        description=(
+            "Replace a saved Zulip draft's recipients, topic and text; every "
+            "field is overwritten, so pass the full new draft."
+        ),
         title="Edit draft",
         destructive=True,
         idempotent=True,
@@ -230,7 +283,10 @@ def register_drafts_tools(mcp: FastMCP) -> None:
         mcp,
         delete_draft,
         name="delete_draft",
-        description="Delete a draft",
+        description=(
+            "Delete one saved Zulip draft permanently. Does not affect sent or "
+            "scheduled messages."
+        ),
         title="Delete draft",
         destructive=True,
         idempotent=True,

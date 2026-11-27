@@ -61,7 +61,7 @@ async def test_cross_post_wire_preserves_markdown_and_captured_identity(monkeypa
                     "add_reference": False,
                 },
             )
-        ).data
+        ).structured_content
     assert result["successful"] == 2
     assert [call.args for call in first.send_message.call_args_list] == [
         ("stream", "one", raw, "topic"),

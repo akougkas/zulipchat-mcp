@@ -4,7 +4,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.zulipchat_mcp.tools.files import manage_files, upload_file
+from src.zulipchat_mcp.tools.files import (
+    delete_file,
+    get_files,
+    share_file,
+    upload_file,
+)
 
 
 class TestFileOperations:
@@ -44,13 +49,13 @@ class TestFileOperations:
         mock_deps.upload_file.assert_called_with(content, "test.txt")
 
     @pytest.mark.asyncio
-    async def test_upload_nonexistent_file(self, mock_deps):
+    async def test_upload_nonexistent_file(self, mock_deps, tmp_path, monkeypatch):
         """Test uploading a file from path that doesn't exist."""
-        # Use built-in open patch for the specific module
-        with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
-            result = await upload_file(file_path="nonexistent.txt")
-            assert result["status"] == "error"
-            assert "Failed to read file" in result["error"]
+        monkeypatch.chdir(tmp_path)
+        result = await upload_file(file_path="nonexistent.txt")
+        assert result["status"] == "error"
+        assert result["error"]["code"] == "FILE_UNREADABLE"
+        assert "Failed to read file" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_upload_empty_file(self, mock_deps):
@@ -65,7 +70,7 @@ class TestFileOperations:
         large_content = b"a" * (25 * 1024 * 1024 + 1)
         result = await upload_file(file_content=large_content, filename="big.dat")
         assert result["status"] == "error"
-        assert "File too large" in result["error"]
+        assert "File too large" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_upload_dangerous_extension(self, mock_deps):
@@ -100,9 +105,8 @@ class TestFileOperations:
             "result": "success",
             "attachments": [{"id": 1, "name": "test.txt"}],
         }
-        result = await manage_files(operation="list")
+        result = await get_files()
         assert result["status"] == "success"
-        assert result["operation"] == "list"
         assert len(result["files"]) == 1
         assert result["files"][0]["name"] == "test.txt"
 
@@ -113,9 +117,9 @@ class TestFileOperations:
     @pytest.mark.asyncio
     async def test_delete_own_file(self, mock_deps):
         """Test delete operation."""
-        result = await manage_files(operation="delete", file_id="1")
+        result = await delete_file(attachment_id=1)
         assert result["status"] == "success"
-        assert result["operation"] == "delete"
+        assert result["deleted"] is True
 
         mock_deps.client.call_endpoint.assert_called_with(
             "attachments/1", method="DELETE", request={}
@@ -128,19 +132,14 @@ class TestFileOperations:
             "result": "error",
             "msg": "Permission denied",
         }
-        result = await manage_files(operation="delete", file_id="2")
+        result = await delete_file(attachment_id=2)
         assert result["status"] == "error"
-        assert "Permission denied" in result["error"]
+        assert "Permission denied" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_share_file_to_stream(self, mock_deps):
         """Test sharing a file."""
-        result = await manage_files(
-            operation="share",
-            file_id="123",
-            share_in_stream="general",
-            share_in_topic="resources",
-        )
+        result = await share_file(file_id="123", stream="general", topic="resources")
         assert result["status"] == "success"
-        assert result["operation"] == "share"
+        assert result["shared_in_topic"] == "resources"
         mock_deps.send_message.assert_called()

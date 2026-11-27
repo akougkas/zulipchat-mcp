@@ -61,7 +61,7 @@ class TestReactions:
         }
         result = await add_reaction(999, "thumbs_up")
         assert result["status"] == "error"
-        assert "Invalid message" in result["error"]
+        assert "Invalid message" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_add_invalid_emoji(self, mock_deps):
@@ -88,7 +88,7 @@ class TestReactions:
         }
         result = await add_reaction(100, "thumbs_up")
         assert result["status"] == "error"
-        assert "Reaction already exists" in result["error"]
+        assert "Reaction already exists" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_remove_own_reaction(self, mock_deps):
@@ -112,7 +112,7 @@ class TestReactions:
         }
         result = await remove_reaction(100, "smile")
         assert result["status"] == "error"
-        assert "Not authorized" in result["error"]
+        assert "Not authorized" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_invalid_message_id(self, mock_deps):

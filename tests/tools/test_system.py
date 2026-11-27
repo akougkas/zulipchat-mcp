@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from src.zulipchat_mcp import __version__
 from src.zulipchat_mcp.config import ConfigManager, ResolvedAccount
 from src.zulipchat_mcp.tools.system import (
     server_info,
@@ -89,9 +90,9 @@ class TestSwitchIdentity(TestSystemTools):
         result = await switch_identity("bot")
 
         assert result["status"] == "error"
-        assert "Bot credentials not configured" in result["error"]
-        assert "suggestion" in result
-        assert "--zulip-bot-config-file" in result["suggestion"]
+        assert "Bot credentials not configured" in result["error"]["message"]
+        assert result["error"]["code"] == "NOT_CONFIGURED"
+        assert "--zulip-bot-config-file" in result["error"]["recovery"]["hint"]
 
     @pytest.mark.asyncio
     async def test_switch_identity_exception(self, mock_deps):
@@ -102,7 +103,7 @@ class TestSwitchIdentity(TestSystemTools):
             result = await switch_identity("user")
 
             assert result["status"] == "error"
-            assert "Connection failed" in result["error"]
+            assert "Connection failed" in result["error"]["message"]
 
 
 class TestServerInfo(TestSystemTools):
@@ -177,7 +178,7 @@ class TestServerInfo(TestSystemTools):
 
         assert result["status"] == "success"
         assert result["server_name"] == "ZulipChat MCP"
-        assert result["version"] == "0.8.3"
+        assert result["version"] == __version__
         assert result["zulip_site"] == "https://test.zulipchat.com"
 
         # Check user identity info

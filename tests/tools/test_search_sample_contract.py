@@ -42,7 +42,7 @@ async def test_registered_search_reports_actual_sample_and_preserves_upstream_er
                 "search_messages",
                 {"limit": 1, "after_time": "2023-11-14T22:13:22Z", "fresh": True},
             )
-        ).data
+        ).structured_content
         assert result["count"] == 1
         assert result["sample"]["truncated_excerpts"] == 1
         assert result["sample"]["completeness"] == "partial"
@@ -64,6 +64,6 @@ async def test_registered_search_reports_actual_sample_and_preserves_upstream_er
         }
         failed = await client.call_tool("search_messages", {}, raise_on_error=False)
         assert failed.is_error
-        assert failed.structured_content["error_code"] == "RATE_LIMIT_HIT"
-        assert failed.structured_content["retry_after_seconds"] == 28.7
-        assert failed.structured_content["retryable"] is True
+        assert failed.structured_content["error"]["code"] == "RATE_LIMIT_HIT"
+        assert failed.structured_content["error"]["retry_after_seconds"] == 28.7
+        assert failed.structured_content["error"]["retryable"] is True

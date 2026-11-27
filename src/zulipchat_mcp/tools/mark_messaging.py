@@ -5,11 +5,14 @@ Uses modern "update personal message flags for narrow" instead of deprecated end
 """
 
 import asyncio
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
+
+from pydantic import Field
 
 from ..config import bind_client, get_client
-from ..core.api_errors import api_error
+from ..core.errors import api_error, error_object, internal_error, tool_error
 from ..utils.narrow_helpers import wire_narrow
+from .params import MessageId, Name
 
 
 def _criteria_narrow(
@@ -28,14 +31,50 @@ def _criteria_narrow(
     return narrow
 
 
+Narrow = Annotated[
+    list[dict[str, Any]],
+    Field(
+        max_length=20,
+        description='Zulip narrow terms, e.g. [{"operator": "channel", '
+        '"operand": "general"}, {"operator": "topic", "operand": "deploys"}].',
+    ),
+]
+Flag = Annotated[
+    Literal["read", "starred"],
+    Field(description="read marks read/unread; starred stars/unstars."),
+]
+Action = Annotated[
+    Literal["add", "remove"],
+    Field(description="add sets the flag (read, starred); remove clears it."),
+]
+
+
 async def update_message_flags_for_narrow(
-    narrow: list[dict[str, Any]],
-    op: Literal["add", "remove"],
-    flag: str,
-    anchor: int | Literal["first_unread", "oldest", "newest"] = "newest",
-    include_anchor: bool = True,
-    num_before: int = 50,
-    num_after: int = 50,
+    narrow: Narrow,
+    op: Action,
+    flag: Annotated[
+        str,
+        Field(
+            min_length=1,
+            max_length=30,
+            description="Personal flag to change: read, starred or collapsed.",
+        ),
+    ],
+    anchor: Annotated[
+        int | Literal["first_unread", "oldest", "newest"],
+        Field(description="Message ID or position the window is counted from."),
+    ] = "newest",
+    include_anchor: Annotated[
+        bool, Field(description="Include the anchor message itself.")
+    ] = True,
+    num_before: Annotated[
+        int,
+        Field(ge=0, le=1000, description="Messages before the anchor (0-1000)."),
+    ] = 50,
+    num_after: Annotated[
+        int,
+        Field(ge=0, le=1000, description="Messages after the anchor (0-1000)."),
+    ] = 50,
 ) -> dict[str, Any]:
     """Update personal message flags for messages matching a narrow (modern approach)."""
     client = get_client()
@@ -72,7 +111,7 @@ async def update_message_flags_for_narrow(
             return api_error(result, "Failed to update message flags")
 
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def _update_flag_pages(
@@ -102,7 +141,7 @@ async def _update_flag_pages(
                 num_after=1000,
             )
         except Exception as exc:
-            result = {"status": "error", "error": str(exc)}
+            result = internal_error(exc)
         if result.get("status") != "success":
             return {
                 **result,
@@ -129,7 +168,9 @@ async def _update_flag_pages(
             return {
                 "status": "partial",
                 "operation": f"{op}_{flag}",
-                "error": "Message flag pagination made no progress",
+                "error": error_object(
+                    "Message flag pagination made no progress", "NO_PROGRESS"
+                ),
                 "processed_count": processed,
                 "updated_count": updated,
                 "pages_completed": pages_completed,
@@ -150,36 +191,50 @@ async def _flag_matching(
         with bind_client(get_client()):
             built = narrow or _criteria_narrow(stream_id, topic_name, sender_email)
             if not built:
-                return {
-                    "status": "error",
-                    "error": "Must provide narrow, stream_id, topic_name, or sender_email",
-                }
+                return tool_error(
+                    "Must provide narrow, stream_id, topic_name, or sender_email",
+                    recovery_tool="mark_all_messages",
+                    hint="To change every message, use mark_all_messages.",
+                )
             return await _update_flag_pages(narrow=built, op=op, flag=flag)
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)
 
 
 async def manage_message_flags(
-    flag: Literal["read", "starred"],
-    action: Literal["add", "remove"],
-    scope: Literal["all", "stream", "topic", "narrow"] = "narrow",
-    stream_id: int | str | None = None,
-    topic_name: str | None = None,
-    sender_email: str | None = None,
-    narrow: list[dict[str, Any]] | None = None,
+    flag: Flag,
+    action: Action,
+    scope: Annotated[
+        Literal["stream", "topic", "narrow"],
+        Field(
+            description="stream: one channel; topic: one channel topic; narrow: "
+            "the narrow terms, or the stream_id/topic_name/sender_email filters."
+        ),
+    ] = "narrow",
+    stream_id: Annotated[
+        int | Name | None, Field(description="Channel ID or name.")
+    ] = None,
+    topic_name: Annotated[
+        str | None, Field(max_length=60, description="Topic within stream_id.")
+    ] = None,
+    sender_email: Annotated[
+        str | None,
+        Field(max_length=254, description="Only messages from this sender."),
+    ] = None,
+    narrow: Annotated[
+        list[dict[str, Any]] | None,
+        Field(max_length=20, description="Zulip narrow terms (scope narrow)."),
+    ] = None,
 ) -> dict[str, Any]:
     """Mark the entire matching scope read/unread or star/unstar.
 
     stream_id takes a channel ID or name. A partial result includes counts for
     completed pages when a later page fails.
     """
-    if scope == "all":
-        with bind_client(get_client()):
-            return await _update_flag_pages(narrow=[], op=action, flag=flag)
     if scope in ("stream", "topic") and not stream_id:
-        return {"status": "error", "error": f"stream_id required for scope='{scope}'"}
+        return tool_error(f"stream_id required for scope='{scope}'")
     if scope == "topic" and not topic_name:
-        return {"status": "error", "error": "topic_name required for scope='topic'"}
+        return tool_error("topic_name required for scope='topic'")
     if scope == "stream":
         topic_name = sender_email = narrow = None
     elif scope == "topic":
@@ -189,7 +244,16 @@ async def manage_message_flags(
     )
 
 
-async def get_read_receipts(message_id: int) -> dict[str, Any]:
+async def mark_all_messages(flag: Flag, action: Action) -> dict[str, Any]:
+    """Set or clear a flag on every message the account can see."""
+    try:
+        with bind_client(get_client()):
+            return await _update_flag_pages(narrow=[], op=action, flag=flag)
+    except Exception as e:
+        return internal_error(e)
+
+
+async def get_read_receipts(message_id: MessageId) -> dict[str, Any]:
     """Users who have read a message, with names from the cached roster."""
     client = get_client()
     try:
@@ -211,4 +275,4 @@ async def get_read_receipts(message_id: int) -> dict[str, Any]:
             "count": len(user_ids),
         }
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        return internal_error(e)

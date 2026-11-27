@@ -52,6 +52,37 @@ class TestEventManagement:
         mock_deps.register.assert_called()
 
     @pytest.mark.asyncio
+    async def test_register_skips_initial_state_unless_asked(self, mock_deps):
+        mock_deps.register.return_value = {
+            "result": "success",
+            "queue_id": "queue-1",
+            "last_event_id": 100,
+            "msg": "",
+            "realm_name": "Org",
+        }
+        result = await register_events(["message"])
+        assert mock_deps.register.call_args.kwargs["fetch_event_types"] == []
+        assert result["realm_state_keys"] == ["realm_name"]
+        assert "realm_state" not in result
+
+        result = await register_events(["message"], include_realm_state=True)
+        assert "fetch_event_types" not in mock_deps.register.call_args.kwargs
+        assert result["realm_state"] == {"realm_name": "Org"}
+
+    @pytest.mark.asyncio
+    async def test_register_withholds_oversized_realm_state(self, mock_deps):
+        mock_deps.register.return_value = {
+            "result": "success",
+            "queue_id": "queue-1",
+            "last_event_id": 100,
+            "realm_users": ["x" * 200_000],
+        }
+        result = await register_events(["message"], include_realm_state=True)
+        assert result["realm_state_truncated"] is True
+        assert "realm_state" not in result
+        assert result["realm_state_keys"] == ["realm_users"]
+
+    @pytest.mark.asyncio
     async def test_register_invalid_event_type(self, mock_deps):
         """Test registration with invalid event type (backend error)."""
         mock_deps.register.return_value = {
@@ -60,7 +91,7 @@ class TestEventManagement:
         }
         result = await register_events(["bad_type"])
         assert result["status"] == "error"
-        assert "Invalid event type" in result["error"]
+        assert "Invalid event type" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_get_events_valid_queue(self, mock_deps):
@@ -87,7 +118,7 @@ class TestEventManagement:
         }
         result = await get_events("queue-old", 100)
         assert result["status"] == "error"
-        assert "Bad event queue id" in result["error"]
+        assert "Bad event queue id" in result["error"]["message"]
 
     @pytest.mark.asyncio
     async def test_deregister_events(self, mock_deps):

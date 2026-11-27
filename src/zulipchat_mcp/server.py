@@ -6,10 +6,11 @@ from pathlib import Path
 
 from fastmcp import FastMCP
 from fastmcp_tasks import TasksExtension
+from mcp.types import Icon
 
 from . import __version__
 from .config import init_config_manager
-from .core.security import set_unsafe_mode
+from .core.security import set_file_root, set_unsafe_mode
 from .core.skills import register_skills
 from .core.snapshots import configure_snapshot_root
 from .core.tool_contract import ToolContractMiddleware
@@ -19,6 +20,25 @@ from .utils.logging import get_logger, setup_structured_logging
 # Flags of the agent control plane removed in 0.8.0. Host configurations
 # written for 0.7 still pass them, so they are accepted and ignored.
 _RETIRED_FLAGS = ("--enable-listener", "--associate-existing-db")
+
+# docs/assets/zulipchat-mcp-icon.svg, inlined so the icon needs no network.
+_ICON_SVG_BASE64 = (
+    "PHN2ZyB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDI1NiAyNTYiIHht"
+    "bG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgcm9sZT0iaW1nIiBhcmlhLWxhYmVs"
+    "PSJadWxpcENoYXQgTUNQIj4KICA8cmVjdCB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgcng9"
+    "IjM2IiBmaWxsPSIjMWYyOTM3Ii8+CiAgPHJlY3QgeD0iMzIiIHk9IjQwIiB3aWR0aD0iMTky"
+    "IiBoZWlnaHQ9IjE3NiIgcng9IjE4IiBmaWxsPSIjMGVhNWE2Ii8+CiAgPHBhdGggZD0iTTY0"
+    "IDg4aDEyOHYxNkg2NHpNNjQgMTIwaDk2djE2SDY0ek02NCAxNTJoNzJ2MTZINjR6IiBmaWxs"
+    "PSIjZTVlN2ViIi8+CiAgPGNpcmNsZSBjeD0iMTg4IiBjeT0iMTYwIiByPSIyMCIgZmlsbD0i"
+    "IzExMTgyNyIvPgogIDxwYXRoIGQ9Ik0xODggMTQ4djI0TTE3NiAxNjBoMjQiIHN0cm9rZT0i"
+    "IzIyYzU1ZSIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9z"
+    "dmc+Cg=="
+)
+SERVER_ICON = Icon(
+    src=f"data:image/svg+xml;base64,{_ICON_SVG_BASE64}",
+    mime_type="image/svg+xml",
+    sizes=["any"],
+)
 
 
 def account_cache_dir(fingerprint: str) -> Path:
@@ -55,7 +75,15 @@ def main() -> None:
     parser.add_argument(
         "--unsafe",
         action="store_true",
-        help="Enable dangerous tools (delete messages/users, mass unsubscribe). Default: SAFE mode.",
+        help="Allow delete_file to delete uploaded files. Default: SAFE mode.",
+    )
+    parser.add_argument(
+        "--file-root",
+        default=os.getenv("ZULIPCHAT_FILE_ROOT"),
+        help=(
+            "Directory that upload_file and download_file local paths must stay "
+            "inside (or set ZULIPCHAT_FILE_ROOT; default: the working directory)."
+        ),
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     for flag in _RETIRED_FLAGS:
@@ -64,7 +92,7 @@ def main() -> None:
     parser.add_argument(
         "--extended-tools",
         action="store_true",
-        help="Register all 45 tools instead of the 13-tool core set.",
+        help="Register all 53 tools instead of the 13-tool core set.",
     )
     parser.add_argument(
         "--tool-profile",
@@ -176,6 +204,10 @@ def main() -> None:
 
     # Set global safety mode context
     set_unsafe_mode(args.unsafe)
+    if args.file_root and not os.path.isdir(os.path.expanduser(args.file_root)):
+        logger.error("--file-root %s is not a directory", args.file_root)
+        raise SystemExit(1)
+    set_file_root(args.file_root)
     if args.unsafe:
         logger.warning("RUNNING IN UNSAFE MODE - Dangerous tools enabled")
 
@@ -204,6 +236,7 @@ def main() -> None:
         "ZulipChat MCP",
         version=__version__,
         website_url="https://github.com/PanStudio/zulipchat-mcp",
+        icons=[SERVER_ICON],
         instructions=(
             "ask_owner asks the owner of this Zulip conversation a question."
             if args.tool_profile == "ask-owner"
@@ -246,7 +279,7 @@ def main() -> None:
 
     if extended:
         register_extended_tools(mcp)
-        logger.info("Registered extended tool set (45 tools)")
+        logger.info("Registered extended tool set (53 tools)")
     else:
         logger.info("Registered core tool set (13 tools)")
 

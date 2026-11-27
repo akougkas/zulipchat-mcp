@@ -19,10 +19,12 @@ DESTRUCTIVE = {
     "edit_message",
     "edit_draft",
     "delete_draft",
-    "manage_scheduled_message",
-    "manage_files",
+    "update_scheduled_message",
+    "delete_scheduled_message",
+    "delete_file",
     "resolve_topic",
-    "manage_reminders",
+    "delete_reminder",
+    "mark_all_messages",
 }
 
 # Tools that never reach Zulip (local state or pure computation).
@@ -47,6 +49,11 @@ IDEMPOTENT_WRITES = {
     "deregister_events",
     "edit_draft",
     "delete_draft",
+    "update_scheduled_message",
+    "delete_scheduled_message",
+    "delete_file",
+    "delete_reminder",
+    "mark_all_messages",
 }
 
 
@@ -78,7 +85,7 @@ async def _annotations(
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 13), (True, 45)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 13), (True, 53)])
 async def test_every_tool_advertises_complete_annotations(mode, extended, count):
     wire = await _annotations(extended=extended, read_only=False, mode=mode)
     assert len(wire) == count
@@ -88,7 +95,7 @@ async def test_every_tool_advertises_complete_annotations(mode, extended, count)
 
 
 @pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
-@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 21)])
+@pytest.mark.parametrize(("extended", "count"), [(False, 7), (True, 23)])
 async def test_read_only_hint_is_exactly_the_read_only_profile(mode, extended, count):
     full = await _annotations(extended=extended, read_only=False, mode=mode)
     read_only_hinted = {n for n, d in full.items() if d["readOnlyHint"]}
@@ -119,6 +126,11 @@ async def test_write_tool_classification():
         "send_message",
         "teleport_chat",
         "cross_post_message",
+        "create_scheduled_message",
+        "create_reminder",
+        "upload_file",
+        "download_file",
+        "share_file",
     ):
         assert writes[name]["idempotentHint"] is False, name
         assert writes[name]["destructiveHint"] is False, name
@@ -129,3 +141,35 @@ def test_read_only_tool_cannot_be_declared_destructive():
         tool_annotations("get_message", "Get message", destructive=True)
     assert tool_annotations("get_message", "Get message").read_only_hint is True
     assert tool_annotations("send_message", "Send message").read_only_hint is False
+
+
+def _bounded(prop: dict[str, Any], defs: dict[str, Any]) -> bool:
+    if "$ref" in prop:
+        prop = defs[prop["$ref"].split("/")[-1]]
+    if "anyOf" in prop:
+        return all(_bounded(p, defs) for p in prop["anyOf"])
+    if prop.get("type") == "string":
+        return any(k in prop for k in ("maxLength", "enum", "const", "format"))
+    if prop.get("type") == "array":
+        return "maxItems" in prop
+    return True
+
+
+@pytest.mark.parametrize("mode", ["legacy", "2026-07-28"])
+async def test_every_tool_schema_is_described_bounded_and_typed(mode):
+    async with Client(_server(extended=True, read_only=False), mode=mode) as client:
+        tools = await client.list_tools()
+    for tool in tools:
+        description = tool.description or ""
+        assert description.split(". ")[0].strip(), tool.name
+        schema = tool.input_schema
+        defs = schema.get("$defs", {})
+        for name, prop in schema.get("properties", {}).items():
+            target = defs[prop["$ref"].split("/")[-1]] if "$ref" in prop else prop
+            assert prop.get("description") or target.get(
+                "description"
+            ), f"{tool.name}.{name} has no description"
+            assert _bounded(prop, defs), f"{tool.name}.{name} is unbounded"
+        output = tool.output_schema
+        assert output and output["properties"]["status"]["enum"], tool.name
+        assert "error" in output["properties"], tool.name

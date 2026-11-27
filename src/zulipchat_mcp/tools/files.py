@@ -1,24 +1,80 @@
-"""File management tools for ZulipChat MCP v0.4.0.
+"""File tools: upload, list, download, share and delete Zulip attachments.
 
-Complete file operations including upload, management, sharing, and security validation.
-All functionality from the complex v25 architecture preserved in minimal code.
+Local paths are confined to the file root (--file-root, ZULIPCHAT_FILE_ROOT, or
+the server's working directory) and to stdio; every transfer is capped at 25 MiB.
 """
 
 import asyncio
 import hashlib
 import mimetypes
 import os
+import stat
 from base64 import b64decode, b64encode
 from binascii import Error as Base64Error
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Annotated, Any
 from urllib.parse import unquote, urlparse, urlunparse
 
+from pydantic import Field
+
 from ..config import get_client
-from ..core.api_errors import api_error
-from ..core.security import is_unsafe_mode, local_access_allowed
+from ..core.errors import api_error, internal_error, tool_error
+from ..core.security import (
+    PathOutsideRoot,
+    contained_path,
+    file_root,
+    is_unsafe_mode,
+    local_access_allowed,
+)
+from .params import Cursor, Topic, page_size
 
 MAX_FILE_SIZE = 25 * 1024 * 1024
+FILE_TOO_LARGE = "File too large (max 25 MiB)"
+
+FileId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=2000,
+        description="A /user_uploads/... path or a full URL on this Zulip site, "
+        "as returned by upload_file or get_files.",
+    ),
+]
+ChannelName = Annotated[
+    str, Field(min_length=1, max_length=60, description="Channel name.")
+]
+
+
+def _path_refused(error: PathOutsideRoot) -> dict[str, Any]:
+    return tool_error(
+        str(error),
+        "PATH_OUTSIDE_ROOT",
+        hint=f"Use a path inside {file_root()}, or start the server with "
+        "--file-root.",
+    )
+
+
+def _read_local_file(path: str) -> bytes:
+    """Read a regular file inside the file root, refusing more than 25 MiB."""
+    resolved = contained_path(path)
+    fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"{path} is not a regular file")
+        if info.st_size > MAX_FILE_SIZE:
+            raise ValueError(FILE_TOO_LARGE)
+        return handle.read(MAX_FILE_SIZE + 1)
+
+
+def _write_new_local_file(path: str, content: bytes) -> str:
+    """Create path inside the file root; never replaces an existing entry."""
+    resolved = contained_path(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(resolved, flags, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(content)
+    return str(resolved)
 
 
 def _validate_download_url(client: Any, url: str) -> None:
@@ -170,7 +226,7 @@ def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]
 
     # Check file size (25MB limit)
     if file_size > MAX_FILE_SIZE:
-        return {"valid": False, "error": "File too large (max 25MB)"}
+        return {"valid": False, "error": FILE_TOO_LARGE}
 
     # Basic MIME type detection
     mime_type, _ = mimetypes.guess_type(filename)
@@ -209,355 +265,351 @@ def validate_file_security(file_content: bytes, filename: str) -> dict[str, Any]
 
 
 async def upload_file(
-    file_content: bytes | None = None,
-    file_path: str | None = None,
-    filename: str = "",
-    mime_type: str | None = None,
-    chunk_size: int = 1048576,  # 1MB chunks
-    stream: str | None = None,
-    topic: str | None = None,
-    message: str | None = None,
-    file_content_base64: str | None = None,
+    file_content: Annotated[
+        bytes | None,
+        Field(
+            description="File content as UTF-8 text. Use file_content_base64 for "
+            "binary data."
+        ),
+    ] = None,
+    file_path: Annotated[
+        str | None,
+        Field(
+            max_length=4096,
+            description="Local file to read (stdio only); must resolve inside the "
+            "server's file root.",
+        ),
+    ] = None,
+    filename: Annotated[
+        str,
+        Field(
+            max_length=255,
+            description="Name shown in Zulip; defaults to the file_path base "
+            "name or upload.bin.",
+        ),
+    ] = "",
+    mime_type: Annotated[
+        str | None,
+        Field(max_length=255, description="MIME type; guessed from filename."),
+    ] = None,
+    chunk_size: Annotated[
+        int, Field(ge=1, description="Unused; accepted for compatibility.")
+    ] = 1048576,
+    stream: Annotated[
+        str | None,
+        Field(
+            max_length=60,
+            description="Also post the file link in this channel.",
+        ),
+    ] = None,
+    topic: Annotated[
+        str | None, Field(max_length=60, description="Topic for the post.")
+    ] = None,
+    message: Annotated[
+        str | None,
+        Field(max_length=10000, description="Text posted above the file link."),
+    ] = None,
+    file_content_base64: Annotated[
+        str | None,
+        Field(
+            max_length=4 * ((MAX_FILE_SIZE + 2) // 3),
+            description="Binary content as standard padded base64, at most "
+            "25 MiB decoded.",
+        ),
+    ] = None,
 ) -> dict[str, Any]:
     """Upload one file source, optionally sharing it in a stream.
 
     Use file_content_base64 for binary data over MCP JSON: standard, padded base64
     with no whitespace, limited to 25 MiB decoded. An empty string uploads an empty
     file. file_content preserves UTF-8 text over JSON and bytes for Python callers;
-    file_path is available only locally. Supply exactly one of these sources.
+    file_path is available only locally and only inside the file root. Supply
+    exactly one of these sources.
     """
     source_count = sum(
         (file_content is not None, bool(file_path), file_content_base64 is not None)
     )
     if source_count != 1:
-        return {
-            "status": "error",
-            "error": (
-                "Exactly one of file_content, file_path, or file_content_base64 "
-                "is required"
-            ),
-        }
+        return tool_error(
+            "Exactly one of file_content, file_path, or file_content_base64 "
+            "is required"
+        )
 
     if file_path and not local_access_allowed():
-        return {
-            "status": "error",
-            "error": (
-                "Local file paths are disabled over HTTP; use file_content "
-                "or file_content_base64"
-            ),
-        }
+        return tool_error(
+            "Local file paths are disabled over HTTP; use file_content "
+            "or file_content_base64",
+            "NOT_AVAILABLE",
+        )
 
     if file_content_base64 is not None:
         # Bound the encoded allocation before decoding; padding means the decoded
         # length must still be checked by validate_file_security below.
         if len(file_content_base64) > 4 * ((MAX_FILE_SIZE + 2) // 3):
-            return {"status": "error", "error": "File too large (max 25MB)"}
+            return tool_error(FILE_TOO_LARGE, "TOO_LARGE")
         try:
             file_content = b64decode(file_content_base64, validate=True)
         except (Base64Error, ValueError):
-            return {
-                "status": "error",
-                "error": "file_content_base64 must be valid standard padded base64",
-            }
+            return tool_error(
+                "file_content_base64 must be valid standard padded base64"
+            )
         if b64encode(file_content).decode("ascii") != file_content_base64:
-            return {
-                "status": "error",
-                "error": "file_content_base64 must be canonical standard padded base64",
-            }
+            return tool_error(
+                "file_content_base64 must be canonical standard padded base64"
+            )
 
     try:
-        # Read file if path provided
         if file_path and file_content is None:
             try:
-                with open(file_path, "rb") as f:
-                    file_content = f.read(MAX_FILE_SIZE + 1)
-                if not filename:
-                    filename = os.path.basename(file_path)
-            except Exception as e:
-                return {"status": "error", "error": f"Failed to read file: {str(e)}"}
+                file_content = await asyncio.to_thread(_read_local_file, file_path)
+            except PathOutsideRoot as error:
+                return _path_refused(error)
+            except (OSError, ValueError) as error:
+                return tool_error(f"Failed to read file: {error}", "FILE_UNREADABLE")
+            if not filename:
+                filename = os.path.basename(file_path)
 
         if not filename:
             filename = "upload.bin"
 
         if file_content is None:
-            return {"status": "error", "error": "No file content provided"}
+            return tool_error("No file content provided")
 
-        # Security validation
         validation = validate_file_security(file_content, filename)
         if not validation["valid"]:
-            return {"status": "error", "error": validation["error"]}
+            return tool_error(validation["error"], "TOO_LARGE")
 
         client = get_client()
 
-        # Auto-detect MIME type if not provided
         if not mime_type:
             mime_type = validation["metadata"]["mime_type"]
 
-        # Upload file with progress tracking for large files
         upload_result = await asyncio.to_thread(
             client.upload_file, file_content, filename
         )
 
-        if upload_result.get("result") == "success":
-            file_url = upload_result.get("uri", "")
-
-            response = {
-                "status": "success",
-                "file_url": file_url,
-                "filename": filename,
-                "file_size": validation["metadata"]["size"],
-                "mime_type": mime_type,
-                "hash": validation["metadata"]["hash"],
-                "upload_timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-
-            if validation["warnings"]:
-                response["warnings"] = validation["warnings"]
-
-            # Optionally share in stream
-            if stream and file_url:
-                share_content = message or f"📎 Uploaded file: **{filename}**"
-                try:
-                    shared_file_url = await asyncio.to_thread(
-                        _resolve_file_url, client, file_url
-                    )
-                except ValueError:
-                    shared_file_url = file_url
-                share_content += f"\n{shared_file_url}"
-
-                # Add file metadata to share message
-                size_mb = validation["metadata"]["size"] / (1024 * 1024)
-                if size_mb >= 1:
-                    share_content += f"\n📊 Size: {size_mb:.1f} MB"
-                else:
-                    size_kb = validation["metadata"]["size"] / 1024
-                    share_content += f"\n📊 Size: {size_kb:.1f} KB"
-
-                share_result = await asyncio.to_thread(
-                    client.send_message, "stream", stream, share_content, topic
-                )
-                if share_result.get("result") == "success":
-                    response["shared_message_id"] = share_result.get("id")
-                    response["shared_in_stream"] = stream
-                    response["shared_in_topic"] = topic
-                else:
-                    response["status"] = "partial"
-                    response["share_error"] = share_result.get(
-                        "msg", "File uploaded but sharing failed"
-                    )
-
-            return response
-
-        else:
+        if upload_result.get("result") != "success":
             return api_error(upload_result, "Upload failed")
 
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
+        file_url = upload_result.get("uri", "")
+        response: dict[str, Any] = {
+            "status": "success",
+            "file_url": file_url,
+            "filename": filename,
+            "file_size": validation["metadata"]["size"],
+            "mime_type": mime_type,
+            "hash": validation["metadata"]["hash"],
+            "upload_timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
+        if validation["warnings"]:
+            response["warnings"] = validation["warnings"]
 
-async def manage_files(
-    operation: Literal[
-        "list",
-        "get",
-        "delete",
-        "share",
-        "download",
-        "generate_thumbnail",
-        "get_permissions",
-    ],
-    file_id: str | None = None,
-    filters: dict[str, Any] | None = None,
-    download_path: str | None = None,
-    share_in_stream: str | None = None,
-    share_in_topic: str | None = None,
-) -> dict[str, Any]:
-    """Comprehensive file management operations with Zulip API limitations."""
-    client = get_client()
-
-    try:
-        if operation == "list":
-            # Use Zulip's attachments API (Feature level 2+)
-            result = await asyncio.to_thread(
-                lambda: client.client.call_endpoint(
-                    "attachments", method="GET", request={}
-                )
-            )
-            if result.get("result") == "success":
-                return {
-                    "status": "success",
-                    "operation": "list",
-                    "files": result.get("attachments", []),
-                    "count": len(result.get("attachments", [])),
-                }
-            else:
-                return api_error(result, "Failed to list files")
-
-        elif operation == "delete":
-            if not is_unsafe_mode():
-                return {
-                    "status": "error",
-                    "error": "File deletion requires --unsafe mode",
-                }
-            if not file_id:
-                return {
-                    "status": "error",
-                    "error": "file_id (attachment ID) required for delete operation",
-                }
-
+        if stream and file_url:
+            share_content = message or f"📎 Uploaded file: **{filename}**"
             try:
-                attachment_id = int(file_id)
+                shared_file_url = await asyncio.to_thread(
+                    _resolve_file_url, client, file_url
+                )
             except ValueError:
-                return {
-                    "status": "error",
-                    "error": "file_id must be a numeric attachment ID for deletion",
-                }
+                shared_file_url = file_url
+            share_content += f"\n{shared_file_url}"
 
-            # Use Zulip's delete attachment API (Feature level 179+)
-            result = await asyncio.to_thread(
-                lambda: client.client.call_endpoint(
-                    f"attachments/{attachment_id}", method="DELETE", request={}
-                )
+            size_mb = validation["metadata"]["size"] / (1024 * 1024)
+            if size_mb >= 1:
+                share_content += f"\n📊 Size: {size_mb:.1f} MB"
+            else:
+                size_kb = validation["metadata"]["size"] / 1024
+                share_content += f"\n📊 Size: {size_kb:.1f} KB"
+
+            share_result = await asyncio.to_thread(
+                client.send_message, "stream", stream, share_content, topic
             )
-
-            if result.get("result") == "success":
-                return {
-                    "status": "success",
-                    "operation": "delete",
-                    "message": "File deleted successfully",
-                }
+            if share_result.get("result") == "success":
+                response["shared_message_id"] = share_result.get("id")
+                response["shared_in_stream"] = stream
+                response["shared_in_topic"] = topic
             else:
-                return api_error(result, "Failed to delete file")
+                response["status"] = "partial"
+                response["error"] = api_error(
+                    share_result, "File uploaded but sharing failed"
+                )["error"]
 
-        elif operation == "share":
-            if not file_id:
-                return {
-                    "status": "error",
-                    "error": "file_id required for share operation",
-                }
-
-            if not share_in_stream:
-                return {
-                    "status": "error",
-                    "error": "share_in_stream required for share operation",
-                }
-
-            try:
-                file_url = await asyncio.to_thread(_resolve_file_url, client, file_id)
-            except ValueError as e:
-                return {"status": "error", "error": str(e)}
-
-            share_content = f"📎 Shared file: {file_url}"
-
-            result = await asyncio.to_thread(
-                client.send_message,
-                "stream",
-                share_in_stream,
-                share_content,
-                share_in_topic,
-            )
-
-            if result.get("result") == "success":
-                return {
-                    "status": "success",
-                    "operation": "share",
-                    "file_id": file_id,
-                    "shared_in_stream": share_in_stream,
-                    "shared_in_topic": share_in_topic,
-                    "message_id": result.get("id"),
-                }
-            else:
-                return api_error(result, "Failed to share file")
-
-        elif operation == "download":
-            if not file_id:
-                return {
-                    "status": "error",
-                    "error": "file_id required for download operation",
-                }
-
-            try:
-                download_url = await asyncio.to_thread(
-                    _resolve_file_url, client, file_id
-                )
-            except ValueError as e:
-                return {"status": "error", "error": str(e)}
-
-            if download_path:
-                if not local_access_allowed():
-                    return {
-                        "status": "error",
-                        "error": "Local file paths are disabled over HTTP; omit download_path",
-                    }
-                try:
-                    import httpx
-
-                    _validate_download_url(client, download_url)
-                    email, api_key = await asyncio.to_thread(
-                        _resolve_download_credentials, client
-                    )
-                    auth_bytes = b64encode(f"{email}:{api_key}".encode()).decode()
-                    headers = {"Authorization": f"Basic {auth_bytes}"}
-
-                    async with httpx.AsyncClient(
-                        follow_redirects=False, timeout=30
-                    ) as http_client:
-                        async with http_client.stream(
-                            "GET", download_url, headers=headers
-                        ) as response:
-                            response.raise_for_status()
-                            content = bytearray()
-                            async for chunk in response.aiter_bytes(chunk_size=65536):
-                                if len(content) + len(chunk) > MAX_FILE_SIZE:
-                                    raise ValueError("File too large (max 25MB)")
-                                content.extend(chunk)
-
-                        with open(download_path, "wb") as f:
-                            f.write(content)
-
-                    return {
-                        "status": "success",
-                        "operation": "download",
-                        "file_id": file_id,
-                        "download_path": download_path,
-                        "file_size": len(content),
-                    }
-
-                except Exception as e:
-                    return {"status": "error", "error": f"Download failed: {str(e)}"}
-            else:
-                return {
-                    "status": "success",
-                    "operation": "download",
-                    "file_id": file_id,
-                    "download_url": download_url,
-                    "note": "Use the download_url to fetch the file content",
-                }
-
-        elif operation == "get_permissions":
-            return {
-                "status": "success",
-                "operation": "get_permissions",
-                "permissions": {
-                    "note": "File permissions follow stream access rules in Zulip",
-                    "public_files": "Accessible to all users in organization",
-                    "stream_files": "Accessible to stream subscribers",
-                    "private_files": "Accessible only to conversation participants",
-                },
-            }
-
-        else:
-            return {
-                "status": "error",
-                "error": f"Operation '{operation}' not implemented",
-                "available_operations": [
-                    "list",
-                    "delete",
-                    "share",
-                    "download",
-                    "get_permissions",
-                ],
-                "note": "Zulip API has limited file management capabilities",
-            }
+        return response
 
     except Exception as e:
-        return {"status": "error", "error": str(e), "operation": operation}
+        return internal_error(e)
+
+
+async def get_files(
+    limit: Annotated[int, page_size(500, "files")] = 50,
+    cursor: Cursor = None,
+) -> dict[str, Any]:
+    """List the files you uploaded, newest first, one page at a time."""
+    after: int | None = None
+    if cursor is not None:
+        try:
+            after = int(cursor)
+        except ValueError:
+            return tool_error(
+                "cursor must be the next_cursor of a previous get_files call",
+                "INVALID_CURSOR",
+            )
+    client = get_client()
+    try:
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint("attachments", method="GET", request={})
+        )
+    except Exception as e:
+        return internal_error(e)
+    if result.get("result") != "success":
+        return api_error(result, "Failed to list files")
+    attachments = sorted(
+        result.get("attachments", []), key=lambda a: a.get("id", 0), reverse=True
+    )
+    if after is not None:
+        attachments = [a for a in attachments if a.get("id", 0) < after]
+    page = attachments[:limit]
+    response: dict[str, Any] = {
+        "status": "success",
+        "count": len(page),
+        "total": len(result.get("attachments", [])),
+    }
+    if len(attachments) > len(page):
+        response["next_cursor"] = str(page[-1].get("id"))
+    if "upload_space_used" in result:
+        response["upload_space_used"] = result["upload_space_used"]
+    response["files"] = page
+    return response
+
+
+async def download_file(
+    file_id: FileId,
+    download_path: Annotated[
+        str | None,
+        Field(
+            max_length=4096,
+            description="Write the file here (stdio only). It must resolve inside "
+            "the server's file root and must not exist yet. Omit to get only the "
+            "download URL.",
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """Resolve a Zulip file's download URL, or save the file to a new local path."""
+    client = get_client()
+    try:
+        download_url = await asyncio.to_thread(_resolve_file_url, client, file_id)
+    except ValueError as e:
+        return tool_error(str(e))
+
+    if not download_path:
+        return {
+            "status": "success",
+            "file_id": file_id,
+            "download_url": download_url,
+            "note": "Fetching the URL requires Zulip credentials; pass "
+            "download_path to save the file instead.",
+        }
+    if not local_access_allowed():
+        return tool_error(
+            "Local file paths are disabled over HTTP; omit download_path",
+            "NOT_AVAILABLE",
+        )
+    try:
+        contained_path(download_path)
+    except PathOutsideRoot as error:
+        return _path_refused(error)
+    if os.path.lexists(download_path):
+        return tool_error(
+            f"{download_path} already exists; download_file never overwrites",
+            "ALREADY_EXISTS",
+            hint="Choose a new file name.",
+        )
+    try:
+        import httpx
+
+        _validate_download_url(client, download_url)
+        email, api_key = await asyncio.to_thread(_resolve_download_credentials, client)
+        auth_bytes = b64encode(f"{email}:{api_key}".encode()).decode()
+        headers = {"Authorization": f"Basic {auth_bytes}"}
+
+        async with httpx.AsyncClient(follow_redirects=False, timeout=30) as http:
+            async with http.stream("GET", download_url, headers=headers) as response:
+                response.raise_for_status()
+                content = bytearray()
+                async for chunk in response.aiter_bytes(chunk_size=65536):
+                    if len(content) + len(chunk) > MAX_FILE_SIZE:
+                        raise ValueError(FILE_TOO_LARGE)
+                    content.extend(chunk)
+
+        written = await asyncio.to_thread(
+            _write_new_local_file, download_path, bytes(content)
+        )
+    except PathOutsideRoot as error:
+        return _path_refused(error)
+    except FileExistsError:
+        return tool_error(
+            f"{download_path} already exists; download_file never overwrites",
+            "ALREADY_EXISTS",
+            hint="Choose a new file name.",
+        )
+    except Exception as e:
+        return tool_error(f"Download failed: {e}", "DOWNLOAD_FAILED")
+    return {
+        "status": "success",
+        "file_id": file_id,
+        "download_path": written,
+        "file_size": len(content),
+    }
+
+
+async def share_file(
+    file_id: FileId,
+    stream: ChannelName,
+    topic: Annotated[Topic | None, Field(description="Topic for the post.")] = None,
+) -> dict[str, Any]:
+    """Post a link to an uploaded Zulip file in a channel topic."""
+    client = get_client()
+    try:
+        file_url = await asyncio.to_thread(_resolve_file_url, client, file_id)
+    except ValueError as e:
+        return tool_error(str(e))
+    try:
+        result = await asyncio.to_thread(
+            client.send_message, "stream", stream, f"📎 Shared file: {file_url}", topic
+        )
+    except Exception as e:
+        return internal_error(e)
+    if result.get("result") != "success":
+        return api_error(result, "Failed to share file")
+    return {
+        "status": "success",
+        "file_id": file_id,
+        "shared_in_stream": stream,
+        "shared_in_topic": topic,
+        "message_id": result.get("id"),
+    }
+
+
+async def delete_file(
+    attachment_id: Annotated[
+        int, Field(ge=1, description="Attachment id from get_files.")
+    ],
+) -> dict[str, Any]:
+    """Delete one of your uploaded files from Zulip (requires --unsafe)."""
+    if not is_unsafe_mode():
+        return tool_error(
+            "File deletion requires the server's --unsafe mode", "POLICY_DENIED"
+        )
+    client = get_client()
+    try:
+        result = await asyncio.to_thread(
+            lambda: client.client.call_endpoint(
+                f"attachments/{attachment_id}", method="DELETE", request={}
+            )
+        )
+    except Exception as e:
+        return internal_error(e)
+    if result.get("result") != "success":
+        return api_error(result, "Failed to delete file", recovery_tool="get_files")
+    return {"status": "success", "attachment_id": attachment_id, "deleted": True}
